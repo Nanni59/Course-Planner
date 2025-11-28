@@ -5,10 +5,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const TAB_PREFIX = 'day';
     
     // Define colors for JavaScript use
-    const COLOR_DAY_A = '#3498DB'; // Blue (used for tab switching and CSS class setup)
-    const COLOR_DAY_B = '#ED7D31'; // Orange (used for tab switching and CSS class setup)
-    const COLOR_DEFAULT_GRAY = '#767676'; // Matches --color-text-gray (Placeholder/Empty state)
-    const COLOR_INPUT_TEXT = '#000000'; // Pure Black as requested for user-entered text
+    const COLOR_DAY_A = '#3498DB'; 
+    const COLOR_DAY_B = '#ED7D31'; 
+    const COLOR_DEFAULT_GRAY = '#767676'; 
+    const COLOR_INPUT_TEXT = '#000000'; 
 
     // --- 1. LINK DATA (UNCHANGED) ---
     const GLOBAL_LESSON_TRACKER_URL = 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhwQAEYFawiz6r2M_ir0o/edit?gid=47355610#gid=47355610';
@@ -48,6 +48,59 @@ document.addEventListener('DOMContentLoaded', () => {
             assignment: 'https://docs.google.com/spreadsheets/d/1L7H6FaLGjKv53nMCo0_cT3EyoElE4arn-crZo44wGYk/edit?gid=1839682151#gid=1839682151'
         }
     };
+    
+    // --- NEW: YouTube Detection Logic (FIXED) ---
+    function getYouTubeEmbed(url) {
+      // Regex to match video ID from various standard URLs
+      const reg = /(?:youtube\.com\/(?:watch\?v=|v\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]+)/;
+      const match = url.match(reg);
+
+      if (match) {
+          const videoId = match[1];
+          // FIX 1: Add the 'origin' parameter dynamically to satisfy YouTube's strict embed requirements.
+          const origin = window.location.origin;
+          return `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&origin=${origin}`;
+      }
+      return null;
+    }
+
+    // --- NEW: Embed/Link Rendering Logic (FIXED) ---
+    function renderEmbed(courseCardElement, url) {
+        const embedContainer = courseCardElement.querySelector('.course-embed-container');
+        const trimmedUrl = url ? url.trim() : '';
+
+        embedContainer.innerHTML = '';
+        
+        if (trimmedUrl === '') {
+            embedContainer.style.display = 'none';
+            return;
+        }
+        
+        const embedUrl = getYouTubeEmbed(trimmedUrl);
+        
+        if (embedUrl) {
+            // FIX 2: Add referrerpolicy="strict-origin-when-cross-origin" to the iframe
+            // This prevents the browser from blocking the necessary referrer information.
+            embedContainer.innerHTML = `
+                <div class="video-embed-wrapper">
+                    <iframe 
+                        src="${embedUrl}" 
+                        title="YouTube video player"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                        referrerpolicy="strict-origin-when-cross-origin" 
+                        allowfullscreen>
+                    </iframe>
+                </div>
+            `;
+        } else {
+            // Render simple hyperlink
+            const displayUrl = trimmedUrl.startsWith('http') ? trimmedUrl : `http://${trimmedUrl}`;
+            embedContainer.innerHTML = `<a href="${displayUrl}" target="_blank" rel="noopener noreferrer">${trimmedUrl}</a>`;
+        }
+        
+        embedContainer.style.display = 'block';
+    }
     
     // --- Centralized function to manage all day-switching logic (UNCHANGED) ---
     function switchDay(dayLetter) {
@@ -128,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.open(GLOBAL_ASSIGNMENT_TRACKER_URL, '_blank');
     });
 
-    // --- 4. Checkmark Click Logic (UNCHANGED) ---
+    // --- 4. Checkmark Click Logic & Link Change (UNCHANGED) ---
     document.body.addEventListener('change', (event) => {
         if (event.target.classList.contains('task-checkbox') && event.target.checked) {
             const listItem = event.target.closest('li');
@@ -144,6 +197,12 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                  console.log(`Checkbox clicked for ${courseTitle}, but no specific links found.`);
             }
+        }
+        
+        // Link input change detection (Use 'change' for blur/enter to detect link entry)
+        if (event.target.classList.contains('task-link')) {
+             const courseCard = event.target.closest('.course-card');
+             renderEmbed(courseCard, event.target.value);
         }
     });
 
@@ -167,6 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: li.querySelector('.task-name').value,
                 notes: li.querySelector('.task-notes').value, 
                 checked: li.querySelector('.task-checkbox').checked,
+                link: li.querySelector('.task-link').value, 
             };
             tasks[courseTitle] = task;
         });
@@ -174,13 +234,13 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(`${dayId}_data`, JSON.stringify(tasks));
     }
 
-    // --- 6. Load Logic (MODIFIED: Calls autoSelectDay) ---
+    // --- 6. Load Logic (UNCHANGED) ---
     function loadData() {
         loadDay('dayA');
         loadDay('dayB');
         
         // Apply text color based on loaded data values
-        document.querySelectorAll('.task-list select, .task-list input[type="text"], .task-list textarea').forEach(field => {
+        document.querySelectorAll('.task-list select, .task-list input[type="text"], .task-list textarea, .task-link').forEach(field => {
              applyThemeColor(field);
         });
 
@@ -202,13 +262,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.querySelector('.task-type').value = task.type;
                 li.querySelector('.task-name').value = task.name;
                 li.querySelector('.task-checkbox').checked = task.checked;
-
                 li.querySelector('.task-notes').value = task.notes;
+                
+                // Load link and render embed
+                const linkInput = li.querySelector('.task-link');
+                linkInput.value = task.link || '';
+                renderEmbed(card, linkInput.value); 
             }
         });
     }
 
-    // --- 7. Reset Logic (MODIFIED: Clears saved preference) ---
+    // --- 7. Reset Logic (UNCHANGED) ---
     document.getElementById('resetBtn').addEventListener('click', () => {
         const activeTab = document.querySelector('.tab-content.active');
         const dayId = activeTab.id;
@@ -217,15 +281,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm(`Are you sure you want to reset all fields for ${dayId.toUpperCase()}?`)) {
             localStorage.removeItem(`${dayId}_data`);
             
-            // Clear the saved preference if the active tab is being reset
             if (localStorage.getItem('selectedDay') === dayLetter) {
                 localStorage.removeItem('selectedDay');
             }
             
-            activeTab.querySelectorAll('.task-list li').forEach(li => {
+            activeTab.querySelectorAll('.course-card').forEach(card => {
+                const li = card.querySelector('.task-list li');
+                
                 const type = li.querySelector('.task-type');
                 const name = li.querySelector('.task-name');
                 const notes = li.querySelector('.task-notes');
+                const link = li.querySelector('.task-link'); 
+                const embedArea = card.querySelector('.course-embed-container'); 
                 
                 type.selectedIndex = 0;
                 name.value = '';
@@ -234,31 +301,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Reset text colors to default gray
                 type.style.color = COLOR_DEFAULT_GRAY;
                 name.style.color = COLOR_DEFAULT_GRAY;
-
-                // Reset textarea value, color and height
+                
+                // Reset notes
                 notes.value = '';
                 notes.style.color = COLOR_DEFAULT_GRAY;
                 notes.style.height = '38px'; 
+
+                // Reset link and embed
+                link.value = '';
+                link.style.color = COLOR_DEFAULT_GRAY;
+                embedArea.innerHTML = '';
+                embedArea.style.display = 'none';
+
             });
             alert(`${dayId.toUpperCase()} has been reset.`);
         }
     });
 
-    // --- NEW: Function to apply theme color to a field (MODIFIED for Pure Black) ---
+    // --- Function to apply theme color to a field (UNCHANGED) ---
     function applyThemeColor(field) {
-        // Check if the field has user-entered content (value is not empty AND not equal to placeholder text if applicable)
         const hasValue = field.value !== '' && field.value !== field.getAttribute('placeholder');
         
-        // Use Pure Black when there is a value, otherwise use default gray
         if (hasValue) {
-            field.style.color = COLOR_INPUT_TEXT; // Set to Pure Black
+            field.style.color = COLOR_INPUT_TEXT; 
         } else {
-            // Revert to default gray for empty state/placeholder
             field.style.color = COLOR_DEFAULT_GRAY; 
         }
     }
     
-    // --- 8. Auto-resize Textarea & Apply Color on Input (MODIFIED) ---
+    // --- 8. Auto-resize Textarea & Apply Color on Input (UNCHANGED) ---
     document.body.addEventListener('input', (event) => {
         const target = event.target;
         
@@ -271,7 +342,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. Apply Color Logic
         if (target.classList.contains('task-type') || 
             target.classList.contains('task-name') || 
-            target.classList.contains('task-notes')) {
+            target.classList.contains('task-notes') ||
+            target.classList.contains('task-link')) { 
             
             applyThemeColor(target);
         }

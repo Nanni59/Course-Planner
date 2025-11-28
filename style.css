@@ -8,11 +8,11 @@
 :root {
     /* New Day A Colors (Blue) */
     --color-day-a: #3498DB; 
-    --color-day-a-tint: #FAFDFE; /* 2.5% Blue Opacity */
+    --color-day-a-tint: #FAFDFE; 
 
     /* New Day B Colors (Orange) */
     --color-day-b: #ED7D31;
-    --color-day-b-tint: #FFFCFA; /* 2.5% Orange Opacity */
+    --color-day-b-tint: #FFFCFA; 
 
     /* New Global Colors */
     --color-text-gray: #767676;
@@ -133,13 +133,15 @@ h1 {
     align-items: center;
 }
 
-.task-notes-row {
+.task-notes-row,
+.link-input-row { /* NEW: Style for Link Input Row */
     margin-top: 10px;
 }
 
 .task-list select,
 .task-list input[type="text"],
-.task-list textarea {
+.task-list textarea,
+.task-link { /* NEW: Added .task-link to inherit standard input styles */
     font-family: 'Montserrat', sans-serif;
     color: var(--color-text-gray); 
     font-size: 14px;
@@ -155,12 +157,13 @@ h1 {
      font-weight: 600; 
 }
 
-.task-list input[type="text"] {
+.task-list input[type="text"],
+.task-link {
     font-weight: 500; 
 }
 
 .task-list textarea {
-    font-weight: 400; /* Regular */
+    font-weight: 400; 
     resize: none;
     overflow: hidden;
     min-height: 38px;
@@ -191,7 +194,42 @@ h1 {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3E%3C/svg%3E");
 }
 
-/* --- Footer & Buttons (MODIFIED: Button Style) --- */
+/* --- NEW: Embed/Link Display Area Styling --- */
+.course-embed-container {
+    margin-top: 15px; /* Spacing below the link input */
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05); /* Subtle separator */
+    display: none; /* Hidden by default */
+}
+
+.video-embed-wrapper {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    height: 0;
+    overflow: hidden;
+    border-radius: 25px; /* Match course card radius */
+    transform: translateZ(0); /* Fix for overflow:hidden on iOS */
+}
+
+.video-embed-wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.course-embed-container a {
+    display: block;
+    padding: 5px 0;
+    color: #000000; /* Pure black text for link */
+    font-weight: 500;
+    text-decoration: underline;
+    word-wrap: break-word;
+}
+
+/* --- Footer & Buttons --- */
 .main-footer {
     position: fixed;
     bottom: 0;
@@ -222,11 +260,9 @@ h1 {
     background-color: #ffffff;
     flex-shrink: 0; 
     
-    /* ********** START OF FIX ********** */
     border: 1px solid; 
     padding: 8px 16px;
-    border-radius: 12px; /* Rounded shape */
-    /* ********** END OF FIX ********** */
+    border-radius: 12px; 
 
     transition: all 0.2s ease;
 }
