@@ -22,7 +22,7 @@
 body {
     font-family: 'Montserrat', sans-serif;
     background-color: #f4f7f6;
-    color: #333;
+    color: #333; /* Main body text color */
     line-height: 1.6;
 }
 
@@ -124,6 +124,9 @@ h1 {
 
 .task-list li {
     margin-bottom: 0; 
+    padding: 5px 0; 
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
 }
 
 .task-main {
@@ -134,14 +137,14 @@ h1 {
 }
 
 .task-notes-row,
-.link-input-row { /* NEW: Style for Link Input Row */
+.link-input-row { 
     margin-top: 10px;
 }
 
 .task-list select,
 .task-list input[type="text"],
 .task-list textarea,
-.task-link { /* NEW: Added .task-link to inherit standard input styles */
+.task-link { 
     font-family: 'Montserrat', sans-serif;
     color: var(--color-text-gray); 
     font-size: 14px;
@@ -157,9 +160,19 @@ h1 {
      font-weight: 600; 
 }
 
-.task-list input[type="text"],
-.task-link {
+.task-list input[type="text"] {
     font-weight: 500; 
+}
+
+/* Specific Link Input Font Size (Value) */
+.task-link {
+    font-size: 13px; 
+}
+
+/* Specific Link Input Font Size (Placeholder) */
+.task-link::placeholder {
+    font-size: 13px; 
+    opacity: 0.9;
 }
 
 .task-list textarea {
@@ -168,6 +181,16 @@ h1 {
     overflow: hidden;
     min-height: 38px;
 }
+
+/* Hover effect for all input fields */
+.task-list select:hover,
+.task-list input[type="text"]:hover,
+.task-list textarea:hover,
+.task-link:hover {
+    border-color: var(--active-color); 
+    box-shadow: 0 0 0 1px var(--active-color);
+}
+
 
 /* --- Checkbox --- */
 .task-list input[type="checkbox"] {
@@ -187,6 +210,12 @@ h1 {
     background-size: 60%;
 }
 
+/* NEW: Checkbox Hover Effect */
+.task-list input[type="checkbox"]:hover {
+    border-color: var(--active-color);
+    box-shadow: 0 0 0 1px var(--active-color);
+}
+
 .task-list input[type="checkbox"]:checked {
     background-color: #ffffff; 
     border-color: var(--active-color); 
@@ -194,21 +223,22 @@ h1 {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3E%3C/svg%3E");
 }
 
-/* --- NEW: Embed/Link Display Area Styling --- */
+
+/* --- Embed/Link Display Area Styling --- */
 .course-embed-container {
-    margin-top: 15px; /* Spacing below the link input */
+    margin-top: 15px; 
     padding-top: 10px;
-    border-top: 1px solid rgba(0, 0, 0, 0.05); /* Subtle separator */
-    display: none; /* Hidden by default */
+    border-top: 1px solid rgba(0, 0, 0, 0.05); 
+    display: none; 
 }
 
 .video-embed-wrapper {
     position: relative;
-    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    padding-bottom: 56.25%; 
     height: 0;
     overflow: hidden;
-    border-radius: 25px; /* Match course card radius */
-    transform: translateZ(0); /* Fix for overflow:hidden on iOS */
+    border-radius: 12px; 
+    transform: translateZ(0); 
 }
 
 .video-embed-wrapper iframe {
@@ -223,9 +253,9 @@ h1 {
 .course-embed-container a {
     display: block;
     padding: 5px 0;
-    color: #000000; /* Pure black text for link */
-    font-weight: 500;
-    text-decoration: underline;
+    color: var(--active-color); 
+    font-weight: 600;
+    text-decoration: none; 
     word-wrap: break-word;
 }
 
@@ -281,4 +311,10 @@ h1 {
 #saveBtn, #resetBtn {
     color: var(--active-color);
     border-color: var(--active-color);
+}
+
+/* Save Confirmation State for UX Feedback */
+#saveBtn.saved-state {
+    color: var(--color-button-green);
+    border-color: var(--color-button-green);
 }

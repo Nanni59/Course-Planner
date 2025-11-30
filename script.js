@@ -1,14 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
+    
+    // --- New: Select main content area for focused event listening ---
+    const mainContent = document.getElementById('mainContent');
 
     const tabLinks = document.querySelectorAll('.tab-link');
     const tabContents = document.querySelectorAll('.tab-content');
     const TAB_PREFIX = 'day';
     
-    // Define colors for JavaScript use
-    const COLOR_DAY_A = '#3498DB'; 
-    const COLOR_DAY_B = '#ED7D31'; 
+    // Define colors for JavaScript use (Simplified/Cleaned up)
+    // Using main text color (#333, matching style.css body) for populated input, 
+    // and default gray for placeholder/empty state text.
     const COLOR_DEFAULT_GRAY = '#767676'; 
-    const COLOR_INPUT_TEXT = '#000000'; 
+    const COLOR_INPUT_TEXT = '#333'; // Using main body text color for consistency
 
     // --- 1. LINK DATA (UNCHANGED) ---
     const GLOBAL_LESSON_TRACKER_URL = 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhwQAEYFawiz6r2M_ir0o/edit?gid=47355610#gid=47355610';
@@ -16,40 +19,40 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const COURSE_LINKS = {
         "Advanced Functions": {
-            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhwQAEYFawiz6r2M_ir0o/edit?gid=524634716#gid=524634716',
+            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhpQAEYFawiz6r2M_ir0o/edit?gid=524634716#gid=524634716',
             assignment: 'https://docs.google.com/spreadsheets/d/1L7H6FaLGjKv53nMCo0_cT3EyoElE4arn-crZo44wGYk/edit?gid=1584333864#gid=1584333864'
         },
         "Data Management": {
-            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhwQAEYFawiz6r2M_ir0o/edit?gid=756647164#gid=756647164',
+            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhpQAEYFawiz6r2M_ir0o/edit?gid=756647164#gid=756647164',
             assignment: 'https://docs.google.com/spreadsheets/d/1L7H6FaLGjKv53nMCo0_cT3EyoElE4arn-crZo44wGYk/edit?gid=2097293087#gid=2097293087'
         },
         "English": {
-            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhwQAEYFawiz6r2M_ir0o/edit?gid=155620470#gid=155620470',
+            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhpQAEYFawiz6r2M_ir0o/edit?gid=155620470#gid=155620470',
             assignment: 'https://docs.google.com/spreadsheets/d/1L7H6FaLGjKv53nMCo0_cT3EyoElE4arn-crZo44wGYk/edit?gid=1948787438#gid=1948787438'
         },
         "Economics": {
-            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhwQAEYFawiz6r2M_ir0o/edit?gid=1181486106#gid=1181486106',
+            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhpQAEYFawiz6r2M_ir0o/edit?gid=1181486106#gid=1181486106',
             assignment: 'https://docs.google.com/spreadsheets/d/1L7H6FaLGjKv53nMCo0_cT3EyoElE4arn-crZo44wGYk/edit?gid=2091446936#gid=2091446936'
         },
         "Media Arts": {
-            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhwQAEYFawiz6r2M_ir0o/edit?gid=90285435#gid=90285435',
+            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhpQAEYFawiz6r2M_ir0o/edit?gid=90285435#gid=90285435',
             assignment: 'https://docs.google.com/spreadsheets/d/1L7H6FaLGjKv53nMCo0_cT3EyoElE4arn-crZo44wGYk/edit?gid=1879824067#gid=1879824067'
         },
         "Business Leadership": {
-            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhwQAEYFawiz6r2M_ir0o/edit?gid=1178426117#gid=1178426117',
+            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhpQAEYFawiz6r2M_ir0o/edit?gid=1178426117#gid=1178426117',
             assignment: 'https://docs.google.com/spreadsheets/d/1L7H6FaLGjKv53nMCo0_cT3EyoElE4arn-crZo44wGYk/edit?gid=111048989#gid=111048989'
         },
         "Challenge & Change": {
-            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhwQAEYFawiz6r2M_ir0o/edit?gid=1855309413#gid=1855309413',
+            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhpQAEYFawiz6r2M_ir0o/edit?gid=1855309413#gid=1855309413',
             assignment: 'https://docs.google.com/spreadsheets/d/1L7H6FaLGjKv53nMCo0_cT3EyoElE4arn-crZo44wGYk/edit?gid=1643643502#gid=1643643502'
         },
         "Ontario Literacy Course": {
-            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhwQAEYFawiz6r2M_ir0o/edit?gid=2113032239#gid=2113032239',
+            lesson: 'https://docs.google.com/spreadsheets/d/1cIZHqJn9-RVVq-zWeM-oYsnhpQAEYFawiz6r2M_ir0o/edit?gid=2113032239#gid=2113032239',
             assignment: 'https://docs.google.com/spreadsheets/d/1L7H6FaLGjKv53nMCo0_cT3EyoElE4arn-crZo44wGYk/edit?gid=1839682151#gid=1839682151'
         }
     };
     
-    // --- NEW: YouTube Detection Logic (FIXED) ---
+    // --- YouTube Detection Logic (UNCHANGED) ---
     function getYouTubeEmbed(url) {
       // Regex to match video ID from various standard URLs
       const reg = /(?:youtube\.com\/(?:watch\?v=|v\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]+)/;
@@ -64,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return null;
     }
 
-    // --- NEW: Embed/Link Rendering Logic (FIXED) ---
+    // --- Embed/Link Rendering Logic (UNCHANGED) ---
     function renderEmbed(courseCardElement, url) {
         const embedContainer = courseCardElement.querySelector('.course-embed-container');
         const trimmedUrl = url ? url.trim() : '';
@@ -181,8 +184,8 @@ document.addEventListener('DOMContentLoaded', () => {
         window.open(GLOBAL_ASSIGNMENT_TRACKER_URL, '_blank');
     });
 
-    // --- 4. Checkmark Click Logic & Link Change (UNCHANGED) ---
-    document.body.addEventListener('change', (event) => {
+    // --- 4. Checkmark Click Logic & Link Change (FIXED SCOPE) ---
+    mainContent.addEventListener('change', (event) => { // Using mainContent scope
         if (event.target.classList.contains('task-checkbox') && event.target.checked) {
             const listItem = event.target.closest('li');
             const courseCard = listItem.closest('.course-card');
@@ -210,7 +213,24 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('saveBtn').addEventListener('click', () => {
         saveData('dayA');
         saveData('dayB');
-        alert('Planner saved!');
+        
+        // UX Improvement: Non-blocking save feedback
+        const saveBtn = document.getElementById('saveBtn');
+        const originalText = saveBtn.textContent;
+        
+        // NOTE: We don't save color/border here because we want it to revert to the CSS theme
+        
+        // 1. Change button appearance for feedback
+        saveBtn.textContent = 'Saved!';
+        saveBtn.classList.add('saved-state'); // CSS handles the temporary color change
+        saveBtn.disabled = true;
+
+        // 2. Revert after 2 seconds
+        setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.classList.remove('saved-state');
+            saveBtn.disabled = false;
+        }, 2000);
     });
 
     function saveData(dayId) {
@@ -272,13 +292,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 7. Reset Logic (UNCHANGED) ---
+    // --- 7. Reset Logic (FIXED DAY LABEL) ---
     document.getElementById('resetBtn').addEventListener('click', () => {
         const activeTab = document.querySelector('.tab-content.active');
         const dayId = activeTab.id;
         const dayLetter = dayId.slice(-1);
+        
+        // FIX: Correctly format the day label for the prompt (e.g., 'dayA' -> 'Day A')
+        const formattedDay = dayId.charAt(0).toUpperCase() + dayId.slice(1).replace('y', 'y ');
 
-        if (confirm(`Are you sure you want to reset all fields for ${dayId.toUpperCase()}?`)) {
+        if (confirm(`Are you sure you want to reset all fields for ${formattedDay}?`)) {
             localStorage.removeItem(`${dayId}_data`);
             
             if (localStorage.getItem('selectedDay') === dayLetter) {
@@ -314,23 +337,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 embedArea.style.display = 'none';
 
             });
-            alert(`${dayId.toUpperCase()} has been reset.`);
+            alert(`${formattedDay} has been reset.`);
         }
     });
 
-    // --- Function to apply theme color to a field (UNCHANGED) ---
+    // --- Function to apply theme color to a field (FIXED COLOR VARIABLE) ---
     function applyThemeColor(field) {
         const hasValue = field.value !== '' && field.value !== field.getAttribute('placeholder');
         
         if (hasValue) {
-            field.style.color = COLOR_INPUT_TEXT; 
+            field.style.color = COLOR_INPUT_TEXT; // Now '#333'
         } else {
             field.style.color = COLOR_DEFAULT_GRAY; 
         }
     }
     
-    // --- 8. Auto-resize Textarea & Apply Color on Input (UNCHANGED) ---
-    document.body.addEventListener('input', (event) => {
+    // --- 8. Auto-resize Textarea & Apply Color on Input (FIXED SCOPE) ---
+    mainContent.addEventListener('input', (event) => { // Using mainContent scope
         const target = event.target;
         
         // 1. Textarea Resize Logic
