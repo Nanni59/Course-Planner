@@ -631,10 +631,10 @@
                             </div>
                             
                             <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
+                                <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                             </div>
                             <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
+                                <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                             </div>
                         </li>
                     </ul>
@@ -666,10 +666,10 @@
                             </div>
                             
                             <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
+                                <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                             </div>
                             <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
+                                <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                             </div>
                         </li>
                     </ul>
@@ -701,10 +701,10 @@
                             </div>
                             
                             <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
+                                <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                             </div>
                             <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
+                                <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                             </div>
                         </li>
                     </ul>
@@ -736,10 +736,10 @@
                             </div>
                             
                             <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
+                                <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                             </div>
                             <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
+                                <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                             </div>
                         </li>
                     </ul>
@@ -771,10 +771,10 @@
                             </div>
                             
                             <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
+                                <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                             </div>
                             <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
+                                <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                             </div>
                         </li>
                     </ul>
@@ -811,10 +811,10 @@
                             </div>
                             
                             <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
+                                <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                             </div>
                             <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
+                                <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                             </div>
                         </li>
                     </ul>
@@ -846,10 +846,10 @@
                             </div>
                             
                             <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
+                                <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                             </div>
                             <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
+                                <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                             </div>
                         </li>
                     </ul>
@@ -881,10 +881,10 @@
                             </div>
                             
                             <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
+                                <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                             </div>
                             <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
+                                <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                             </div>
                         </li>
                     </ul>
@@ -916,10 +916,10 @@
                             </div>
                             
                             <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
+                                <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                             </div>
                             <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
+                                <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                             </div>
                         </li>
                     </ul>
@@ -951,10 +951,10 @@
                             </div>
                             
                             <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
+                                <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                             </div>
                             <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
+                                <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                             </div>
                         </li>
                     </ul>
@@ -1264,7 +1264,7 @@
                 }
             });
             
-            // --- III. Search & Suggestion Logic (UPDATED for fix) ---
+            // --- III. Search & Suggestion Logic (UPDATED to filter by "Not Started") ---
             mainContent.addEventListener('input', (event) => {
                  const target = event.target;
                  
@@ -1281,7 +1281,7 @@
                     applyThemeColor(target);
                  }
                  
-                 // 2. Search Logic (UNCHANGED)
+                 // 2. Search Logic (MODIFIED FILTERING)
                  if (target.classList.contains('task-name')) {
                     
                     const isLesson = target.classList.contains('task-lesson-name');
@@ -1301,8 +1301,11 @@
                     const storageKey = trackerType === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                     const data = JSON.parse(localStorage.getItem(storageKey)) || [];
                     
+                    // MODIFICATION: Filter items to only show those that are 'Not Started'
                     const filteredResults = data.filter(item => 
-                        item.course === courseTitle && item.name.toLowerCase().includes(searchTerm)
+                        item.course === courseTitle && 
+                        item.name.toLowerCase().includes(searchTerm) &&
+                        item.status === 'Not Started' 
                     );
                     
                     if (filteredResults.length > 0) {
