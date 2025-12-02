@@ -313,6 +313,8 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 20px;
+            /* **FIX:** Prevent cards from stretching to match the tallest one */
+            align-items: start; 
         }
 
         .course-card {
@@ -321,7 +323,19 @@
             box-shadow: none; 
             padding: 20px; 
             border: 2px solid var(--active-color);
-            position: relative; /* For search results positioning */
+            position: relative; 
+            
+            /* **FIX:** Removed fixed height and flex layout to allow content-driven height */
+        }
+        
+        /* NEW: Fixed height scrolling area to prevent layout shifting */
+        .course-content-scroll-area {
+            /* **FIX:** Re-introduced max-height to ensure scrolling works when content exceeds this size */
+            max-height: 550px; 
+            overflow-y: auto;  /* Enable vertical scrolling when content exceeds available height */
+            padding-right: 10px; 
+            
+            /* flex-grow removed */
         }
 
         .course-card h3 {
@@ -329,6 +343,7 @@
             color: var(--active-color); 
             margin-bottom: 15px;
             min-height: 20px; 
+            flex-shrink: 0; /* Prevent header from shrinking */
         }
 
         .course-card .course-notes {
@@ -361,6 +376,7 @@
             font-weight: 600; 
             color: var(--active-color); /* Highlight the type */
             align-self: center;
+            flex-shrink: 0;
         }
         
         /* New wrapper for name input and suggestions (1. Search Positioning Fix) */
@@ -463,6 +479,7 @@
             padding-top: 10px;
             border-top: 1px solid rgba(0, 0, 0, 0.05); 
             display: none; 
+            flex-shrink: 0; /* Prevent the embed container from taking up all space */
         }
 
         .video-embed-wrapper {
@@ -608,177 +625,187 @@
             <div class="course-grid">
                 <div class="course-card">
                     <h3>Advanced Functions</h3>
-                    <ul class="task-list">
-                        <li>
-                            <div class="task-main task-lesson-main">
-                                <div class="task-type-label">Lesson:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
-                                    <ul class="search-suggestions task-lesson-suggestions"></ul>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                            </div>
-                            
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                                
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-                            <div class="task-main task-assignment-main">
-                                <div class="task-type-label">Assignment:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
-                                    <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                            </div>
-                            
-                            <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
-                            </div>
-                            <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
-                            </div>
-                        </li>
-                    </ul>
-                    <div class="course-embed-container"></div>
+                                
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-input-row">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
                 </div>
 
                 <div class="course-card">
                     <h3>Data Management</h3>
-                    <ul class="task-list">
-                        <li>
-                            <div class="task-main task-lesson-main">
-                                <div class="task-type-label">Lesson:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
-                                    <ul class="search-suggestions task-lesson-suggestions"></ul>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                            </div>
-                            
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                                
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-                            <div class="task-main task-assignment-main">
-                                <div class="task-type-label">Assignment:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
-                                    <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                            </div>
-                            
-                            <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
-                            </div>
-                            <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
-                            </div>
-                        </li>
-                    </ul>
-                    <div class="course-embed-container"></div>
+                                
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-input-row">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
                 </div>
                 
                 <div class="course-card">
                     <h3>English</h3>
-                    <ul class="task-list">
-                        <li>
-                            <div class="task-main task-lesson-main">
-                                <div class="task-type-label">Lesson:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
-                                    <ul class="search-suggestions task-lesson-suggestions"></ul>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                            </div>
-                            
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                                
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-                            <div class="task-main task-assignment-main">
-                                <div class="task-type-label">Assignment:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
-                                    <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                            </div>
-                            
-                            <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
-                            </div>
-                            <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
-                            </div>
-                        </li>
-                    </ul>
-                    <div class="course-embed-container"></div>
+                                
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-input-row">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
                 </div>
 
                 <div class="course-card">
                     <h3>Economics</h3>
-                    <ul class="task-list">
-                        <li>
-                            <div class="task-main task-lesson-main">
-                                <div class="task-type-label">Lesson:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
-                                    <ul class="search-suggestions task-lesson-suggestions"></ul>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                            </div>
-                            
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                                
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-                            <div class="task-main task-assignment-main">
-                                <div class="task-type-label">Assignment:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
-                                    <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                            </div>
-                            
-                            <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
-                            </div>
-                            <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
-                            </div>
-                        </li>
-                    </ul>
-                    <div class="course-embed-container"></div>
+                                
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-input-row">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
                 </div>
 
                 <div class="course-card">
                     <h3>Media Arts</h3>
-                    <ul class="task-list">
-                        <li>
-                            <div class="task-main task-lesson-main">
-                                <div class="task-type-label">Lesson:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
-                                    <ul class="search-suggestions task-lesson-suggestions"></ul>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                            </div>
-                            
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                                
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-                            <div class="task-main task-assignment-main">
-                                <div class="task-type-label">Assignment:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
-                                    <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                            </div>
-                            
-                            <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
-                            </div>
-                            <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
-                            </div>
-                        </li>
-                    </ul>
-                    <div class="course-embed-container"></div>
+                                
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-input-row">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
                 </div>
 
             </div>
@@ -788,177 +815,187 @@
             <div class="course-grid">
                 <div class="course-card">
                     <h3>Advanced Functions</h3>
-                    <ul class="task-list">
-                        <li>
-                            <div class="task-main task-lesson-main">
-                                <div class="task-type-label">Lesson:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
-                                    <ul class="search-suggestions task-lesson-suggestions"></ul>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                            </div>
-                            
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                                
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-                            <div class="task-main task-assignment-main">
-                                <div class="task-type-label">Assignment:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
-                                    <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                            </div>
-                            
-                            <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
-                            </div>
-                            <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
-                            </div>
-                        </li>
-                    </ul>
-                    <div class="course-embed-container"></div>
+                                
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-input-row">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
                 </div>
 
                 <div class="course-card">
                     <h3>Data Management</h3>
-                    <ul class="task-list">
-                        <li>
-                            <div class="task-main task-lesson-main">
-                                <div class="task-type-label">Lesson:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
-                                    <ul class="search-suggestions task-lesson-suggestions"></ul>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                            </div>
-                            
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                                
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-                            <div class="task-main task-assignment-main">
-                                <div class="task-type-label">Assignment:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
-                                    <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                            </div>
-                            
-                            <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
-                            </div>
-                            <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
-                            </div>
-                        </li>
-                    </ul>
-                    <div class="course-embed-container"></div>
+                                
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-input-row">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
                 </div>
 
                 <div class="course-card">
                     <h3>Business Leadership</h3>
-                    <ul class="task-list">
-                        <li>
-                            <div class="task-main task-lesson-main">
-                                <div class="task-type-label">Lesson:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
-                                    <ul class="search-suggestions task-lesson-suggestions"></ul>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                            </div>
-                            
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                                
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-                            <div class="task-main task-assignment-main">
-                                <div class="task-type-label">Assignment:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
-                                    <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                            </div>
-                            
-                            <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
-                            </div>
-                            <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
-                            </div>
-                        </li>
-                    </ul>
-                    <div class="course-embed-container"></div>
+                                
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-input-row">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
                 </div>
 
                 <div class="course-card">
                     <h3>Challenge & Change</h3>
-                    <ul class="task-list">
-                        <li>
-                            <div class="task-main task-lesson-main">
-                                <div class="task-type-label">Lesson:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
-                                    <ul class="search-suggestions task-lesson-suggestions"></ul>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                            </div>
-                            
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                                
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-                            <div class="task-main task-assignment-main">
-                                <div class="task-type-label">Assignment:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
-                                    <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                            </div>
-                            
-                            <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
-                            </div>
-                            <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
-                            </div>
-                        </li>
-                    </ul>
-                    <div class="course-embed-container"></div>
+                                
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-input-row">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
                 </div>
 
                 <div class="course-card">
                     <h3>Ontario Literacy Course</h3>
-                    <ul class="task-list">
-                        <li>
-                            <div class="task-main task-lesson-main">
-                                <div class="task-type-label">Lesson:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
-                                    <ul class="search-suggestions task-lesson-suggestions"></ul>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                            </div>
-                            
-                            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+                                
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
-                            <div class="task-main task-assignment-main">
-                                <div class="task-type-label">Assignment:</div>
-                                <div class="task-name-wrapper">
-                                    <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
-                                    <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                            </div>
-                            
-                            <div class="task-notes-row">
-                                <textarea class="task-notes" placeholder="Notes"></textarea>
-                            </div>
-                            <div class="link-input-row">
-                                <input type="text" class="task-link" placeholder="Paste link here...">
-                            </div>
-                        </li>
-                    </ul>
-                    <div class="course-embed-container"></div>
+                                
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-input-row">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
                 </div>
 
             </div>
