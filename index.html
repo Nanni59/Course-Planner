@@ -133,12 +133,52 @@
             border-radius: 25px; 
             padding: 20px; 
             border: 2px solid var(--active-color);
+            /* **NEW:** Required for positioning the delete button */
+            position: relative; 
+        }
+        
+        /* **NEW:** Delete Course Card Button */
+        .delete-course-card-btn {
+            position: absolute;
+            top: 15px; /* Aligns with h3 top padding */
+            right: 15px; /* Aligns with card padding */
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #e74c3c; /* Red color */
+            border: none;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1;
+            text-align: center;
+            cursor: pointer;
+            display: none; /* Default to hidden */
+            padding: 0;
+            transition: background-color 0.2s, opacity 0.2s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            font-family: Arial, sans-serif;
+            z-index: 10;
+        }
+
+        .delete-course-card-btn:hover {
+            background-color: #c0392b;
+            opacity: 0.9;
+        }
+
+        /* Class to make the button visible */
+        .delete-course-card-btn.completed {
+            display: flex; /* Use flex to easily center the 'X' */
+            align-items: center;
+            justify-content: center;
         }
         
         .tracker-course-card h3 {
              font-weight: 600; 
             color: var(--active-color); 
             margin-bottom: 15px;
+            /* **NEW:** Ensure text doesn't overlap delete button */
+            padding-right: 40px; 
         }
         
         /* ------------------------------------------------ */
@@ -204,7 +244,7 @@
             word-break: break-word;
         }
 
-        /* Delete Button */
+        /* Delete Button (individual task) */
         .delete-btn {
             padding: 5px 10px;
             background-color: #e74c3c; /* Red color */
@@ -1075,6 +1115,9 @@
             const tabContents = document.querySelectorAll('.tab-content');
             const TAB_PREFIX = 'day';
             
+            // **NEW FEATURE:** State to track unsaved changes
+            let hasUnsavedChanges = false;
+            
             // --- II. Initialization (MODIFIED to remove sample data) ---
             function initializeTrackerData() {
                 // Initialize both tracker keys to an empty array if they do not exist
@@ -1274,6 +1317,8 @@
                 if (target.classList.contains('task-link')) {
                      const courseCard = target.closest('.course-card');
                      renderEmbed(courseCard, target.value);
+                     // **NEW:** Mark as unsaved
+                     hasUnsavedChanges = true; 
                      return;
                 }
                 
@@ -1297,7 +1342,9 @@
                     if (taskNameField && taskNameField.value.trim() !== '') {
                         updateTrackerItemStatusFromCard(courseTitle, taskType, taskNameField.value.trim(), isChecked);
                     }
-                    // The save logic still relies on save button, but the tracker is updated immediately.
+                    
+                    // **NEW:** Mark as unsaved
+                    hasUnsavedChanges = true;
                 }
             });
             
@@ -1316,6 +1363,8 @@
                     target.classList.contains('task-link')) { 
                     
                     applyThemeColor(target);
+                    // **NEW:** Mark as unsaved
+                    hasUnsavedChanges = true; 
                  }
                  
                  // 2. Search Logic (MODIFIED FILTERING)
@@ -1373,10 +1422,13 @@
             });
 
 
-            // --- 5. Save Logic (UNCHANGED) ---
+            // --- 5. Save Logic (UPDATED to reset unsaved flag) ---
             document.getElementById('saveBtn').addEventListener('click', () => {
                 saveData('dayA');
                 saveData('dayB');
+                
+                // **NEW:** Reset unsaved state after a successful save
+                hasUnsavedChanges = false; 
                 
                 const saveBtn = document.getElementById('saveBtn');
                 const originalText = saveBtn.textContent;
@@ -1439,6 +1491,9 @@
                 document.querySelectorAll('.task-list textarea, .task-link').forEach(field => {
                      applyThemeColor(field);
                 });
+
+                // **NEW:** Ensure the state is clean when loading from scratch/localstorage
+                hasUnsavedChanges = false; 
 
                 autoSelectDay(); 
             }
@@ -1528,6 +1583,9 @@
                         });
                         
                         resizeFieldsForActiveDay(dayId); // This will handle the height reset now
+                        
+                        // **NEW:** Reset unsaved changes flag
+                        hasUnsavedChanges = false;
                         
                     } else if (dayId === 'lessonTracker') {
                         localStorage.removeItem(LS_LESSONS_KEY);
@@ -1658,7 +1716,7 @@
                 renderTracker(type); // Re-render the UI
             }
             
-            // Delete Item functionality (New Function)
+            // Delete Item functionality (New Function - individual task)
             function deleteTrackerItem(itemId, type) {
                 if (!confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) {
                     return;
@@ -1669,6 +1727,22 @@
                 
                 // Filter out the item with the matching id
                 data = data.filter(item => item.id != itemId);
+                
+                localStorage.setItem(storageKey, JSON.stringify(data));
+                renderTracker(type); // Re-render the UI
+            }
+            
+            // **NEW FUNCTION:** Delete an entire course from the tracker
+            function deleteTrackerCourse(courseName, type) {
+                if (!confirm(`Are you sure you want to delete ALL completed ${type}s for "${courseName}"? This action cannot be undone.`)) {
+                    return;
+                }
+
+                const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
+                let data = JSON.parse(localStorage.getItem(storageKey)) || [];
+                
+                // Filter out all items belonging to the specified course
+                data = data.filter(item => item.course !== courseName);
                 
                 localStorage.setItem(storageKey, JSON.stringify(data));
                 renderTracker(type); // Re-render the UI
@@ -1685,11 +1759,20 @@
             });
             
             mainContent.addEventListener('click', (event) => {
+                // Individual Task Delete Button
                 if (event.target.classList.contains('delete-btn')) {
                     const button = event.target;
                     const itemId = button.getAttribute('data-id');
                     const trackerType = button.getAttribute('data-type');
                     deleteTrackerItem(itemId, trackerType);
+                }
+                
+                // **NEW:** Course Card Delete Button
+                if (event.target.classList.contains('delete-course-card-btn')) {
+                    const button = event.target;
+                    const courseName = button.getAttribute('data-course');
+                    const trackerType = button.getAttribute('data-type');
+                    deleteTrackerCourse(courseName, trackerType);
                 }
             });
 
@@ -1734,7 +1817,7 @@
                 ctx.fill();
             }
 
-            // Main Tracker Renderer Function (MODIFIED to remove inline centering)
+            // Main Tracker Renderer Function (MODIFIED to include course delete button)
             function renderTracker(type) {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 const contentContainer = document.getElementById(`${type}TrackerContent`);
@@ -1758,13 +1841,27 @@
                     const totalCount = courseData.length;
                     const percentageFinished = totalCount > 0 ? ((finishedCount / totalCount) * 100).toFixed(0) : 0;
 
+                    // NEW: Logic for delete button visibility
+                    const isCompleted = totalCount > 0 && finishedCount === totalCount; 
+                    const completionClass = isCompleted ? 'completed' : '';
+                    const deleteButtonHTML = `
+                        <button 
+                            class="delete-course-card-btn ${completionClass}" 
+                            data-course="${course}" 
+                            data-type="${type}"
+                            title="Delete fully completed course"
+                        >
+                            &times; 
+                        </button>
+                    `;
+
                     const card = document.createElement('div');
                     card.className = 'tracker-course-card';
                     
                     // Header and Summary
                     let cardHTML = `
                         <h3>${course}</h3>
-                        <div class="tracker-summary">
+                        ${deleteButtonHTML} <div class="tracker-summary">
                             ${finishedCount} of ${totalCount} ${type}s finished (${percentageFinished}%)
                         </div>
                         <div class="chart-container">
@@ -1815,6 +1912,28 @@
                     }, 0);
                 });
             }
+            
+            // **NEW FEATURE:** Ctrl+S / Cmd+S Shortcut
+            document.addEventListener('keydown', (event) => {
+                // Check for Ctrl/Cmd + S
+                if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+                    event.preventDefault(); 
+                    
+                    // Trigger the save button click action
+                    document.getElementById('saveBtn').click(); 
+                }
+            });
+
+            // **NEW FEATURE:** Unsaved Changes Window Close Confirmation
+            window.addEventListener('beforeunload', (event) => {
+                if (hasUnsavedChanges) {
+                    // Cancel the event and return a string (required by older browsers)
+                    // Modern browsers ignore the custom string and display a generic message.
+                    event.preventDefault(); 
+                    event.returnValue = "Are you sure you want to leave without saving?";
+                    return "Are you sure you want to leave without saving?";
+                }
+            });
 
             // --- Initial Load ---
             populateCourseDropdowns();
