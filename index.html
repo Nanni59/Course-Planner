@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE Posted HTML>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -121,6 +121,45 @@
         #mainContent {
             padding-bottom: 100px; /* Adjust based on footer height */
         }
+        
+        /* ------------------------------------------------ */
+        /* NEW: Progress Bar Styling */
+        /* ------------------------------------------------ */
+        .progress-bar-container {
+            background-color: #ffffff;
+            padding: 15px 20px;
+            border-radius: 12px;
+            /* **MODIFIED** Change top margin to create space below the add form */
+            margin-top: 25px; 
+            margin-bottom: 25px; 
+            border: 1px solid #ddd;
+            display: none; /* Default to hidden if no data */
+        }
+
+        .progress-bar-label {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--color-tracker-green);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .progress-bar-outer {
+            height: 15px;
+            background-color: #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .progress-bar-inner {
+            height: 100%;
+            background-color: var(--color-tracker-green);
+            width: 0%; /* Will be set by JavaScript */
+            transition: width 0.5s ease;
+        }
+        
+        /* ------------------------------------------------ */
         
         .tracker-grid {
             display: grid;
@@ -279,48 +318,40 @@
             margin: 15px auto 0;
         }
         
-        /* New: Add New Form Styling (Modified for Bulk Paste) */
+        /* New: Add New Form Styling (Simplified to only use bulk section) */
         .add-new-form {
             display: flex; 
-            flex-direction: column; /* Stack the two input sections */
-            gap: 15px; /* Gap between single and bulk sections */
-            margin-bottom: 30px;
+            flex-direction: row; /* Layout fields horizontally */
+            align-items: flex-start; /* Align top for textarea */
+            gap: 10px;
+            margin-bottom: 0; /* Remove bottom margin to keep space clean */
             padding: 15px;
             border: 1px dashed #ccc;
             border-radius: 12px;
             background-color: #fff;
         }
         
-        .add-single-section, .add-bulk-section {
-            display: flex;
-            gap: 10px;
-            align-items: flex-start; /* Align top for textarea */
+        /* Hiding the elements that were removed from HTML */
+        .add-single-section, .form-divider {
+            display: none !important; 
         }
         
-        .add-bulk-section textarea {
+        /* Targeting the main fields */
+        .add-new-form textarea {
             flex-grow: 1;
-            resize: vertical; /* Allow resizing only vertically */
+            resize: vertical; 
             min-height: 80px;
         }
         
-        .add-bulk-section select {
+        .add-new-form select {
             width: 150px; /* Fixed width for course dropdown */
             flex-shrink: 0;
-        }
-        
-        /* Divider style */
-        .form-divider {
-            border-top: 1px solid #ddd;
-            padding-top: 15px;
-            margin-top: 5px;
-            font-weight: 600;
-            color: #555;
         }
         
         .add-new-form input[type="text"], 
         .add-new-form select,
         .add-new-form textarea {
-            flex-grow: 1;
+            /* ... (keep existing styling) */
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 6px;
@@ -1044,42 +1075,26 @@
         <div id="lessonTracker" class="tab-content">
             <h2>Add New Lesson</h2>
             <div class="add-new-form">
-                <div class="add-single-section">
-                    <input type="text" id="newLessonName" placeholder="Lesson Name" required>
-                    <select id="newLessonCourse" required></select>
-                    <button id="addLessonBtn">Add Lesson</button>
-                </div>
-                
-                <div class="form-divider">Or Bulk Paste:</div>
-                
-                <div class="add-bulk-section">
-                    <textarea id="bulkLessonNames" placeholder="Paste multiple lesson names here, one per line..." required></textarea>
-                    <select id="bulkLessonCourse" required></select>
-                    <button id="bulkAddLessonBtn">Bulk Add</button>
-                </div>
+                <textarea id="bulkLessonNames" placeholder="Paste lesson names here, one per line..." required></textarea>
+                <select id="bulkLessonCourse" required></select>
+                <button id="addLessonBtn">Add Lessons</button>
             </div>
             
+            <div id="lessonOverallProgress" class="progress-bar-container"></div>
+
             <div id="lessonTrackerContent" class="tracker-grid">
                 </div>
         </div>
 
         <div id="assignmentTracker" class="tab-content">
              <h2>Add New Assignment</h2>
-            <div class="add-new-form">
-                <div class="add-single-section">
-                    <input type="text" id="newAssignmentName" placeholder="Assignment Name" required>
-                    <select id="newAssignmentCourse" required></select>
-                    <button id="addAssignmentBtn">Add Assignment</button>
-                </div>
-                
-                <div class="form-divider">Or Bulk Paste:</div>
-                
-                <div class="add-bulk-section">
-                    <textarea id="bulkAssignmentNames" placeholder="Paste multiple assignment names here, one per line..." required></textarea>
-                    <select id="bulkAssignmentCourse" required></select>
-                    <button id="bulkAddAssignmentBtn">Bulk Add</button>
-                </div>
+             <div class="add-new-form">
+                <textarea id="bulkAssignmentNames" placeholder="Paste assignment names here, one per line..." required></textarea>
+                <select id="bulkAssignmentCourse" required></select>
+                <button id="addAssignmentBtn">Add Assignments</button>
             </div>
+            
+             <div id="assignmentOverallProgress" class="progress-bar-container"></div>
             
             <div id="assignmentTrackerContent" class="tracker-grid">
                  </div>
@@ -1185,7 +1200,7 @@
                 embedContainer.style.display = 'block';
             }
             
-            // --- Centralized function to manage all day-switching logic (UPDATED for Green Theme) ---
+            // --- Centralized function to manage all day-switching logic (UPDATED for Green Theme and Progress Bar) ---
             function switchDay(dayId) {
                 // 1. Update localStorage for user preference
                 const dayLetter = dayId.startsWith(TAB_PREFIX) ? dayId.slice(-1) : null;
@@ -1212,11 +1227,13 @@
                     document.body.classList.add('tracker-green');
                 }
                 
-                // 4. Handle Tracker Tabs
+                // 4. Handle Tracker Tabs and render progress
                 if (dayId === 'lessonTracker') {
                     renderTracker('lesson');
+                    calculateAndRenderOverallProgress('lesson'); // NEW: Render progress
                 } else if (dayId === 'assignmentTracker') {
                     renderTracker('assignment');
+                    calculateAndRenderOverallProgress('assignment'); // NEW: Render progress
                 }
                 
                 // 5. Resize Textareas (must run after visibility is set)
@@ -1613,14 +1630,44 @@
                     field.style.color = COLOR_DEFAULT_GRAY; 
                 }
             }
+            
+            // --- NEW: Progress Bar Calculation and Rendering ---
+            function calculateAndRenderOverallProgress(type) {
+                const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
+                const data = JSON.parse(localStorage.getItem(storageKey)) || [];
+                
+                const finishedCount = data.filter(item => item.status === 'Finished').length;
+                const totalCount = data.length;
+                const percentageFinished = totalCount > 0 ? (finishedCount / totalCount) * 100 : 0;
+                
+                const container = document.getElementById(`${type}OverallProgress`);
+                
+                if (totalCount === 0) {
+                    container.innerHTML = '';
+                    container.style.display = 'none';
+                    return;
+                }
 
-            // --- IV. New Tracker Logic: Renderer, Add, Toggle, Delete (MODIFIED for centering and color) ---
+                container.style.display = 'block';
+                
+                container.innerHTML = `
+                    <div class="progress-bar-label">
+                        <span>Overall ${type.charAt(0).toUpperCase() + type.slice(1)} Progress</span>
+                        <span>${finishedCount} / ${totalCount} Completed (${percentageFinished.toFixed(0)}%)</span>
+                    </div>
+                    <div class="progress-bar-outer">
+                        <div class="progress-bar-inner" style="width: ${percentageFinished}%"></div>
+                    </div>
+                `;
+            }
+
+
+            // --- IV. Tracker Logic: Renderer, Add, Toggle, Delete (MODIFIED for simplified form) ---
             
             // Populates Course Dropdowns on the new item forms
             function populateCourseDropdowns() {
+                // Only targeting the bulk fields now, which are the main fields
                 const courseSelects = [
-                    document.getElementById('newLessonCourse'), 
-                    document.getElementById('newAssignmentCourse'),
                     document.getElementById('bulkLessonCourse'), 
                     document.getElementById('bulkAssignmentCourse')
                 ];
@@ -1636,50 +1683,31 @@
                 });
             }
             
-            // Add New Item functionality (Modified to handle single and bulk)
-            function addNewItem(type, isBulk = false) {
+            // Add New Item functionality (Simplified to handle only bulk/multi-line paste)
+            function addNewItem(type) {
                 const typeCapitalized = type.charAt(0).toUpperCase() + type.slice(1);
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 
-                let names = [];
-                let course;
+                // The bulk fields are now the main fields
+                const nameTextarea = document.getElementById(`bulk${typeCapitalized}Names`);
+                const courseSelect = document.getElementById(`bulk${typeCapitalized}Course`);
                 
-                if (isBulk) {
-                    const nameTextarea = document.getElementById(`bulk${typeCapitalized}Names`);
-                    const courseSelect = document.getElementById(`bulk${typeCapitalized}Course`);
-                    
-                    names = nameTextarea.value.split('\n').map(name => name.trim()).filter(name => name !== "");
-                    course = courseSelect.value;
-                    
-                    if (names.length === 0 || course === "") {
-                        alert(`Please paste names and select a course for the bulk ${type} addition.`);
-                        return;
-                    }
-                    nameTextarea.value = ''; // Clear textarea after successful bulk paste
-                    courseSelect.selectedIndex = 0; // Reset course select
-                    
-                } else {
-                    const nameInput = document.getElementById(`new${typeCapitalized}Name`);
-                    const courseSelect = document.getElementById(`new${typeCapitalized}Course`);
-                    
-                    const name = nameInput.value.trim();
-                    course = courseSelect.value;
-                    
-                    if (name === "" || course === "") {
-                        alert(`Please enter a name and select a course for the new ${type}.`);
-                        return;
-                    }
-                    
-                    names.push(name);
-                    nameInput.value = '';
-                    courseSelect.selectedIndex = 0;
+                const names = nameTextarea.value.split('\n').map(name => name.trim()).filter(name => name !== "");
+                const course = courseSelect.value;
+                
+                if (names.length === 0 || course === "") {
+                    alert(`Please paste names and select a course for the new ${type} addition.`);
+                    return;
                 }
+                
+                nameTextarea.value = ''; // Clear textarea after successful bulk paste
+                courseSelect.selectedIndex = 0; // Reset course select
                 
                 let data = JSON.parse(localStorage.getItem(storageKey)) || [];
                 
                 names.forEach(name => {
                     const newItem = {
-                        id: Date.now() + Math.random(), // Use random to ensure unique ID in bulk add
+                        id: Date.now() + Math.random(), 
                         name: name,
                         course: course,
                         status: 'Not Started'
@@ -1693,11 +1721,9 @@
                 renderTracker(type);
             }
             
-            // Update event listeners for both single and bulk
-            document.getElementById('addLessonBtn').addEventListener('click', () => addNewItem('lesson', false));
-            document.getElementById('addAssignmentBtn').addEventListener('click', () => addNewItem('assignment', false));
-            document.getElementById('bulkAddLessonBtn').addEventListener('click', () => addNewItem('lesson', true)); 
-            document.getElementById('bulkAddAssignmentBtn').addEventListener('click', () => addNewItem('assignment', true)); 
+            // Update event listeners for the new main buttons (renamed from bulk to main)
+            document.getElementById('addLessonBtn').addEventListener('click', () => addNewItem('lesson'));
+            document.getElementById('addAssignmentBtn').addEventListener('click', () => addNewItem('assignment'));
             
             // Toggle Status functionality (used in tracker tabs)
             function toggleTrackerItemStatus(itemId, type) {
@@ -1714,6 +1740,7 @@
                 
                 localStorage.setItem(storageKey, JSON.stringify(data));
                 renderTracker(type); // Re-render the UI
+                calculateAndRenderOverallProgress(type); // NEW: Update progress bar
             }
             
             // Delete Item functionality (New Function - individual task)
@@ -1730,6 +1757,7 @@
                 
                 localStorage.setItem(storageKey, JSON.stringify(data));
                 renderTracker(type); // Re-render the UI
+                calculateAndRenderOverallProgress(type); // NEW: Update progress bar
             }
             
             // **NEW FUNCTION:** Delete an entire course from the tracker
@@ -1746,6 +1774,7 @@
                 
                 localStorage.setItem(storageKey, JSON.stringify(data));
                 renderTracker(type); // Re-render the UI
+                calculateAndRenderOverallProgress(type); // NEW: Update progress bar
             }
 
             // Attach listeners for Status Toggle (Change) and Delete (Click)
@@ -1817,7 +1846,7 @@
                 ctx.fill();
             }
 
-            // Main Tracker Renderer Function (MODIFIED to include course delete button)
+            // Main Tracker Renderer Function (MODIFIED to include course delete button and overall progress call)
             function renderTracker(type) {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 const contentContainer = document.getElementById(`${type}TrackerContent`);
@@ -1911,6 +1940,9 @@
                         }
                     }, 0);
                 });
+                
+                // NEW: Ensure overall progress is updated after rendering
+                calculateAndRenderOverallProgress(type); 
             }
             
             // **NEW FEATURE:** Ctrl+S / Cmd+S Shortcut
