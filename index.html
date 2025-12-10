@@ -176,7 +176,7 @@
             position: relative; 
         }
         
-        /* **NEW:** Delete Course Card Button */
+        /* **NEW:** Delete Course Card Button (Shared style for both Day A/B and Trackers) */
         .delete-course-card-btn {
             position: absolute;
             top: 15px; /* Aligns with h3 top padding */
@@ -205,7 +205,7 @@
             opacity: 0.9;
         }
 
-        /* Class to make the button visible */
+        /* Class to make the button visible for Day A/B and Tracker */
         .delete-course-card-btn.completed {
             display: flex; /* Use flex to easily center the 'X' */
             align-items: center;
@@ -394,27 +394,24 @@
             box-shadow: none; 
             padding: 20px; 
             border: 2px solid var(--active-color);
-            position: relative; 
+            position: relative; /* REQUIRED for delete button */
             
             /* **FIX:** Removed fixed height and flex layout to allow content-driven height */
         }
         
-        /* NEW: Fixed height scrolling area to prevent layout shifting */
-        .course-content-scroll-area {
-            /* **FIX:** Re-introduced max-height to ensure scrolling works when content exceeds this size */
-            max-height: 550px; 
-            overflow-y: auto;  /* Enable vertical scrolling when content exceeds available height */
-            padding-right: 10px; 
-            
-            /* flex-grow removed */
+        /* NEW: Delete Button on Day A/B Cards */
+        .course-card .delete-course-card-btn {
+            background-color: #e74c3c; /* Red color */
+            color: white;
         }
-
+        
         .course-card h3 {
             font-weight: 600; 
             color: var(--active-color); 
             margin-bottom: 15px;
             min-height: 20px; 
             flex-shrink: 0; /* Prevent header from shrinking */
+            padding-right: 40px; /* Space for X button */
         }
 
         .course-card .course-notes {
@@ -433,6 +430,17 @@
             border-radius: 6px;
             transition: background-color 0.2s ease;
         }
+        
+        /* NEW WRAPPER FOR SCROLLING CONTENT */
+        .course-content-scroll-area {
+            /* **FIX:** Re-introduced max-height to ensure scrolling works when content exceeds this size */
+            max-height: 550px; 
+            overflow-y: auto;  /* Enable vertical scrolling when content exceeds available height */
+            padding-right: 10px; 
+            
+            /* flex-grow removed */
+        }
+
 
         /* Updated Grid for Lesson/Assignment Label + Name + Checkbox */
         .task-main {
@@ -696,6 +704,14 @@
             <div class="course-grid">
                 <div class="course-card">
                     <h3>Advanced Functions</h3>
+                    <button 
+                        class="delete-course-card-btn" 
+                        data-course="Advanced Functions" 
+                        data-day="dayA"
+                        title="Clear all tasks in this card"
+                    >
+                        &times; 
+                    </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
                             <li>
@@ -733,6 +749,14 @@
 
                 <div class="course-card">
                     <h3>Data Management</h3>
+                    <button 
+                        class="delete-course-card-btn" 
+                        data-course="Data Management" 
+                        data-day="dayA"
+                        title="Clear all tasks in this card"
+                    >
+                        &times; 
+                    </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
                             <li>
@@ -770,6 +794,14 @@
                 
                 <div class="course-card">
                     <h3>English</h3>
+                    <button 
+                        class="delete-course-card-btn" 
+                        data-course="English" 
+                        data-day="dayA"
+                        title="Clear all tasks in this card"
+                    >
+                        &times; 
+                    </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
                             <li>
@@ -807,6 +839,14 @@
 
                 <div class="course-card">
                     <h3>Economics</h3>
+                    <button 
+                        class="delete-course-card-btn" 
+                        data-course="Economics" 
+                        data-day="dayA"
+                        title="Clear all tasks in this card"
+                    >
+                        &times; 
+                    </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
                             <li>
@@ -844,6 +884,14 @@
 
                 <div class="course-card">
                     <h3>Media Arts</h3>
+                    <button 
+                        class="delete-course-card-btn" 
+                        data-course="Media Arts" 
+                        data-day="dayA"
+                        title="Clear all tasks in this card"
+                    >
+                        &times; 
+                    </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
                             <li>
@@ -886,6 +934,14 @@
             <div class="course-grid">
                 <div class="course-card">
                     <h3>Advanced Functions</h3>
+                    <button 
+                        class="delete-course-card-btn" 
+                        data-course="Advanced Functions" 
+                        data-day="dayB"
+                        title="Clear all tasks in this card"
+                    >
+                        &times; 
+                    </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
                             <li>
@@ -923,6 +979,14 @@
 
                 <div class="course-card">
                     <h3>Data Management</h3>
+                    <button 
+                        class="delete-course-card-btn" 
+                        data-course="Data Management" 
+                        data-day="dayB"
+                        title="Clear all tasks in this card"
+                    >
+                        &times; 
+                    </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
                             <li>
@@ -960,6 +1024,14 @@
 
                 <div class="course-card">
                     <h3>Business Leadership</h3>
+                    <button 
+                        class="delete-course-card-btn" 
+                        data-course="Business Leadership" 
+                        data-day="dayB"
+                        title="Clear all tasks in this card"
+                    >
+                        &times; 
+                    </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
                             <li>
@@ -997,6 +1069,14 @@
 
                 <div class="course-card">
                     <h3>Challenge & Change</h3>
+                    <button 
+                        class="delete-course-card-btn" 
+                        data-course="Challenge & Change" 
+                        data-day="dayB"
+                        title="Clear all tasks in this card"
+                    >
+                        &times; 
+                    </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
                             <li>
@@ -1034,6 +1114,14 @@
 
                 <div class="course-card">
                     <h3>Ontario Literacy Course</h3>
+                    <button 
+                        class="delete-course-card-btn" 
+                        data-course="Ontario Literacy Course" 
+                        data-day="dayB"
+                        title="Clear all tasks in this card"
+                    >
+                        &times; 
+                    </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
                             <li>
@@ -1265,6 +1353,43 @@
                     }
                 });
             }
+            
+            // **NEW FUNCTION:** Logic to check if a day card is fully completed
+            function updateCardCompletionState(courseCard) {
+                const lessonNameField = courseCard.querySelector('.task-lesson-name');
+                const lessonCheckbox = courseCard.querySelector('.task-lesson-checkbox');
+                const assignmentNameField = courseCard.querySelector('.task-assignment-name');
+                const assignmentCheckbox = courseCard.querySelector('.task-assignment-checkbox');
+                const deleteButton = courseCard.querySelector('.delete-course-card-btn');
+                
+                const hasLesson = lessonNameField.value.trim() !== '';
+                const isLessonChecked = lessonCheckbox.checked;
+                
+                const hasAssignment = assignmentNameField.value.trim() !== '';
+                const isAssignmentChecked = assignmentCheckbox.checked;
+
+                let isCardCompleted = false;
+
+                // Case 1: Only Assignment is present
+                if (!hasLesson && hasAssignment) {
+                    isCardCompleted = isAssignmentChecked;
+                } 
+                // Case 2: Only Lesson is present
+                else if (hasLesson && !hasAssignment) {
+                    isCardCompleted = isLessonChecked;
+                } 
+                // Case 3: Both are present
+                else if (hasLesson && hasAssignment) {
+                    isCardCompleted = isLessonChecked && isAssignmentChecked;
+                }
+                // Case 4: Neither is present (should not show X)
+                else {
+                    isCardCompleted = false;
+                }
+
+                deleteButton.classList.toggle('completed', isCardCompleted);
+            }
+
 
             // --- 2. Tab Switching Logic (MODIFIED for new tabs) ---
             // This now only handles Day A and Day B tabs in the header
@@ -1360,12 +1485,17 @@
                         updateTrackerItemStatusFromCard(courseTitle, taskType, taskNameField.value.trim(), isChecked);
                     }
                     
+                    // **NEW:** Update Day A/B Card Completion State
+                    if (courseCard) {
+                        updateCardCompletionState(courseCard);
+                    }
+                    
                     // **NEW:** Mark as unsaved
                     hasUnsavedChanges = true;
                 }
             });
             
-            // --- III. Search & Suggestion Logic (UPDATED to filter by "Not Started") ---
+            // --- III. Search & Suggestion Logic (UPDATED to filter by "Not Started" and trigger completion check on name input) ---
             mainContent.addEventListener('input', (event) => {
                  const target = event.target;
                  
@@ -1380,6 +1510,12 @@
                     target.classList.contains('task-link')) { 
                     
                     applyThemeColor(target);
+                    // **NEW:** Also check completion state when task names change
+                    const courseCard = target.closest('.course-card');
+                    if (courseCard) {
+                        updateCardCompletionState(courseCard);
+                    }
+                    
                     // **NEW:** Mark as unsaved
                     hasUnsavedChanges = true; 
                  }
@@ -1420,6 +1556,11 @@
                                 target.value = e.target.getAttribute('data-name');
                                 applyThemeColor(target);
                                 resizeFieldsForActiveDay(target.closest('.tab-content').id); // Trigger resize after selection
+                                // **NEW:** Check completion state after selecting a suggestion
+                                const suggestionCourseCard = target.closest('.course-card');
+                                if (suggestionCourseCard) {
+                                    updateCardCompletionState(suggestionCourseCard);
+                                }
                                 suggestionsList.classList.remove('active');
                             });
                             suggestionsList.appendChild(li);
@@ -1437,7 +1578,42 @@
                     });
                 }
             });
+            
+            // **NEW FUNCTION:** Delete/Clear all content from a Day A/B Course Card
+            function deleteDayTaskCard(courseCard) {
+                const li = courseCard.querySelector('.task-list li');
+                
+                // Lesson
+                const lName = li.querySelector('.task-lesson-name');
+                lName.value = '';
+                li.querySelector('.task-lesson-checkbox').checked = false;
+                applyThemeColor(lName);
 
+                // Assignment
+                const aName = li.querySelector('.task-assignment-name');
+                aName.value = '';
+                li.querySelector('.task-assignment-checkbox').checked = false;
+                applyThemeColor(aName);
+                
+                // Notes/Link
+                const notes = li.querySelector('.task-notes');
+                const link = li.querySelector('.task-link'); 
+                const embedArea = courseCard.querySelector('.course-embed-container'); 
+                
+                notes.value = '';
+                applyThemeColor(notes);
+
+                link.value = '';
+                applyThemeColor(link);
+                embedArea.innerHTML = '';
+                embedArea.style.display = 'none';
+                
+                // Reset heights and completion state
+                resizeFieldsForActiveDay(courseCard.closest('.tab-content').id);
+                updateCardCompletionState(courseCard); // Hides the X button
+                
+                hasUnsavedChanges = true; // Mark as unsaved
+            }
 
             // --- 5. Save Logic (UPDATED to reset unsaved flag) ---
             document.getElementById('saveBtn').addEventListener('click', () => {
@@ -1497,7 +1673,7 @@
                 localStorage.setItem(`${dayId}_data`, JSON.stringify(tasks));
             }
 
-            // --- 6. Load Logic (UPDATED to call new resize function) ---
+            // --- 6. Load Logic (UPDATED to call new resize function AND completion check) ---
             function loadData() {
                 initializeTrackerData(); // Initialize/Load Tracker data first
                 
@@ -1508,6 +1684,12 @@
                 document.querySelectorAll('.task-list textarea, .task-link').forEach(field => {
                      applyThemeColor(field);
                 });
+                
+                // **NEW:** Check completion state for all cards after loading data
+                document.querySelectorAll('.course-card').forEach(card => {
+                    updateCardCompletionState(card);
+                });
+
 
                 // **NEW:** Ensure the state is clean when loading from scratch/localstorage
                 hasUnsavedChanges = false; 
@@ -1570,36 +1752,8 @@
                         
                         // Clear the UI fields for Day A/B
                         activeTab.querySelectorAll('.course-card').forEach(card => {
-                            const li = card.querySelector('.task-list li');
-                            
-                            // Lesson
-                            const lName = li.querySelector('.task-lesson-name');
-                            lName.value = '';
-                            li.querySelector('.task-lesson-checkbox').checked = false;
-                            applyThemeColor(lName);
-
-                            // Assignment
-                            const aName = li.querySelector('.task-assignment-name');
-                            aName.value = '';
-                            li.querySelector('.task-assignment-checkbox').checked = false;
-                            applyThemeColor(aName);
-                            
-                            // Notes/Link
-                            const notes = li.querySelector('.task-notes');
-                            const link = li.querySelector('.task-link'); 
-                            const embedArea = card.querySelector('.course-embed-container'); 
-                            
-                            notes.value = '';
-                            applyThemeColor(notes);
-
-                            link.value = '';
-                            applyThemeColor(link);
-                            embedArea.innerHTML = '';
-                            embedArea.style.display = 'none';
-
+                            deleteDayTaskCard(card); // Use the new clear function
                         });
-                        
-                        resizeFieldsForActiveDay(dayId); // This will handle the height reset now
                         
                         // **NEW:** Reset unsaved changes flag
                         hasUnsavedChanges = false;
@@ -1631,7 +1785,7 @@
                 }
             }
             
-            // --- NEW: Progress Bar Calculation and Rendering ---
+            // --- NEW: Progress Bar Calculation and Rendering (UNCHANGED) ---
             function calculateAndRenderOverallProgress(type) {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 const data = JSON.parse(localStorage.getItem(storageKey)) || [];
@@ -1776,32 +1930,48 @@
                 renderTracker(type); // Re-render the UI
                 calculateAndRenderOverallProgress(type); // NEW: Update progress bar
             }
+            
+            // **MODIFIED:** General click handler now also handles the Day A/B clear button
+            mainContent.addEventListener('click', (event) => {
+                const target = event.target;
+                
+                // 1. Individual Task Delete Button (Tracker Tabs)
+                if (target.classList.contains('delete-btn')) {
+                    const itemId = target.getAttribute('data-id');
+                    const trackerType = target.getAttribute('data-type');
+                    deleteTrackerItem(itemId, trackerType);
+                    return;
+                }
+                
+                // 2. **NEW** Day A/B Card Delete Button (Task View)
+                if (target.classList.contains('delete-course-card-btn') && target.hasAttribute('data-day')) {
+                    const courseName = target.getAttribute('data-course');
+                    const dayId = target.getAttribute('data-day');
+                    const courseCard = target.closest('.course-card');
+                    
+                    if (confirm(`Are you sure you want to clear the tasks for "${courseName}" on ${dayId.replace('day', 'Day ')}?`)) {
+                        deleteDayTaskCard(courseCard);
+                    }
+                    return;
+                }
+                
+                // 3. Course Card Delete Button (Tracker Tabs)
+                 if (target.classList.contains('delete-course-card-btn') && !target.hasAttribute('data-day')) {
+                    const courseName = target.getAttribute('data-course');
+                    const trackerType = target.getAttribute('data-type');
+                    deleteTrackerCourse(courseName, trackerType);
+                    return;
+                }
+            });
 
-            // Attach listeners for Status Toggle (Change) and Delete (Click)
+
+            // Attach listeners for Status Toggle (Change)
             mainContent.addEventListener('change', (event) => {
                 if (event.target.classList.contains('tracker-item-checkbox')) {
                     const checkbox = event.target;
                     const itemId = checkbox.getAttribute('data-id');
                     const trackerType = checkbox.getAttribute('data-type');
                     toggleTrackerItemStatus(itemId, trackerType);
-                }
-            });
-            
-            mainContent.addEventListener('click', (event) => {
-                // Individual Task Delete Button
-                if (event.target.classList.contains('delete-btn')) {
-                    const button = event.target;
-                    const itemId = button.getAttribute('data-id');
-                    const trackerType = button.getAttribute('data-type');
-                    deleteTrackerItem(itemId, trackerType);
-                }
-                
-                // **NEW:** Course Card Delete Button
-                if (event.target.classList.contains('delete-course-card-btn')) {
-                    const button = event.target;
-                    const courseName = button.getAttribute('data-course');
-                    const trackerType = button.getAttribute('data-type');
-                    deleteTrackerCourse(courseName, trackerType);
                 }
             });
 
@@ -1873,6 +2043,7 @@
                     // NEW: Logic for delete button visibility
                     const isCompleted = totalCount > 0 && finishedCount === totalCount; 
                     const completionClass = isCompleted ? 'completed' : '';
+                    // NOTE: data-day is NOT added here, as this is the tracker view
                     const deleteButtonHTML = `
                         <button 
                             class="delete-course-card-btn ${completionClass}" 
