@@ -33,6 +33,7 @@
             /* New Global Colors */
             --color-text-gray: #767676;
             --color-button-green: #58A65C;
+            --color-pause-purple: #9B59B6; /* NEW: Purple for Paused State */
         }
 
         body {
@@ -176,6 +177,26 @@
             position: relative; 
         }
         
+        /* NEW: Paused Card Styling */
+        .tracker-course-card.paused {
+            border: 2px dashed var(--color-pause-purple); /* Dashed border for paused state */
+            background-color: rgba(155, 89, 182, 0.05); /* Lighter purple background */
+            opacity: 0.85; 
+        }
+
+        /* **NEW:** Pause Status Badge */
+        .pause-badge {
+            background-color: var(--color-pause-purple);
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-left: 10px;
+            display: inline-block; 
+            vertical-align: middle;
+        }
+
         /* **NEW:** Delete Course Card Button (Shared style for both Day A/B and Trackers) */
         .delete-course-card-btn {
             position: absolute;
@@ -218,6 +239,12 @@
             margin-bottom: 15px;
             /* **NEW:** Ensure text doesn't overlap delete button */
             padding-right: 40px; 
+            display: flex; /* Enable flex for badge alignment */
+            align-items: center;
+        }
+
+        .tracker-course-card.paused h3 {
+            color: var(--color-pause-purple); /* Change H3 color when paused */
         }
         
         /* ------------------------------------------------ */
@@ -688,6 +715,36 @@
             color: var(--color-button-green);
             border-color: var(--color-button-green);
         }
+        
+        /* **NEW:** Custom Context Menu Styling */
+        .context-menu {
+            position: fixed;
+            z-index: 1000;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            padding: 5px 0;
+            min-width: 150px;
+            font-size: 14px;
+        }
+
+        .context-menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            color: #333;
+            transition: background-color 0.1s;
+        }
+
+        .context-menu-item:hover {
+            background-color: var(--active-tint);
+        }
+        
+        /* Specific color for the pause action */
+        .context-menu-item.pause-action {
+            color: var(--color-pause-purple);
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="day-a"> 
@@ -736,10 +793,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                                 </div>
                             </li>
                         </ul>
@@ -781,10 +838,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                                 </div>
                             </li>
                         </ul>
@@ -826,10 +883,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                                 </div>
                             </li>
                         </ul>
@@ -871,10 +928,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                                 </div>
                             </li>
                         </ul>
@@ -916,10 +973,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                                 </div>
                             </li>
                         </ul>
@@ -966,10 +1023,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                                 </div>
                             </li>
                         </ul>
@@ -1011,10 +1068,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                                 </div>
                             </li>
                         </ul>
@@ -1056,10 +1113,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                                 </div>
                             </li>
                         </ul>
@@ -1101,10 +1158,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                                 </div>
                             </li>
                         </ul>
@@ -1146,10 +1203,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes (Applies to both)"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here (Applies to both)...">
                                 </div>
                             </li>
                         </ul>
@@ -1198,12 +1255,17 @@
         <button id="saveBtn">Save</button>
     </footer>
 
+    <div id="trackerContextMenu" class="context-menu" style="display: none;">
+        <div class="context-menu-item" id="pauseUnpauseBtn"></div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             
             // II. Data Persistence & Structure
             const LS_LESSONS_KEY = 'tracker_lessons';
             const LS_ASSIGNMENTS_KEY = 'tracker_assignments';
+            const LS_PAUSED_COURSES_KEY = 'tracker_paused_courses'; // NEW KEY
             const ALL_COURSE_NAMES = [
                 "Advanced Functions", "Data Management", "English", "Economics", "Media Arts",
                 "Business Leadership", "Challenge & Change", "Ontario Literacy Course"
@@ -1230,6 +1292,46 @@
                 
                 if (!localStorage.getItem(LS_ASSIGNMENTS_KEY)) {
                     localStorage.setItem(LS_ASSIGNMENTS_KEY, JSON.stringify([]));
+                }
+                
+                // NEW: Initialize Paused Courses
+                if (!localStorage.getItem(LS_PAUSED_COURSES_KEY)) {
+                    localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify({ lesson: [], assignment: [] }));
+                }
+            }
+
+            // --- Helper to manage paused courses data ---
+            function getPausedCourses() {
+                return JSON.parse(localStorage.getItem(LS_PAUSED_COURSES_KEY) || '{}');
+            }
+
+            // --- Toggle Pause State ---
+            function toggleCoursePauseState(courseName, type) {
+                let pausedCourses = getPausedCourses();
+                
+                // Ensure the top-level type key exists (e.g., 'lesson', 'assignment')
+                if (!pausedCourses[type]) {
+                    pausedCourses[type] = [];
+                }
+
+                const index = pausedCourses[type].indexOf(courseName);
+
+                if (index > -1) {
+                    // Course is paused, unpause it
+                    pausedCourses[type].splice(index, 1);
+                } else {
+                    // Course is not paused, pause it
+                    pausedCourses[type].push(courseName);
+                }
+
+                localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(pausedCourses));
+                
+                // Re-render the active tracker tab
+                const activeTabId = document.querySelector('.tab-content.active')?.id;
+                if (activeTabId === 'lessonTracker' && type === 'lesson') {
+                    renderTracker('lesson');
+                } else if (activeTabId === 'assignmentTracker' && type === 'assignment') {
+                    renderTracker('assignment');
                 }
             }
 
@@ -1760,11 +1862,13 @@
                         
                     } else if (dayId === 'lessonTracker') {
                         localStorage.removeItem(LS_LESSONS_KEY);
+                        localStorage.removeItem(LS_PAUSED_COURSES_KEY); // Also reset pause state
                         initializeTrackerData(); // Initialize to empty array
                         renderTracker('lesson');
                         
                     } else if (dayId === 'assignmentTracker') {
                         localStorage.removeItem(LS_ASSIGNMENTS_KEY);
+                        localStorage.removeItem(LS_PAUSED_COURSES_KEY); // Also reset pause state
                         initializeTrackerData(); // Initialize to empty array
                         renderTracker('assignment');
                     }
@@ -1785,18 +1889,22 @@
                 }
             }
             
-            // --- NEW: Progress Bar Calculation and Rendering (UNCHANGED) ---
+            // --- NEW: Progress Bar Calculation and Rendering (MODIFIED to ignore paused courses) ---
             function calculateAndRenderOverallProgress(type) {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 const data = JSON.parse(localStorage.getItem(storageKey)) || [];
+                const pausedCourses = getPausedCourses()[type] || []; // Get paused list for this type
                 
-                const finishedCount = data.filter(item => item.status === 'Finished').length;
-                const totalCount = data.length;
+                // MODIFICATION: Filter out items whose course is in the pausedCourses list
+                const activeData = data.filter(item => !pausedCourses.includes(item.course)); 
+                
+                const finishedCount = activeData.filter(item => item.status === 'Finished').length;
+                const totalCount = activeData.length; // Total is now only for active courses
                 const percentageFinished = totalCount > 0 ? (finishedCount / totalCount) * 100 : 0;
                 
                 const container = document.getElementById(`${type}OverallProgress`);
                 
-                if (totalCount === 0) {
+                if (totalCount === 0) { // Check totalCount from activeData
                     container.innerHTML = '';
                     container.style.display = 'none';
                     return;
@@ -1806,7 +1914,7 @@
                 
                 container.innerHTML = `
                     <div class="progress-bar-label">
-                        <span>Overall ${type.charAt(0).toUpperCase() + type.slice(1)} Progress</span>
+                        <span>Overall Active ${type.charAt(0).toUpperCase() + type.slice(1)} Progress</span>
                         <span>${finishedCount} / ${totalCount} Completed (${percentageFinished.toFixed(0)}%)</span>
                     </div>
                     <div class="progress-bar-outer">
@@ -1916,7 +2024,7 @@
             
             // **NEW FUNCTION:** Delete an entire course from the tracker
             function deleteTrackerCourse(courseName, type) {
-                if (!confirm(`Are you sure you want to delete ALL completed ${type}s for "${courseName}"? This action cannot be undone.`)) {
+                if (!confirm(`Are you sure you want to delete ALL tasks for "${courseName}" from the ${type} tracker? This action cannot be undone.`)) {
                     return;
                 }
 
@@ -1926,6 +2034,11 @@
                 // Filter out all items belonging to the specified course
                 data = data.filter(item => item.course !== courseName);
                 
+                // Also remove from paused state if it was paused
+                let pausedCourses = getPausedCourses();
+                pausedCourses[type] = (pausedCourses[type] || []).filter(c => c !== courseName);
+                localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(pausedCourses));
+
                 localStorage.setItem(storageKey, JSON.stringify(data));
                 renderTracker(type); // Re-render the UI
                 calculateAndRenderOverallProgress(type); // NEW: Update progress bar
@@ -1955,7 +2068,7 @@
                     return;
                 }
                 
-                // 3. Course Card Delete Button (Tracker Tabs)
+                // 3. Course Card Delete Button (Tracker Tabs - deletes all tasks for the course)
                  if (target.classList.contains('delete-course-card-btn') && !target.hasAttribute('data-day')) {
                     const courseName = target.getAttribute('data-course');
                     const trackerType = target.getAttribute('data-type');
@@ -1984,7 +2097,7 @@
                 const centerY = canvas.height / 2;
                 const radius = Math.min(centerX, centerY) * 0.9;
                 
-                const PIE_RED_COLOR = '#EA4335'; // New Red Color for 'Not Started' status
+                const PIE_RED_COLOR = '#EA4335'; // Red Color for 'Not Started' status
 
                 // Clear the canvas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -2016,11 +2129,12 @@
                 ctx.fill();
             }
 
-            // Main Tracker Renderer Function (MODIFIED to include course delete button and overall progress call)
+            // Main Tracker Renderer Function (MODIFIED for pause status and progress calc)
             function renderTracker(type) {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 const contentContainer = document.getElementById(`${type}TrackerContent`);
                 const data = JSON.parse(localStorage.getItem(storageKey)) || [];
+                const pausedCourses = getPausedCourses()[type] || []; // NEW: Get paused list
                 
                 contentContainer.innerHTML = '';
                 
@@ -2035,34 +2149,55 @@
                     const courseData = dataByCourse[course];
                     if (courseData.length === 0) return;
 
-                    const finishedCount = courseData.filter(item => item.status === 'Finished').length;
-                    const notStartedCount = courseData.length - finishedCount;
-                    const totalCount = courseData.length;
-                    const percentageFinished = totalCount > 0 ? ((finishedCount / totalCount) * 100).toFixed(0) : 0;
+                    // NEW: Determine Pause State
+                    const isPaused = pausedCourses.includes(course);
+                    const pausedClass = isPaused ? 'paused' : '';
+                    const pauseBadgeHTML = isPaused ? `<span class="pause-badge">PAUSED</span>` : '';
+                    
+                    // Filter data for active items (paused courses have 0 active items)
+                    const activeCourseData = isPaused ? [] : courseData;
 
-                    // NEW: Logic for delete button visibility
-                    const isCompleted = totalCount > 0 && finishedCount === totalCount; 
+                    // Calculate progress based on active data
+                    const activeFinishedCount = activeCourseData.filter(item => item.status === 'Finished').length;
+                    const totalActiveCount = activeCourseData.length;
+                    const percentageFinished = totalActiveCount > 0 ? ((activeFinishedCount / totalActiveCount) * 100).toFixed(0) : 0;
+                    
+                    // Total tasks in the card (for context)
+                    const totalCardCount = courseData.length;
+
+                    // Full finished count for X button logic (should ignore pause state)
+                    const fullFinishedCount = courseData.filter(item => item.status === 'Finished').length;
+
+                    // Logic for delete button visibility
+                    const isCompleted = totalCardCount > 0 && fullFinishedCount === totalCardCount; 
                     const completionClass = isCompleted ? 'completed' : '';
-                    // NOTE: data-day is NOT added here, as this is the tracker view
                     const deleteButtonHTML = `
                         <button 
                             class="delete-course-card-btn ${completionClass}" 
                             data-course="${course}" 
                             data-type="${type}"
-                            title="Delete fully completed course"
+                            title="Delete all tasks for this course"
                         >
                             &times; 
                         </button>
                     `;
 
                     const card = document.createElement('div');
-                    card.className = 'tracker-course-card';
+                    // MODIFICATION: Add pausedClass to the card's class list
+                    card.className = `tracker-course-card ${pausedClass}`; 
+                    // NEW: Add context menu listener
+                    card.addEventListener('contextmenu', (e) => showPauseContextMenu(e, course, type)); 
                     
                     // Header and Summary
+                    // MODIFICATION: Add pause badge next to H3 and update summary text
                     let cardHTML = `
-                        <h3>${course}</h3>
-                        ${deleteButtonHTML} <div class="tracker-summary">
-                            ${finishedCount} of ${totalCount} ${type}s finished (${percentageFinished}%)
+                        <h3>${course} ${pauseBadgeHTML}</h3> 
+                        ${deleteButtonHTML} 
+                        <div class="tracker-summary">
+                            ${isPaused 
+                                ? `All ${totalCardCount} tasks paused. (Right-click to unpause)` 
+                                : `${activeFinishedCount} of ${totalCardCount} active ${type}s finished (${percentageFinished}%)`
+                            }
                         </div>
                         <div class="chart-container">
                             <canvas id="chart-${type}-${course.replace(/\s/g, '-')}" width="150" height="150"></canvas>
@@ -2079,13 +2214,14 @@
                             </div>
                     `;
                     
-                    // List of items
+                    // List of items - Use full courseData here
                     courseData.forEach(item => {
                         const isChecked = item.status === 'Finished';
                         listHTML += `
                             <div class="tracker-item-row" data-id="${item.id}" data-type="${type}">
                                 <div class="tracker-item-name">${item.name}</div>
-                                <div> <input 
+                                <div> 
+                                    <input 
                                         type="checkbox" 
                                         class="tracker-item-checkbox" 
                                         data-id="${item.id}" 
@@ -2093,7 +2229,8 @@
                                         ${isChecked ? 'checked' : ''}
                                     >
                                 </div>
-                                <div> <button class="delete-btn" data-id="${item.id}" data-type="${type}">Delete</button>
+                                <div> 
+                                    <button class="delete-btn" data-id="${item.id}" data-type="${type}">Delete</button>
                                 </div>
                             </div>
                         `;
@@ -2103,19 +2240,72 @@
                     card.innerHTML = cardHTML + listHTML;
                     contentContainer.appendChild(card);
                     
-                    // Wait for the card to be in the DOM to draw the chart
+                    // Draw the chart
                     setTimeout(() => {
                         const canvas = document.getElementById(`chart-${type}-${course.replace(/\s/g, '-')}`);
                         if (canvas) {
-                            drawPieChart(canvas, finishedCount, notStartedCount);
+                             if (!isPaused) {
+                                // Draw pie chart using full counts (finished vs not finished)
+                                drawPieChart(canvas, fullFinishedCount, totalCardCount - fullFinishedCount);
+                             } else {
+                                // Draw a solid gray circle if paused
+                                const ctx = canvas.getContext('2d');
+                                const centerX = canvas.width / 2;
+                                const centerY = canvas.height / 2;
+                                const radius = Math.min(centerX, centerY) * 0.9;
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                ctx.fillStyle = '#CCCCCC'; 
+                                ctx.beginPath();
+                                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                                ctx.closePath();
+                                ctx.fill();
+                             }
                         }
                     }, 0);
                 });
                 
-                // NEW: Ensure overall progress is updated after rendering
                 calculateAndRenderOverallProgress(type); 
             }
             
+            // --- Custom Context Menu Logic ---
+            const contextMenu = document.getElementById('trackerContextMenu');
+            const pauseUnpauseBtn = document.getElementById('pauseUnpauseBtn');
+            let contextMenuCourseName = '';
+            let contextMenuTrackerType = '';
+
+            function showPauseContextMenu(e, courseName, type) {
+                e.preventDefault(); // Prevent default browser context menu
+                
+                contextMenuCourseName = courseName;
+                contextMenuTrackerType = type;
+                
+                const pausedCourses = getPausedCourses()[type] || [];
+                const isPaused = pausedCourses.includes(courseName);
+                
+                // Set the button text and class
+                pauseUnpauseBtn.textContent = isPaused ? 'Unpause Course' : 'Pause Course';
+                pauseUnpauseBtn.classList.add('pause-action');
+
+                // Position the menu
+                contextMenu.style.left = `${e.pageX}px`;
+                contextMenu.style.top = `${e.pageY}px`;
+                contextMenu.style.display = 'block';
+            }
+
+            // Hide menu on any click outside
+            document.addEventListener('click', () => {
+                contextMenu.style.display = 'none';
+            });
+            
+            // Handle context menu button click
+            pauseUnpauseBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent the body click listener from immediately hiding it
+                if (contextMenuCourseName && contextMenuTrackerType) {
+                    toggleCoursePauseState(contextMenuCourseName, contextMenuTrackerType);
+                }
+                contextMenu.style.display = 'none';
+            });
+
             // **NEW FEATURE:** Ctrl+S / Cmd+S Shortcut
             document.addEventListener('keydown', (event) => {
                 // Check for Ctrl/Cmd + S
