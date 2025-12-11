@@ -233,19 +233,33 @@
             justify-content: center;
         }
         
+        /* MODIFIED FOR HOVER BOX CUE */
         .tracker-course-card h3 {
              font-weight: 600; 
             color: var(--active-color); 
-            margin-bottom: 15px;
-            /* **NEW:** Ensure text doesn't overlap delete button */
-            padding-right: 40px; 
-            display: flex; /* Enable flex for badge alignment */
+            /* MODIFIED: Adjusted for hover box */
+            margin-bottom: 10px; /* Reduced margin */
+            
+            /* MODIFIED: Use inline-flex for content-width-only (the "up to the title" request) */
+            display: inline-flex; 
             align-items: center;
-            /* NEW: Make H3 clickable area more distinct */
+            
             cursor: context-menu;
             user-select: none;
+            
+            /* NEW: Padding for the visual "hover box" */
+            padding: 5px 10px; 
+            margin-left: -10px; /* Offset to visually align the text flush left of card */
+            border-radius: 8px; 
+            transition: background-color 0.2s;
         }
 
+        /* NEW: Hover effect for the visual cue */
+        .tracker-course-card h3:hover {
+            background-color: rgba(255, 255, 255, 0.7); /* Light highlight */
+        }
+        
+        /* If paused, keep purple color */
         .tracker-course-card.paused h3 {
             color: var(--color-pause-purple); /* Change H3 color when paused */
         }
@@ -404,6 +418,8 @@
         }
         
         .tracker-summary {
+            /* NEW: Ensure space below the H3 hover box */
+            margin-top: 5px; 
             margin-bottom: 15px;
             font-size: 14px;
             font-weight: 500;
