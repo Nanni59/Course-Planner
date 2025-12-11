@@ -593,9 +593,6 @@
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3E%3C/svg%3E");
         }
         
-        .tracker-item-row .tracker-item-checkbox {
-            /* margin: 0 auto; Removed, relying on flex parent */
-        }
 
 
         /* --- Embed/Link Display Area Styling --- */
@@ -1736,6 +1733,7 @@
                 hasUnsavedChanges = true; // Mark as unsaved
             }
 
+
             // --- 5. Save Logic (UPDATED to reset unsaved flag) ---
             document.getElementById('saveBtn').addEventListener('click', () => {
                 saveData('dayA');
@@ -2096,6 +2094,29 @@
                 }
             });
 
+            // *** NEW: Delegated contextmenu listener for Tracker Cards to fix bug ***
+            mainContent.addEventListener('contextmenu', (e) => {
+                // Find the closest H3 element within a tracker card
+                const h3 = e.target.closest('.tracker-course-card h3');
+                const card = e.target.closest('.tracker-course-card');
+
+                if (h3 && card) {
+                    // This is a right-click on the course title inside a tracker card
+                    e.preventDefault(); // Prevent default browser menu
+                    
+                    // Use the reliable data attribute on the card
+                    const courseName = card.getAttribute('data-course-name');
+                    
+                    // Determine the tracker type
+                    const trackerType = card.closest('.tab-content').id === 'lessonTracker' ? 'lesson' : 'assignment';
+                    
+                    // Ensure we are in a tracker tab before showing the menu
+                    if (trackerType) {
+                        showPauseContextMenu(e, courseName, trackerType); 
+                    }
+                }
+            });
+
 
             // Attach listeners for Status Toggle (Change)
             mainContent.addEventListener('change', (event) => {
@@ -2204,6 +2225,8 @@
                     const card = document.createElement('div');
                     // MODIFICATION: Add pausedClass to the card's class list
                     card.className = `tracker-course-card ${pausedClass}`; 
+                    // NEW: Add data-course-name attribute for reliable identification
+                    card.setAttribute('data-course-name', course); 
                     // REMOVED: card.addEventListener('contextmenu', ...)
                     
                     // Header and Summary
@@ -2259,10 +2282,11 @@
                     contentContainer.appendChild(card);
                     
                     // NEW: Find the h3 element and attach the context menu listener to it
-                    const h3 = card.querySelector('h3');
-                    if (h3) {
-                        h3.addEventListener('contextmenu', (e) => showPauseContextMenu(e, course, type)); 
-                    }
+                    // REMOVED INDIVIDUAL LISTENER, NOW USING DELEGATED LISTENER ON MAINCONTENT
+                    // const h3 = card.querySelector('h3');
+                    // if (h3) {
+                    //     h3.addEventListener('contextmenu', (e) => showPauseContextMenu(e, course, type)); 
+                    // }
 
                     // Draw the chart
                     setTimeout(() => {
@@ -2298,7 +2322,7 @@
             let contextMenuTrackerType = '';
 
             function showPauseContextMenu(e, courseName, type) {
-                e.preventDefault(); // Prevent default browser context menu
+                // e.preventDefault(); // Prevent default browser context menu (already done in mainContent listener)
                 
                 contextMenuCourseName = courseName;
                 contextMenuTrackerType = type;
