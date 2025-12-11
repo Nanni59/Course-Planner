@@ -241,6 +241,9 @@
             padding-right: 40px; 
             display: flex; /* Enable flex for badge alignment */
             align-items: center;
+            /* NEW: Make H3 clickable area more distinct */
+            cursor: context-menu;
+            user-select: none;
         }
 
         .tracker-course-card.paused h3 {
@@ -796,7 +799,7 @@
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                     <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -838,10 +841,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                     <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -883,10 +886,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                     <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -928,10 +931,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                     <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -973,10 +976,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                     <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1023,10 +1026,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                     <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1068,10 +1071,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                     <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1113,10 +1116,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                     <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1158,10 +1161,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                     <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1203,10 +1206,10 @@
                                 </div>
                                 
                                 <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                     <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -2185,8 +2188,7 @@
                     const card = document.createElement('div');
                     // MODIFICATION: Add pausedClass to the card's class list
                     card.className = `tracker-course-card ${pausedClass}`; 
-                    // NEW: Add context menu listener
-                    card.addEventListener('contextmenu', (e) => showPauseContextMenu(e, course, type)); 
+                    // REMOVED: card.addEventListener('contextmenu', ...)
                     
                     // Header and Summary
                     // MODIFICATION: Add pause badge next to H3 and update summary text
@@ -2195,7 +2197,7 @@
                         ${deleteButtonHTML} 
                         <div class="tracker-summary">
                             ${isPaused 
-                                ? `All ${totalCardCount} tasks paused. (Right-click to unpause)` 
+                                ? `All ${totalCardCount} tasks paused. (Right-click course title to unpause)` 
                                 : `${activeFinishedCount} of ${totalCardCount} active ${type}s finished (${percentageFinished}%)`
                             }
                         </div>
@@ -2240,6 +2242,12 @@
                     card.innerHTML = cardHTML + listHTML;
                     contentContainer.appendChild(card);
                     
+                    // NEW: Find the h3 element and attach the context menu listener to it
+                    const h3 = card.querySelector('h3');
+                    if (h3) {
+                        h3.addEventListener('contextmenu', (e) => showPauseContextMenu(e, course, type)); 
+                    }
+
                     // Draw the chart
                     setTimeout(() => {
                         const canvas = document.getElementById(`chart-${type}-${course.replace(/\s/g, '-')}`);
@@ -2267,7 +2275,7 @@
                 calculateAndRenderOverallProgress(type); 
             }
             
-            // --- Custom Context Menu Logic ---
+            // --- Custom Context Menu Logic (MODIFIED to remove emojis) ---
             const contextMenu = document.getElementById('trackerContextMenu');
             const pauseUnpauseBtn = document.getElementById('pauseUnpauseBtn');
             let contextMenuCourseName = '';
@@ -2282,7 +2290,7 @@
                 const pausedCourses = getPausedCourses()[type] || [];
                 const isPaused = pausedCourses.includes(courseName);
                 
-                // Set the button text and class
+                // MODIFIED: Remove emojis from button text
                 pauseUnpauseBtn.textContent = isPaused ? 'Unpause Course' : 'Pause Course';
                 pauseUnpauseBtn.classList.add('pause-action');
 
