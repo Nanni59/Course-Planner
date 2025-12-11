@@ -593,6 +593,9 @@
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3E%3C/svg%3E");
         }
         
+        .tracker-item-row .tracker-item-checkbox {
+            /* margin: 0 auto; Removed, relying on flex parent */
+        }
 
 
         /* --- Embed/Link Display Area Styling --- */
@@ -739,6 +742,7 @@
             background-color: white;
             border: 1px solid #ddd;
             border-radius: 8px;
+            /* REMOVED: Initial left/top styling */
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
             padding: 5px 0;
             min-width: 150px;
@@ -2094,7 +2098,8 @@
                 }
             });
 
-            // *** NEW: Delegated contextmenu listener for Tracker Cards to fix bug ***
+            // *** NEW: Delegated contextmenu listener for Tracker Cards to fix bug and handle positioning ***
+            // The original logic for checking the target and preventing default is fine.
             mainContent.addEventListener('contextmenu', (e) => {
                 // Find the closest H3 element within a tracker card
                 const h3 = e.target.closest('.tracker-course-card h3');
@@ -2112,7 +2117,8 @@
                     
                     // Ensure we are in a tracker tab before showing the menu
                     if (trackerType) {
-                        showPauseContextMenu(e, courseName, trackerType); 
+                        // Pass the H3 element for correct positioning
+                        showPauseContextMenu(e, courseName, trackerType, h3); 
                     }
                 }
             });
@@ -2227,7 +2233,6 @@
                     card.className = `tracker-course-card ${pausedClass}`; 
                     // NEW: Add data-course-name attribute for reliable identification
                     card.setAttribute('data-course-name', course); 
-                    // REMOVED: card.addEventListener('contextmenu', ...)
                     
                     // Header and Summary
                     // MODIFICATION: Add pause badge next to H3 and update summary text
@@ -2281,13 +2286,6 @@
                     card.innerHTML = cardHTML + listHTML;
                     contentContainer.appendChild(card);
                     
-                    // NEW: Find the h3 element and attach the context menu listener to it
-                    // REMOVED INDIVIDUAL LISTENER, NOW USING DELEGATED LISTENER ON MAINCONTENT
-                    // const h3 = card.querySelector('h3');
-                    // if (h3) {
-                    //     h3.addEventListener('contextmenu', (e) => showPauseContextMenu(e, course, type)); 
-                    // }
-
                     // Draw the chart
                     setTimeout(() => {
                         const canvas = document.getElementById(`chart-${type}-${course.replace(/\s/g, '-')}`);
@@ -2315,14 +2313,15 @@
                 calculateAndRenderOverallProgress(type); 
             }
             
-            // --- Custom Context Menu Logic (MODIFIED to remove emojis) ---
+            // --- Custom Context Menu Logic ---
             const contextMenu = document.getElementById('trackerContextMenu');
             const pauseUnpauseBtn = document.getElementById('pauseUnpauseBtn');
             let contextMenuCourseName = '';
             let contextMenuTrackerType = '';
 
-            function showPauseContextMenu(e, courseName, type) {
-                // e.preventDefault(); // Prevent default browser context menu (already done in mainContent listener)
+            // MODIFIED: Added h3Element parameter for positioning
+            function showPauseContextMenu(e, courseName, type, h3Element) {
+                // The e.preventDefault() is now done in the delegated listener
                 
                 contextMenuCourseName = courseName;
                 contextMenuTrackerType = type;
@@ -2330,13 +2329,15 @@
                 const pausedCourses = getPausedCourses()[type] || [];
                 const isPaused = pausedCourses.includes(courseName);
                 
-                // MODIFIED: Remove emojis from button text
                 pauseUnpauseBtn.textContent = isPaused ? 'Unpause Course' : 'Pause Course';
                 pauseUnpauseBtn.classList.add('pause-action');
 
-                // Position the menu
-                contextMenu.style.left = `${e.pageX}px`;
-                contextMenu.style.top = `${e.pageY}px`;
+                // **MODIFIED POSITIONING LOGIC FOR FIXED, ZOOM-RESISTANT PLACEMENT**
+                const rect = h3Element.getBoundingClientRect();
+
+                // Position the menu: fixed position, 5px below the H3 element, aligned to its left edge
+                contextMenu.style.left = `${rect.left}px`;
+                contextMenu.style.top = `${rect.bottom + 5}px`; // 5px below the H3 element
                 contextMenu.style.display = 'block';
             }
 
