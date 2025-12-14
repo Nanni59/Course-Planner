@@ -180,7 +180,7 @@
         /* NEW: Paused Card Styling (Tracker) */
         .tracker-course-card.paused {
             border: 2px dashed var(--color-pause-purple); /* Dashed border for paused state */
-            background-color: rgba(155, 89, 182, 0.05); /* Lighter purple background */
+            background-color: #fdfcfe; /* Lighter purple background */
             opacity: 0.85; 
         }
 
@@ -448,7 +448,7 @@
         /* NEW: Paused Day Card Styling (Matches Tracker Card) */
         .course-card.paused {
             border: 2px dashed var(--color-pause-purple); 
-            background-color: rgba(155, 89, 182, 0.05); /* Light purple background */
+            background-color: #fdfcfe; /* Light purple background */
             opacity: 0.85; 
         }
         
@@ -461,15 +461,15 @@
         .course-card.paused .task-list textarea, 
         .course-card.paused .task-link {
             /* Text Color */
-            color: var(--color-pause-purple) !important;
+            color: var(--color-text-gray) !important;
             /* Placeholder Color (for consistency) */
-            opacity: 0.8; /* Slight fade for placeholder distinction */
+            opacity: 1; /* Fully opaque */
         }
         
         /* NEW: Placeholder Color for Paused Day Card Fields */
         .course-card.paused .task-list textarea::placeholder,
         .course-card.paused .task-link::placeholder {
-            color: var(--color-pause-purple);
+            color: var(--color-text-gray);
             opacity: 0.5;
         }
 
