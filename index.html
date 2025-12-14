@@ -174,14 +174,18 @@
             padding: 20px; 
             border: 2px solid var(--active-color);
             /* **NEW:** Required for positioning the delete button */
-            position: relative; 
+            position: relative;
+            /* **NEW:** Add smooth transition for reordering animation */
+            transition: opacity 0.3s ease, transform 0.3s ease;
         }
         
         /* NEW: Paused Card Styling (Tracker) */
         .tracker-course-card.paused {
             border: 2px dashed var(--color-pause-purple); /* Dashed border for paused state */
             background-color: #fdfcfe; /* Lighter purple background */
-            opacity: 0.85; 
+            opacity: 0.85;
+            /* **NEW:** Add subtle scale animation to indicate deprioritization */
+            transform: scale(0.98);
         }
 
         /* **NEW:** Pause Status Badge */
@@ -441,6 +445,8 @@
             padding: 20px; 
             border: 2px solid var(--active-color);
             position: relative; /* REQUIRED for delete button */
+            /* **NEW:** Add smooth transition for reordering animation */
+            transition: opacity 0.3s ease, transform 0.3s ease;
             
             /* **FIX:** Removed fixed height and flex layout to allow content-driven height */
         }
@@ -449,7 +455,9 @@
         .course-card.paused {
             border: 2px dashed var(--color-pause-purple); 
             background-color: #fdfcfe; /* Light purple background */
-            opacity: 0.85; 
+            opacity: 0.85;
+            /* **NEW:** Add subtle scale animation to indicate deprioritization */
+            transform: scale(0.98);
         }
         
         /* NEW: Header Color on Paused Day Card */
@@ -1430,6 +1438,10 @@
                         });
                     }
                 });
+                
+                // **NEW:** Reorder cards in both Day A and Day B to push paused cards to the back
+                reorderDayCards('dayA');
+                reorderDayCards('dayB');
             }
 
             // --- YouTube Detection Logic (UNCHANGED) ---
@@ -1525,6 +1537,35 @@
                 
                 // 5. Resize Textareas (must run after visibility is set)
                 if (dayId.startsWith(TAB_PREFIX)) resizeFieldsForActiveDay(dayId); // Renamed function
+            }
+            
+            // --- **NEW:** Reorder Day Cards to Push Paused Cards to the Back ---
+            function reorderDayCards(dayId) {
+                const dayContainer = document.getElementById(dayId);
+                const courseGrid = dayContainer.querySelector('.course-grid');
+                if (!courseGrid) return;
+                
+                const cards = Array.from(courseGrid.querySelectorAll('.course-card'));
+                
+                // Separate unpaused and paused cards, maintaining alphabetical order within each group
+                const unpausedCards = cards.filter(card => !card.classList.contains('paused'));
+                const pausedCards = cards.filter(card => card.classList.contains('paused'));
+                
+                // Sort both groups alphabetically by course name
+                const sortByCourseName = (a, b) => {
+                    const nameA = a.getAttribute('data-course-name') || a.querySelector('h3').textContent.trim();
+                    const nameB = b.getAttribute('data-course-name') || b.querySelector('h3').textContent.trim();
+                    return nameA.localeCompare(nameB);
+                };
+                
+                unpausedCards.sort(sortByCourseName);
+                pausedCards.sort(sortByCourseName);
+                
+                // Clear the grid and re-append in the new order (unpaused first, then paused)
+                courseGrid.innerHTML = '';
+                [...unpausedCards, ...pausedCards].forEach(card => {
+                    courseGrid.appendChild(card);
+                });
             }
             
             // --- Auto-select Day logic (MODIFIED to handle tracker tabs) ---
@@ -1897,6 +1938,9 @@
                     updateCardCompletionState(card);
                 });
 
+                // **NEW:** Reorder day cards to push paused cards to the back
+                reorderDayCards('dayA');
+                reorderDayCards('dayB');
 
                 // **NEW:** Ensure the state is clean when loading from scratch/localstorage
                 hasUnsavedChanges = false; 
@@ -2283,7 +2327,7 @@
                 const contentContainer = document.getElementById(`${type}TrackerContent`);
                 const data = JSON.parse(localStorage.getItem(storageKey)) || [];
                 // Only need to check one type due to sync
-                const pausedCourses = getPausedCourses().lesson || []; 
+                const pausedCourses = getPausedCourses().lesson || [];
                 
                 contentContainer.innerHTML = '';
                 
@@ -2293,8 +2337,14 @@
                     return acc;
                 }, {});
                 
+                // **NEW:** Sort courses so unpaused come first, then paused (both alphabetically)
+                const coursesToRender = ALL_COURSE_NAMES.filter(course => dataByCourse[course].length > 0);
+                const unpausedCourses = coursesToRender.filter(course => !pausedCourses.includes(course)).sort();
+                const pausedCoursesToRender = coursesToRender.filter(course => pausedCourses.includes(course)).sort();
+                const sortedCourses = [...unpausedCourses, ...pausedCoursesToRender];
+                
                 // Render a card for each course
-                ALL_COURSE_NAMES.forEach(course => {
+                sortedCourses.forEach(course => {
                     const courseData = dataByCourse[course];
                     if (courseData.length === 0) return;
 
