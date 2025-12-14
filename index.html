@@ -177,7 +177,7 @@
             position: relative; 
         }
         
-        /* NEW: Paused Card Styling */
+        /* NEW: Paused Card Styling (Tracker) */
         .tracker-course-card.paused {
             border: 2px dashed var(--color-pause-purple); /* Dashed border for paused state */
             background-color: rgba(155, 89, 182, 0.05); /* Lighter purple background */
@@ -445,6 +445,39 @@
             /* **FIX:** Removed fixed height and flex layout to allow content-driven height */
         }
         
+        /* NEW: Paused Day Card Styling (Matches Tracker Card) */
+        .course-card.paused {
+            border: 2px dashed var(--color-pause-purple); 
+            background-color: rgba(155, 89, 182, 0.05); /* Light purple background */
+            opacity: 0.85; 
+        }
+        
+        /* NEW: Header Color on Paused Day Card */
+        .course-card.paused h3 {
+            color: var(--color-pause-purple);
+        }
+        
+        /* NEW: Text Color Override for Paused Day Card Fields */
+        .course-card.paused .task-list textarea, 
+        .course-card.paused .task-link {
+            /* Text Color */
+            color: var(--color-pause-purple) !important;
+            /* Placeholder Color (for consistency) */
+            opacity: 0.8; /* Slight fade for placeholder distinction */
+        }
+        
+        /* NEW: Placeholder Color for Paused Day Card Fields */
+        .course-card.paused .task-list textarea::placeholder,
+        .course-card.paused .task-link::placeholder {
+            color: var(--color-pause-purple);
+            opacity: 0.5;
+        }
+
+        /* NEW: Theme Label Color for Paused Day Card Fields */
+        .course-card.paused .task-type-label {
+            color: var(--color-pause-purple); 
+        }
+        
         /* NEW: Delete Button on Day A/B Cards */
         .course-card .delete-course-card-btn {
             background-color: #e74c3c; /* Red color */
@@ -660,7 +693,7 @@
         }
         
         .search-suggestions li {
-            padding: 8px 10px;
+            padding: 8px 15px;
             cursor: pointer;
             border-bottom: 1px solid #eee;
             color: #333;
@@ -779,7 +812,7 @@
     <main id="mainContent"> 
         <div id="dayA" class="tab-content active">
             <div class="course-grid">
-                <div class="course-card">
+                <div class="course-card" data-course-name="Advanced Functions" data-day="dayA">
                     <h3>Advanced Functions</h3>
                     <button 
                         class="delete-course-card-btn" 
@@ -824,7 +857,7 @@
                     </div>
                 </div>
 
-                <div class="course-card">
+                <div class="course-card" data-course-name="Data Management" data-day="dayA">
                     <h3>Data Management</h3>
                     <button 
                         class="delete-course-card-btn" 
@@ -869,7 +902,7 @@
                     </div>
                 </div>
                 
-                <div class="course-card">
+                <div class="course-card" data-course-name="English" data-day="dayA">
                     <h3>English</h3>
                     <button 
                         class="delete-course-card-btn" 
@@ -914,7 +947,7 @@
                     </div>
                 </div>
 
-                <div class="course-card">
+                <div class="course-card" data-course-name="Economics" data-day="dayA">
                     <h3>Economics</h3>
                     <button 
                         class="delete-course-card-btn" 
@@ -959,7 +992,7 @@
                     </div>
                 </div>
 
-                <div class="course-card">
+                <div class="course-card" data-course-name="Media Arts" data-day="dayA">
                     <h3>Media Arts</h3>
                     <button 
                         class="delete-course-card-btn" 
@@ -1009,7 +1042,7 @@
 
         <div id="dayB" class="tab-content">
             <div class="course-grid">
-                <div class="course-card">
+                <div class="course-card" data-course-name="Advanced Functions" data-day="dayB">
                     <h3>Advanced Functions</h3>
                     <button 
                         class="delete-course-card-btn" 
@@ -1054,7 +1087,7 @@
                     </div>
                 </div>
 
-                <div class="course-card">
+                <div class="course-card" data-course-name="Data Management" data-day="dayB">
                     <h3>Data Management</h3>
                     <button 
                         class="delete-course-card-btn" 
@@ -1099,7 +1132,7 @@
                     </div>
                 </div>
 
-                <div class="course-card">
+                <div class="course-card" data-course-name="Business Leadership" data-day="dayB">
                     <h3>Business Leadership</h3>
                     <button 
                         class="delete-course-card-btn" 
@@ -1144,7 +1177,7 @@
                     </div>
                 </div>
 
-                <div class="course-card">
+                <div class="course-card" data-course-name="Challenge & Change" data-day="dayB">
                     <h3>Challenge & Change</h3>
                     <button 
                         class="delete-course-card-btn" 
@@ -1189,7 +1222,7 @@
                     </div>
                 </div>
 
-                <div class="course-card">
+                <div class="course-card" data-course-name="Ontario Literacy Course" data-day="dayB">
                     <h3>Ontario Literacy Course</h3>
                     <button 
                         class="delete-course-card-btn" 
@@ -1322,37 +1355,74 @@
 
             // --- Helper to manage paused courses data ---
             function getPausedCourses() {
-                return JSON.parse(localStorage.getItem(LS_PAUSED_COURSES_KEY) || '{}');
+                // Ensure default structure exists before returning
+                const raw = localStorage.getItem(LS_PAUSED_COURSES_KEY);
+                let paused = JSON.parse(raw) || { lesson: [], assignment: [] };
+                if (!paused.lesson) paused.lesson = [];
+                if (!paused.assignment) paused.assignment = [];
+                return paused;
             }
 
-            // --- Toggle Pause State ---
+            // --- Toggle Pause State (MODIFIED for cross-tracker synchronization) ---
             function toggleCoursePauseState(courseName, type) {
                 let pausedCourses = getPausedCourses();
                 
-                // Ensure the top-level type key exists (e.g., 'lesson', 'assignment')
-                if (!pausedCourses[type]) {
-                    pausedCourses[type] = [];
-                }
+                // Determine if the course is currently paused in the * initial* tracker
+                const isCurrentlyPaused = (pausedCourses[type] || []).includes(courseName);
 
-                const index = pausedCourses[type].indexOf(courseName);
+                // Determine the new state (toggle)
+                const shouldPause = !isCurrentlyPaused;
 
-                if (index > -1) {
-                    // Course is paused, unpause it
-                    pausedCourses[type].splice(index, 1);
-                } else {
-                    // Course is not paused, pause it
-                    pausedCourses[type].push(courseName);
-                }
+                // Function to set the pause state for a specific type
+                const setPauseState = (typeKey, pauseState) => {
+                    const list = pausedCourses[typeKey] || [];
+                    const index = list.indexOf(courseName);
+
+                    if (pauseState && index === -1) {
+                        // Pause: Add course to the list
+                        list.push(courseName);
+                    } else if (!pauseState && index > -1) {
+                        // Unpause: Remove course from the list
+                        list.splice(index, 1);
+                    }
+                    pausedCourses[typeKey] = list;
+                };
+
+                // Apply the new state to BOTH trackers for synchronization
+                setPauseState('lesson', shouldPause);
+                setPauseState('assignment', shouldPause);
 
                 localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(pausedCourses));
                 
-                // Re-render the active tracker tab
+                // Re-render *all* affected components
+                
+                // 1. Render the Lesson Tracker if visible/needed
                 const activeTabId = document.querySelector('.tab-content.active')?.id;
-                if (activeTabId === 'lessonTracker' && type === 'lesson') {
+                if (activeTabId === 'lessonTracker') {
                     renderTracker('lesson');
-                } else if (activeTabId === 'assignmentTracker' && type === 'assignment') {
+                } else if (activeTabId === 'assignmentTracker') {
                     renderTracker('assignment');
                 }
+                
+                // 2. Update all Day A/B cards (MUST run for visual feedback)
+                updateDayCardPauseState(courseName, shouldPause);
+
+                // 3. Update overall progress (since totals change)
+                calculateAndRenderOverallProgress('lesson');
+                calculateAndRenderOverallProgress('assignment');
+            }
+            
+            // **NEW FUNCTION:** Update Day Card Visuals
+            function updateDayCardPauseState(courseName, isPaused) {
+                document.querySelectorAll('.course-card[data-course-name]').forEach(card => {
+                    if (card.getAttribute('data-course-name') === courseName) {
+                        card.classList.toggle('paused', isPaused);
+                        // Rerun applyThemeColor to update inline styles if needed
+                        card.querySelectorAll('.task-list textarea, .task-link').forEach(field => {
+                            applyThemeColor(field);
+                        });
+                    }
+                });
             }
 
             // --- YouTube Detection Logic (UNCHANGED) ---
@@ -1796,12 +1866,19 @@
                 localStorage.setItem(`${dayId}_data`, JSON.stringify(tasks));
             }
 
-            // --- 6. Load Logic (UPDATED to call new resize function AND completion check) ---
+            // --- 6. Load Logic (UPDATED to call new resize function, completion check, and pause state) ---
             function loadData() {
                 initializeTrackerData(); // Initialize/Load Tracker data first
                 
                 loadDay('dayA');
                 loadDay('dayB');
+                
+                // Apply pause state to day cards
+                const pausedCourses = getPausedCourses().lesson; // Only need one list due to sync
+                ALL_COURSE_NAMES.forEach(courseName => {
+                    const isPaused = pausedCourses.includes(courseName);
+                    updateDayCardPauseState(courseName, isPaused);
+                });
                 
                 // Select all fields for color application
                 document.querySelectorAll('.task-list textarea, .task-link').forEach(field => {
@@ -1894,13 +1971,26 @@
                         renderTracker('assignment');
                     }
                     
+                    // Since pause state was reset, re-apply it (unpause all)
+                    ALL_COURSE_NAMES.forEach(courseName => updateDayCardPauseState(courseName, false));
+                    
                     alert(`${formattedDay} has been reset.`);
                 }
             });
 
-            // --- Function to apply theme color to a field (UNCHANGED) ---
+            // --- Function to apply theme color to a field (MODIFIED for pause override) ---
             function applyThemeColor(field) {
-                // For textareas/inputs, check if value is empty
+                // Check if the parent card is paused using CSS class check
+                const isPaused = field.closest('.course-card').classList.contains('paused');
+                
+                if (isPaused) {
+                    // If paused, rely purely on the CSS rules added for the '.paused' state.
+                    // DO NOT set an inline style, otherwise it will override the CSS.
+                    field.style.color = '';
+                    return; 
+                }
+
+                // Default logic for non-paused cards: check if value is empty
                 const hasValue = field.value !== '' && field.value !== field.getAttribute('placeholder');
                 
                 if (hasValue) {
@@ -2058,6 +2148,11 @@
                 // Also remove from paused state if it was paused
                 let pausedCourses = getPausedCourses();
                 pausedCourses[type] = (pausedCourses[type] || []).filter(c => c !== courseName);
+                
+                // Ensure the other tracker is also updated in case of synchronization
+                const otherType = type === 'lesson' ? 'assignment' : 'lesson';
+                pausedCourses[otherType] = (pausedCourses[otherType] || []).filter(c => c !== courseName);
+                
                 localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(pausedCourses));
 
                 localStorage.setItem(storageKey, JSON.stringify(data));
@@ -2180,7 +2275,8 @@
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 const contentContainer = document.getElementById(`${type}TrackerContent`);
                 const data = JSON.parse(localStorage.getItem(storageKey)) || [];
-                const pausedCourses = getPausedCourses()[type] || []; // NEW: Get paused list
+                // Only need to check one type due to sync
+                const pausedCourses = getPausedCourses().lesson || []; 
                 
                 contentContainer.innerHTML = '';
                 
@@ -2195,7 +2291,7 @@
                     const courseData = dataByCourse[course];
                     if (courseData.length === 0) return;
 
-                    // NEW: Determine Pause State
+                    // NEW: Determine Pause State (Check against the synced lesson list)
                     const isPaused = pausedCourses.includes(course);
                     const pausedClass = isPaused ? 'paused' : '';
                     const pauseBadgeHTML = isPaused ? `<span class="pause-badge">PAUSED</span>` : '';
@@ -2326,7 +2422,8 @@
                 contextMenuCourseName = courseName;
                 contextMenuTrackerType = type;
                 
-                const pausedCourses = getPausedCourses()[type] || [];
+                // Check pause state against the *synced* list (lesson)
+                const pausedCourses = getPausedCourses().lesson || []; 
                 const isPaused = pausedCourses.includes(courseName);
                 
                 pauseUnpauseBtn.textContent = isPaused ? 'Unpause Course' : 'Pause Course';
@@ -2350,6 +2447,7 @@
             pauseUnpauseBtn.addEventListener('click', (e) => {
                 e.stopPropagation(); // Prevent the body click listener from immediately hiding it
                 if (contextMenuCourseName && contextMenuTrackerType) {
+                    // Call the single, cross-sync function
                     toggleCoursePauseState(contextMenuCourseName, contextMenuTrackerType);
                 }
                 contextMenu.style.display = 'none';
