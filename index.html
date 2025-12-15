@@ -1681,6 +1681,34 @@
             }
 
 
+            // --- **NEW FUNCTION:** Get next unfinished assignment for a course
+            function getNextUnfinishedAssignment(courseName) {
+                const data = JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || [];
+                const courseAssignments = data.filter(item => item.course === courseName);
+                
+                // Find the first assignment that is NOT finished (status = 'Not Started')
+                const nextAssignment = courseAssignments.find(item => item.status === 'Not Started');
+                return nextAssignment ? nextAssignment.name : null;
+            }
+            
+            // --- **NEW FUNCTION:** Auto-populate assignment field when lesson is selected
+            function autoPopulateAssignmentField(courseCard) {
+                const courseTitle = courseCard.querySelector('h3').textContent.trim();
+                const assignmentField = courseCard.querySelector('.task-assignment-name');
+                
+                // Only auto-populate if assignment field is empty
+                if (assignmentField && assignmentField.value.trim() === '') {
+                    const nextAssignment = getNextUnfinishedAssignment(courseTitle);
+                    if (nextAssignment) {
+                        assignmentField.value = nextAssignment;
+                        applyThemeColor(assignmentField);
+                        resizeFieldsForActiveDay(courseCard.closest('.tab-content').id);
+                        // Update completion state after populating
+                        updateCardCompletionState(courseCard);
+                    }
+                }
+            }
+
             // --- 3. Global Button Logic (MODIFIED to switch tabs) ---
             // These buttons are now the *only* way to access the tracker tabs
             document.getElementById('lessonTrackerBtn').addEventListener('click', () => {
@@ -1800,6 +1828,11 @@
                                 const suggestionCourseCard = target.closest('.course-card');
                                 if (suggestionCourseCard) {
                                     updateCardCompletionState(suggestionCourseCard);
+                                    
+                                    // **NEW:** Auto-populate assignment field if this is a lesson selection
+                                    if (isLesson) {
+                                        autoPopulateAssignmentField(suggestionCourseCard);
+                                    }
                                 }
                                 suggestionsList.classList.remove('active');
                             });
