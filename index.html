@@ -518,6 +518,17 @@
             border: 2px solid var(--active-color);
         }
         
+        .course-card h3:hover {
+            border: 2px solid var(--active-color);
+        }
+        
+        /* **NEW:** Style for course link anchor tags */
+        .course-card h3 a.course-link,
+        .tracker-course-card h3 a.course-link {
+            color: inherit;
+            text-decoration: none;
+        }
+        
         .course-card.paused h3:hover {
             border: 2px solid var(--color-pause-purple);
         }
@@ -1599,6 +1610,36 @@
                 return getCustomLink(courseName) !== null;
             }
             
+            // **NEW:** Update href attribute on course title h3
+            function updateCourseH3Href(courseName) {
+                document.querySelectorAll('.course-card, .tracker-course-card').forEach(card => {
+                    if (card.getAttribute('data-course-name') === courseName) {
+                        const h3 = card.querySelector('h3');
+                        if (h3) {
+                            let linkEl = h3.querySelector('a.course-link');
+                            const customLink = getCustomLink(courseName);
+                            
+                            if (customLink && !linkEl) {
+                                // Create anchor tag and wrap the content
+                                linkEl = document.createElement('a');
+                                linkEl.className = 'course-link';
+                                linkEl.href = customLink;
+                                linkEl.textContent = h3.textContent;
+                                h3.textContent = '';
+                                h3.appendChild(linkEl);
+                            } else if (customLink && linkEl) {
+                                // Update existing anchor href
+                                linkEl.href = customLink;
+                            } else if (!customLink && linkEl) {
+                                // Remove anchor if link was deleted
+                                const text = linkEl.textContent;
+                                h3.textContent = text;
+                            }
+                        }
+                    }
+                });
+            }
+            
             // --- II. Initialization (MODIFIED to remove sample data) ---
             function initializeTrackerData() {
                 // Initialize both tracker keys to an empty array if they do not exist
@@ -2263,6 +2304,11 @@
                     }
                 });
                 
+                // Update hrefs for all courses in this day
+                ALL_COURSE_NAMES.forEach(courseName => {
+                    updateCourseH3Href(courseName);
+                });
+                
                 // IMPORTANT: Resize fields after loading data
                 resizeFieldsForActiveDay(dayId);
             }
@@ -2541,39 +2587,34 @@
                 }
                 
                 // Otherwise, check for tracker card course titles
-                const h3 = e.target.closest('.tracker-course-card h3');
-                const card = e.target.closest('.tracker-course-card');
+                const trackerH3 = e.target.closest('.tracker-course-card h3');
+                const trackerCard = e.target.closest('.tracker-course-card');
 
-                if (h3 && card) {
+                if (trackerH3 && trackerCard) {
                     // This is a right-click on the course title inside a tracker card
                     e.preventDefault(); // Prevent default browser menu
                     
                     // Use the reliable data attribute on the card
-                    const courseName = card.getAttribute('data-course-name');
+                    const courseName = trackerCard.getAttribute('data-course-name');
                     
                     // Determine the tracker type
-                    const trackerType = card.closest('.tab-content').id === 'lessonTracker' ? 'lesson' : 'assignment';
+                    const trackerType = trackerCard.closest('.tab-content').id === 'lessonTracker' ? 'lesson' : 'assignment';
                     
                     // Ensure we are in a tracker tab before showing the menu
                     if (trackerType) {
                         // Pass the H3 element for correct positioning
-                        showPauseContextMenu(e, courseName, trackerType, h3); 
+                        showPauseContextMenu(e, courseName, trackerType, trackerH3); 
                     }
                 }
             });
             
             // **NEW:** Left-click handler to open links
             mainContent.addEventListener('click', (e) => {
-                const dayCardH3 = e.target.closest('.course-card h3');
-                const dayCard = e.target.closest('.course-card[data-day]');
+                const courseLink = e.target.closest('.course-card a.course-link, .tracker-course-card a.course-link');
                 
-                if (dayCardH3 && dayCard) {
-                    const courseName = dayCard.getAttribute('data-course-name');
-                    const customLink = getCustomLink(courseName);
-                    
-                    if (customLink) {
-                        window.open(customLink, '_blank');
-                    }
+                if (courseLink) {
+                    e.preventDefault();
+                    window.open(courseLink.href, '_blank');
                 }
             });
 
@@ -2812,6 +2853,7 @@
                 e.stopPropagation();
                 if (confirm(`Remove link from "${dayCardContextMenuCourseName}"?`)) {
                     deleteCustomLink(dayCardContextMenuCourseName);
+                    updateCourseH3Href(dayCardContextMenuCourseName);
                 }
                 dayCardContextMenu.style.display = 'none';
             });
@@ -2885,6 +2927,7 @@
                 }
                 
                 setCustomLink(modalCourseName, fullUrl);
+                updateCourseH3Href(modalCourseName);
                 closeLinkModal();
                 
                 // Mark as unsaved
