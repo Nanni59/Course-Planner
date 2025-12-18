@@ -184,8 +184,6 @@
             border: 2px dashed var(--color-pause-purple); /* Dashed border for paused state */
             background-color: #fdfcfe; /* Lighter purple background */
             opacity: 0.85;
-            /* **NEW:** Add subtle scale animation to indicate deprioritization */
-            transform: scale(0.98);
         }
 
         /* **NEW:** Pause Status Badge */
@@ -462,8 +460,6 @@
             border: 2px dashed var(--color-pause-purple); 
             background-color: #fdfcfe; /* Light purple background */
             opacity: 0.85;
-            /* **NEW:** Add subtle scale animation to indicate deprioritization */
-            transform: scale(0.98);
         }
         
         /* NEW: Header Color on Paused Day Card */
@@ -1883,6 +1879,12 @@
                 });
             }
             
+            // **NEW:** Resize all textareas in both days (called on initialization)
+            function resizeAllDayFields() {
+                resizeFieldsForActiveDay('dayA');
+                resizeFieldsForActiveDay('dayB');
+            }
+            
             // **NEW FUNCTION:** Logic to check if a day card is fully completed
             function updateCardCompletionState(courseCard) {
                 const lessonNameField = courseCard.querySelector('.task-lesson-name');
@@ -2263,6 +2265,9 @@
                 // **NEW:** Reorder day cards to push paused cards to the back
                 reorderDayCards('dayA');
                 reorderDayCards('dayB');
+
+                // **NEW:** Resize all textareas in both days to fit their content on initial load
+                resizeAllDayFields();
 
                 // **NEW:** Ensure the state is clean when loading from scratch/localstorage
                 hasUnsavedChanges = false; 
