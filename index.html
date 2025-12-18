@@ -248,19 +248,25 @@
             display: inline-flex; 
             align-items: center;
             
-            cursor: context-menu;
+            cursor: pointer;
             user-select: none;
             
             /* NEW: Padding for the visual "hover box" */
             padding: 5px 10px; 
             margin-left: -10px; /* Offset to visually align the text flush left of card */
             border-radius: 8px; 
-            transition: background-color 0.2s;
+            transition: border 0.2s ease;
+            border: 2px solid transparent;
         }
 
-        /* NEW: Hover effect for the visual cue */
+        /* NEW: Hover effect with outline */
         .tracker-course-card h3:hover {
-            background-color: rgba(255, 255, 255, 0.7); /* Light highlight */
+            border: 2px solid var(--active-color);
+        }
+        
+        /* Paused state hover effect */
+        .tracker-course-card.paused h3:hover {
+            border: 2px solid var(--color-pause-purple);
         }
         
         /* If paused, keep purple color */
@@ -499,6 +505,21 @@
             min-height: 20px; 
             flex-shrink: 0; /* Prevent header from shrinking */
             padding-right: 40px; /* Space for X button */
+            padding: 5px 10px;
+            margin-left: -10px;
+            border-radius: 8px;
+            transition: border 0.2s ease;
+            cursor: pointer;
+            user-select: none;
+            border: 2px solid transparent;
+        }
+        
+        .course-card h3:hover {
+            border: 2px solid var(--active-color);
+        }
+        
+        .course-card.paused h3:hover {
+            border: 2px solid var(--color-pause-purple);
         }
 
         .course-card .course-notes {
@@ -812,6 +833,181 @@
         .context-menu-item.pause-action {
             color: var(--color-pause-purple);
             font-weight: 600;
+        }
+        
+        /* **NEW:** Custom Link Preview Card Styling */
+        .course-link-preview {
+            margin-top: 15px;
+            padding: 12px;
+            background-color: #ffffff;
+            border: 1px solid var(--active-color);
+            border-radius: 8px;
+            display: none;
+            flex-shrink: 0;
+        }
+        
+        .course-link-preview.active {
+            display: block;
+        }
+        
+        .preview-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        
+        .preview-thumbnail {
+            flex-shrink: 0;
+            width: 80px;
+            height: 80px;
+            background-color: #f0f0f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .preview-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .preview-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .preview-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 4px;
+            word-break: break-word;
+        }
+        
+        .preview-description {
+            font-size: 13px;
+            color: #767676;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .preview-url {
+            font-size: 12px;
+            color: var(--active-color);
+            text-decoration: none;
+            word-break: break-all;
+        }
+        
+        .preview-url:hover {
+            text-decoration: underline;
+        }
+        
+        .preview-loading {
+            text-align: center;
+            color: #767676;
+            font-size: 13px;
+            padding: 10px 0;
+        }
+        
+        /* **NEW:** Link Modal Dialog Styling */
+        .link-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .link-modal-overlay.active {
+            display: flex;
+        }
+        
+        .link-modal {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 25px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+        
+        .link-modal h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .link-modal .course-name {
+            font-size: 14px;
+            color: #767676;
+            margin-bottom: 20px;
+        }
+        
+        .link-modal-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 14px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+        
+        .link-modal-input:hover,
+        .link-modal-input:focus {
+            outline: none;
+            border-color: var(--active-color);
+            box-shadow: 0 0 0 1px var(--active-color);
+        }
+        
+        .link-modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .link-modal-buttons button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .link-modal-buttons .btn-cancel {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        
+        .link-modal-buttons .btn-cancel:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .link-modal-buttons .btn-save {
+            background-color: var(--active-color);
+            color: white;
+        }
+        
+        .link-modal-buttons .btn-save:hover {
+            opacity: 0.9;
+        }
+        
+        /* **NEW:** Context Menu Item Specific Colors */
+        .context-menu-item.link-action {
+            color: var(--active-color);
         }
     </style>
 </head>
@@ -1326,6 +1522,29 @@
     <div id="trackerContextMenu" class="context-menu" style="display: none;">
         <div class="context-menu-item" id="pauseUnpauseBtn"></div>
     </div>
+    
+    <div id="dayCardContextMenu" class="context-menu" style="display: none;">
+        <div class="context-menu-item link-action" id="addEditLinkBtn">Add / Edit Link</div>
+        <div class="context-menu-item link-action" id="removeLinkBtn" style="display: none;">Remove Link</div>
+    </div>
+    
+    <div id="linkModal" class="link-modal-overlay">
+        <div class="link-modal">
+            <h2>Add / Edit Link</h2>
+            <div class="course-name" id="linkModalCourseName"></div>
+            <input 
+                type="text" 
+                id="linkModalInput" 
+                class="link-modal-input" 
+                placeholder="Paste your link here..."
+                spellcheck="false"
+            >
+            <div class="link-modal-buttons">
+                <button class="btn-cancel" id="linkModalCancel">Cancel</button>
+                <button class="btn-save" id="linkModalSave">Save Link</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -1334,6 +1553,8 @@
             const LS_LESSONS_KEY = 'tracker_lessons';
             const LS_ASSIGNMENTS_KEY = 'tracker_assignments';
             const LS_PAUSED_COURSES_KEY = 'tracker_paused_courses'; // NEW KEY
+            const LS_COURSE_CUSTOM_LINKS_KEY = 'course_custom_links'; // NEW: Custom link storage
+            const LS_LINK_PREVIEW_TOGGLE_KEY = 'link_preview_toggle'; // NEW: Track which preview is shown
             const ALL_COURSE_NAMES = [
                 "Advanced Functions", "Data Management", "English", "Economics", "Media Arts",
                 "Business Leadership", "Challenge & Change", "Ontario Literacy Course"
@@ -1348,8 +1569,35 @@
             const tabContents = document.querySelectorAll('.tab-content');
             const TAB_PREFIX = 'day';
             
-            // **NEW FEATURE:** State to track unsaved changes
+            // **NEW:** State to track unsaved changes
             let hasUnsavedChanges = false;
+            
+            // **NEW FUNCTIONS:** Custom Link Management
+            function getCustomLinks() {
+                const raw = localStorage.getItem(LS_COURSE_CUSTOM_LINKS_KEY);
+                return raw ? JSON.parse(raw) : {};
+            }
+            
+            function setCustomLink(courseName, url) {
+                const links = getCustomLinks();
+                links[courseName] = url;
+                localStorage.setItem(LS_COURSE_CUSTOM_LINKS_KEY, JSON.stringify(links));
+            }
+            
+            function getCustomLink(courseName) {
+                const links = getCustomLinks();
+                return links[courseName] || null;
+            }
+            
+            function deleteCustomLink(courseName) {
+                const links = getCustomLinks();
+                delete links[courseName];
+                localStorage.setItem(LS_COURSE_CUSTOM_LINKS_KEY, JSON.stringify(links));
+            }
+            
+            function hasCustomLink(courseName) {
+                return getCustomLink(courseName) !== null;
+            }
             
             // --- II. Initialization (MODIFIED to remove sample data) ---
             function initializeTrackerData() {
@@ -2028,7 +2276,7 @@
                     ? dayId.charAt(0).toUpperCase() + dayId.slice(1).replace('y', 'y ')
                     : 'the current tracker';
 
-                if (confirm(`Are you sure you want to reset all fields for ${formattedDay}?`)) {
+                if (confirm(`Are you sure you want to reset all fields for ${formattedDay}? (Custom links will be preserved)`)) {
                     
                     if (dayId.startsWith(TAB_PREFIX)) {
                         localStorage.removeItem(`${dayId}_data`);
@@ -2280,7 +2528,19 @@
             // *** NEW: Delegated contextmenu listener for Tracker Cards to fix bug and handle positioning ***
             // The original logic for checking the target and preventing default is fine.
             mainContent.addEventListener('contextmenu', (e) => {
-                // Find the closest H3 element within a tracker card
+                // First, check for day card course titles (Day A/B cards)
+                const dayCardH3 = e.target.closest('.course-card h3');
+                const dayCard = e.target.closest('.course-card[data-day]'); // Only course cards with data-day attribute
+                
+                if (dayCardH3 && dayCard) {
+                    e.preventDefault();
+                    const courseName = dayCard.getAttribute('data-course-name');
+                    const dayId = dayCard.getAttribute('data-day');
+                    showDayCardContextMenu(e, courseName, dayId, dayCardH3);
+                    return;
+                }
+                
+                // Otherwise, check for tracker card course titles
                 const h3 = e.target.closest('.tracker-course-card h3');
                 const card = e.target.closest('.tracker-course-card');
 
@@ -2298,6 +2558,21 @@
                     if (trackerType) {
                         // Pass the H3 element for correct positioning
                         showPauseContextMenu(e, courseName, trackerType, h3); 
+                    }
+                }
+            });
+            
+            // **NEW:** Left-click handler to open links
+            mainContent.addEventListener('click', (e) => {
+                const dayCardH3 = e.target.closest('.course-card h3');
+                const dayCard = e.target.closest('.course-card[data-day]');
+                
+                if (dayCardH3 && dayCard) {
+                    const courseName = dayCard.getAttribute('data-course-name');
+                    const customLink = getCustomLink(courseName);
+                    
+                    if (customLink) {
+                        window.open(customLink, '_blank');
                     }
                 }
             });
@@ -2504,6 +2779,42 @@
             const pauseUnpauseBtn = document.getElementById('pauseUnpauseBtn');
             let contextMenuCourseName = '';
             let contextMenuTrackerType = '';
+            
+            // **NEW:** Day Card Context Menu Logic
+            const dayCardContextMenu = document.getElementById('dayCardContextMenu');
+            const addEditLinkBtn = document.getElementById('addEditLinkBtn');
+            const removeLinkBtn = document.getElementById('removeLinkBtn');
+            let dayCardContextMenuCourseName = '';
+            let dayCardContextMenuDayId = '';
+            
+            function showDayCardContextMenu(e, courseName, dayId, h3Element) {
+                dayCardContextMenuCourseName = courseName;
+                dayCardContextMenuDayId = dayId;
+                
+                const hasLink = hasCustomLink(courseName);
+                removeLinkBtn.style.display = hasLink ? 'block' : 'none';
+                
+                const rect = h3Element.getBoundingClientRect();
+                dayCardContextMenu.style.left = `${rect.left}px`;
+                dayCardContextMenu.style.top = `${rect.bottom + 5}px`;
+                dayCardContextMenu.style.display = 'block';
+            }
+            
+            // Handle Add/Edit Link
+            addEditLinkBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openLinkModal(dayCardContextMenuCourseName);
+                dayCardContextMenu.style.display = 'none';
+            });
+            
+            // Handle Remove Link
+            removeLinkBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm(`Remove link from "${dayCardContextMenuCourseName}"?`)) {
+                    deleteCustomLink(dayCardContextMenuCourseName);
+                }
+                dayCardContextMenu.style.display = 'none';
+            });
 
             // MODIFIED: Added h3Element parameter for positioning
             function showPauseContextMenu(e, courseName, type, h3Element) {
@@ -2531,6 +2842,66 @@
             // Hide menu on any click outside
             document.addEventListener('click', () => {
                 contextMenu.style.display = 'none';
+                dayCardContextMenu.style.display = 'none';
+            });
+            
+            // **NEW:** Link Modal Dialog Logic
+            const linkModal = document.getElementById('linkModal');
+            const linkModalInput = document.getElementById('linkModalInput');
+            const linkModalCourseName = document.getElementById('linkModalCourseName');
+            const linkModalCancel = document.getElementById('linkModalCancel');
+            const linkModalSave = document.getElementById('linkModalSave');
+            let modalCourseName = '';
+            
+            function openLinkModal(courseName) {
+                modalCourseName = courseName;
+                linkModalCourseName.textContent = courseName;
+                linkModalInput.value = getCustomLink(courseName) || '';
+                linkModal.classList.add('active');
+                setTimeout(() => linkModalInput.focus(), 100);
+            }
+            
+            function closeLinkModal() {
+                linkModal.classList.remove('active');
+                linkModalInput.value = '';
+                modalCourseName = '';
+            }
+            
+            linkModalCancel.addEventListener('click', closeLinkModal);
+            
+            linkModalSave.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const url = linkModalInput.value.trim();
+                
+                if (!url) {
+                    alert('Please enter a valid URL');
+                    return;
+                }
+                
+                // Ensure URL has protocol
+                let fullUrl = url;
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    fullUrl = 'https://' + url;
+                }
+                
+                setCustomLink(modalCourseName, fullUrl);
+                closeLinkModal();
+                
+                // Mark as unsaved
+                hasUnsavedChanges = true;
+            });
+            
+            linkModalInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    linkModalSave.click();
+                }
+            });
+            
+            // Close modal on overlay click
+            linkModal.addEventListener('click', (e) => {
+                if (e.target === linkModal) {
+                    closeLinkModal();
+                }
             });
             
             // Handle context menu button click
