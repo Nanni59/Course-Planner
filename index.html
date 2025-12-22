@@ -831,6 +831,43 @@
             font-weight: 600;
             color: #2c3e50;
             margin-right: auto;
+            position: relative;
+            /* Established context for tooltip */
+            cursor: default;
+        }
+
+        /* **NEW:** Version Tooltip Styling */
+        .main-footer .footer-title:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 120%;
+            /* Position above the text */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            animation: fadeIn 0.2s forwards;
+            pointer-events: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(5px);
+            }
         }
 
         .main-footer button {
@@ -1563,7 +1600,7 @@
     </main>
 
     <footer class="main-footer">
-        <h1 class="footer-title">Course Planner</h1>
+        <h1 class="footer-title" data-tooltip="Version 1.0">Course Planner</h1>
         <button id="lessonTrackerBtn">Lesson Tracker</button>
         <button id="assignmentTrackerBtn">Assignment Tracker</button>
         <button id="resetBtn">Reset</button>
