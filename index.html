@@ -681,14 +681,14 @@
         .task-list textarea:hover,
         .task-link:hover {
             border-color: var(--active-color);
-            box-shadow: 0 0 0 1px var(--active-color);
+            /* FIX: Removed box-shadow to prevent vertical line artifact on right side */
         }
 
         /* **NEW:** Paused Card Field Hover Effects (Purple) */
         .course-card.paused .task-list textarea:hover,
         .course-card.paused .task-link:hover {
             border-color: var(--color-pause-purple);
-            box-shadow: 0 0 0 1px var(--color-pause-purple);
+            /* FIX: Removed box-shadow to prevent vertical line artifact */
         }
 
         /* --- Checkbox --- */
