@@ -1,14 +1,15 @@
 <!DOCTYPE Posted HTML>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Course Planner</title>
-    
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
-    
+
     <style>
         /* --- Global & Font --- */
         * {
@@ -19,32 +20,35 @@
 
         :root {
             /* New Day A Colors (Blue) */
-            --color-day-a: #3498DB; 
-            --color-day-a-tint: #FAFDFE; 
+            --color-day-a: #3498DB;
+            --color-day-a-tint: #FAFDFE;
 
             /* New Day B Colors (Orange) */
             --color-day-b: #ED7D31;
-            --color-day-b-tint: #FFFCFA; 
+            --color-day-b-tint: #FFFCFA;
 
             /* Tracker Green Theme */
-            --color-tracker-green: #58A65C; 
-            --color-tracker-tint: #F7FCF7; /* Very light green tint */
+            --color-tracker-green: #58A65C;
+            --color-tracker-tint: #F7FCF7;
+            /* Very light green tint */
 
             /* New Global Colors */
             --color-text-gray: #767676;
             --color-button-green: #58A65C;
-            --color-pause-purple: #9B59B6; /* NEW: Purple for Paused State */
+            --color-pause-purple: #9B59B6;
+            /* NEW: Purple for Paused State */
         }
 
         body {
             font-family: 'Montserrat', sans-serif;
             background-color: #f4f7f6;
-            color: #333; /* Main body text color */
+            color: #333;
+            /* Main body text color */
             line-height: 1.6;
         }
 
         /* --- State Management: Apply colors based on active tab --- */
-        body.day-a { 
+        body.day-a {
             --active-color: var(--color-day-a);
             --active-tint: var(--color-day-a-tint);
         }
@@ -53,7 +57,7 @@
             --active-color: var(--color-day-b);
             --active-tint: var(--color-day-b-tint);
         }
-        
+
         /* NEW: Green Theme for Tracker Tabs */
         body.tracker-green {
             --active-color: var(--color-tracker-green);
@@ -66,31 +70,31 @@
             padding: 20px 40px;
             border-bottom: 1px solid #ddd;
             display: flex;
-            justify-content: center; 
+            justify-content: center;
             align-items: center;
         }
 
         h1 {
-            display: none; 
+            display: none;
         }
 
         .tab-nav {
             display: flex;
             justify-content: center;
-            width: 100%; 
+            width: 100%;
         }
 
         .tab-nav button {
             font-family: 'Montserrat', sans-serif;
             font-size: 16px;
-            font-weight: 600; 
+            font-weight: 600;
             padding: 10px 30px;
-            border: 2px solid transparent; 
+            border: 2px solid transparent;
             background-color: transparent;
             cursor: pointer;
             color: #7f8c8d;
             transition: all 0.3s ease;
-            border-radius: 50px; 
+            border-radius: 50px;
             margin: 0 10px;
         }
 
@@ -112,17 +116,19 @@
         .tab-content.active {
             display: block;
         }
-        
+
         /* New: Full width tracker containers */
-        #lessonTracker, #assignmentTracker {
+        #lessonTracker,
+        #assignmentTracker {
             padding: 20px;
         }
-        
+
         /* NEW: Fix Scroll Issue - Add bottom padding to main content to clear fixed footer */
         #mainContent {
-            padding-bottom: 100px; /* Adjust based on footer height */
+            padding-bottom: 100px;
+            /* Adjust based on footer height */
         }
-        
+
         /* ------------------------------------------------ */
         /* NEW: Progress Bar Styling */
         /* ------------------------------------------------ */
@@ -131,10 +137,11 @@
             padding: 15px 20px;
             border-radius: 12px;
             /* **MODIFIED** Change top margin to create space below the add form */
-            margin-top: 25px; 
-            margin-bottom: 25px; 
+            margin-top: 25px;
+            margin-bottom: 25px;
             border: 1px solid #ddd;
-            display: none; /* Default to hidden if no data */
+            display: none;
+            /* Default to hidden if no data */
         }
 
         .progress-bar-label {
@@ -156,33 +163,36 @@
         .progress-bar-inner {
             height: 100%;
             background-color: var(--color-tracker-green);
-            width: 0%; /* Will be set by JavaScript */
+            width: 0%;
+            /* Will be set by JavaScript */
             transition: width 0.5s ease;
         }
-        
+
         /* ------------------------------------------------ */
-        
+
         .tracker-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 20px;
         }
-        
+
         .tracker-course-card {
-            background-color: var(--active-tint); 
-            border-radius: 25px; 
-            padding: 20px; 
+            background-color: var(--active-tint);
+            border-radius: 25px;
+            padding: 20px;
             border: 2px solid var(--active-color);
             /* **NEW:** Required for positioning the delete button */
             position: relative;
             /* **NEW:** Add smooth transition for reordering animation */
             transition: opacity 0.3s ease, transform 0.3s ease;
         }
-        
+
         /* NEW: Paused Card Styling (Tracker) */
         .tracker-course-card.paused {
-            border: 2px dashed var(--color-pause-purple); /* Dashed border for paused state */
-            background-color: #fdfcfe; /* Lighter purple background */
+            border: 2px dashed var(--color-pause-purple);
+            /* Dashed border for paused state */
+            background-color: #fdfcfe;
+            /* Lighter purple background */
             opacity: 0.85;
         }
 
@@ -195,27 +205,32 @@
             padding: 3px 8px;
             border-radius: 4px;
             margin-left: 10px;
-            display: inline-block; 
+            display: inline-block;
             vertical-align: middle;
         }
 
         /* **NEW:** Delete Course Card Button (Shared style for both Day A/B and Trackers) */
         .delete-course-card-btn {
             position: absolute;
-            top: 15px; /* Aligns with h3 top padding */
-            right: 15px; /* Aligns with card padding */
-            width: 30px;
-            height: 30px;
+            top: 10px;
+            /* Aligns with h3 top padding */
+            right: 10px;
+            /* Aligns with card padding */
+            width: 24px;
+            /* Slightly smaller for better fit */
+            height: 24px;
             border-radius: 50%;
-            background-color: #e74c3c; /* Red color */
+            background-color: #e74c3c;
+            /* Red color */
             border: none;
             color: white;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
             line-height: 1;
             text-align: center;
             cursor: pointer;
-            display: none; /* Default to hidden */
+            display: none;
+            /* Default to hidden */
             padding: 0;
             transition: background-color 0.2s, opacity 0.2s;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -230,29 +245,32 @@
 
         /* Class to make the button visible for Day A/B and Tracker */
         .delete-course-card-btn.completed {
-            display: flex; /* Use flex to easily center the 'X' */
+            display: flex;
+            /* Use flex to easily center the 'X' */
             align-items: center;
             justify-content: center;
         }
-        
+
         /* MODIFIED FOR HOVER BOX CUE */
         .tracker-course-card h3 {
-             font-weight: 600; 
-            color: var(--active-color); 
+            font-weight: 600;
+            color: var(--active-color);
             /* MODIFIED: Adjusted for hover box */
-            margin-bottom: 10px; /* Reduced margin */
-            
+            margin-bottom: 10px;
+            /* Reduced margin */
+
             /* MODIFIED: Use inline-flex for content-width-only (the "up to the title" request) */
-            display: inline-flex; 
+            display: inline-flex;
             align-items: center;
-            
+
             cursor: pointer;
             user-select: none;
-            
+
             /* NEW: Padding for the visual "hover box" */
-            padding: 5px 10px; 
-            margin-left: -10px; /* Offset to visually align the text flush left of card */
-            border-radius: 8px; 
+            padding: 5px 10px;
+            margin-left: -10px;
+            /* Offset to visually align the text flush left of card */
+            border-radius: 8px;
             transition: border 0.2s ease;
             border: 2px solid transparent;
         }
@@ -261,32 +279,33 @@
         .tracker-course-card h3:hover {
             border: 2px solid var(--active-color);
         }
-        
+
         /* Paused state hover effect */
         .tracker-course-card.paused h3:hover {
             border: 2px solid var(--color-pause-purple);
         }
-        
+
         /* If paused, keep purple color */
         .tracker-course-card.paused h3 {
-            color: var(--color-pause-purple); /* Change H3 color when paused */
+            color: var(--color-pause-purple);
+            /* Change H3 color when paused */
         }
-        
+
         /* ------------------------------------------------ */
         /* PDF-Inspired Tracker List Structure */
         /* ------------------------------------------------ */
-        .tracker-course-card ul { 
+        .tracker-course-card ul {
             /* The ul is the main grid container */
             list-style: none;
             padding: 0;
             display: grid;
             /* 1fr for Name, 60px for Status, 80px for Actions */
-            grid-template-columns: 1fr 60px 80px; 
+            grid-template-columns: 1fr 60px 80px;
             gap: 10px;
             border-top: 1px solid rgba(0, 0, 0, 0.1);
             margin-top: 10px;
         }
-        
+
         /* Grid Header Row */
         .tracker-grid-header {
             font-weight: 600;
@@ -294,39 +313,44 @@
             padding: 8px 0;
             border-bottom: 2px solid var(--active-color);
             margin-bottom: 5px;
-            grid-column: 1 / -1; /* Span all columns */
-            display: contents; /* Allow children to be grid items */
-        }
-        
-        /* Center Status and Actions headers */
-        .tracker-grid-header > div:nth-child(2),
-        .tracker-grid-header > div:nth-child(3) {
-            text-align: center;
-        }
-        
-        /* Individual list item row */
-        .tracker-item-row {
-            display: contents; /* Allows children to be direct grid items */
+            grid-column: 1 / -1;
+            /* Span all columns */
+            display: contents;
+            /* Allow children to be grid items */
         }
 
-        .tracker-item-row > div {
+        /* Center Status and Actions headers */
+        .tracker-grid-header>div:nth-child(2),
+        .tracker-grid-header>div:nth-child(3) {
+            text-align: center;
+        }
+
+        /* Individual list item row */
+        .tracker-item-row {
+            display: contents;
+            /* Allows children to be direct grid items */
+        }
+
+        .tracker-item-row>div {
             padding: 8px 0;
             border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-            align-self: center; /* Vertically align */
+            align-self: center;
+            /* Vertically align */
         }
-        
+
         /* NEW: Centering for the Status (col 2) and Actions (col 3) columns */
-        .tracker-item-row > div:nth-child(2),
-        .tracker-item-row > div:nth-child(3) {
-            display: flex; /* Use flexbox for perfect vertical and horizontal centering of children */
-            align-items: center; 
+        .tracker-item-row>div:nth-child(2),
+        .tracker-item-row>div:nth-child(3) {
+            display: flex;
+            /* Use flexbox for perfect vertical and horizontal centering of children */
+            align-items: center;
             justify-content: center;
         }
-        
+
         /* Remove bottom border on the last item in the list */
-        .tracker-course-card ul > div:last-of-type > div:nth-child(1),
-        .tracker-course-card ul > div:last-of-type > div:nth-child(2),
-        .tracker-course-card ul > div:last-of-type > div:nth-child(3) {
+        .tracker-course-card ul>div:last-of-type>div:nth-child(1),
+        .tracker-course-card ul>div:last-of-type>div:nth-child(2),
+        .tracker-course-card ul>div:last-of-type>div:nth-child(3) {
             border-bottom: none;
         }
 
@@ -338,7 +362,8 @@
         /* Delete Button (individual task) */
         .delete-btn {
             padding: 5px 10px;
-            background-color: #e74c3c; /* Red color */
+            background-color: #e74c3c;
+            /* Red color */
             color: white;
             border: none;
             border-radius: 6px;
@@ -346,8 +371,9 @@
             font-weight: 600;
             font-size: 12px;
             transition: background-color 0.2s;
-            width: 60px; /* fixed width for button */
-            
+            width: 60px;
+            /* fixed width for button */
+
             /* NEW: Font fix */
             font-family: 'Montserrat', sans-serif;
         }
@@ -355,52 +381,57 @@
         .delete-btn:hover {
             background-color: #c0392b;
         }
-        
+
         /* ------------------------------------------------ */
-        
+
         .tracker-course-card li {
             /* Keep existing li but make it not show up in the new grid layout */
-            display: none; 
+            display: none;
         }
-        
+
         /* New: Pie Chart Container */
         .chart-container {
             width: 150px;
             height: 150px;
             margin: 15px auto 0;
         }
-        
+
         /* New: Add New Form Styling (Simplified to only use bulk section) */
         .add-new-form {
-            display: flex; 
-            flex-direction: row; /* Layout fields horizontally */
-            align-items: flex-start; /* Align top for textarea */
+            display: flex;
+            flex-direction: row;
+            /* Layout fields horizontally */
+            align-items: flex-start;
+            /* Align top for textarea */
             gap: 10px;
-            margin-bottom: 0; /* Remove bottom margin to keep space clean */
+            margin-bottom: 0;
+            /* Remove bottom margin to keep space clean */
             padding: 15px;
             border: 1px dashed #ccc;
             border-radius: 12px;
             background-color: #fff;
         }
-        
+
         /* Hiding the elements that were removed from HTML */
-        .add-single-section, .form-divider {
-            display: none !important; 
+        .add-single-section,
+        .form-divider {
+            display: none !important;
         }
-        
+
         /* Targeting the main fields */
         .add-new-form textarea {
             flex-grow: 1;
-            resize: vertical; 
+            resize: vertical;
             min-height: 80px;
         }
-        
+
         .add-new-form select {
-            width: 150px; /* Fixed width for course dropdown */
+            width: 150px;
+            /* Fixed width for course dropdown */
             flex-shrink: 0;
         }
-        
-        .add-new-form input[type="text"], 
+
+        .add-new-form input[type="text"],
         .add-new-form select,
         .add-new-form textarea {
             /* ... (keep existing styling) */
@@ -410,7 +441,7 @@
             font-family: 'Montserrat', sans-serif;
             font-size: 14px;
         }
-        
+
         .add-new-form button {
             padding: 10px 20px;
             background-color: var(--color-button-green);
@@ -420,62 +451,68 @@
             cursor: pointer;
             font-weight: 600;
             flex-shrink: 0;
-            
+
             /* NEW: Font fix */
             font-family: 'Montserrat', sans-serif;
         }
-        
+
         .tracker-summary {
             /* NEW: Ensure space below the H3 hover box */
-            margin-top: 5px; 
+            margin-top: 5px;
             margin-bottom: 15px;
             font-size: 14px;
             font-weight: 500;
         }
-        
+
         /* --- Course Grid & Cards --- */
         .course-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 20px;
             /* **FIX:** Prevent cards from stretching to match the tallest one */
-            align-items: start; 
+            align-items: start;
         }
 
         .course-card {
-            background-color: var(--active-tint); 
-            border-radius: 25px; 
-            box-shadow: none; 
-            padding: 20px; 
+            background-color: var(--active-tint);
+            border-radius: 25px;
+            box-shadow: none;
+            padding: 20px;
             border: 2px solid var(--active-color);
-            position: relative; /* REQUIRED for delete button */
+            position: relative;
+            /* REQUIRED for delete button */
             /* **NEW:** Add smooth transition for reordering animation */
             transition: opacity 0.3s ease, transform 0.3s ease;
-            
+
             /* **FIX:** Removed fixed height and flex layout to allow content-driven height */
+            /* **FIX:** Ensure card doesn't expand beyond its grid cell */
+            max-width: 100%;
+            box-sizing: border-box;
         }
-        
+
         /* NEW: Paused Day Card Styling (Matches Tracker Card) */
         .course-card.paused {
-            border: 2px dashed var(--color-pause-purple); 
-            background-color: #fdfcfe; /* Light purple background */
+            border: 2px dashed var(--color-pause-purple);
+            background-color: #fdfcfe;
+            /* Light purple background */
             opacity: 0.85;
         }
-        
+
         /* NEW: Header Color on Paused Day Card */
         .course-card.paused h3 {
             color: var(--color-pause-purple);
         }
-        
+
         /* NEW: Text Color Override for Paused Day Card Fields */
-        .course-card.paused .task-list textarea, 
+        .course-card.paused .task-list textarea,
         .course-card.paused .task-link {
             /* Text Color */
             color: var(--color-text-gray) !important;
             /* Placeholder Color (for consistency) */
-            opacity: 1; /* Fully opaque */
+            opacity: 1;
+            /* Fully opaque */
         }
-        
+
         /* NEW: Placeholder Color for Paused Day Card Fields */
         .course-card.paused .task-list textarea::placeholder,
         .course-card.paused .task-link::placeholder {
@@ -485,22 +522,27 @@
 
         /* NEW: Theme Label Color for Paused Day Card Fields */
         .course-card.paused .task-type-label {
-            color: var(--color-pause-purple); 
+            color: var(--color-pause-purple);
         }
-        
+
         /* NEW: Delete Button on Day A/B Cards */
         .course-card .delete-course-card-btn {
-            background-color: #e74c3c; /* Red color */
+            background-color: #e74c3c;
+            /* Red color */
             color: white;
         }
-        
+
         .course-card h3 {
-            font-weight: 600; 
-            color: var(--active-color); 
+            font-weight: 600;
+            color: var(--active-color);
             margin-bottom: 15px;
-            min-height: 20px; 
-            flex-shrink: 0; /* Prevent header from shrinking */
-            padding-right: 40px; /* Space for X button */
+            min-height: 20px;
+            flex-shrink: 0;
+            /* Prevent header from shrinking */
+            flex-shrink: 0;
+            /* Prevent header from shrinking */
+            padding-right: 35px;
+            /* Space for X button */
             padding: 5px 10px;
             margin-left: -10px;
             border-radius: 8px;
@@ -509,28 +551,28 @@
             user-select: none;
             border: 2px solid transparent;
         }
-        
+
         .course-card h3:hover {
             border: 2px solid var(--active-color);
         }
-        
+
         .course-card h3:hover {
             border: 2px solid var(--active-color);
         }
-        
+
         /* **NEW:** Style for course link anchor tags */
         .course-card h3 a.course-link,
         .tracker-course-card h3 a.course-link {
             color: inherit;
             text-decoration: none;
         }
-        
+
         .course-card.paused h3:hover {
             border: 2px solid var(--color-pause-purple);
         }
 
         .course-card .course-notes {
-            display: none; 
+            display: none;
         }
 
         /* --- Task List Items --- */
@@ -540,20 +582,22 @@
         }
 
         .task-list li {
-            margin-bottom: 0; 
-            padding: 5px 0; 
+            margin-bottom: 0;
+            padding: 5px 0;
             border-radius: 6px;
             transition: background-color 0.2s ease;
         }
-        
+
         /* NEW WRAPPER FOR SCROLLING CONTENT */
         .course-content-scroll-area {
             /* **FIX:** Re-introduced max-height to ensure scrolling works when content exceeds this size */
-            max-height: 550px; 
-            overflow-y: auto;  /* Enable vertical scrolling when content exceeds available height */
+            max-height: 550px;
+            overflow-y: auto;
+            /* Enable vertical scrolling when content exceeds available height */
             padding-right: 10px;
-            padding-left: 10px; /* **FIX:** Added left padding to balance right padding and center content */
-            
+            padding-left: 10px;
+            /* **FIX:** Added left padding to balance right padding and center content */
+
             /* flex-grow removed */
         }
 
@@ -562,34 +606,39 @@
         .task-main {
             display: grid;
             /* Label (100px) | Name Wrapper (1fr) | Checkbox (auto) */
-            grid-template-columns: 100px 1fr auto; 
+            grid-template-columns: 100px 1fr auto;
             gap: 10px;
             align-items: center;
         }
-        
+
         .task-type-label {
-            font-weight: 600; 
-            color: var(--active-color); /* Highlight the type */
+            font-weight: 600;
+            color: var(--active-color);
+            /* Highlight the type */
             align-self: center;
             flex-shrink: 0;
         }
-        
+
         /* New wrapper for name input and suggestions (1. Search Positioning Fix) */
         .task-name-wrapper {
-            position: relative; /* Set context for absolute suggestions */
+            position: relative;
+            /* Set context for absolute suggestions */
             align-self: center;
         }
 
         .task-notes-row,
-        .link-input-row { 
+        .link-input-row {
             margin-top: 10px;
+            /* **FIX:** Prevent container from stretching */
+            max-width: 100%;
+            overflow: hidden;
         }
 
         /* Styling for new TEXTAREAS (task-name and task-notes) and input (task-link) */
-        .task-list textarea, 
-        .task-link { 
+        .task-list textarea,
+        .task-link {
             font-family: 'Montserrat', sans-serif;
-            color: var(--color-text-gray); 
+            color: var(--color-text-gray);
             font-size: 14px;
             padding: 8px 10px;
             border: 1px solid #ddd;
@@ -597,9 +646,12 @@
             background-color: #ffffff;
             line-height: 1.6;
             width: 100%;
-            resize: none; /* Disable manual resize */
-            overflow: hidden; /* Hide scrollbars, JS manages height */
-            min-height: 38px; /* Standard minimum height for both notes and task names */
+            resize: none;
+            /* Disable manual resize */
+            overflow: hidden;
+            /* Hide scrollbars, JS manages height */
+            min-height: 38px;
+            /* Standard minimum height for both notes and task names */
         }
 
         /* Specific font weight for the lesson/assignment name fields */
@@ -609,25 +661,26 @@
 
         /* Specific font weight for the notes field */
         .task-notes {
-            font-weight: 400; 
+            font-weight: 400;
         }
 
         /* Specific Link Input Font Size (Value) */
         .task-link {
-            font-size: 13px; 
-            min-height: 38px; /* Keep consistent height */
+            font-size: 13px;
+            min-height: 38px;
+            /* Keep consistent height */
         }
 
         /* Specific Link Input Font Size (Placeholder) */
         .task-link::placeholder {
-            font-size: 13px; 
+            font-size: 13px;
             opacity: 0.9;
         }
 
         /* Hover effect for all fields */
         .task-list textarea:hover,
         .task-link:hover {
-            border-color: var(--active-color); 
+            border-color: var(--active-color);
             box-shadow: 0 0 0 1px var(--active-color);
         }
 
@@ -639,13 +692,14 @@
         }
 
         /* --- Checkbox --- */
-        .task-list input[type="checkbox"], .tracker-item-checkbox {
-            width: 25px; 
-            height: 25px; 
+        .task-list input[type="checkbox"],
+        .tracker-item-checkbox {
+            width: 25px;
+            height: 25px;
             cursor: pointer;
             justify-self: end;
-            border-radius: 25px; 
-            border: 2px solid var(--color-text-gray); 
+            border-radius: 25px;
+            border: 2px solid var(--color-text-gray);
             background-color: #fff;
             -webkit-appearance: none;
             -moz-appearance: none;
@@ -657,18 +711,20 @@
         }
 
         /* NEW: Checkbox Hover Effect */
-        .task-list input[type="checkbox"]:hover, .tracker-item-checkbox:hover {
+        .task-list input[type="checkbox"]:hover,
+        .tracker-item-checkbox:hover {
             border-color: var(--active-color);
             box-shadow: 0 0 0 1px var(--active-color);
         }
 
-        .task-list input[type="checkbox"]:checked, .tracker-item-checkbox:checked {
-            background-color: #ffffff; 
-            border-color: var(--active-color); 
+        .task-list input[type="checkbox"]:checked,
+        .tracker-item-checkbox:checked {
+            background-color: #ffffff;
+            border-color: var(--active-color);
             /* Black checkmark (✓) */
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3E%3C/svg%3E");
         }
-        
+
         .tracker-item-row .tracker-item-checkbox {
             /* margin: 0 auto; Removed, relying on flex parent */
         }
@@ -676,20 +732,21 @@
 
         /* --- Embed/Link Display Area Styling --- */
         .course-embed-container {
-            margin-top: 15px; 
+            margin-top: 15px;
             padding-top: 10px;
-            border-top: 1px solid rgba(0, 0, 0, 0.05); 
-            display: none; 
-            flex-shrink: 0; /* Prevent the embed container from taking up all space */
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+            display: none;
+            flex-shrink: 0;
+            /* Prevent the embed container from taking up all space */
         }
 
         .video-embed-wrapper {
             position: relative;
-            padding-bottom: 56.25%; 
+            padding-bottom: 56.25%;
             height: 0;
             overflow: hidden;
-            border-radius: 12px; 
-            transform: translateZ(0); 
+            border-radius: 12px;
+            transform: translateZ(0);
             /* Removed margin-bottom here, added inline in JS for flexibility */
         }
 
@@ -705,22 +762,24 @@
         .course-embed-container a {
             display: block;
             padding: 5px 0;
-            color: var(--active-color); 
+            color: var(--active-color);
             font-weight: 600;
-            text-decoration: none; 
+            text-decoration: none;
             word-wrap: break-word;
         }
-        
+
         /* New: Search Suggestions (2. Positioning Fix) */
         .search-suggestions {
             position: absolute;
             z-index: 10;
-            top: 100%; /* Position correctly below the input */
+            top: 100%;
+            /* Position correctly below the input */
             left: 0;
             right: 0;
             background-color: #ffffff;
             border: 1px solid var(--active-color);
-            border-top: none; /* Make it visually connect to the input border */
+            border-top: none;
+            /* Make it visually connect to the input border */
             border-radius: 0 0 6px 6px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             max-height: 200px;
@@ -730,11 +789,11 @@
             margin: 0;
             display: none;
         }
-        
+
         .search-suggestions.active {
             display: block;
         }
-        
+
         .search-suggestions li {
             padding: 8px 15px;
             cursor: pointer;
@@ -742,11 +801,11 @@
             color: #333;
             font-size: 14px;
         }
-        
+
         .search-suggestions li:last-child {
             border-bottom: none;
         }
-        
+
         .search-suggestions li:hover {
             background-color: var(--active-tint);
         }
@@ -761,30 +820,30 @@
             border-top: 1px solid #ddd;
             padding: 15px 40px;
             display: flex;
-            justify-content: space-between; 
-            align-items: center; 
-            gap: 15px; 
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
         }
 
         .main-footer .footer-title {
             display: block;
-            font-size: 22px; 
-            font-weight: 600; 
+            font-size: 22px;
+            font-weight: 600;
             color: #2c3e50;
-            margin-right: auto; 
+            margin-right: auto;
         }
 
         .main-footer button {
             font-family: 'Montserrat', sans-serif;
             font-size: 14px;
-            font-weight: 600; 
+            font-weight: 600;
             cursor: pointer;
             background-color: #ffffff;
-            flex-shrink: 0; 
-            
-            border: 1px solid; 
+            flex-shrink: 0;
+
+            border: 1px solid;
             padding: 8px 16px;
-            border-radius: 12px; 
+            border-radius: 12px;
 
             transition: all 0.2s ease;
         }
@@ -794,13 +853,15 @@
         }
 
         /* Button Group 1: Lesson & Assignment Tracker (Green) */
-        #lessonTrackerBtn, #assignmentTrackerBtn {
+        #lessonTrackerBtn,
+        #assignmentTrackerBtn {
             color: var(--color-button-green);
             border-color: var(--color-button-green);
         }
 
         /* Button Group 2: Reset & Save (Theme Color) */
-        #saveBtn, #resetBtn {
+        #saveBtn,
+        #resetBtn {
             color: var(--active-color);
             border-color: var(--active-color);
         }
@@ -810,7 +871,7 @@
             color: var(--color-button-green);
             border-color: var(--color-button-green);
         }
-        
+
         /* **NEW:** Custom Context Menu Styling */
         .context-menu {
             position: fixed;
@@ -835,13 +896,13 @@
         .context-menu-item:hover {
             background-color: var(--active-tint);
         }
-        
+
         /* Specific color for the pause action */
         .context-menu-item.pause-action {
             color: var(--color-pause-purple);
             font-weight: 600;
         }
-        
+
         /* **NEW:** Custom Link Preview Card Styling */
         .course-link-preview {
             margin-top: 15px;
@@ -852,17 +913,17 @@
             display: none;
             flex-shrink: 0;
         }
-        
+
         .course-link-preview.active {
             display: block;
         }
-        
+
         .preview-header {
             display: flex;
             align-items: flex-start;
             gap: 12px;
         }
-        
+
         .preview-thumbnail {
             flex-shrink: 0;
             width: 80px;
@@ -871,18 +932,18 @@
             border-radius: 6px;
             overflow: hidden;
         }
-        
+
         .preview-thumbnail img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
-        
+
         .preview-content {
             flex: 1;
             min-width: 0;
         }
-        
+
         .preview-title {
             font-weight: 600;
             font-size: 14px;
@@ -890,7 +951,7 @@
             margin-bottom: 4px;
             word-break: break-word;
         }
-        
+
         .preview-description {
             font-size: 13px;
             color: #767676;
@@ -900,25 +961,25 @@
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
-        
+
         .preview-url {
             font-size: 12px;
             color: var(--active-color);
             text-decoration: none;
             word-break: break-all;
         }
-        
+
         .preview-url:hover {
             text-decoration: underline;
         }
-        
+
         .preview-loading {
             text-align: center;
             color: #767676;
             font-size: 13px;
             padding: 10px 0;
         }
-        
+
         /* **NEW:** Link Modal Dialog Styling */
         .link-modal-overlay {
             display: none;
@@ -932,11 +993,11 @@
             justify-content: center;
             align-items: center;
         }
-        
+
         .link-modal-overlay.active {
             display: flex;
         }
-        
+
         .link-modal {
             background-color: #ffffff;
             border-radius: 12px;
@@ -945,20 +1006,20 @@
             width: 90%;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
         }
-        
+
         .link-modal h2 {
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 5px;
             color: #333;
         }
-        
+
         .link-modal .course-name {
             font-size: 14px;
             color: #767676;
             margin-bottom: 20px;
         }
-        
+
         .link-modal-input {
             width: 100%;
             padding: 10px 12px;
@@ -969,20 +1030,20 @@
             margin-bottom: 20px;
             box-sizing: border-box;
         }
-        
+
         .link-modal-input:hover,
         .link-modal-input:focus {
             outline: none;
             border-color: var(--active-color);
             box-shadow: 0 0 0 1px var(--active-color);
         }
-        
+
         .link-modal-buttons {
             display: flex;
             gap: 10px;
             justify-content: flex-end;
         }
-        
+
         .link-modal-buttons button {
             padding: 8px 16px;
             border: none;
@@ -993,52 +1054,49 @@
             cursor: pointer;
             transition: all 0.2s ease;
         }
-        
+
         .link-modal-buttons .btn-cancel {
             background-color: #f0f0f0;
             color: #333;
         }
-        
+
         .link-modal-buttons .btn-cancel:hover {
             background-color: #e0e0e0;
         }
-        
+
         .link-modal-buttons .btn-save {
             background-color: var(--active-color);
             color: white;
         }
-        
+
         .link-modal-buttons .btn-save:hover {
             opacity: 0.9;
         }
-        
+
         /* **NEW:** Context Menu Item Specific Colors */
         .context-menu-item.link-action {
             color: var(--active-color);
         }
     </style>
 </head>
-<body class="day-a"> 
+
+<body class="day-a">
 
     <header class="main-header">
         <nav class="tab-nav">
             <button class="tab-link active" data-tab="dayA">Day A</button>
             <button class="tab-link" data-tab="dayB">Day B</button>
-            </nav>
+        </nav>
     </header>
 
-    <main id="mainContent"> 
+    <main id="mainContent">
         <div id="dayA" class="tab-content active">
             <div class="course-grid">
                 <div class="course-card" data-course-name="Advanced Functions" data-day="dayA">
                     <h3>Advanced Functions</h3>
-                    <button 
-                        class="delete-course-card-btn" 
-                        data-course="Advanced Functions" 
-                        data-day="dayA"
-                        title="Clear all tasks in this card"
-                    >
-                        &times; 
+                    <button class="delete-course-card-btn" data-course="Advanced Functions" data-day="dayA"
+                        title="Clear all tasks in this card">
+                        &times;
                     </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
@@ -1046,28 +1104,30 @@
                                 <div class="task-main task-lesson-main">
                                     <div class="task-type-label">Lesson:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
                                         <ul class="search-suggestions task-lesson-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                
+
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
                                     <div class="task-type-label">Assignment:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
                                         <ul class="search-suggestions task-assignment-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                
+
                                 <div class="task-notes-row">
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                     <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1077,13 +1137,9 @@
 
                 <div class="course-card" data-course-name="Data Management" data-day="dayA">
                     <h3>Data Management</h3>
-                    <button 
-                        class="delete-course-card-btn" 
-                        data-course="Data Management" 
-                        data-day="dayA"
-                        title="Clear all tasks in this card"
-                    >
-                        &times; 
+                    <button class="delete-course-card-btn" data-course="Data Management" data-day="dayA"
+                        title="Clear all tasks in this card">
+                        &times;
                     </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
@@ -1091,44 +1147,42 @@
                                 <div class="task-main task-lesson-main">
                                     <div class="task-type-label">Lesson:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
                                         <ul class="search-suggestions task-lesson-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                
+
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
                                     <div class="task-type-label">Assignment:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
                                         <ul class="search-suggestions task-assignment-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                
+
                                 <div class="task-notes-row">
-                                     <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                     <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
                         <div class="course-embed-container"></div>
                     </div>
                 </div>
-                
+
                 <div class="course-card" data-course-name="English" data-day="dayA">
                     <h3>English</h3>
-                    <button 
-                        class="delete-course-card-btn" 
-                        data-course="English" 
-                        data-day="dayA"
-                        title="Clear all tasks in this card"
-                    >
-                        &times; 
+                    <button class="delete-course-card-btn" data-course="English" data-day="dayA"
+                        title="Clear all tasks in this card">
+                        &times;
                     </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
@@ -1136,28 +1190,30 @@
                                 <div class="task-main task-lesson-main">
                                     <div class="task-type-label">Lesson:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
                                         <ul class="search-suggestions task-lesson-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                
+
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
                                     <div class="task-type-label">Assignment:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
                                         <ul class="search-suggestions task-assignment-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                
+
                                 <div class="task-notes-row">
-                                     <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                     <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1167,13 +1223,9 @@
 
                 <div class="course-card" data-course-name="Economics" data-day="dayA">
                     <h3>Economics</h3>
-                    <button 
-                        class="delete-course-card-btn" 
-                        data-course="Economics" 
-                        data-day="dayA"
-                        title="Clear all tasks in this card"
-                    >
-                        &times; 
+                    <button class="delete-course-card-btn" data-course="Economics" data-day="dayA"
+                        title="Clear all tasks in this card">
+                        &times;
                     </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
@@ -1181,28 +1233,30 @@
                                 <div class="task-main task-lesson-main">
                                     <div class="task-type-label">Lesson:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
                                         <ul class="search-suggestions task-lesson-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                
+
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
                                     <div class="task-type-label">Assignment:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
                                         <ul class="search-suggestions task-assignment-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                
+
                                 <div class="task-notes-row">
-                                     <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                     <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1212,13 +1266,9 @@
 
                 <div class="course-card" data-course-name="Media Arts" data-day="dayA">
                     <h3>Media Arts</h3>
-                    <button 
-                        class="delete-course-card-btn" 
-                        data-course="Media Arts" 
-                        data-day="dayA"
-                        title="Clear all tasks in this card"
-                    >
-                        &times; 
+                    <button class="delete-course-card-btn" data-course="Media Arts" data-day="dayA"
+                        title="Clear all tasks in this card">
+                        &times;
                     </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
@@ -1226,28 +1276,30 @@
                                 <div class="task-main task-lesson-main">
                                     <div class="task-type-label">Lesson:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
                                         <ul class="search-suggestions task-lesson-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                
+
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
                                     <div class="task-type-label">Assignment:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
                                         <ul class="search-suggestions task-assignment-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                
+
                                 <div class="task-notes-row">
-                                     <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                     <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1262,13 +1314,9 @@
             <div class="course-grid">
                 <div class="course-card" data-course-name="Advanced Functions" data-day="dayB">
                     <h3>Advanced Functions</h3>
-                    <button 
-                        class="delete-course-card-btn" 
-                        data-course="Advanced Functions" 
-                        data-day="dayB"
-                        title="Clear all tasks in this card"
-                    >
-                        &times; 
+                    <button class="delete-course-card-btn" data-course="Advanced Functions" data-day="dayB"
+                        title="Clear all tasks in this card">
+                        &times;
                     </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
@@ -1276,28 +1324,30 @@
                                 <div class="task-main task-lesson-main">
                                     <div class="task-type-label">Lesson:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
                                         <ul class="search-suggestions task-lesson-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                
+
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
                                     <div class="task-type-label">Assignment:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
                                         <ul class="search-suggestions task-assignment-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                
+
                                 <div class="task-notes-row">
-                                     <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                     <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1307,13 +1357,9 @@
 
                 <div class="course-card" data-course-name="Data Management" data-day="dayB">
                     <h3>Data Management</h3>
-                    <button 
-                        class="delete-course-card-btn" 
-                        data-course="Data Management" 
-                        data-day="dayB"
-                        title="Clear all tasks in this card"
-                    >
-                        &times; 
+                    <button class="delete-course-card-btn" data-course="Data Management" data-day="dayB"
+                        title="Clear all tasks in this card">
+                        &times;
                     </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
@@ -1321,28 +1367,30 @@
                                 <div class="task-main task-lesson-main">
                                     <div class="task-type-label">Lesson:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
                                         <ul class="search-suggestions task-lesson-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                
+
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
                                     <div class="task-type-label">Assignment:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
                                         <ul class="search-suggestions task-assignment-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                
+
                                 <div class="task-notes-row">
-                                     <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                     <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1352,13 +1400,9 @@
 
                 <div class="course-card" data-course-name="Business Leadership" data-day="dayB">
                     <h3>Business Leadership</h3>
-                    <button 
-                        class="delete-course-card-btn" 
-                        data-course="Business Leadership" 
-                        data-day="dayB"
-                        title="Clear all tasks in this card"
-                    >
-                        &times; 
+                    <button class="delete-course-card-btn" data-course="Business Leadership" data-day="dayB"
+                        title="Clear all tasks in this card">
+                        &times;
                     </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
@@ -1366,28 +1410,30 @@
                                 <div class="task-main task-lesson-main">
                                     <div class="task-type-label">Lesson:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
                                         <ul class="search-suggestions task-lesson-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                
+
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
                                     <div class="task-type-label">Assignment:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
                                         <ul class="search-suggestions task-assignment-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                
+
                                 <div class="task-notes-row">
-                                     <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                     <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1397,13 +1443,9 @@
 
                 <div class="course-card" data-course-name="Challenge & Change" data-day="dayB">
                     <h3>Challenge & Change</h3>
-                    <button 
-                        class="delete-course-card-btn" 
-                        data-course="Challenge & Change" 
-                        data-day="dayB"
-                        title="Clear all tasks in this card"
-                    >
-                        &times; 
+                    <button class="delete-course-card-btn" data-course="Challenge & Change" data-day="dayB"
+                        title="Clear all tasks in this card">
+                        &times;
                     </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
@@ -1411,28 +1453,30 @@
                                 <div class="task-main task-lesson-main">
                                     <div class="task-type-label">Lesson:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
                                         <ul class="search-suggestions task-lesson-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                
+
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
                                     <div class="task-type-label">Assignment:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
                                         <ul class="search-suggestions task-assignment-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                
+
                                 <div class="task-notes-row">
-                                     <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                     <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1442,13 +1486,9 @@
 
                 <div class="course-card" data-course-name="Ontario Literacy Course" data-day="dayB">
                     <h3>Ontario Literacy Course</h3>
-                    <button 
-                        class="delete-course-card-btn" 
-                        data-course="Ontario Literacy Course" 
-                        data-day="dayB"
-                        title="Clear all tasks in this card"
-                    >
-                        &times; 
+                    <button class="delete-course-card-btn" data-course="Ontario Literacy Course" data-day="dayB"
+                        title="Clear all tasks in this card">
+                        &times;
                     </button>
                     <div class="course-content-scroll-area">
                         <ul class="task-list">
@@ -1456,28 +1496,30 @@
                                 <div class="task-main task-lesson-main">
                                     <div class="task-type-label">Lesson:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name" placeholder="Lesson Name"></textarea>
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
                                         <ul class="search-suggestions task-lesson-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-lesson-checkbox">
                                 </div>
-                                
+
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
                                     <div class="task-type-label">Assignment:</div>
                                     <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name"></textarea>
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
                                         <ul class="search-suggestions task-assignment-suggestions"></ul>
                                     </div>
                                     <input type="checkbox" class="task-checkbox task-assignment-checkbox">
                                 </div>
-                                
+
                                 <div class="task-notes-row">
-                                     <textarea class="task-notes" placeholder="Notes"></textarea>
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
                                 <div class="link-input-row">
-                                     <input type="text" class="task-link" placeholder="Paste link here...">
+                                    <input type="text" class="task-link" placeholder="Paste link here...">
                                 </div>
                             </li>
                         </ul>
@@ -1487,33 +1529,35 @@
 
             </div>
         </div>
-        
+
         <div id="lessonTracker" class="tab-content">
             <h2>Add New Lesson</h2>
             <div class="add-new-form">
-                <textarea id="bulkLessonNames" placeholder="Paste lesson names here, one per line..." required></textarea>
+                <textarea id="bulkLessonNames" placeholder="Paste lesson names here, one per line..."
+                    required></textarea>
                 <select id="bulkLessonCourse" required></select>
                 <button id="addLessonBtn">Add Lessons</button>
             </div>
-            
+
             <div id="lessonOverallProgress" class="progress-bar-container"></div>
 
             <div id="lessonTrackerContent" class="tracker-grid">
-                </div>
+            </div>
         </div>
 
         <div id="assignmentTracker" class="tab-content">
-             <h2>Add New Assignment</h2>
-             <div class="add-new-form">
-                <textarea id="bulkAssignmentNames" placeholder="Paste assignment names here, one per line..." required></textarea>
+            <h2>Add New Assignment</h2>
+            <div class="add-new-form">
+                <textarea id="bulkAssignmentNames" placeholder="Paste assignment names here, one per line..."
+                    required></textarea>
                 <select id="bulkAssignmentCourse" required></select>
                 <button id="addAssignmentBtn">Add Assignments</button>
             </div>
-            
-             <div id="assignmentOverallProgress" class="progress-bar-container"></div>
-            
+
+            <div id="assignmentOverallProgress" class="progress-bar-container"></div>
+
             <div id="assignmentTrackerContent" class="tracker-grid">
-                 </div>
+            </div>
         </div>
 
     </main>
@@ -1529,23 +1573,18 @@
     <div id="trackerContextMenu" class="context-menu" style="display: none;">
         <div class="context-menu-item" id="pauseUnpauseBtn"></div>
     </div>
-    
+
     <div id="dayCardContextMenu" class="context-menu" style="display: none;">
         <div class="context-menu-item link-action" id="addEditLinkBtn">Add / Edit Link</div>
         <div class="context-menu-item link-action" id="removeLinkBtn" style="display: none;">Remove Link</div>
     </div>
-    
+
     <div id="linkModal" class="link-modal-overlay">
         <div class="link-modal">
             <h2>Add / Edit Link</h2>
             <div class="course-name" id="linkModalCourseName"></div>
-            <input 
-                type="text" 
-                id="linkModalInput" 
-                class="link-modal-input" 
-                placeholder="Paste your link here..."
-                spellcheck="false"
-            >
+            <input type="text" id="linkModalInput" class="link-modal-input" placeholder="Paste your link here..."
+                spellcheck="false">
             <div class="link-modal-buttons">
                 <button class="btn-cancel" id="linkModalCancel">Cancel</button>
                 <button class="btn-save" id="linkModalSave">Save Link</button>
@@ -1555,7 +1594,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            
+
             // II. Data Persistence & Structure
             const LS_LESSONS_KEY = 'tracker_lessons';
             const LS_ASSIGNMENTS_KEY = 'tracker_assignments';
@@ -1566,46 +1605,46 @@
                 "Advanced Functions", "Data Management", "English", "Economics", "Media Arts",
                 "Business Leadership", "Challenge & Change", "Ontario Literacy Course"
             ];
-            
+
             // Define colors for JavaScript use
-            const COLOR_DEFAULT_GRAY = '#767676'; 
-            const COLOR_INPUT_TEXT = '#333'; 
+            const COLOR_DEFAULT_GRAY = '#767676';
+            const COLOR_INPUT_TEXT = '#333';
 
             const mainContent = document.getElementById('mainContent');
             const tabLinks = document.querySelectorAll('.tab-link');
             const tabContents = document.querySelectorAll('.tab-content');
             const TAB_PREFIX = 'day';
-            
+
             // **NEW:** State to track unsaved changes
             let hasUnsavedChanges = false;
-            
+
             // **NEW FUNCTIONS:** Custom Link Management
             function getCustomLinks() {
                 const raw = localStorage.getItem(LS_COURSE_CUSTOM_LINKS_KEY);
                 return raw ? JSON.parse(raw) : {};
             }
-            
+
             function setCustomLink(courseName, url) {
                 const links = getCustomLinks();
                 links[courseName] = url;
                 localStorage.setItem(LS_COURSE_CUSTOM_LINKS_KEY, JSON.stringify(links));
             }
-            
+
             function getCustomLink(courseName) {
                 const links = getCustomLinks();
                 return links[courseName] || null;
             }
-            
+
             function deleteCustomLink(courseName) {
                 const links = getCustomLinks();
                 delete links[courseName];
                 localStorage.setItem(LS_COURSE_CUSTOM_LINKS_KEY, JSON.stringify(links));
             }
-            
+
             function hasCustomLink(courseName) {
                 return getCustomLink(courseName) !== null;
             }
-            
+
             // **NEW:** Update href attribute on course title h3
             function updateCourseH3Href(courseName) {
                 document.querySelectorAll('.course-card, .tracker-course-card').forEach(card => {
@@ -1614,7 +1653,7 @@
                         if (h3) {
                             let linkEl = h3.querySelector('a.course-link');
                             const customLink = getCustomLink(courseName);
-                            
+
                             if (customLink && !linkEl) {
                                 // Create anchor tag and wrap the content
                                 linkEl = document.createElement('a');
@@ -1635,18 +1674,18 @@
                     }
                 });
             }
-            
+
             // --- II. Initialization (MODIFIED to remove sample data) ---
             function initializeTrackerData() {
                 // Initialize both tracker keys to an empty array if they do not exist
                 if (!localStorage.getItem(LS_LESSONS_KEY)) {
                     localStorage.setItem(LS_LESSONS_KEY, JSON.stringify([]));
                 }
-                
+
                 if (!localStorage.getItem(LS_ASSIGNMENTS_KEY)) {
                     localStorage.setItem(LS_ASSIGNMENTS_KEY, JSON.stringify([]));
                 }
-                
+
                 // NEW: Initialize Paused Courses
                 if (!localStorage.getItem(LS_PAUSED_COURSES_KEY)) {
                     localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify({ lesson: [], assignment: [] }));
@@ -1666,7 +1705,7 @@
             // --- Toggle Pause State (MODIFIED for cross-tracker synchronization) ---
             function toggleCoursePauseState(courseName, type) {
                 let pausedCourses = getPausedCourses();
-                
+
                 // Determine if the course is currently paused in the * initial* tracker
                 const isCurrentlyPaused = (pausedCourses[type] || []).includes(courseName);
 
@@ -1693,9 +1732,9 @@
                 setPauseState('assignment', shouldPause);
 
                 localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(pausedCourses));
-                
+
                 // Re-render *all* affected components
-                
+
                 // 1. Render the Lesson Tracker if visible/needed
                 const activeTabId = document.querySelector('.tab-content.active')?.id;
                 if (activeTabId === 'lessonTracker') {
@@ -1703,7 +1742,7 @@
                 } else if (activeTabId === 'assignmentTracker') {
                     renderTracker('assignment');
                 }
-                
+
                 // 2. Update all Day A/B cards (MUST run for visual feedback)
                 updateDayCardPauseState(courseName, shouldPause);
 
@@ -1711,7 +1750,7 @@
                 calculateAndRenderOverallProgress('lesson');
                 calculateAndRenderOverallProgress('assignment');
             }
-            
+
             // **NEW FUNCTION:** Update Day Card Visuals
             function updateDayCardPauseState(courseName, isPaused) {
                 document.querySelectorAll('.course-card[data-course-name]').forEach(card => {
@@ -1723,7 +1762,7 @@
                         });
                     }
                 });
-                
+
                 // **NEW:** Reorder cards in both Day A and Day B to push paused cards to the back
                 reorderDayCards('dayA');
                 reorderDayCards('dayB');
@@ -1745,7 +1784,7 @@
             function renderEmbed(courseCardElement, rawLinksString) {
                 const embedContainer = courseCardElement.querySelector('.course-embed-container');
                 embedContainer.innerHTML = '';
-                
+
                 // 1. Split the raw string by comma, trim whitespace, and filter out empty strings
                 const links = (rawLinksString || '').split(',').map(link => link.trim()).filter(link => link !== '');
 
@@ -1758,7 +1797,7 @@
 
                 links.forEach(link => {
                     const embedUrl = getYouTubeEmbed(link);
-                    
+
                     if (embedUrl) {
                         // This is a YouTube video
                         allEmbedsHTML += `
@@ -1783,13 +1822,13 @@
                 embedContainer.innerHTML = allEmbedsHTML;
                 embedContainer.style.display = 'block';
             }
-            
+
             // --- Centralized function to manage all day-switching logic (UPDATED for Green Theme and Progress Bar) ---
             function switchDay(dayId) {
                 // 1. Update localStorage for user preference
                 const dayLetter = dayId.startsWith(TAB_PREFIX) ? dayId.slice(-1) : null;
                 if (dayLetter) localStorage.setItem('selectedDay', dayLetter);
-                
+
                 // 2. Update Tab Classes and Content Visibility
                 // NOTE: tabLinks now only includes Day A and Day B
                 tabLinks.forEach(item => {
@@ -1810,7 +1849,7 @@
                 } else if (dayId === 'lessonTracker' || dayId === 'assignmentTracker') {
                     document.body.classList.add('tracker-green');
                 }
-                
+
                 // 4. Handle Tracker Tabs and render progress
                 if (dayId === 'lessonTracker') {
                     renderTracker('lesson');
@@ -1819,40 +1858,40 @@
                     renderTracker('assignment');
                     calculateAndRenderOverallProgress('assignment'); // NEW: Render progress
                 }
-                
+
                 // 5. Resize Textareas (must run after visibility is set)
                 if (dayId.startsWith(TAB_PREFIX)) resizeFieldsForActiveDay(dayId); // Renamed function
             }
-            
+
             // --- **NEW:** Reorder Day Cards to Push Paused Cards to the Back ---
             function reorderDayCards(dayId) {
                 const dayContainer = document.getElementById(dayId);
                 const courseGrid = dayContainer.querySelector('.course-grid');
                 if (!courseGrid) return;
-                
+
                 const cards = Array.from(courseGrid.querySelectorAll('.course-card'));
-                
+
                 // Separate unpaused and paused cards, maintaining alphabetical order within each group
                 const unpausedCards = cards.filter(card => !card.classList.contains('paused'));
                 const pausedCards = cards.filter(card => card.classList.contains('paused'));
-                
+
                 // Sort both groups alphabetically by course name
                 const sortByCourseName = (a, b) => {
                     const nameA = a.getAttribute('data-course-name') || a.querySelector('h3').textContent.trim();
                     const nameB = b.getAttribute('data-course-name') || b.querySelector('h3').textContent.trim();
                     return nameA.localeCompare(nameB);
                 };
-                
+
                 unpausedCards.sort(sortByCourseName);
                 pausedCards.sort(sortByCourseName);
-                
+
                 // Clear the grid and re-append in the new order (unpaused first, then paused)
                 courseGrid.innerHTML = '';
                 [...unpausedCards, ...pausedCards].forEach(card => {
                     courseGrid.appendChild(card);
                 });
             }
-            
+
             // --- Auto-select Day logic (MODIFIED to handle tracker tabs) ---
             function autoSelectDay() {
                 const dayMap = { 0: 'A', 1: 'B', 2: 'A', 3: 'B', 4: 'A', 5: 'A', 6: 'A' };
@@ -1860,31 +1899,40 @@
                 const weekday = today.getDay();
                 const desiredDay = dayMap[weekday] || 'A';
                 const savedDay = localStorage.getItem('selectedDay');
-                const initialDay = savedDay || desiredDay; 
-                
+                const initialDay = savedDay || desiredDay;
+
                 switchDay(TAB_PREFIX + initialDay);
             }
-            
+
             // --- Textarea Resize Function (UPDATED for fix) ---
             function resizeFieldsForActiveDay(dayId) {
                 const dayContainer = document.getElementById(dayId);
                 // Select task-notes and the new task-name textareas
-                dayContainer.querySelectorAll('.task-notes, .task-name').forEach(field => { 
+                dayContainer.querySelectorAll('.task-notes, .task-name').forEach(field => {
                     field.style.height = '0'; // FIX: Reset height to 0 before calculating scrollHeight
                     if (field.value.trim() !== '') {
                         field.style.height = field.scrollHeight + 'px';
                     } else {
-                         field.style.height = '38px'; // Set back to min-height if empty
+                        field.style.height = '38px'; // Set back to min-height if empty
                     }
                 });
             }
-            
+
             // **NEW:** Resize all textareas in both days (called on initialization)
             function resizeAllDayFields() {
-                resizeFieldsForActiveDay('dayA');
-                resizeFieldsForActiveDay('dayB');
+                // **FIX:** Wait for fonts to be ready to ensure correct scrollHeight calculation
+                document.fonts.ready.then(() => {
+                    resizeFieldsForActiveDay('dayA');
+                    resizeFieldsForActiveDay('dayB');
+
+                    // **FIX:** Double-check after a small delay to handle any layout shifts or slow rendering
+                    setTimeout(() => {
+                        resizeFieldsForActiveDay('dayA');
+                        resizeFieldsForActiveDay('dayB');
+                    }, 100);
+                });
             }
-            
+
             // **NEW FUNCTION:** Logic to check if a day card is fully completed
             function updateCardCompletionState(courseCard) {
                 const lessonNameField = courseCard.querySelector('.task-lesson-name');
@@ -1892,10 +1940,10 @@
                 const assignmentNameField = courseCard.querySelector('.task-assignment-name');
                 const assignmentCheckbox = courseCard.querySelector('.task-assignment-checkbox');
                 const deleteButton = courseCard.querySelector('.delete-course-card-btn');
-                
+
                 const hasLesson = lessonNameField.value.trim() !== '';
                 const isLessonChecked = lessonCheckbox.checked;
-                
+
                 const hasAssignment = assignmentNameField.value.trim() !== '';
                 const isAssignmentChecked = assignmentCheckbox.checked;
 
@@ -1904,11 +1952,11 @@
                 // Case 1: Only Assignment is present
                 if (!hasLesson && hasAssignment) {
                     isCardCompleted = isAssignmentChecked;
-                } 
+                }
                 // Case 2: Only Lesson is present
                 else if (hasLesson && !hasAssignment) {
                     isCardCompleted = isLessonChecked;
-                } 
+                }
                 // Case 3: Both are present
                 else if (hasLesson && hasAssignment) {
                     isCardCompleted = isLessonChecked && isAssignmentChecked;
@@ -1926,11 +1974,11 @@
             // This now only handles Day A and Day B tabs in the header
             tabLinks.forEach(link => {
                 link.addEventListener('click', () => {
-                    const dayId = link.getAttribute('data-tab'); 
+                    const dayId = link.getAttribute('data-tab');
                     switchDay(dayId);
                 });
             });
-            
+
             // --- Function to update tracker item status from Card Checkbox (NEW FUNCTION) ---
             function updateTrackerItemStatusFromCard(course, type, name, isChecked) {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
@@ -1938,7 +1986,7 @@
                 const newStatus = isChecked ? 'Finished' : 'Not Started';
 
                 let itemFound = false;
-                
+
                 data = data.map(item => {
                     // Check for item existence by matching course and name
                     if (item.course === course && item.name === name) {
@@ -1952,16 +2000,16 @@
                 // we should add it to the tracker data before setting the status.
                 if (!itemFound && name.trim() !== '') {
                     const newItem = {
-                        id: Date.now() + Math.random(), 
+                        id: Date.now() + Math.random(),
                         name: name,
                         course: course,
-                        status: newStatus 
+                        status: newStatus
                     };
                     data.push(newItem);
                 }
-                
+
                 localStorage.setItem(storageKey, JSON.stringify(data));
-                
+
                 // Re-render the active tracker tab if it's visible
                 const activeTabId = document.querySelector('.tab-content.active')?.id;
                 if (activeTabId === 'lessonTracker' && type === 'lesson') {
@@ -1976,17 +2024,17 @@
             function getNextUnfinishedAssignment(courseName) {
                 const data = JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || [];
                 const courseAssignments = data.filter(item => item.course === courseName);
-                
+
                 // Find the first assignment that is NOT finished (status = 'Not Started')
                 const nextAssignment = courseAssignments.find(item => item.status === 'Not Started');
                 return nextAssignment ? nextAssignment.name : null;
             }
-            
+
             // --- **NEW FUNCTION:** Auto-populate assignment field when lesson is selected
             function autoPopulateAssignmentField(courseCard) {
                 const courseTitle = courseCard.querySelector('h3').textContent.trim();
                 const assignmentField = courseCard.querySelector('.task-assignment-name');
-                
+
                 // Only auto-populate if assignment field is empty
                 if (assignmentField && assignmentField.value.trim() === '') {
                     const nextAssignment = getNextUnfinishedAssignment(courseTitle);
@@ -2013,22 +2061,22 @@
             // --- 4. Checkbox Click Logic & Link Change (UPDATED to include Tracker Sync) ---
             mainContent.addEventListener('change', (event) => {
                 const target = event.target;
-                
+
                 // 1. Link input change detection
                 if (target.classList.contains('task-link')) {
-                     const courseCard = target.closest('.course-card');
-                     renderEmbed(courseCard, target.value);
-                     // **NEW:** Mark as unsaved
-                     hasUnsavedChanges = true; 
-                     return;
+                    const courseCard = target.closest('.course-card');
+                    renderEmbed(courseCard, target.value);
+                    // **NEW:** Mark as unsaved
+                    hasUnsavedChanges = true;
+                    return;
                 }
-                
+
                 // 2. Task Checkbox Change Detection (NEW SYNC LOGIC)
                 if (target.classList.contains('task-checkbox')) {
                     const courseCard = target.closest('.course-card');
                     const courseTitle = courseCard.querySelector('h3').textContent.trim();
                     const isChecked = target.checked;
-                    
+
                     let taskNameField;
                     let taskType;
 
@@ -2043,71 +2091,71 @@
                     if (taskNameField && taskNameField.value.trim() !== '') {
                         updateTrackerItemStatusFromCard(courseTitle, taskType, taskNameField.value.trim(), isChecked);
                     }
-                    
+
                     // **NEW:** Update Day A/B Card Completion State
                     if (courseCard) {
                         updateCardCompletionState(courseCard);
                     }
-                    
+
                     // **NEW:** Mark as unsaved
                     hasUnsavedChanges = true;
                 }
             });
-            
+
             // --- III. Search & Suggestion Logic (UPDATED to filter by "Not Started" and trigger completion check on name input) ---
             mainContent.addEventListener('input', (event) => {
-                 const target = event.target;
-                 
-                 // 1. Textarea Resize & Color Logic 
-                 if (target.classList.contains('task-notes') || target.classList.contains('task-name')) {
+                const target = event.target;
+
+                // 1. Textarea Resize & Color Logic 
+                if (target.classList.contains('task-notes') || target.classList.contains('task-name')) {
                     target.style.height = '0'; // FIX: Reset height to 0 before calculating scrollHeight
                     target.style.height = (target.scrollHeight) + 'px';
-                 }
-                
-                 if (target.classList.contains('task-name') || 
+                }
+
+                if (target.classList.contains('task-name') ||
                     target.classList.contains('task-notes') ||
-                    target.classList.contains('task-link')) { 
-                    
+                    target.classList.contains('task-link')) {
+
                     applyThemeColor(target);
                     // **NEW:** Also check completion state when task names change
                     const courseCard = target.closest('.course-card');
                     if (courseCard) {
                         updateCardCompletionState(courseCard);
                     }
-                    
+
                     // **NEW:** Mark as unsaved
-                    hasUnsavedChanges = true; 
-                 }
-                 
-                 // 2. Search Logic (MODIFIED FILTERING)
-                 if (target.classList.contains('task-name')) {
-                    
+                    hasUnsavedChanges = true;
+                }
+
+                // 2. Search Logic (MODIFIED FILTERING)
+                if (target.classList.contains('task-name')) {
+
                     const isLesson = target.classList.contains('task-lesson-name');
                     const trackerType = isLesson ? 'lesson' : 'assignment';
-                    
+
                     const suggestionsList = target.closest('.task-name-wrapper').querySelector('.search-suggestions');
                     const courseTitle = target.closest('.course-card').querySelector('h3').textContent.trim();
                     const searchTerm = target.value.trim().toLowerCase();
-                    
+
                     suggestionsList.innerHTML = '';
                     suggestionsList.classList.remove('active');
 
                     if (searchTerm.length < 2) {
                         return;
                     }
-                    
+
                     const storageKey = trackerType === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                     const data = JSON.parse(localStorage.getItem(storageKey)) || [];
-                    
+
                     // MODIFICATION: Filter items to only show those that are 'Not Started'
-                    const filteredResults = data.filter(item => 
-                        item.course === courseTitle && 
+                    const filteredResults = data.filter(item =>
+                        item.course === courseTitle &&
                         item.name.toLowerCase().includes(searchTerm) &&
-                        item.status === 'Not Started' 
+                        item.status === 'Not Started'
                     );
-                    
+
                     if (filteredResults.length > 0) {
-                        filteredResults.slice(0, 5).forEach(item => { 
+                        filteredResults.slice(0, 5).forEach(item => {
                             const li = document.createElement('li');
                             li.textContent = item.name;
                             li.setAttribute('data-name', item.name);
@@ -2119,7 +2167,7 @@
                                 const suggestionCourseCard = target.closest('.course-card');
                                 if (suggestionCourseCard) {
                                     updateCardCompletionState(suggestionCourseCard);
-                                    
+
                                     // **NEW:** Auto-populate assignment field if this is a lesson selection
                                     if (isLesson) {
                                         autoPopulateAssignmentField(suggestionCourseCard);
@@ -2133,7 +2181,7 @@
                     }
                 }
             });
-            
+
             // Hide suggestions when clicking outside (UNCHANGED)
             document.addEventListener('click', (event) => {
                 if (!event.target.closest('.task-name-wrapper')) {
@@ -2142,11 +2190,11 @@
                     });
                 }
             });
-            
+
             // **NEW FUNCTION:** Delete/Clear all content from a Day A/B Course Card
             function deleteDayTaskCard(courseCard) {
                 const li = courseCard.querySelector('.task-list li');
-                
+
                 // Lesson
                 const lName = li.querySelector('.task-lesson-name');
                 lName.value = '';
@@ -2158,12 +2206,12 @@
                 aName.value = '';
                 li.querySelector('.task-assignment-checkbox').checked = false;
                 applyThemeColor(aName);
-                
+
                 // Notes/Link
                 const notes = li.querySelector('.task-notes');
-                const link = li.querySelector('.task-link'); 
-                const embedArea = courseCard.querySelector('.course-embed-container'); 
-                
+                const link = li.querySelector('.task-link');
+                const embedArea = courseCard.querySelector('.course-embed-container');
+
                 notes.value = '';
                 applyThemeColor(notes);
 
@@ -2171,11 +2219,11 @@
                 applyThemeColor(link);
                 embedArea.innerHTML = '';
                 embedArea.style.display = 'none';
-                
+
                 // Reset heights and completion state
                 resizeFieldsForActiveDay(courseCard.closest('.tab-content').id);
                 updateCardCompletionState(courseCard); // Hides the X button
-                
+
                 hasUnsavedChanges = true; // Mark as unsaved
             }
 
@@ -2184,15 +2232,15 @@
             document.getElementById('saveBtn').addEventListener('click', () => {
                 saveData('dayA');
                 saveData('dayB');
-                
+
                 // **NEW:** Reset unsaved state after a successful save
-                hasUnsavedChanges = false; 
-                
+                hasUnsavedChanges = false;
+
                 const saveBtn = document.getElementById('saveBtn');
                 const originalText = saveBtn.textContent;
-                
+
                 saveBtn.textContent = 'Saved!';
-                saveBtn.classList.add('saved-state'); 
+                saveBtn.classList.add('saved-state');
                 saveBtn.disabled = true;
 
                 setTimeout(() => {
@@ -2204,8 +2252,8 @@
 
             function saveData(dayId) {
                 const dayContainer = document.getElementById(dayId);
-                const tasks = {}; 
-                
+                const tasks = {};
+
                 dayContainer.querySelectorAll('.course-card').forEach((card) => {
                     const courseTitle = card.querySelector('h3').textContent.trim();
                     const li = card.querySelector('.task-list li');
@@ -2215,7 +2263,7 @@
                         name: li.querySelector('.task-lesson-name').value,
                         checked: li.querySelector('.task-lesson-checkbox').checked,
                     };
-                    
+
                     // New: Assignment Task
                     const assignmentTask = {
                         name: li.querySelector('.task-assignment-name').value,
@@ -2230,33 +2278,33 @@
                     tasks[courseTitle] = {
                         lesson: lessonTask,
                         assignment: assignmentTask,
-                        notes: notes, 
-                        link: link, 
+                        notes: notes,
+                        link: link,
                     };
                 });
-                
+
                 localStorage.setItem(`${dayId}_data`, JSON.stringify(tasks));
             }
 
             // --- 6. Load Logic (UPDATED to call new resize function, completion check, and pause state) ---
             function loadData() {
                 initializeTrackerData(); // Initialize/Load Tracker data first
-                
+
                 loadDay('dayA');
                 loadDay('dayB');
-                
+
                 // Apply pause state to day cards
                 const pausedCourses = getPausedCourses().lesson; // Only need one list due to sync
                 ALL_COURSE_NAMES.forEach(courseName => {
                     const isPaused = pausedCourses.includes(courseName);
                     updateDayCardPauseState(courseName, isPaused);
                 });
-                
+
                 // Select all fields for color application
                 document.querySelectorAll('.task-list textarea, .task-link').forEach(field => {
-                     applyThemeColor(field);
+                    applyThemeColor(field);
                 });
-                
+
                 // **NEW:** Check completion state for all cards after loading data
                 document.querySelectorAll('.course-card').forEach(card => {
                     updateCardCompletionState(card);
@@ -2270,9 +2318,9 @@
                 resizeAllDayFields();
 
                 // **NEW:** Ensure the state is clean when loading from scratch/localstorage
-                hasUnsavedChanges = false; 
+                hasUnsavedChanges = false;
 
-                autoSelectDay(); 
+                autoSelectDay();
             }
 
             function loadDay(dayId) {
@@ -2287,13 +2335,13 @@
 
                     if (courseData) {
                         const li = card.querySelector('.task-list li');
-                        
+
                         // Lesson
                         if (courseData.lesson) {
                             li.querySelector('.task-lesson-name').value = courseData.lesson.name;
                             li.querySelector('.task-lesson-checkbox').checked = courseData.lesson.checked;
                         }
-                        
+
                         // Assignment
                         if (courseData.assignment) {
                             li.querySelector('.task-assignment-name').value = courseData.assignment.name;
@@ -2302,18 +2350,18 @@
 
                         // Shared Notes and Link
                         li.querySelector('.task-notes').value = courseData.notes || '';
-                        
+
                         const linkInput = li.querySelector('.task-link');
                         linkInput.value = courseData.link || '';
-                        renderEmbed(card, linkInput.value); 
+                        renderEmbed(card, linkInput.value);
                     }
                 });
-                
+
                 // Update hrefs for all courses in this day
                 ALL_COURSE_NAMES.forEach(courseName => {
                     updateCourseH3Href(courseName);
                 });
-                
+
                 // IMPORTANT: Resize fields after loading data
                 resizeFieldsForActiveDay(dayId);
             }
@@ -2322,38 +2370,38 @@
             document.getElementById('resetBtn').addEventListener('click', () => {
                 const activeTab = document.querySelector('.tab-content.active');
                 const dayId = activeTab.id;
-                
-                const formattedDay = dayId.startsWith(TAB_PREFIX) 
+
+                const formattedDay = dayId.startsWith(TAB_PREFIX)
                     ? dayId.charAt(0).toUpperCase() + dayId.slice(1).replace('y', 'y ')
                     : 'the current tracker';
 
                 if (confirm(`Are you sure you want to reset all fields for ${formattedDay}? (Custom links will be preserved)`)) {
-                    
+
                     if (dayId.startsWith(TAB_PREFIX)) {
                         localStorage.removeItem(`${dayId}_data`);
                         localStorage.removeItem('selectedDay');
-                        
+
                         // Clear the UI fields for Day A/B
                         activeTab.querySelectorAll('.course-card').forEach(card => {
                             deleteDayTaskCard(card); // Use the new clear function
                         });
-                        
+
                         // **NEW:** Reset unsaved changes flag
                         hasUnsavedChanges = false;
-                        
+
                     } else if (dayId === 'lessonTracker') {
                         localStorage.removeItem(LS_LESSONS_KEY);
                         localStorage.removeItem(LS_PAUSED_COURSES_KEY); // Also reset pause state
                         initializeTrackerData(); // Initialize to empty array
                         renderTracker('lesson');
-                        
+
                     } else if (dayId === 'assignmentTracker') {
                         localStorage.removeItem(LS_ASSIGNMENTS_KEY);
                         localStorage.removeItem(LS_PAUSED_COURSES_KEY); // Also reset pause state
                         initializeTrackerData(); // Initialize to empty array
                         renderTracker('assignment');
                     }
-                    
+
                     // Since pause state was reset, re-apply it (unpause all)
                     ALL_COURSE_NAMES.forEach(courseName => updateDayCardPauseState(courseName, false));
                 }
@@ -2363,39 +2411,39 @@
             function applyThemeColor(field) {
                 // Check if the parent card is paused using CSS class check
                 const isPaused = field.closest('.course-card').classList.contains('paused');
-                
+
                 if (isPaused) {
                     // If paused, rely purely on the CSS rules added for the '.paused' state.
                     // DO NOT set an inline style, otherwise it will override the CSS.
                     field.style.color = '';
-                    return; 
+                    return;
                 }
 
                 // Default logic for non-paused cards: check if value is empty
                 const hasValue = field.value !== '' && field.value !== field.getAttribute('placeholder');
-                
+
                 if (hasValue) {
                     field.style.color = COLOR_INPUT_TEXT; // '#333'
                 } else {
-                    field.style.color = COLOR_DEFAULT_GRAY; 
+                    field.style.color = COLOR_DEFAULT_GRAY;
                 }
             }
-            
+
             // --- NEW: Progress Bar Calculation and Rendering (MODIFIED to ignore paused courses) ---
             function calculateAndRenderOverallProgress(type) {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 const data = JSON.parse(localStorage.getItem(storageKey)) || [];
                 const pausedCourses = getPausedCourses()[type] || []; // Get paused list for this type
-                
+
                 // MODIFICATION: Filter out items whose course is in the pausedCourses list
-                const activeData = data.filter(item => !pausedCourses.includes(item.course)); 
-                
+                const activeData = data.filter(item => !pausedCourses.includes(item.course));
+
                 const finishedCount = activeData.filter(item => item.status === 'Finished').length;
                 const totalCount = activeData.length; // Total is now only for active courses
                 const percentageFinished = totalCount > 0 ? (finishedCount / totalCount) * 100 : 0;
-                
+
                 const container = document.getElementById(`${type}OverallProgress`);
-                
+
                 if (totalCount === 0) { // Check totalCount from activeData
                     container.innerHTML = '';
                     container.style.display = 'none';
@@ -2403,7 +2451,7 @@
                 }
 
                 container.style.display = 'block';
-                
+
                 container.innerHTML = `
                     <div class="progress-bar-label">
                         <span>Overall Active ${type.charAt(0).toUpperCase() + type.slice(1)} Progress</span>
@@ -2417,15 +2465,15 @@
 
 
             // --- IV. Tracker Logic: Renderer, Add, Toggle, Delete (MODIFIED for simplified form) ---
-            
+
             // Populates Course Dropdowns on the new item forms
             function populateCourseDropdowns() {
                 // Only targeting the bulk fields now, which are the main fields
                 const courseSelects = [
-                    document.getElementById('bulkLessonCourse'), 
+                    document.getElementById('bulkLessonCourse'),
                     document.getElementById('bulkAssignmentCourse')
                 ];
-                
+
                 courseSelects.forEach(select => {
                     select.innerHTML = '<option value="" disabled selected>Select Course</option>';
                     ALL_COURSE_NAMES.forEach(course => {
@@ -2436,84 +2484,84 @@
                     });
                 });
             }
-            
+
             // Add New Item functionality (Simplified to handle only bulk/multi-line paste)
             function addNewItem(type) {
                 const typeCapitalized = type.charAt(0).toUpperCase() + type.slice(1);
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
-                
+
                 // The bulk fields are now the main fields
                 const nameTextarea = document.getElementById(`bulk${typeCapitalized}Names`);
                 const courseSelect = document.getElementById(`bulk${typeCapitalized}Course`);
-                
+
                 const names = nameTextarea.value.split('\n').map(name => name.trim()).filter(name => name !== "");
                 const course = courseSelect.value;
-                
+
                 if (names.length === 0 || course === "") {
                     alert(`Please paste names and select a course for the new ${type} addition.`);
                     return;
                 }
-                
+
                 nameTextarea.value = ''; // Clear textarea after successful bulk paste
                 courseSelect.selectedIndex = 0; // Reset course select
-                
+
                 let data = JSON.parse(localStorage.getItem(storageKey)) || [];
-                
+
                 names.forEach(name => {
                     const newItem = {
-                        id: Date.now() + Math.random(), 
+                        id: Date.now() + Math.random(),
                         name: name,
                         course: course,
                         status: 'Not Started'
                     };
                     data.push(newItem);
                 });
-                
+
                 localStorage.setItem(storageKey, JSON.stringify(data));
-                
+
                 // Re-render the tracker
                 renderTracker(type);
             }
-            
+
             // Update event listeners for the new main buttons (renamed from bulk to main)
             document.getElementById('addLessonBtn').addEventListener('click', () => addNewItem('lesson'));
             document.getElementById('addAssignmentBtn').addEventListener('click', () => addNewItem('assignment'));
-            
+
             // Toggle Status functionality (used in tracker tabs)
             function toggleTrackerItemStatus(itemId, type) {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 let data = JSON.parse(localStorage.getItem(storageKey)) || [];
-                
+
                 data = data.map(item => {
                     // Note: Item IDs are stored as numbers, so compare numbers
-                    if (item.id == itemId) { 
+                    if (item.id == itemId) {
                         item.status = item.status === 'Finished' ? 'Not Started' : 'Finished';
                     }
                     return item;
                 });
-                
+
                 localStorage.setItem(storageKey, JSON.stringify(data));
                 renderTracker(type); // Re-render the UI
                 calculateAndRenderOverallProgress(type); // NEW: Update progress bar
             }
-            
+
             // Delete Item functionality (New Function - individual task)
             function deleteTrackerItem(itemId, type) {
                 if (!confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) {
                     return;
                 }
-                
+
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 let data = JSON.parse(localStorage.getItem(storageKey)) || [];
-                
+
                 // Filter out the item with the matching id
                 data = data.filter(item => item.id != itemId);
-                
+
                 localStorage.setItem(storageKey, JSON.stringify(data));
                 renderTracker(type); // Re-render the UI
                 calculateAndRenderOverallProgress(type); // NEW: Update progress bar
             }
-            
+
             // **NEW FUNCTION:** Delete an entire course from the tracker
             function deleteTrackerCourse(courseName, type) {
                 if (!confirm(`Are you sure you want to delete ALL tasks for "${courseName}" from the ${type} tracker? This action cannot be undone.`)) {
@@ -2522,29 +2570,29 @@
 
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 let data = JSON.parse(localStorage.getItem(storageKey)) || [];
-                
+
                 // Filter out all items belonging to the specified course
                 data = data.filter(item => item.course !== courseName);
-                
+
                 // Also remove from paused state if it was paused
                 let pausedCourses = getPausedCourses();
                 pausedCourses[type] = (pausedCourses[type] || []).filter(c => c !== courseName);
-                
+
                 // Ensure the other tracker is also updated in case of synchronization
                 const otherType = type === 'lesson' ? 'assignment' : 'lesson';
                 pausedCourses[otherType] = (pausedCourses[otherType] || []).filter(c => c !== courseName);
-                
+
                 localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(pausedCourses));
 
                 localStorage.setItem(storageKey, JSON.stringify(data));
                 renderTracker(type); // Re-render the UI
                 calculateAndRenderOverallProgress(type); // NEW: Update progress bar
             }
-            
+
             // **MODIFIED:** General click handler now also handles the Day A/B clear button
             mainContent.addEventListener('click', (event) => {
                 const target = event.target;
-                
+
                 // 1. Individual Task Delete Button (Tracker Tabs)
                 if (target.classList.contains('delete-btn')) {
                     const itemId = target.getAttribute('data-id');
@@ -2552,21 +2600,21 @@
                     deleteTrackerItem(itemId, trackerType);
                     return;
                 }
-                
+
                 // 2. **NEW** Day A/B Card Delete Button (Task View)
                 if (target.classList.contains('delete-course-card-btn') && target.hasAttribute('data-day')) {
                     const courseName = target.getAttribute('data-course');
                     const dayId = target.getAttribute('data-day');
                     const courseCard = target.closest('.course-card');
-                    
+
                     if (confirm(`Are you sure you want to clear the tasks for "${courseName}" on ${dayId.replace('day', 'Day ')}?`)) {
                         deleteDayTaskCard(courseCard);
                     }
                     return;
                 }
-                
+
                 // 3. Course Card Delete Button (Tracker Tabs - deletes all tasks for the course)
-                 if (target.classList.contains('delete-course-card-btn') && !target.hasAttribute('data-day')) {
+                if (target.classList.contains('delete-course-card-btn') && !target.hasAttribute('data-day')) {
                     const courseName = target.getAttribute('data-course');
                     const trackerType = target.getAttribute('data-type');
                     deleteTrackerCourse(courseName, trackerType);
@@ -2580,7 +2628,7 @@
                 // First, check for day card course titles (Day A/B cards)
                 const dayCardH3 = e.target.closest('.course-card h3');
                 const dayCard = e.target.closest('.course-card[data-day]'); // Only course cards with data-day attribute
-                
+
                 if (dayCardH3 && dayCard) {
                     e.preventDefault();
                     const courseName = dayCard.getAttribute('data-course-name');
@@ -2588,7 +2636,7 @@
                     showDayCardContextMenu(e, courseName, dayId, dayCardH3);
                     return;
                 }
-                
+
                 // Otherwise, check for tracker card course titles
                 const trackerH3 = e.target.closest('.tracker-course-card h3');
                 const trackerCard = e.target.closest('.tracker-course-card');
@@ -2596,25 +2644,25 @@
                 if (trackerH3 && trackerCard) {
                     // This is a right-click on the course title inside a tracker card
                     e.preventDefault(); // Prevent default browser menu
-                    
+
                     // Use the reliable data attribute on the card
                     const courseName = trackerCard.getAttribute('data-course-name');
-                    
+
                     // Determine the tracker type
                     const trackerType = trackerCard.closest('.tab-content').id === 'lessonTracker' ? 'lesson' : 'assignment';
-                    
+
                     // Ensure we are in a tracker tab before showing the menu
                     if (trackerType) {
                         // Pass the H3 element for correct positioning
-                        showPauseContextMenu(e, courseName, trackerType, trackerH3); 
+                        showPauseContextMenu(e, courseName, trackerType, trackerH3);
                     }
                 }
             });
-            
+
             // **NEW:** Left-click handler to open links
             mainContent.addEventListener('click', (e) => {
                 const courseLink = e.target.closest('.course-card a.course-link, .tracker-course-card a.course-link');
-                
+
                 if (courseLink) {
                     e.preventDefault();
                     window.open(courseLink.href, '_blank');
@@ -2640,31 +2688,31 @@
                 const centerX = canvas.width / 2;
                 const centerY = canvas.height / 2;
                 const radius = Math.min(centerX, centerY) * 0.9;
-                
+
                 const PIE_RED_COLOR = '#EA4335'; // Red Color for 'Not Started' status
 
                 // Clear the canvas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
+
                 let currentAngle = 0;
-                
+
                 // Finished items (Green)
                 const finishedRatio = total > 0 ? finishedCount / total : 0;
                 let sliceAngle = finishedRatio * 2 * Math.PI;
-                
+
                 ctx.fillStyle = '#58A65C'; // Green
                 ctx.beginPath();
                 ctx.moveTo(centerX, centerY);
                 ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
                 ctx.closePath();
                 ctx.fill();
-                
+
                 currentAngle += sliceAngle;
-                
+
                 // Not Started items (Red)
                 const notStartedRatio = total > 0 ? notStartedCount / total : 0;
                 sliceAngle = notStartedRatio * 2 * Math.PI;
-                
+
                 ctx.fillStyle = PIE_RED_COLOR; // Use the new red color
                 ctx.beginPath();
                 ctx.moveTo(centerX, centerY);
@@ -2680,21 +2728,21 @@
                 const data = JSON.parse(localStorage.getItem(storageKey)) || [];
                 // Only need to check one type due to sync
                 const pausedCourses = getPausedCourses().lesson || [];
-                
+
                 contentContainer.innerHTML = '';
-                
+
                 // Group data by course
                 const dataByCourse = ALL_COURSE_NAMES.reduce((acc, course) => {
                     acc[course] = data.filter(item => item.course === course);
                     return acc;
                 }, {});
-                
+
                 // **NEW:** Sort courses so unpaused come first, then paused (both alphabetically)
                 const coursesToRender = ALL_COURSE_NAMES.filter(course => dataByCourse[course].length > 0);
                 const unpausedCourses = coursesToRender.filter(course => !pausedCourses.includes(course)).sort();
                 const pausedCoursesToRender = coursesToRender.filter(course => pausedCourses.includes(course)).sort();
                 const sortedCourses = [...unpausedCourses, ...pausedCoursesToRender];
-                
+
                 // Render a card for each course
                 sortedCourses.forEach(course => {
                     const courseData = dataByCourse[course];
@@ -2704,7 +2752,7 @@
                     const isPaused = pausedCourses.includes(course);
                     const pausedClass = isPaused ? 'paused' : '';
                     const pauseBadgeHTML = isPaused ? `<span class="pause-badge">PAUSED</span>` : '';
-                    
+
                     // Filter data for active items (paused courses have 0 active items)
                     const activeCourseData = isPaused ? [] : courseData;
 
@@ -2712,7 +2760,7 @@
                     const activeFinishedCount = activeCourseData.filter(item => item.status === 'Finished').length;
                     const totalActiveCount = activeCourseData.length;
                     const percentageFinished = totalActiveCount > 0 ? ((activeFinishedCount / totalActiveCount) * 100).toFixed(0) : 0;
-                    
+
                     // Total tasks in the card (for context)
                     const totalCardCount = courseData.length;
 
@@ -2720,7 +2768,7 @@
                     const fullFinishedCount = courseData.filter(item => item.status === 'Finished').length;
 
                     // Logic for delete button visibility
-                    const isCompleted = totalCardCount > 0 && fullFinishedCount === totalCardCount; 
+                    const isCompleted = totalCardCount > 0 && fullFinishedCount === totalCardCount;
                     const completionClass = isCompleted ? 'completed' : '';
                     const deleteButtonHTML = `
                         <button 
@@ -2735,26 +2783,26 @@
 
                     const card = document.createElement('div');
                     // MODIFICATION: Add pausedClass to the card's class list
-                    card.className = `tracker-course-card ${pausedClass}`; 
+                    card.className = `tracker-course-card ${pausedClass}`;
                     // NEW: Add data-course-name attribute for reliable identification
-                    card.setAttribute('data-course-name', course); 
-                    
+                    card.setAttribute('data-course-name', course);
+
                     // Header and Summary
                     // MODIFICATION: Add pause badge next to H3 and update summary text
                     let cardHTML = `
                         <h3>${course} ${pauseBadgeHTML}</h3> 
                         ${deleteButtonHTML} 
                         <div class="tracker-summary">
-                            ${isPaused 
-                                ? `All ${totalCardCount} tasks paused. (Right-click course title to unpause)` 
-                                : `${activeFinishedCount} of ${totalCardCount} active ${type}s finished (${percentageFinished}%)`
-                            }
+                            ${isPaused
+                            ? `All ${totalCardCount} tasks paused. (Right-click course title to unpause)`
+                            : `${activeFinishedCount} of ${totalCardCount} active ${type}s finished (${percentageFinished}%)`
+                        }
                         </div>
                         <div class="chart-container">
                             <canvas id="chart-${type}-${course.replace(/\s/g, '-')}" width="150" height="150"></canvas>
                         </div>
                     `;
-                    
+
                     // Start of List (using <ul> with display: grid)
                     let listHTML = `
                         <ul>
@@ -2764,7 +2812,7 @@
                                 <div>Actions</div>
                             </div>
                     `;
-                    
+
                     // List of items - Use full courseData here
                     courseData.forEach(item => {
                         const isChecked = item.status === 'Finished';
@@ -2786,71 +2834,71 @@
                             </div>
                         `;
                     });
-                    
+
                     listHTML += `</ul>`;
                     card.innerHTML = cardHTML + listHTML;
                     contentContainer.appendChild(card);
-                    
+
                     // Draw the chart
                     setTimeout(() => {
                         const canvas = document.getElementById(`chart-${type}-${course.replace(/\s/g, '-')}`);
                         if (canvas) {
-                             if (!isPaused) {
+                            if (!isPaused) {
                                 // Draw pie chart using full counts (finished vs not finished)
                                 drawPieChart(canvas, fullFinishedCount, totalCardCount - fullFinishedCount);
-                             } else {
+                            } else {
                                 // Draw a solid gray circle if paused
                                 const ctx = canvas.getContext('2d');
                                 const centerX = canvas.width / 2;
                                 const centerY = canvas.height / 2;
                                 const radius = Math.min(centerX, centerY) * 0.9;
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                                ctx.fillStyle = '#CCCCCC'; 
+                                ctx.fillStyle = '#CCCCCC';
                                 ctx.beginPath();
                                 ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
                                 ctx.closePath();
                                 ctx.fill();
-                             }
+                            }
                         }
                     }, 0);
                 });
-                
-                calculateAndRenderOverallProgress(type); 
+
+                calculateAndRenderOverallProgress(type);
             }
-            
+
             // --- Custom Context Menu Logic ---
             const contextMenu = document.getElementById('trackerContextMenu');
             const pauseUnpauseBtn = document.getElementById('pauseUnpauseBtn');
             let contextMenuCourseName = '';
             let contextMenuTrackerType = '';
-            
+
             // **NEW:** Day Card Context Menu Logic
             const dayCardContextMenu = document.getElementById('dayCardContextMenu');
             const addEditLinkBtn = document.getElementById('addEditLinkBtn');
             const removeLinkBtn = document.getElementById('removeLinkBtn');
             let dayCardContextMenuCourseName = '';
             let dayCardContextMenuDayId = '';
-            
+
             function showDayCardContextMenu(e, courseName, dayId, h3Element) {
                 dayCardContextMenuCourseName = courseName;
                 dayCardContextMenuDayId = dayId;
-                
+
                 const hasLink = hasCustomLink(courseName);
                 removeLinkBtn.style.display = hasLink ? 'block' : 'none';
-                
+
                 const rect = h3Element.getBoundingClientRect();
                 dayCardContextMenu.style.left = `${rect.left}px`;
                 dayCardContextMenu.style.top = `${rect.bottom + 5}px`;
                 dayCardContextMenu.style.display = 'block';
             }
-            
+
             // Handle Add/Edit Link
             addEditLinkBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 openLinkModal(dayCardContextMenuCourseName);
                 dayCardContextMenu.style.display = 'none';
             });
-            
+
             // Handle Remove Link
             removeLinkBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -2864,14 +2912,14 @@
             // MODIFIED: Added h3Element parameter for positioning
             function showPauseContextMenu(e, courseName, type, h3Element) {
                 // The e.preventDefault() is now done in the delegated listener
-                
+
                 contextMenuCourseName = courseName;
                 contextMenuTrackerType = type;
-                
+
                 // Check pause state against the *synced* list (lesson)
-                const pausedCourses = getPausedCourses().lesson || []; 
+                const pausedCourses = getPausedCourses().lesson || [];
                 const isPaused = pausedCourses.includes(courseName);
-                
+
                 pauseUnpauseBtn.textContent = isPaused ? 'Unpause Course' : 'Pause Course';
                 pauseUnpauseBtn.classList.add('pause-action');
 
@@ -2889,7 +2937,7 @@
                 contextMenu.style.display = 'none';
                 dayCardContextMenu.style.display = 'none';
             });
-            
+
             // **NEW:** Link Modal Dialog Logic
             const linkModal = document.getElementById('linkModal');
             const linkModalInput = document.getElementById('linkModalInput');
@@ -2897,7 +2945,7 @@
             const linkModalCancel = document.getElementById('linkModalCancel');
             const linkModalSave = document.getElementById('linkModalSave');
             let modalCourseName = '';
-            
+
             function openLinkModal(courseName) {
                 modalCourseName = courseName;
                 linkModalCourseName.textContent = courseName;
@@ -2905,51 +2953,51 @@
                 linkModal.classList.add('active');
                 setTimeout(() => linkModalInput.focus(), 100);
             }
-            
+
             function closeLinkModal() {
                 linkModal.classList.remove('active');
                 linkModalInput.value = '';
                 modalCourseName = '';
             }
-            
+
             linkModalCancel.addEventListener('click', closeLinkModal);
-            
+
             linkModalSave.addEventListener('click', async (e) => {
                 e.preventDefault();
                 const url = linkModalInput.value.trim();
-                
+
                 if (!url) {
                     alert('Please enter a valid URL');
                     return;
                 }
-                
+
                 // Ensure URL has protocol
                 let fullUrl = url;
                 if (!url.startsWith('http://') && !url.startsWith('https://')) {
                     fullUrl = 'https://' + url;
                 }
-                
+
                 setCustomLink(modalCourseName, fullUrl);
                 updateCourseH3Href(modalCourseName);
                 closeLinkModal();
-                
+
                 // Mark as unsaved
                 hasUnsavedChanges = true;
             });
-            
+
             linkModalInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     linkModalSave.click();
                 }
             });
-            
+
             // Close modal on overlay click
             linkModal.addEventListener('click', (e) => {
                 if (e.target === linkModal) {
                     closeLinkModal();
                 }
             });
-            
+
             // Handle context menu button click
             pauseUnpauseBtn.addEventListener('click', (e) => {
                 e.stopPropagation(); // Prevent the body click listener from immediately hiding it
@@ -2964,18 +3012,18 @@
             document.addEventListener('keydown', (event) => {
                 // Check for Ctrl/Cmd + S
                 if ((event.ctrlKey || event.metaKey) && event.key === 's') {
-                    event.preventDefault(); 
-                    
+                    event.preventDefault();
+
                     // Trigger the save button click action
-                    document.getElementById('saveBtn').click(); 
+                    document.getElementById('saveBtn').click();
                 }
-                
+
                 // Check for Ctrl/Cmd + E for Reset
                 if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
-                    event.preventDefault(); 
-                    
+                    event.preventDefault();
+
                     // Trigger the reset button click action
-                    document.getElementById('resetBtn').click(); 
+                    document.getElementById('resetBtn').click();
                 }
             });
 
@@ -2984,7 +3032,7 @@
                 if (hasUnsavedChanges) {
                     // Cancel the event and return a string (required by older browsers)
                     // Modern browsers ignore the custom string and display a generic message.
-                    event.preventDefault(); 
+                    event.preventDefault();
                     event.returnValue = "Are you sure you want to leave without saving?";
                     return "Are you sure you want to leave without saving?";
                 }
@@ -2996,4 +3044,5 @@
         });
     </script>
 </body>
+
 </html>
