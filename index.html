@@ -1114,6 +1114,214 @@
         .context-menu-item.link-action {
             color: var(--active-color);
         }
+
+        /* **NEW:** Split Assignment Feature Styles */
+        .context-menu-item.split-action {
+            color: var(--color-tracker-green);
+            font-weight: 600;
+        }
+
+        .context-menu-item.complete-action {
+            color: var(--color-tracker-green);
+        }
+
+        .context-menu-item.reset-action {
+            color: var(--color-tracker-green);
+        }
+
+        /* Progress Circle Wrapper - matches original checkbox size */
+        .progress-circle-wrapper {
+            position: relative;
+            width: 25px;
+            height: 25px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 25px;
+            background-color: #fff;
+            /* Base border like unchecked checkbox */
+            border: 1px solid #767676;
+            transition: all 0.2s ease;
+        }
+
+        .progress-circle-wrapper:hover {
+            border-color: var(--active-color);
+            box-shadow: 0 0 0 1px var(--active-color);
+        }
+
+        /* SVG Progress Circle - overlays on top */
+        .progress-circle-svg {
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            width: calc(100% + 4px);
+            height: calc(100% + 4px);
+            transform: rotate(-90deg);
+            pointer-events: none;
+        }
+
+        .progress-circle-bg {
+            fill: none;
+            stroke: transparent;
+            stroke-width: 1.5;
+        }
+
+        .progress-circle-progress {
+            fill: none;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
+        }
+
+        /* In-progress state - Orange arc */
+        .progress-circle-progress.in-progress {
+            stroke: #F39C12;
+        }
+
+        /* Completed state - Day A Blue */
+        .progress-circle-progress.completed-day-a {
+            stroke: var(--color-day-a);
+        }
+
+        /* Completed state - Day B Orange */
+        .progress-circle-progress.completed-day-b {
+            stroke: var(--color-day-b);
+        }
+
+        /* Completed state - Tracker Green */
+        .progress-circle-progress.completed-tracker {
+            stroke: var(--color-tracker-green);
+        }
+
+        /* Completed wrapper gets colored border */
+        .progress-circle-wrapper.completed {
+            border-color: var(--active-color);
+        }
+
+        /* Hidden checkbox for split assignments */
+        .split-assignment-checkbox {
+            opacity: 0;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        /* Checkmark inside progress circle - uses same SVG as original checkbox */
+        .progress-circle-checkmark {
+            position: absolute;
+            width: 60%;
+            height: 60%;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+        }
+
+        /* Split Assignment Modal */
+        .split-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .split-modal-overlay.active {
+            display: flex;
+        }
+
+        .split-modal {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 25px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .split-modal h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .split-modal .assignment-info {
+            font-size: 14px;
+            color: #767676;
+            margin-bottom: 20px;
+        }
+
+        .split-modal label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .split-modal-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 16px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .split-modal-input:hover,
+        .split-modal-input:focus {
+            outline: none;
+            border-color: var(--color-tracker-green);
+            box-shadow: 0 0 0 1px var(--color-tracker-green);
+        }
+
+        .split-modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .split-modal-buttons button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .split-modal-buttons .btn-cancel {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        .split-modal-buttons .btn-cancel:hover {
+            background-color: #e0e0e0;
+        }
+
+        .split-modal-buttons .btn-split {
+            background-color: var(--color-tracker-green);
+            color: white;
+        }
+
+        .split-modal-buttons .btn-split:hover {
+            opacity: 0.9;
+        }
     </style>
 </head>
 
@@ -1629,6 +1837,28 @@
         </div>
     </div>
 
+    <!-- Assignment Context Menu (for Assignment Tracker only) -->
+    <div id="assignmentContextMenu" class="context-menu" style="display: none;">
+        <div class="context-menu-item split-action" id="splitAssignmentBtn">Split Assignment…</div>
+        <div class="context-menu-item complete-action" id="completeNowBtn">Complete Now</div>
+        <div class="context-menu-item reset-action" id="resetSplitBtn" style="display: none;">Reset Split</div>
+    </div>
+
+    <!-- Split Assignment Modal -->
+    <div id="splitModal" class="split-modal-overlay">
+        <div class="split-modal">
+            <h2>Split Assignment</h2>
+            <div class="assignment-info" id="splitModalAssignmentInfo"></div>
+            <label for="splitModalInput">How many days do you want to split this assignment into?</label>
+            <input type="number" id="splitModalInput" class="split-modal-input" min="2" max="30" value="2"
+                placeholder="Enter number of days">
+            <div class="split-modal-buttons">
+                <button class="btn-cancel" id="splitModalCancel">Cancel</button>
+                <button class="btn-split" id="splitModalSave">Split</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
 
@@ -1638,6 +1868,7 @@
             const LS_PAUSED_COURSES_KEY = 'tracker_paused_courses'; // NEW KEY
             const LS_COURSE_CUSTOM_LINKS_KEY = 'course_custom_links'; // NEW: Custom link storage
             const LS_LINK_PREVIEW_TOGGLE_KEY = 'link_preview_toggle'; // NEW: Track which preview is shown
+            const LS_SPLIT_ASSIGNMENTS_KEY = 'split_assignments'; // NEW: Split assignments progress data
             const ALL_COURSE_NAMES = [
                 "Advanced Functions", "Data Management", "English", "Economics", "Media Arts",
                 "Business Leadership", "Challenge & Change", "Ontario Literacy Course"
@@ -1680,6 +1911,86 @@
 
             function hasCustomLink(courseName) {
                 return getCustomLink(courseName) !== null;
+            }
+
+            // **NEW FUNCTIONS:** Split Assignment Management
+            // Key format: "courseName::assignmentName" to uniquely identify assignments
+            function getSplitAssignments() {
+                const raw = localStorage.getItem(LS_SPLIT_ASSIGNMENTS_KEY);
+                return raw ? JSON.parse(raw) : {};
+            }
+
+            function getSplitAssignmentKey(courseName, assignmentName) {
+                return `${courseName}::${assignmentName}`;
+            }
+
+            function getSplitAssignment(courseName, assignmentName) {
+                const key = getSplitAssignmentKey(courseName, assignmentName);
+                const splits = getSplitAssignments();
+                return splits[key] || null;
+            }
+
+            function setSplitAssignment(courseName, assignmentName, totalDays, completedDays) {
+                const key = getSplitAssignmentKey(courseName, assignmentName);
+                const splits = getSplitAssignments();
+                splits[key] = {
+                    totalDays: totalDays,
+                    completedDays: completedDays,
+                    courseName: courseName,
+                    assignmentName: assignmentName
+                };
+                localStorage.setItem(LS_SPLIT_ASSIGNMENTS_KEY, JSON.stringify(splits));
+            }
+
+            function deleteSplitAssignment(courseName, assignmentName) {
+                const key = getSplitAssignmentKey(courseName, assignmentName);
+                const splits = getSplitAssignments();
+                delete splits[key];
+                localStorage.setItem(LS_SPLIT_ASSIGNMENTS_KEY, JSON.stringify(splits));
+            }
+
+            function isSplitAssignment(courseName, assignmentName) {
+                return getSplitAssignment(courseName, assignmentName) !== null;
+            }
+
+            function advanceSplitAssignmentProgress(courseName, assignmentName) {
+                const split = getSplitAssignment(courseName, assignmentName);
+                if (!split) return null;
+
+                const newCompleted = Math.min(split.completedDays + 1, split.totalDays);
+                setSplitAssignment(courseName, assignmentName, split.totalDays, newCompleted);
+
+                return {
+                    totalDays: split.totalDays,
+                    completedDays: newCompleted,
+                    isComplete: newCompleted >= split.totalDays
+                };
+            }
+
+            function completeSplitAssignmentNow(courseName, assignmentName) {
+                const split = getSplitAssignment(courseName, assignmentName);
+                if (!split) return null;
+
+                setSplitAssignment(courseName, assignmentName, split.totalDays, split.totalDays);
+
+                return {
+                    totalDays: split.totalDays,
+                    completedDays: split.totalDays,
+                    isComplete: true
+                };
+            }
+
+            function resetSplitAssignmentProgress(courseName, assignmentName) {
+                const split = getSplitAssignment(courseName, assignmentName);
+                if (!split) return null;
+
+                setSplitAssignment(courseName, assignmentName, split.totalDays, 0);
+
+                return {
+                    totalDays: split.totalDays,
+                    completedDays: 0,
+                    isComplete: false
+                };
             }
 
             // **NEW:** Update href attribute on course title h3
@@ -1997,6 +2308,74 @@
                 deleteButton.classList.toggle('completed', isCardCompleted);
             }
 
+            // **NEW FUNCTION:** Update split assignment progress visualization on Day A/B cards
+            function updateDayCardSplitProgress(courseCard, courseName, assignmentName) {
+                const splitData = getSplitAssignment(courseName, assignmentName);
+                if (!splitData) return;
+
+                const { totalDays, completedDays } = splitData;
+                const isComplete = completedDays >= totalDays;
+                const progress = completedDays / totalDays;
+
+                // Determine the day color
+                const dayId = courseCard.closest('.tab-content')?.id || 'dayA';
+                let strokeColorClass = 'in-progress';
+                if (isComplete) {
+                    strokeColorClass = dayId === 'dayA' ? 'completed-day-a' : 'completed-day-b';
+                }
+
+                // Find or create the progress circle wrapper
+                const assignmentCheckboxDiv = courseCard.querySelector('.task-assignment-main');
+                if (!assignmentCheckboxDiv) return;
+
+                let existingWrapper = assignmentCheckboxDiv.querySelector('.progress-circle-wrapper');
+                const checkbox = assignmentCheckboxDiv.querySelector('.task-assignment-checkbox');
+
+                if (!existingWrapper && checkbox) {
+                    // Replace checkbox with progress circle
+                    const radius = 10;
+                    const circumference = 2 * Math.PI * radius;
+                    const strokeDashoffset = circumference * (1 - progress);
+
+                    const wrapper = document.createElement('div');
+                    wrapper.className = `progress-circle-wrapper ${isComplete ? 'completed' : ''}`;
+                    wrapper.setAttribute('data-course', courseName);
+                    wrapper.setAttribute('data-assignment', assignmentName);
+                    wrapper.innerHTML = `
+                        <svg class="progress-circle-svg" viewBox="0 0 24 24">
+                            <circle class="progress-circle-bg" cx="12" cy="12" r="${radius}"></circle>
+                            <circle class="progress-circle-progress ${strokeColorClass}" 
+                                    cx="12" cy="12" r="${radius}"
+                                    stroke-dasharray="${circumference}"
+                                    stroke-dashoffset="${strokeDashoffset}">
+                            </circle>
+                        </svg>
+                        <div class="progress-circle-checkmark"></div>
+                    `;
+
+                    checkbox.style.display = 'none';
+                    checkbox.parentNode.insertBefore(wrapper, checkbox);
+                } else if (existingWrapper) {
+                    // Update existing progress circle
+                    const radius = 10;
+                    const circumference = 2 * Math.PI * radius;
+                    const strokeDashoffset = circumference * (1 - progress);
+
+                    const progressCircle = existingWrapper.querySelector('.progress-circle-progress');
+                    if (progressCircle) {
+                        progressCircle.setAttribute('stroke-dashoffset', strokeDashoffset);
+                        progressCircle.className = `progress-circle-progress ${strokeColorClass}`;
+                    }
+
+                    // Update wrapper completion class
+                    existingWrapper.classList.toggle('completed', isComplete);
+                }
+
+                // Update the hidden checkbox state
+                if (checkbox) {
+                    checkbox.checked = isComplete;
+                }
+            }
 
             // --- 2. Tab Switching Logic (MODIFIED for new tabs) ---
             // This now only handles Day A and Day B tabs in the header
@@ -2117,7 +2496,37 @@
                     }
 
                     if (taskNameField && taskNameField.value.trim() !== '') {
-                        updateTrackerItemStatusFromCard(courseTitle, taskType, taskNameField.value.trim(), isChecked);
+                        const assignmentName = taskNameField.value.trim();
+
+                        // **NEW:** Check if this is a split assignment
+                        if (taskType === 'assignment' && isSplitAssignment(courseTitle, assignmentName)) {
+                            // Handle split assignment progress
+                            if (isChecked) {
+                                const result = advanceSplitAssignmentProgress(courseTitle, assignmentName);
+
+                                if (result && !result.isComplete) {
+                                    // Not fully complete yet - uncheck the checkbox
+                                    target.checked = false;
+                                    // Update the visual progress
+                                    updateDayCardSplitProgress(courseCard, courseTitle, assignmentName);
+                                } else if (result && result.isComplete) {
+                                    // Fully complete - update tracker status
+                                    updateTrackerItemStatusFromCard(courseTitle, taskType, assignmentName, true);
+                                    updateDayCardSplitProgress(courseCard, courseTitle, assignmentName);
+                                }
+                            } else {
+                                // Unchecking a split assignment - reset progress
+                                const splitData = getSplitAssignment(courseTitle, assignmentName);
+                                if (splitData && splitData.completedDays > 0) {
+                                    setSplitAssignment(courseTitle, assignmentName, splitData.totalDays, splitData.completedDays - 1);
+                                    updateDayCardSplitProgress(courseCard, courseTitle, assignmentName);
+                                }
+                                updateTrackerItemStatusFromCard(courseTitle, taskType, assignmentName, false);
+                            }
+                        } else {
+                            // Normal checkbox behavior
+                            updateTrackerItemStatusFromCard(courseTitle, taskType, assignmentName, isChecked);
+                        }
                     }
 
                     // **NEW:** Update Day A/B Card Completion State
@@ -2199,6 +2608,12 @@
                                     // **NEW:** Auto-populate assignment field if this is a lesson selection
                                     if (isLesson) {
                                         autoPopulateAssignmentField(suggestionCourseCard);
+                                    } else {
+                                        // **NEW:** Check if selected assignment is a split assignment
+                                        const selectedName = e.target.getAttribute('data-name');
+                                        if (isSplitAssignment(courseTitle, selectedName)) {
+                                            updateDayCardSplitProgress(suggestionCourseCard, courseTitle, selectedName);
+                                        }
                                     }
                                 }
                                 suggestionsList.classList.remove('active');
@@ -2219,6 +2634,53 @@
                 }
             });
 
+            // **NEW:** Check for split assignments when assignment field loses focus
+            mainContent.addEventListener('blur', (event) => {
+                const target = event.target;
+
+                if (target.classList.contains('task-assignment-name')) {
+                    const courseCard = target.closest('.course-card');
+                    if (!courseCard) return;
+
+                    const courseTitle = courseCard.querySelector('h3').textContent.trim();
+                    const assignmentName = target.value.trim();
+
+                    if (assignmentName && isSplitAssignment(courseTitle, assignmentName)) {
+                        updateDayCardSplitProgress(courseCard, courseTitle, assignmentName);
+                    }
+                }
+            }, true);
+
+            // **NEW:** Handle clicks on progress circles in Day A/B cards
+            mainContent.addEventListener('click', (event) => {
+                const progressWrapper = event.target.closest('.progress-circle-wrapper');
+                const courseCard = event.target.closest('.course-card[data-day]');
+
+                if (progressWrapper && courseCard) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const courseName = progressWrapper.getAttribute('data-course');
+                    const assignmentName = progressWrapper.getAttribute('data-assignment');
+
+                    // Advance the split assignment progress
+                    const result = advanceSplitAssignmentProgress(courseName, assignmentName);
+
+                    if (result) {
+                        // Update the visual progress
+                        updateDayCardSplitProgress(courseCard, courseName, assignmentName);
+
+                        if (result.isComplete) {
+                            // Update tracker status
+                            updateTrackerItemStatusFromCard(courseName, 'assignment', assignmentName, true);
+                            updateCardCompletionState(courseCard);
+                        }
+
+                        hasUnsavedChanges = true;
+                    }
+                }
+            });
+
             // **NEW FUNCTION:** Delete/Clear all content from a Day A/B Course Card
             function deleteDayTaskCard(courseCard) {
                 const li = courseCard.querySelector('.task-list li');
@@ -2232,8 +2694,16 @@
                 // Assignment
                 const aName = li.querySelector('.task-assignment-name');
                 aName.value = '';
-                li.querySelector('.task-assignment-checkbox').checked = false;
+                const assignmentCheckbox = li.querySelector('.task-assignment-checkbox');
+                assignmentCheckbox.checked = false;
+                assignmentCheckbox.style.display = ''; // Restore visibility
                 applyThemeColor(aName);
+
+                // **NEW:** Remove any progress circle wrapper
+                const progressWrapper = li.querySelector('.progress-circle-wrapper');
+                if (progressWrapper) {
+                    progressWrapper.remove();
+                }
 
                 // Notes/Link
                 const notes = li.querySelector('.task-notes');
@@ -2372,8 +2842,14 @@
 
                         // Assignment
                         if (courseData.assignment) {
-                            li.querySelector('.task-assignment-name').value = courseData.assignment.name;
+                            const assignmentName = courseData.assignment.name;
+                            li.querySelector('.task-assignment-name').value = assignmentName;
                             li.querySelector('.task-assignment-checkbox').checked = courseData.assignment.checked;
+
+                            // **NEW:** Check if this is a split assignment and update progress circle
+                            if (assignmentName && isSplitAssignment(courseTitle, assignmentName)) {
+                                updateDayCardSplitProgress(card, courseTitle, assignmentName);
+                            }
                         }
 
                         // Shared Notes and Link
@@ -2426,6 +2902,7 @@
                     } else if (dayId === 'assignmentTracker') {
                         localStorage.removeItem(LS_ASSIGNMENTS_KEY);
                         localStorage.removeItem(LS_PAUSED_COURSES_KEY); // Also reset pause state
+                        localStorage.removeItem(LS_SPLIT_ASSIGNMENTS_KEY); // Also reset split assignments
                         initializeTrackerData(); // Initialize to empty array
                         renderTracker('assignment');
                     }
@@ -2582,6 +3059,14 @@
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 let data = JSON.parse(localStorage.getItem(storageKey)) || [];
 
+                // Find the item before deleting (to get course and name for split assignment cleanup)
+                const itemToDelete = data.find(item => item.id == itemId);
+
+                // **NEW:** If this is an assignment, also delete any split assignment data
+                if (type === 'assignment' && itemToDelete) {
+                    deleteSplitAssignment(itemToDelete.course, itemToDelete.name);
+                }
+
                 // Filter out the item with the matching id
                 data = data.filter(item => item.id != itemId);
 
@@ -2598,6 +3083,13 @@
 
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 let data = JSON.parse(localStorage.getItem(storageKey)) || [];
+
+                // **NEW:** If deleting assignment tracker course, also delete split assignments for all assignments
+                if (type === 'assignment') {
+                    data.filter(item => item.course === courseName).forEach(item => {
+                        deleteSplitAssignment(courseName, item.name);
+                    });
+                }
 
                 // Filter out all items belonging to the specified course
                 data = data.filter(item => item.course !== courseName);
@@ -2749,6 +3241,52 @@
                 ctx.fill();
             }
 
+            // **NEW:** Generate Progress Circle HTML for Split Assignments
+            function generateProgressCircleHTML(courseName, assignmentName, splitData, itemId, type) {
+                const { totalDays, completedDays } = splitData;
+                const isComplete = completedDays >= totalDays;
+                const progress = completedDays / totalDays;
+
+                // SVG circle properties
+                const radius = 10;
+                const circumference = 2 * Math.PI * radius;
+                const strokeDashoffset = circumference * (1 - progress);
+
+                // Determine the stroke color class
+                let strokeColorClass = 'in-progress';
+                if (isComplete) {
+                    // Use tracker green for assignment tracker
+                    strokeColorClass = 'completed-tracker';
+                }
+
+                return `
+                    <div class="progress-circle-wrapper ${isComplete ? 'completed' : ''}" 
+                         data-course="${courseName}" 
+                         data-assignment="${assignmentName}"
+                         data-id="${itemId}"
+                         data-type="${type}"
+                         data-total="${totalDays}"
+                         data-completed="${completedDays}">
+                        <svg class="progress-circle-svg" viewBox="0 0 24 24">
+                            <circle class="progress-circle-bg" cx="12" cy="12" r="${radius}"></circle>
+                            <circle class="progress-circle-progress ${strokeColorClass}" 
+                                    cx="12" cy="12" r="${radius}"
+                                    stroke-dasharray="${circumference}"
+                                    stroke-dashoffset="${strokeDashoffset}">
+                            </circle>
+                        </svg>
+                        <div class="progress-circle-checkmark"></div>
+                        <input type="checkbox" 
+                               class="split-assignment-checkbox" 
+                               data-course="${courseName}" 
+                               data-assignment="${assignmentName}"
+                               data-id="${itemId}"
+                               data-type="${type}"
+                               ${isComplete ? 'checked' : ''}>
+                    </div>
+                `;
+            }
+
             // Main Tracker Renderer Function (MODIFIED for pause status and progress calc)
             function renderTracker(type) {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
@@ -2844,18 +3382,31 @@
                     // List of items - Use full courseData here
                     courseData.forEach(item => {
                         const isChecked = item.status === 'Finished';
+
+                        // Check if this is a split assignment (only for assignment type)
+                        const splitData = type === 'assignment' ? getSplitAssignment(course, item.name) : null;
+
+                        let statusHTML;
+                        if (splitData) {
+                            // Generate progress circle for split assignment
+                            statusHTML = generateProgressCircleHTML(course, item.name, splitData, item.id, type);
+                        } else {
+                            // Regular checkbox
+                            statusHTML = `
+                                <input 
+                                    type="checkbox" 
+                                    class="tracker-item-checkbox" 
+                                    data-id="${item.id}" 
+                                    data-type="${type}"
+                                    ${isChecked ? 'checked' : ''}
+                                >
+                            `;
+                        }
+
                         listHTML += `
-                            <div class="tracker-item-row" data-id="${item.id}" data-type="${type}">
+                            <div class="tracker-item-row" data-id="${item.id}" data-type="${type}" data-course="${course}" data-name="${item.name}">
                                 <div class="tracker-item-name">${item.name}</div>
-                                <div> 
-                                    <input 
-                                        type="checkbox" 
-                                        class="tracker-item-checkbox" 
-                                        data-id="${item.id}" 
-                                        data-type="${type}"
-                                        ${isChecked ? 'checked' : ''}
-                                    >
-                                </div>
+                                <div>${statusHTML}</div>
                                 <div> 
                                     <button class="delete-btn" data-id="${item.id}" data-type="${type}">Delete</button>
                                 </div>
@@ -2964,6 +3515,259 @@
             document.addEventListener('click', () => {
                 contextMenu.style.display = 'none';
                 dayCardContextMenu.style.display = 'none';
+                assignmentContextMenu.style.display = 'none';
+            });
+
+            // **NEW:** Assignment Context Menu Logic (for Assignment Tracker only)
+            const assignmentContextMenu = document.getElementById('assignmentContextMenu');
+            const splitAssignmentBtn = document.getElementById('splitAssignmentBtn');
+            const completeNowBtn = document.getElementById('completeNowBtn');
+            const resetSplitBtn = document.getElementById('resetSplitBtn');
+            let assignmentContextMenuData = { courseName: '', assignmentName: '', itemId: '' };
+
+            function showAssignmentContextMenu(e, courseName, assignmentName, itemId, targetElement) {
+                assignmentContextMenuData = { courseName, assignmentName, itemId };
+
+                const rect = targetElement.getBoundingClientRect();
+                assignmentContextMenu.style.left = `${rect.left}px`;
+                assignmentContextMenu.style.top = `${rect.bottom + 5}px`;
+                assignmentContextMenu.style.display = 'block';
+
+                // Update menu text based on current state
+                const splitData = getSplitAssignment(courseName, assignmentName);
+                if (splitData) {
+                    splitAssignmentBtn.textContent = 'Edit Split…';
+                    completeNowBtn.style.display = 'block';
+                    resetSplitBtn.style.display = 'block';
+                } else {
+                    splitAssignmentBtn.textContent = 'Split Assignment…';
+                    completeNowBtn.style.display = 'none';
+                    resetSplitBtn.style.display = 'none';
+                }
+            }
+
+            // Handle Split Assignment button click
+            splitAssignmentBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openSplitModal(assignmentContextMenuData.courseName, assignmentContextMenuData.assignmentName);
+                assignmentContextMenu.style.display = 'none';
+            });
+
+            // Handle Complete Now button click
+            completeNowBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const { courseName, assignmentName, itemId } = assignmentContextMenuData;
+
+                // Complete the split assignment
+                completeSplitAssignmentNow(courseName, assignmentName);
+
+                // Mark the assignment as finished in tracker
+                toggleTrackerItemStatus(itemId, 'assignment');
+
+                assignmentContextMenu.style.display = 'none';
+            });
+
+            // Handle Reset Split button click
+            resetSplitBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const { courseName, assignmentName, itemId } = assignmentContextMenuData;
+
+                // Reset the split assignment progress
+                resetSplitAssignmentProgress(courseName, assignmentName);
+
+                // Mark the assignment as Not Started in tracker
+                const storageKey = LS_ASSIGNMENTS_KEY;
+                let data = JSON.parse(localStorage.getItem(storageKey)) || [];
+                data = data.map(item => {
+                    if (item.id == itemId) {
+                        item.status = 'Not Started';
+                    }
+                    return item;
+                });
+                localStorage.setItem(storageKey, JSON.stringify(data));
+
+                // Re-render
+                renderTracker('assignment');
+                calculateAndRenderOverallProgress('assignment');
+
+                assignmentContextMenu.style.display = 'none';
+            });
+
+            // Right-click on assignment names in Assignment Tracker
+            mainContent.addEventListener('contextmenu', (e) => {
+                const itemName = e.target.closest('.tracker-item-name');
+                const itemRow = e.target.closest('.tracker-item-row');
+                const trackerContent = e.target.closest('#assignmentTrackerContent');
+
+                // Only show context menu for assignment names in Assignment Tracker
+                if (itemName && itemRow && trackerContent) {
+                    e.preventDefault();
+
+                    const courseName = itemRow.getAttribute('data-course');
+                    const assignmentName = itemRow.getAttribute('data-name');
+                    const itemId = itemRow.getAttribute('data-id');
+
+                    showAssignmentContextMenu(e, courseName, assignmentName, itemId, itemName);
+                }
+            });
+
+            // **NEW:** Split Modal Dialog Logic
+            const splitModal = document.getElementById('splitModal');
+            const splitModalInput = document.getElementById('splitModalInput');
+            const splitModalAssignmentInfo = document.getElementById('splitModalAssignmentInfo');
+            const splitModalCancel = document.getElementById('splitModalCancel');
+            const splitModalSave = document.getElementById('splitModalSave');
+            let splitModalData = { courseName: '', assignmentName: '' };
+
+            function openSplitModal(courseName, assignmentName) {
+                splitModalData = { courseName, assignmentName };
+                splitModalAssignmentInfo.textContent = `${courseName} - ${assignmentName}`;
+
+                // Check if already split
+                const existingSplit = getSplitAssignment(courseName, assignmentName);
+                if (existingSplit) {
+                    splitModalInput.value = existingSplit.totalDays;
+                } else {
+                    splitModalInput.value = 2;
+                }
+
+                splitModal.classList.add('active');
+                setTimeout(() => splitModalInput.focus(), 100);
+            }
+
+            function closeSplitModal() {
+                splitModal.classList.remove('active');
+                splitModalInput.value = 2;
+                splitModalData = { courseName: '', assignmentName: '' };
+            }
+
+            splitModalCancel.addEventListener('click', closeSplitModal);
+
+            splitModalSave.addEventListener('click', (e) => {
+                e.preventDefault();
+                const totalDays = parseInt(splitModalInput.value, 10);
+
+                if (isNaN(totalDays) || totalDays < 2 || totalDays > 30) {
+                    alert('Please enter a valid number between 2 and 30');
+                    return;
+                }
+
+                const { courseName, assignmentName } = splitModalData;
+
+                // Get existing progress or start fresh
+                const existingSplit = getSplitAssignment(courseName, assignmentName);
+                const completedDays = existingSplit ? Math.min(existingSplit.completedDays, totalDays) : 0;
+
+                setSplitAssignment(courseName, assignmentName, totalDays, completedDays);
+                closeSplitModal();
+
+                // Re-render the tracker
+                renderTracker('assignment');
+
+                hasUnsavedChanges = true;
+            });
+
+            splitModalInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    splitModalSave.click();
+                }
+            });
+
+            // Close modal on overlay click
+            splitModal.addEventListener('click', (e) => {
+                if (e.target === splitModal) {
+                    closeSplitModal();
+                }
+            });
+
+            // **NEW:** Handle clicks on split assignment progress circles
+            mainContent.addEventListener('click', (e) => {
+                const progressWrapper = e.target.closest('.progress-circle-wrapper');
+                const splitCheckbox = e.target.closest('.split-assignment-checkbox');
+
+                if (progressWrapper && splitCheckbox) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const courseName = progressWrapper.getAttribute('data-course');
+                    const assignmentName = progressWrapper.getAttribute('data-assignment');
+                    const itemId = progressWrapper.getAttribute('data-id');
+
+                    // Advance progress
+                    const result = advanceSplitAssignmentProgress(courseName, assignmentName);
+
+                    if (result && result.isComplete) {
+                        // Mark the assignment as finished in tracker
+                        const storageKey = LS_ASSIGNMENTS_KEY;
+                        let data = JSON.parse(localStorage.getItem(storageKey)) || [];
+                        data = data.map(item => {
+                            if (item.id == itemId) {
+                                item.status = 'Finished';
+                            }
+                            return item;
+                        });
+                        localStorage.setItem(storageKey, JSON.stringify(data));
+                    }
+
+                    // Re-render the tracker
+                    renderTracker('assignment');
+                    calculateAndRenderOverallProgress('assignment');
+
+                    hasUnsavedChanges = true;
+                }
+            });
+
+            // **NEW:** Long-press handler for immediate completion
+            let longPressTimer = null;
+            const LONG_PRESS_DURATION = 800; // ms
+
+            mainContent.addEventListener('mousedown', (e) => {
+                const progressWrapper = e.target.closest('.progress-circle-wrapper');
+
+                if (progressWrapper) {
+                    longPressTimer = setTimeout(() => {
+                        const courseName = progressWrapper.getAttribute('data-course');
+                        const assignmentName = progressWrapper.getAttribute('data-assignment');
+                        const itemId = progressWrapper.getAttribute('data-id');
+
+                        // Complete immediately
+                        completeSplitAssignmentNow(courseName, assignmentName);
+
+                        // Mark the assignment as finished in tracker
+                        const storageKey = LS_ASSIGNMENTS_KEY;
+                        let data = JSON.parse(localStorage.getItem(storageKey)) || [];
+                        data = data.map(item => {
+                            if (item.id == itemId) {
+                                item.status = 'Finished';
+                            }
+                            return item;
+                        });
+                        localStorage.setItem(storageKey, JSON.stringify(data));
+
+                        // Re-render the tracker
+                        renderTracker('assignment');
+                        calculateAndRenderOverallProgress('assignment');
+
+                        hasUnsavedChanges = true;
+
+                        // Prevent the click event from firing
+                        e.preventDefault();
+                    }, LONG_PRESS_DURATION);
+                }
+            });
+
+            mainContent.addEventListener('mouseup', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            });
+
+            mainContent.addEventListener('mouseleave', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
             });
 
             // **NEW:** Link Modal Dialog Logic
