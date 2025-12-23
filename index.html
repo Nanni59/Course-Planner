@@ -1199,6 +1199,15 @@
             border-color: var(--active-color);
         }
 
+        /* Explicit border colors for Day A/B cards when completed */
+        .progress-circle-wrapper.completed-day-a {
+            border-color: var(--color-day-a);
+        }
+
+        .progress-circle-wrapper.completed-day-b {
+            border-color: var(--color-day-b);
+        }
+
         /* Hidden checkbox for split assignments */
         .split-assignment-checkbox {
             opacity: 0;
@@ -2338,7 +2347,9 @@
                     const strokeDashoffset = circumference * (1 - progress);
 
                     const wrapper = document.createElement('div');
-                    wrapper.className = `progress-circle-wrapper ${isComplete ? 'completed' : ''}`;
+                    const wrapperClass = isComplete ?
+                        ('completed ' + (dayId === 'dayA' ? 'completed-day-a' : 'completed-day-b')) : '';
+                    wrapper.className = `progress-circle-wrapper ${wrapperClass}`;
                     wrapper.setAttribute('data-course', courseName);
                     wrapper.setAttribute('data-assignment', assignmentName);
                     wrapper.innerHTML = `
@@ -2368,7 +2379,10 @@
                     }
 
                     // Update wrapper completion class
-                    existingWrapper.classList.toggle('completed', isComplete);
+                    existingWrapper.classList.remove('completed', 'completed-day-a', 'completed-day-b');
+                    if (isComplete) {
+                        existingWrapper.classList.add('completed', dayId === 'dayA' ? 'completed-day-a' : 'completed-day-b');
+                    }
                 }
 
                 // Update the hidden checkbox state
