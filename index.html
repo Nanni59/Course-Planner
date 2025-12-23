@@ -1228,6 +1228,8 @@
             background-repeat: no-repeat;
             background-position: center;
             background-size: contain;
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
 
         /* Split Assignment Modal */
@@ -1817,7 +1819,7 @@
     </main>
 
     <footer class="main-footer">
-        <h1 class="footer-title" data-tooltip="Version 1.1">Course Planner</h1>
+        <h1 class="footer-title" data-tooltip="Version 1.2">Course Planner</h1>
         <button id="lessonTrackerBtn">Lesson Tracker</button>
         <button id="assignmentTrackerBtn">Assignment Tracker</button>
         <button id="resetBtn">Reset</button>
@@ -1962,17 +1964,22 @@
                 return getSplitAssignment(courseName, assignmentName) !== null;
             }
 
+            // --- **NEW FUNCTION:** Advance split assignment progress
             function advanceSplitAssignmentProgress(courseName, assignmentName) {
                 const split = getSplitAssignment(courseName, assignmentName);
                 if (!split) return null;
 
-                const newCompleted = Math.min(split.completedDays + 1, split.totalDays);
-                setSplitAssignment(courseName, assignmentName, split.totalDays, newCompleted);
+                // Ensure numbers
+                const total = Number(split.totalDays);
+                const current = Number(split.completedDays);
+
+                const newCompleted = Math.min(current + 1, total);
+                setSplitAssignment(courseName, assignmentName, total, newCompleted);
 
                 return {
-                    totalDays: split.totalDays,
+                    totalDays: total,
                     completedDays: newCompleted,
-                    isComplete: newCompleted >= split.totalDays
+                    isComplete: newCompleted >= total
                 };
             }
 
@@ -2318,27 +2325,41 @@
             }
 
             // **NEW FUNCTION:** Update split assignment progress visualization on Day A/B cards
-            function updateDayCardSplitProgress(courseCard, courseName, assignmentName) {
-                const splitData = getSplitAssignment(courseName, assignmentName);
-                if (!splitData) return;
+            function updateDayCardSplitProgress(courseCard, courseName, assignmentName, splitDataOverride = null) {
+                const assignmentCheckboxDiv = courseCard.querySelector('.task-assignment-main');
+                if (!assignmentCheckboxDiv) return;
 
-                const { totalDays, completedDays } = splitData;
+                const wrapper = assignmentCheckboxDiv.querySelector('.progress-circle-wrapper');
+                const checkbox = assignmentCheckboxDiv.querySelector('.task-assignment-checkbox');
+
+                // Use override if provided, otherwise fetch from storage
+                const splitData = splitDataOverride || getSplitAssignment(courseName, assignmentName);
+
+                // Case 1: Revert to normal checkbox if no split data exists but wrapper does
+                if (!splitData) {
+                    if (wrapper && checkbox) {
+                        wrapper.remove();
+                        checkbox.style.display = ''; // Show checkbox
+                        checkbox.checked = false; // Reset state
+                    }
+                    return;
+                }
+
+                const totalDays = Number(splitData.totalDays);
+                const completedDays = Number(splitData.completedDays);
                 const isComplete = completedDays >= totalDays;
-                const progress = completedDays / totalDays;
+                const progress = totalDays > 0 ? completedDays / totalDays : 0;
 
-                // Determine the day color
-                const dayId = courseCard.closest('.tab-content')?.id || 'dayA';
+                // Determine the day color (Use data-day attribute for reliability)
+                const dayId = courseCard.getAttribute('data-day') || courseCard.closest('.tab-content')?.id || 'dayA';
+
                 let strokeColorClass = 'in-progress';
                 if (isComplete) {
                     strokeColorClass = dayId === 'dayA' ? 'completed-day-a' : 'completed-day-b';
                 }
 
-                // Find or create the progress circle wrapper
-                const assignmentCheckboxDiv = courseCard.querySelector('.task-assignment-main');
-                if (!assignmentCheckboxDiv) return;
-
+                // Reuse variables defined above or re-select
                 let existingWrapper = assignmentCheckboxDiv.querySelector('.progress-circle-wrapper');
-                const checkbox = assignmentCheckboxDiv.querySelector('.task-assignment-checkbox');
 
                 if (!existingWrapper && checkbox) {
                     // Replace checkbox with progress circle
@@ -2366,6 +2387,10 @@
 
                     checkbox.style.display = 'none';
                     checkbox.parentNode.insertBefore(wrapper, checkbox);
+
+                    // Re-select newly created wrapper for subsequent updates (e.g. checkmark)
+                    existingWrapper = wrapper;
+
                 } else if (existingWrapper) {
                     // Update existing progress circle
                     const radius = 10;
@@ -2375,13 +2400,35 @@
                     const progressCircle = existingWrapper.querySelector('.progress-circle-progress');
                     if (progressCircle) {
                         progressCircle.setAttribute('stroke-dashoffset', strokeDashoffset);
+                        // Explicitly overwrite class to remove previous states
                         progressCircle.className = `progress-circle-progress ${strokeColorClass}`;
+
+                        // **FIX:** Force inline style update to ensure immediate repaint with correct color
+                        if (isComplete) {
+                            progressCircle.style.stroke = dayId === 'dayA' ? 'var(--color-day-a)' : 'var(--color-day-b)';
+                        } else {
+                            progressCircle.style.stroke = ''; // Remove inline style to fall back to CSS class
+                        }
                     }
 
                     // Update wrapper completion class
                     existingWrapper.classList.remove('completed', 'completed-day-a', 'completed-day-b');
                     if (isComplete) {
                         existingWrapper.classList.add('completed', dayId === 'dayA' ? 'completed-day-a' : 'completed-day-b');
+                    }
+                }
+
+                // Update checkmark opacity (run for both new and existing wrappers)
+                if (existingWrapper) {
+                    const checkmark = existingWrapper.querySelector('.progress-circle-checkmark');
+                    if (checkmark) {
+                        if (isComplete) {
+                            checkmark.style.opacity = '1';
+                        } else if (completedDays >= 1) {
+                            checkmark.style.opacity = '0.5';
+                        } else {
+                            checkmark.style.opacity = '0';
+                        }
                     }
                 }
 
@@ -2576,6 +2623,13 @@
 
                     // **NEW:** Mark as unsaved
                     hasUnsavedChanges = true;
+
+                    // **NEW:** Instant Visual Update for Split Assignments
+                    if (target.classList.contains('task-assignment-name')) {
+                        const card = target.closest('.course-card');
+                        const cName = card.querySelector('h3').textContent.trim();
+                        updateDayCardSplitProgress(card, cName, target.value.trim());
+                    }
                 }
 
                 // 2. Search Logic (MODIFIED FILTERING)
@@ -2677,19 +2731,38 @@
                     const courseName = progressWrapper.getAttribute('data-course');
                     const assignmentName = progressWrapper.getAttribute('data-assignment');
 
-                    // Advance the split assignment progress
-                    const result = advanceSplitAssignmentProgress(courseName, assignmentName);
+                    // **NEW:** Check current state to determine action (Advance or Reset)
+                    const currentSplit = getSplitAssignment(courseName, assignmentName);
+                    if (!currentSplit) return;
+
+                    let result;
+                    const curTotal = Number(currentSplit.totalDays);
+                    const curCompleted = Number(currentSplit.completedDays);
+
+                    // If currently fully complete, clicking it should RESET it to 0 (Uncheck)
+                    if (curCompleted >= curTotal) {
+                        setSplitAssignment(courseName, assignmentName, curTotal, 0);
+                        result = {
+                            totalDays: curTotal,
+                            completedDays: 0,
+                            isComplete: false
+                        };
+                        // Update tracker status to Not Started
+                        updateTrackerItemStatusFromCard(courseName, 'assignment', assignmentName, false);
+
+                    } else {
+                        // Otherwise, advance progress
+                        result = advanceSplitAssignmentProgress(courseName, assignmentName);
+                        // If it BECAME complete, update tracker
+                        if (result.isComplete) {
+                            updateTrackerItemStatusFromCard(courseName, 'assignment', assignmentName, true);
+                        }
+                    }
 
                     if (result) {
-                        // Update the visual progress
-                        updateDayCardSplitProgress(courseCard, courseName, assignmentName);
-
-                        if (result.isComplete) {
-                            // Update tracker status
-                            updateTrackerItemStatusFromCard(courseName, 'assignment', assignmentName, true);
-                            updateCardCompletionState(courseCard);
-                        }
-
+                        // Update the visual progress - PASS RESULT AS OVERRIDE
+                        updateDayCardSplitProgress(courseCard, courseName, assignmentName, result);
+                        updateCardCompletionState(courseCard);
                         hasUnsavedChanges = true;
                     }
                 }
@@ -2697,18 +2770,40 @@
 
             // **NEW FUNCTION:** Delete/Clear all content from a Day A/B Course Card
             function deleteDayTaskCard(courseCard) {
+                const courseTitle = courseCard.querySelector('h3').textContent.trim(); // Get course name
                 const li = courseCard.querySelector('.task-list li');
 
                 // Lesson
                 const lName = li.querySelector('.task-lesson-name');
+                const lCheckbox = li.querySelector('.task-lesson-checkbox');
+
+                // **FIX:** Sync to tracker before clearing
+                if (lName.value.trim() !== '' && lCheckbox.checked) {
+                    updateTrackerItemStatusFromCard(courseTitle, 'lesson', lName.value.trim(), false);
+                }
+
                 lName.value = '';
-                li.querySelector('.task-lesson-checkbox').checked = false;
+                lCheckbox.checked = false;
                 applyThemeColor(lName);
 
                 // Assignment
                 const aName = li.querySelector('.task-assignment-name');
-                aName.value = '';
                 const assignmentCheckbox = li.querySelector('.task-assignment-checkbox');
+
+                // **FIX:** Sync to tracker before clearing
+                if (aName.value.trim() !== '' && assignmentCheckbox.checked) {
+                    updateTrackerItemStatusFromCard(courseTitle, 'assignment', aName.value.trim(), false);
+
+                    // Also reset split progress if applicable
+                    if (isSplitAssignment(courseTitle, aName.value.trim())) {
+                        const splitData = getSplitAssignment(courseTitle, aName.value.trim());
+                        if (splitData) {
+                            setSplitAssignment(courseTitle, aName.value.trim(), splitData.totalDays, 0);
+                        }
+                    }
+                }
+
+                aName.value = '';
                 assignmentCheckbox.checked = false;
                 assignmentCheckbox.style.display = ''; // Restore visibility
                 applyThemeColor(aName);
@@ -3043,18 +3138,54 @@
             }
 
             // Update event listeners for the new main buttons (renamed from bulk to main)
+            // Update event listeners for the new main buttons (renamed from bulk to main)
             document.getElementById('addLessonBtn').addEventListener('click', () => addNewItem('lesson'));
             document.getElementById('addAssignmentBtn').addEventListener('click', () => addNewItem('assignment'));
+
+            // **NEW HELPER:** Sync Tracker updates to Day Cards
+            function syncTrackerInputToDayCards(courseName, type, taskName, isComplete) {
+                // Determine selector based on type
+                const inputSelector = type === 'lesson' ? '.task-lesson-name' : '.task-assignment-name';
+                const checkboxSelector = type === 'lesson' ? '.task-lesson-checkbox' : '.task-assignment-checkbox';
+
+                // Find all cards with this course name (could be in Day A or Day B)
+                document.querySelectorAll('.course-card').forEach(card => {
+                    if (card.querySelector('h3').textContent.trim() === courseName) {
+                        const nameInput = card.querySelector(inputSelector);
+
+                        // Check if the task name matches
+                        if (nameInput && nameInput.value.trim() === taskName) {
+
+                            // Check if it's a split assignment first
+                            if (type === 'assignment' && isSplitAssignment(courseName, taskName)) {
+                                updateDayCardSplitProgress(card, courseName, taskName);
+                            } else {
+                                // Normal checkbox update
+                                const checkbox = card.querySelector(checkboxSelector);
+                                if (checkbox) {
+                                    checkbox.checked = isComplete;
+                                }
+                            }
+
+                            // Always update the card's visual completion state (X button etc)
+                            updateCardCompletionState(card);
+                        }
+                    }
+                });
+            }
 
             // Toggle Status functionality (used in tracker tabs)
             function toggleTrackerItemStatus(itemId, type) {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 let data = JSON.parse(localStorage.getItem(storageKey)) || [];
 
+                let updatedItem = null;
+
                 data = data.map(item => {
                     // Note: Item IDs are stored as numbers, so compare numbers
                     if (item.id == itemId) {
                         item.status = item.status === 'Finished' ? 'Not Started' : 'Finished';
+                        updatedItem = item;
                     }
                     return item;
                 });
@@ -3062,6 +3193,11 @@
                 localStorage.setItem(storageKey, JSON.stringify(data));
                 renderTracker(type); // Re-render the UI
                 calculateAndRenderOverallProgress(type); // NEW: Update progress bar
+
+                // **NEW:** Sync change to Day cards immediately
+                if (updatedItem) {
+                    syncTrackerInputToDayCards(updatedItem.course, type, updatedItem.name, updatedItem.status === 'Finished');
+                }
             }
 
             // Delete Item functionality (New Function - individual task)
@@ -3087,6 +3223,11 @@
                 localStorage.setItem(storageKey, JSON.stringify(data));
                 renderTracker(type); // Re-render the UI
                 calculateAndRenderOverallProgress(type); // NEW: Update progress bar
+
+                // **NEW:** Sync deletion to day cards (uncheck/reset status)
+                if (itemToDelete) {
+                    syncTrackerInputToDayCards(itemToDelete.course, type, itemToDelete.name, false);
+                }
             }
 
             // **NEW FUNCTION:** Delete an entire course from the tracker
@@ -3289,7 +3430,8 @@
                                     stroke-dashoffset="${strokeDashoffset}">
                             </circle>
                         </svg>
-                        <div class="progress-circle-checkmark"></div>
+                        <div class="progress-circle-checkmark" 
+                             style="opacity: ${isComplete ? '1' : (completedDays >= 1 ? '0.5' : '0')}"></div>
                         <input type="checkbox" 
                                class="split-assignment-checkbox" 
                                data-course="${courseName}" 
@@ -3707,25 +3849,48 @@
                     const assignmentName = progressWrapper.getAttribute('data-assignment');
                     const itemId = progressWrapper.getAttribute('data-id');
 
-                    // Advance progress
-                    const result = advanceSplitAssignmentProgress(courseName, assignmentName);
+                    // Get current state
+                    const splitData = getSplitAssignment(courseName, assignmentName);
+                    if (!splitData) return;
 
-                    if (result && result.isComplete) {
-                        // Mark the assignment as finished in tracker
-                        const storageKey = LS_ASSIGNMENTS_KEY;
-                        let data = JSON.parse(localStorage.getItem(storageKey)) || [];
-                        data = data.map(item => {
-                            if (item.id == itemId) {
-                                item.status = 'Finished';
-                            }
-                            return item;
-                        });
-                        localStorage.setItem(storageKey, JSON.stringify(data));
+                    let newCompleted;
+                    let newStatus;
+
+                    // Logic: If complete, reset. Else, advance.
+                    if (splitData.completedDays >= splitData.totalDays) {
+                        newCompleted = 0;
+                        newStatus = 'Not Started';
+                    } else {
+                        newCompleted = splitData.completedDays + 1;
+                        newStatus = newCompleted >= splitData.totalDays ? 'Finished' : 'Not Started';
                     }
+
+                    // Save new split state
+                    setSplitAssignment(courseName, assignmentName, splitData.totalDays, newCompleted);
+
+                    // Update Tracker Status
+                    const storageKey = LS_ASSIGNMENTS_KEY;
+                    let data = JSON.parse(localStorage.getItem(storageKey)) || [];
+                    data = data.map(item => {
+                        if (item.id == itemId) {
+                            item.status = newStatus;
+                        }
+                        return item;
+                    });
+                    localStorage.setItem(storageKey, JSON.stringify(data));
 
                     // Re-render the tracker
                     renderTracker('assignment');
                     calculateAndRenderOverallProgress('assignment');
+
+                    // IMMEDIATE UPDATE for Day Cards
+                    // Find any card for this course (there might be one in DayA and one in DayB)
+                    // We must update both if they exist, or just the one we clicked
+                    const dayACard = document.querySelector(`#dayA .course-card[data-course-name="${courseName}"]`);
+                    const dayBCard = document.querySelector(`#dayB .course-card[data-course-name="${courseName}"]`);
+
+                    if (dayACard) updateDayCardSplitProgress(dayACard, courseName, assignmentName);
+                    if (dayBCard) updateDayCardSplitProgress(dayBCard, courseName, assignmentName);
 
                     hasUnsavedChanges = true;
                 }
