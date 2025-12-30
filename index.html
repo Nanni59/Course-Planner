@@ -1911,7 +1911,7 @@
     </main>
 
     <footer class="main-footer">
-        <h1 class="footer-title" data-tooltip="Version 1.7">Course Planner</h1>
+        <h1 class="footer-title" data-tooltip="Version 1.8">Course Planner</h1>
         <button id="lessonTrackerBtn">Lesson Tracker</button>
         <button id="assignmentTrackerBtn">Assignment Tracker</button>
         <button id="backupBtn">Backup</button>
@@ -2398,30 +2398,34 @@
                 const assignmentCheckbox = courseCard.querySelector('.task-assignment-checkbox');
                 const deleteButton = courseCard.querySelector('.delete-course-card-btn');
 
-                const hasLesson = lessonNameField.value.trim() !== '';
-                const isLessonChecked = lessonCheckbox.checked;
+                // 1. Determine Existence
+                const hasLesson = lessonNameField && lessonNameField.value.trim() !== '';
+                const hasAssignment = assignmentNameField && assignmentNameField.value.trim() !== '';
 
-                const hasAssignment = assignmentNameField.value.trim() !== '';
-                const isAssignmentChecked = assignmentCheckbox.checked;
+                // If nothing exists, hide button immediately
+                if (!hasLesson && !hasAssignment) {
+                    deleteButton.classList.remove('completed');
+                    return;
+                }
 
-                let isCardCompleted = false;
+                // 2. Determine Interaction (Satisfied) Status
+                // "Satisfied" means: If the item exists, it MUST be checked (interacted with).
 
-                // Case 1: Only Assignment is present
-                if (!hasLesson && hasAssignment) {
-                    isCardCompleted = isAssignmentChecked;
+                let lessonSatisfied = true; // Default to true if it doesn't exist (doesn't block visibility)
+                if (hasLesson) {
+                    lessonSatisfied = lessonCheckbox && lessonCheckbox.checked;
                 }
-                // Case 2: Only Lesson is present
-                else if (hasLesson && !hasAssignment) {
-                    isCardCompleted = isLessonChecked;
+
+                let assignmentSatisfied = true; // Default to true if it doesn't exist
+                if (hasAssignment) {
+                    // For both normal and split assignments, we now rely SOLELY on the hidden checkbox state.
+                    // This checkbox is managed by the interaction listeners to track "wasClickedToday".
+                    assignmentSatisfied = assignmentCheckbox && assignmentCheckbox.checked;
                 }
-                // Case 3: Both are present
-                else if (hasLesson && hasAssignment) {
-                    isCardCompleted = isLessonChecked && isAssignmentChecked;
-                }
-                // Case 4: Neither is present (should not show X)
-                else {
-                    isCardCompleted = false;
-                }
+
+                // 3. Final Evaluation: VISIBLE ONLY IF All Present Items Are Satisfied
+                // This covers all cases:
+                const isCardCompleted = lessonSatisfied && assignmentSatisfied;
 
                 deleteButton.classList.toggle('completed', isCardCompleted);
             }
@@ -2536,7 +2540,13 @@
 
                 // Update the hidden checkbox state
                 if (checkbox) {
-                    checkbox.checked = isComplete;
+                    // **MODIFIED:** Do not force checkbox.checked = isComplete.
+                    // We now manage this manually in interaction listeners to track "interaction" vs "completion".
+                    // However, if it IS complete, we should ensure it matches to avoid state desync.
+                    if (isComplete) {
+                        checkbox.checked = true;
+                    }
+                    // Crucially: If NOT complete, we leave it alone (could be true if interacted, or false if not).
                 }
             }
 
@@ -2587,6 +2597,40 @@
                 } else if (activeTabId === 'assignmentTracker' && type === 'assignment') {
                     renderTracker('assignment');
                 }
+            }
+
+            // **NEW FUNCTION:** Sync tracker changes (e.g. from context menu) to Day Cards
+            function syncTrackerInputToDayCards(courseName, type, taskName, isChecked) {
+                // Find cards in Day A and Day B
+                const cards = document.querySelectorAll(`.course-card[data-course-name="${courseName}"]`);
+
+                cards.forEach(card => {
+                    let checkbox;
+                    let nameField;
+
+                    if (type === 'lesson') {
+                        checkbox = card.querySelector('.task-lesson-checkbox');
+                        nameField = card.querySelector('.task-lesson-name');
+                    } else {
+                        checkbox = card.querySelector('.task-assignment-checkbox');
+                        nameField = card.querySelector('.task-assignment-name');
+                    }
+
+                    // Only update if the name matches (to ensure we are targeting the right task)
+                    if (nameField && nameField.value.trim() === taskName) {
+                        if (checkbox) {
+                            checkbox.checked = isChecked;
+                        }
+
+                        // If it is a split assignment, we also need to update the visual progress
+                        if (type === 'assignment' && isSplitAssignment(courseName, taskName)) {
+                            updateDayCardSplitProgress(card, courseName, taskName);
+                        }
+
+                        // Update completion state (X button visibility)
+                        updateCardCompletionState(card);
+                    }
+                });
             }
 
 
@@ -2868,6 +2912,10 @@
                     }
 
                     if (result) {
+                        // **NEW:** Update interaction state via checkbox (checked if > 0 progress)
+                        const cb = courseCard.querySelector('.task-assignment-checkbox');
+                        if (cb) cb.checked = (result.completedDays > 0);
+
                         // Update the visual progress - PASS RESULT AS OVERRIDE
                         updateDayCardSplitProgress(courseCard, courseName, assignmentName, result);
                         updateCardCompletionState(courseCard);
@@ -4042,6 +4090,9 @@
                 // Mark the assignment as finished in tracker
                 toggleTrackerItemStatus(itemId, 'assignment');
 
+                // Sync to Day Cards (ensure X button appears)
+                syncTrackerInputToDayCards(courseName, 'assignment', assignmentName, true);
+
                 assignmentContextMenu.style.display = 'none';
             });
 
@@ -4067,6 +4118,9 @@
                 // Re-render
                 renderTracker('assignment');
                 calculateAndRenderOverallProgress('assignment');
+
+                // Sync to Day Cards
+                syncTrackerInputToDayCards(courseName, 'assignment', assignmentName, false);
 
                 assignmentContextMenu.style.display = 'none';
             });
@@ -4211,8 +4265,22 @@
                     const dayACard = document.querySelector(`#dayA .course-card[data-course-name="${courseName}"]`);
                     const dayBCard = document.querySelector(`#dayB .course-card[data-course-name="${courseName}"]`);
 
-                    if (dayACard) updateDayCardSplitProgress(dayACard, courseName, assignmentName);
-                    if (dayBCard) updateDayCardSplitProgress(dayBCard, courseName, assignmentName);
+                    if (dayACard) {
+                        // **NEW:** Update interaction state via checkbox (checked if > 0 progress)
+                        const cb = dayACard.querySelector('.task-assignment-checkbox');
+                        if (cb) cb.checked = (newCompleted > 0);
+
+                        updateDayCardSplitProgress(dayACard, courseName, assignmentName);
+                        updateCardCompletionState(dayACard);
+                    }
+                    if (dayBCard) {
+                        // **NEW:** Update interaction state via checkbox (checked if > 0 progress)
+                        const cb = dayBCard.querySelector('.task-assignment-checkbox');
+                        if (cb) cb.checked = (newCompleted > 0);
+
+                        updateDayCardSplitProgress(dayBCard, courseName, assignmentName);
+                        updateCardCompletionState(dayBCard);
+                    }
 
                     hasUnsavedChanges = true;
                 }
@@ -4248,6 +4316,27 @@
                         // Re-render the tracker
                         renderTracker('assignment');
                         calculateAndRenderOverallProgress('assignment');
+
+                        // Update Day Cards (Sync with tracker completion)
+                        const dayACard = document.querySelector(`#dayA .course-card[data-course-name="${courseName}"]`);
+                        const dayBCard = document.querySelector(`#dayB .course-card[data-course-name="${courseName}"]`);
+
+                        if (dayACard) {
+                            // **NEW:** Update interaction state - Completed = Valid Interaction
+                            const cb = dayACard.querySelector('.task-assignment-checkbox');
+                            if (cb) cb.checked = true;
+
+                            updateDayCardSplitProgress(dayACard, courseName, assignmentName);
+                            updateCardCompletionState(dayACard);
+                        }
+                        if (dayBCard) {
+                            // **NEW:** Update interaction state - Completed = Valid Interaction
+                            const cb = dayBCard.querySelector('.task-assignment-checkbox');
+                            if (cb) cb.checked = true;
+
+                            updateDayCardSplitProgress(dayBCard, courseName, assignmentName);
+                            updateCardCompletionState(dayBCard);
+                        }
 
                         hasUnsavedChanges = true;
 
