@@ -72,6 +72,26 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            position: relative;
+        }
+
+        /* Autofill Button Styling */
+        .autofill-btn {
+            position: absolute;
+            right: 40px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 10px 20px;
+            background-color: #58A65C;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .autofill-btn.hidden {
+            display: none;
         }
 
         h1 {
@@ -1343,6 +1363,10 @@
             <button class="tab-link active" data-tab="dayA">Day A</button>
             <button class="tab-link" data-tab="dayB">Day B</button>
         </nav>
+        <button id="autofillBtn" class="autofill-btn hidden"
+            title="Auto-fill this day with next unfinished lessons and assignments">
+            Autofill
+        </button>
     </header>
 
     <main id="mainContent">
@@ -2225,6 +2249,9 @@
 
                 // 5. Resize Textareas (must run after visibility is set)
                 if (dayId.startsWith(TAB_PREFIX)) resizeFieldsForActiveDay(dayId); // Renamed function
+
+                // **NEW:** Update autofill button visibility when switching tabs
+                updateAutofillButtonVisibility();
             }
 
             // --- **NEW:** Reorder Day Cards to Push Paused Cards to the Back ---
@@ -2266,6 +2293,9 @@
                 const initialDay = savedDay || desiredDay;
 
                 switchDay(TAB_PREFIX + initialDay);
+
+                // **NEW:** Update autofill button visibility after initial selection
+                updateAutofillButtonVisibility();
             }
 
             // --- Textarea Resize Function (UPDATED for fix) ---
@@ -2619,6 +2649,8 @@
                     const courseCard = target.closest('.course-card');
                     if (courseCard) {
                         updateCardCompletionState(courseCard);
+                        // **NEW:** Update autofill button visibility on manual name change
+                        updateAutofillButtonVisibility();
                     }
 
                     // **NEW:** Mark as unsaved
@@ -2832,6 +2864,9 @@
                 updateCardCompletionState(courseCard); // Hides the X button
 
                 hasUnsavedChanges = true; // Mark as unsaved
+
+                // **NEW:** Update autofill button visibility after clearing a card
+                updateAutofillButtonVisibility();
             }
 
 
@@ -2856,6 +2891,126 @@
                     saveBtn.disabled = false;
                 }, 2000);
             });
+
+            // --- **NEW:** Autofill Functionality ---
+
+            // Check if all cards in a specific day are empty
+            function checkIfAllCardsEmpty(dayId) {
+                const dayContainer = document.getElementById(dayId);
+                if (!dayContainer) return false;
+
+                const cards = dayContainer.querySelectorAll('.course-card');
+                let allEmpty = true;
+
+                cards.forEach(card => {
+                    // Skip paused cards in the check
+                    if (card.classList.contains('paused')) {
+                        return;
+                    }
+
+                    const lessonNameField = card.querySelector('.task-lesson-name');
+                    const assignmentNameField = card.querySelector('.task-assignment-name');
+
+                    const hasLesson = lessonNameField && lessonNameField.value.trim() !== '';
+                    const hasAssignment = assignmentNameField && assignmentNameField.value.trim() !== '';
+
+                    if (hasLesson || hasAssignment) {
+                        allEmpty = false;
+                    }
+                });
+
+                return allEmpty;
+            }
+
+            // Update autofill button visibility based on whether all cards are empty
+            function updateAutofillButtonVisibility() {
+                const autofillBtn = document.getElementById('autofillBtn');
+                if (!autofillBtn) return;
+
+                // Get the currently active tab
+                const activeTab = document.querySelector('.tab-content.active');
+                if (!activeTab || !activeTab.id.startsWith('day')) {
+                    autofillBtn.classList.add('hidden');
+                    return;
+                }
+
+                const dayId = activeTab.id;
+                const isDayEmpty = checkIfAllCardsEmpty(dayId);
+
+                // Show button only if the CURRENTLY ACTIVE Day is empty
+                if (isDayEmpty) {
+                    autofillBtn.classList.remove('hidden');
+                } else {
+                    autofillBtn.classList.add('hidden');
+                }
+            }
+
+            // Autofill all cards with next unfinished lessons and assignments
+            function autofillAllCards() {
+                const pausedCourses = getPausedCourses().lesson || [];
+
+                // Get the currently active day tab
+                const activeTab = document.querySelector('.tab-content.active');
+                if (!activeTab || !activeTab.id.startsWith('day')) return;
+
+                const dayId = activeTab.id;
+                const dayContainer = document.getElementById(dayId);
+                const cards = dayContainer.querySelectorAll('.course-card');
+
+                cards.forEach(card => {
+                    const courseName = card.getAttribute('data-course-name') || card.querySelector('h3').textContent.trim();
+
+                    // Skip paused courses
+                    if (pausedCourses.includes(courseName)) {
+                        return;
+                    }
+
+                    const lessonNameField = card.querySelector('.task-lesson-name');
+                    const assignmentNameField = card.querySelector('.task-assignment-name');
+
+                    // Get next unfinished lesson
+                    const lessonsData = JSON.parse(localStorage.getItem(LS_LESSONS_KEY)) || [];
+                    const nextLesson = lessonsData.find(item =>
+                        item.course === courseName && item.status === 'Not Started'
+                    );
+
+                    if (nextLesson && lessonNameField) {
+                        lessonNameField.value = nextLesson.name;
+                        applyThemeColor(lessonNameField);
+                    }
+
+                    // Get next unfinished assignment
+                    const assignmentsData = JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || [];
+                    const nextAssignment = assignmentsData.find(item =>
+                        item.course === courseName && item.status === 'Not Started'
+                    );
+
+                    if (nextAssignment && assignmentNameField) {
+                        assignmentNameField.value = nextAssignment.name;
+                        applyThemeColor(assignmentNameField);
+
+                        // Check if it's a split assignment and update progress
+                        if (isSplitAssignment(courseName, nextAssignment.name)) {
+                            updateDayCardSplitProgress(card, courseName, nextAssignment.name);
+                        }
+                    }
+
+                    // Update completion state for this card
+                    updateCardCompletionState(card);
+                });
+
+                // Resize textareas in the active day
+                resizeFieldsForActiveDay(dayId);
+
+                // Mark as unsaved changes
+                hasUnsavedChanges = true;
+
+                // Hide the autofill button after filling
+                updateAutofillButtonVisibility();
+
+                // Auto-save only the active day's data
+                saveData(dayId);
+            }
 
             function saveData(dayId) {
                 const dayContainer = document.getElementById(dayId);
@@ -2927,8 +3082,16 @@
                 // **NEW:** Ensure the state is clean when loading from scratch/localstorage
                 hasUnsavedChanges = false;
 
+                // **NEW:** Update autofill button visibility after loading data
+                updateAutofillButtonVisibility();
+
                 autoSelectDay();
             }
+
+            // --- **NEW:** Autofill Button Event Listener ---
+            document.getElementById('autofillBtn').addEventListener('click', () => {
+                autofillAllCards();
+            });
 
             function loadDay(dayId) {
                 const data = JSON.parse(localStorage.getItem(`${dayId}_data`));
@@ -3018,6 +3181,9 @@
 
                     // Since pause state was reset, re-apply it (unpause all)
                     ALL_COURSE_NAMES.forEach(courseName => updateDayCardPauseState(courseName, false));
+
+                    // **NEW:** Update autofill button visibility after reset
+                    updateAutofillButtonVisibility();
                 }
             });
 
