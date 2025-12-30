@@ -286,24 +286,37 @@
         .tracker-course-card h3 {
             font-weight: 600;
             color: var(--active-color);
-            /* MODIFIED: Adjusted for hover box */
-            margin-bottom: 10px;
-            /* Reduced margin */
-
-            /* MODIFIED: Use inline-flex for content-width-only (the "up to the title" request) */
-            display: inline-flex;
-            align-items: center;
-
-            cursor: pointer;
-            user-select: none;
-
-            /* NEW: Padding for the visual "hover box" */
+            margin-bottom: 12px;
+            display: block;
+            width: fit-content;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
             padding: 5px 10px;
-            margin-left: -10px;
-            /* Offset to visually align the text flush left of card */
             border-radius: 8px;
             transition: border 0.2s ease;
             border: 2px solid transparent;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        /* NEW: Centered Underline Helper */
+        .tracker-course-card h3::after,
+        .course-card h3::after {
+            content: "";
+            display: block;
+            width: 100%;
+            height: 2px;
+            background-color: var(--active-color);
+            margin: 4px auto 0;
+            opacity: 0.25;
+            border-radius: 2px;
+        }
+
+        .tracker-course-card.paused h3::after,
+        .course-card.paused h3::after {
+            background-color: var(--color-pause-purple);
         }
 
         /* NEW: Hover effect with outline */
@@ -328,7 +341,8 @@
         .tracker-course-card ul {
             /* The ul is the main grid container */
             list-style: none;
-            padding: 0;
+            padding: 0 10px;
+            /* MODIFIED: Added side padding to align with Day A/B content */
             display: grid;
             /* 1fr for Name, 60px for Status, 80px for Actions */
             grid-template-columns: 1fr 60px 80px;
@@ -566,22 +580,18 @@
             font-weight: 600;
             color: var(--active-color);
             margin-bottom: 15px;
-            min-height: 20px;
-            flex-shrink: 0;
-            /* Prevent header from shrinking */
-            padding-right: 40px;
-            /* Space for X button */
+            display: block;
+            width: fit-content;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
             padding: 5px 10px;
-            margin-left: -10px;
             border-radius: 8px;
             transition: border 0.2s ease;
             cursor: pointer;
             user-select: none;
             border: 2px solid transparent;
-        }
-
-        .course-card h3:hover {
-            border: 2px solid var(--active-color);
+            position: relative;
         }
 
         .course-card h3:hover {
@@ -1900,7 +1910,7 @@
     </main>
 
     <footer class="main-footer">
-        <h1 class="footer-title" data-tooltip="Version 1.5">Course Planner</h1>
+        <h1 class="footer-title" data-tooltip="Version 1.6">Course Planner</h1>
         <button id="lessonTrackerBtn">Lesson Tracker</button>
         <button id="assignmentTrackerBtn">Assignment Tracker</button>
         <button id="backupBtn">Backup</button>
