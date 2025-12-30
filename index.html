@@ -467,7 +467,8 @@
         .add-new-form textarea {
             flex-grow: 1;
             resize: vertical;
-            min-height: 80px;
+            height: 40px;
+            min-height: 40px;
         }
 
         .add-new-form select {
@@ -1186,36 +1187,39 @@
             cursor: pointer;
             border-radius: 25px;
             background-color: #fff;
-            /* Base border like unchecked checkbox */
-            border: 1px solid #767676;
+            /* No border - SVG ring handles the visible border */
+            border: none;
             transition: all 0.2s ease;
         }
 
         .progress-circle-wrapper:hover {
-            border-color: var(--active-color);
             box-shadow: 0 0 0 1px var(--active-color);
+        }
+
+        .progress-circle-wrapper:hover .progress-circle-bg {
+            stroke: var(--active-color);
         }
 
         /* SVG Progress Circle - overlays on top */
         .progress-circle-svg {
             position: absolute;
-            top: -2px;
-            left: -2px;
-            width: calc(100% + 4px);
-            height: calc(100% + 4px);
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             transform: rotate(-90deg);
             pointer-events: none;
         }
 
         .progress-circle-bg {
             fill: none;
-            stroke: transparent;
-            stroke-width: 1.5;
+            stroke: #767676;
+            stroke-width: 2;
         }
 
         .progress-circle-progress {
             fill: none;
-            stroke-width: 1.5;
+            stroke-width: 2;
             stroke-linecap: round;
             transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
         }
@@ -1910,7 +1914,7 @@
     </main>
 
     <footer class="main-footer">
-        <h1 class="footer-title" data-tooltip="Version 1.6">Course Planner</h1>
+        <h1 class="footer-title" data-tooltip="Version 1.7">Course Planner</h1>
         <button id="lessonTrackerBtn">Lesson Tracker</button>
         <button id="assignmentTrackerBtn">Assignment Tracker</button>
         <button id="backupBtn">Backup</button>
@@ -2464,7 +2468,7 @@
 
                 if (!existingWrapper && checkbox) {
                     // Replace checkbox with progress circle
-                    const radius = 10;
+                    const radius = 11.5;
                     const circumference = 2 * Math.PI * radius;
                     const strokeDashoffset = circumference * (1 - progress);
 
@@ -2475,10 +2479,10 @@
                     wrapper.setAttribute('data-course', courseName);
                     wrapper.setAttribute('data-assignment', assignmentName);
                     wrapper.innerHTML = `
-                        <svg class="progress-circle-svg" viewBox="0 0 24 24">
-                            <circle class="progress-circle-bg" cx="12" cy="12" r="${radius}"></circle>
+                        <svg class="progress-circle-svg" viewBox="0 0 25 25">
+                            <circle class="progress-circle-bg" cx="12.5" cy="12.5" r="${radius}"></circle>
                             <circle class="progress-circle-progress ${strokeColorClass}" 
-                                    cx="12" cy="12" r="${radius}"
+                                    cx="12.5" cy="12.5" r="${radius}"
                                     stroke-dasharray="${circumference}"
                                     stroke-dashoffset="${strokeDashoffset}">
                             </circle>
@@ -2494,7 +2498,7 @@
 
                 } else if (existingWrapper) {
                     // Update existing progress circle
-                    const radius = 10;
+                    const radius = 11.5;
                     const circumference = 2 * Math.PI * radius;
                     const strokeDashoffset = circumference * (1 - progress);
 
@@ -3724,7 +3728,7 @@
                 const progress = completedDays / totalDays;
 
                 // SVG circle properties
-                const radius = 10;
+                const radius = 11.5;
                 const circumference = 2 * Math.PI * radius;
                 const strokeDashoffset = circumference * (1 - progress);
 
@@ -3743,10 +3747,10 @@
                          data-type="${type}"
                          data-total="${totalDays}"
                          data-completed="${completedDays}">
-                        <svg class="progress-circle-svg" viewBox="0 0 24 24">
-                            <circle class="progress-circle-bg" cx="12" cy="12" r="${radius}"></circle>
+                        <svg class="progress-circle-svg" viewBox="0 0 25 25">
+                            <circle class="progress-circle-bg" cx="12.5" cy="12.5" r="${radius}"></circle>
                             <circle class="progress-circle-progress ${strokeColorClass}" 
-                                    cx="12" cy="12" r="${radius}"
+                                    cx="12.5" cy="12.5" r="${radius}"
                                     stroke-dasharray="${circumference}"
                                     stroke-dashoffset="${strokeDashoffset}">
                             </circle>
