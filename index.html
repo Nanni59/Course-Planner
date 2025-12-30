@@ -923,6 +923,12 @@
             border-color: var(--active-color);
         }
 
+        /* Button Group 3: Backup (Black Outline) */
+        #backupBtn {
+            color: #000000;
+            border-color: #000000;
+        }
+
         /* Save Confirmation State for UX Feedback */
         #saveBtn.saved-state {
             color: var(--color-button-green);
@@ -1840,12 +1846,49 @@
             </div>
         </div>
 
+        <div id="backupTab" class="tab-content">
+            <div class="progress-bar-container">
+                <h2 style="font-size: 20px; font-weight: 600; color: #2c3e50; margin-bottom: 15px;">Backup & Restore
+                </h2>
+                <p style="font-size: 14px; color: #666; margin-bottom: 25px;">Export your entire planner data to a JSON
+                    file or restore from a previous backup.</p>
+
+                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                    <!-- Export Section -->
+                    <div
+                        style="flex: 1; min-width: 300px; padding: 20px; border: 1px solid #ddd; border-radius: 12px; background-color: #f9f9f9;">
+                        <h3 style="font-size: 16px; font-weight: 600; color: #333; margin-bottom: 10px;">Export Data
+                        </h3>
+                        <p style="font-size: 13px; color: #777; margin-bottom: 20px;">Download your current data as a
+                            JSON file. This includes all tasks, tracker items, and settings.</p>
+                        <button id="exportJsonBtn"
+                            style="font-family: inherit; font-size: 14px; font-weight: 600; padding: 10px 20px; background-color: #333; color: white; border: none; border-radius: 6px; cursor: pointer;">Export
+                            to JSON</button>
+                    </div>
+
+                    <!-- Import Section -->
+                    <div
+                        style="flex: 1; min-width: 300px; padding: 20px; border: 1px solid #ddd; border-radius: 12px; background-color: #f9f9f9;">
+                        <h3 style="font-size: 16px; font-weight: 600; color: #333; margin-bottom: 10px;">Import Data
+                        </h3>
+                        <p style="font-size: 13px; color: #777; margin-bottom: 20px;">Restore your data from a JSON
+                            backup file. This will <strong>overwrite</strong> all current data.</p>
+                        <button id="importJsonBtn"
+                            style="font-family: inherit; font-size: 14px; font-weight: 600; padding: 10px 20px; background-color: #e67e22; color: white; border: none; border-radius: 6px; cursor: pointer;">Import
+                            from JSON</button>
+                        <input type="file" id="importFile" accept=".json" style="display: none;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <footer class="main-footer">
-        <h1 class="footer-title" data-tooltip="Version 1.3">Course Planner</h1>
+        <h1 class="footer-title" data-tooltip="Version 1.4">Course Planner</h1>
         <button id="lessonTrackerBtn">Lesson Tracker</button>
         <button id="assignmentTrackerBtn">Assignment Tracker</button>
+        <button id="backupBtn">Backup</button>
         <button id="resetBtn">Reset</button>
         <button id="saveBtn">Save</button>
     </footer>
@@ -2236,6 +2279,9 @@
                     document.body.classList.add('day-b');
                 } else if (dayId === 'lessonTracker' || dayId === 'assignmentTracker') {
                     document.body.classList.add('tracker-green');
+                } else if (dayId === 'backupTab') {
+                    // Backup tab uses white background, no special theme class needed for now
+                    // but we ensure tracker-green is removed
                 }
 
                 // 4. Handle Tracker Tabs and render progress
@@ -2556,6 +2602,10 @@
                 switchDay('assignmentTracker');
             });
 
+            document.getElementById('backupBtn').addEventListener('click', () => {
+                switchDay('backupTab');
+            });
+
             // --- 4. Checkbox Click Logic & Link Change (UPDATED to include Tracker Sync) ---
             mainContent.addEventListener('change', (event) => {
                 const target = event.target;
@@ -2801,7 +2851,7 @@
             });
 
             // **NEW FUNCTION:** Delete/Clear all content from a Day A/B Course Card
-            function deleteDayTaskCard(courseCard) {
+            function deleteDayTaskCard(courseCard, shouldSync = true) {
                 const courseTitle = courseCard.querySelector('h3').textContent.trim(); // Get course name
                 const li = courseCard.querySelector('.task-list li');
 
@@ -2809,8 +2859,8 @@
                 const lName = li.querySelector('.task-lesson-name');
                 const lCheckbox = li.querySelector('.task-lesson-checkbox');
 
-                // **FIX:** Sync to tracker before clearing
-                if (lName.value.trim() !== '' && lCheckbox.checked) {
+                // **FIX:** Sync to tracker before clearing (only if shouldSync is true)
+                if (shouldSync && lName.value.trim() !== '' && lCheckbox.checked) {
                     updateTrackerItemStatusFromCard(courseTitle, 'lesson', lName.value.trim(), false);
                 }
 
@@ -2822,8 +2872,8 @@
                 const aName = li.querySelector('.task-assignment-name');
                 const assignmentCheckbox = li.querySelector('.task-assignment-checkbox');
 
-                // **FIX:** Sync to tracker before clearing
-                if (aName.value.trim() !== '' && assignmentCheckbox.checked) {
+                // **FIX:** Sync to tracker before clearing (only if shouldSync is true)
+                if (shouldSync && aName.value.trim() !== '' && assignmentCheckbox.checked) {
                     updateTrackerItemStatusFromCard(courseTitle, 'assignment', aName.value.trim(), false);
 
                     // Also reset split progress if applicable
@@ -3157,9 +3207,9 @@
                         localStorage.removeItem(`${dayId}_data`);
                         localStorage.removeItem('selectedDay');
 
-                        // Clear the UI fields for Day A/B
+                        // Clear the UI fields for Day A/B without affecting the trackers
                         activeTab.querySelectorAll('.course-card').forEach(card => {
-                            deleteDayTaskCard(card); // Use the new clear function
+                            deleteDayTaskCard(card, false); // Pass false to skip tracker sync
                         });
 
                         // **NEW:** Reset unsaved changes flag
@@ -3429,6 +3479,100 @@
                 renderTracker(type); // Re-render the UI
                 calculateAndRenderOverallProgress(type); // NEW: Update progress bar
             }
+
+            // --- **NEW:** Backup & Restore Functionality ---
+            function exportData() {
+                const keys = [
+                    'tracker_lessons',
+                    'tracker_assignments',
+                    'tracker_paused_courses',
+                    'course_custom_links',
+                    'link_preview_toggle',
+                    'split_assignments',
+                    'dayA_data',
+                    'dayB_data',
+                    'selectedDay'
+                ];
+
+                const backupData = {};
+                keys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    if (value !== null) {
+                        try {
+                            backupData[key] = JSON.parse(value);
+                        } catch (e) {
+                            backupData[key] = value; // Store as raw string if not JSON
+                        }
+                    }
+                });
+
+                const dataStr = JSON.stringify(backupData, null, 2);
+                const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
+                const exportFileDefaultName = `course_planner_backup_${new Date().toISOString().slice(0, 10)}.json`;
+
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUri);
+                linkElement.setAttribute('download', exportFileDefaultName);
+                linkElement.click();
+            }
+
+            function importData(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+
+                        // Basic validation
+                        if (typeof importedData !== 'object' || importedData === null) {
+                            throw new Error('Invalid backup file format.');
+                        }
+
+                        if (confirm('Importing this file will overwrite all your current data. Are you sure you want to proceed?')) {
+                            // Clear current keys we care about
+                            const keys = [
+                                'tracker_lessons',
+                                'tracker_assignments',
+                                'tracker_paused_courses',
+                                'course_custom_links',
+                                'link_preview_toggle',
+                                'split_assignments',
+                                'dayA_data',
+                                'dayB_data',
+                                'selectedDay'
+                            ];
+
+                            keys.forEach(key => localStorage.removeItem(key));
+
+                            // Set new keys
+                            for (const key in importedData) {
+                                const value = importedData[key];
+                                if (typeof value === 'object') {
+                                    localStorage.setItem(key, JSON.stringify(value));
+                                } else {
+                                    localStorage.setItem(key, value);
+                                }
+                            }
+
+                            alert('Data imported successfully. The page will now reload.');
+                            window.location.reload();
+                        }
+                    } catch (error) {
+                        alert('Error importing data: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            // Backup tab specific listeners
+            document.getElementById('exportJsonBtn').addEventListener('click', exportData);
+            document.getElementById('importJsonBtn').addEventListener('click', () => {
+                document.getElementById('importFile').click();
+            });
+            document.getElementById('importFile').addEventListener('change', importData);
 
             // **MODIFIED:** General click handler now also handles the Day A/B clear button
             mainContent.addEventListener('click', (event) => {
