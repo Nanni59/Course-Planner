@@ -1160,6 +1160,7 @@
         /* **NEW:** Context Menu Item Specific Colors */
         .context-menu-item.link-action {
             color: var(--active-color);
+            font-weight: 600;
         }
 
         /* **NEW:** Split Assignment Feature Styles */
@@ -1911,7 +1912,7 @@
     </main>
 
     <footer class="main-footer">
-        <h1 class="footer-title" data-tooltip="Version 1.8">Course Planner</h1>
+        <h1 class="footer-title" data-tooltip="Version 1.9">Course Planner</h1>
         <button id="lessonTrackerBtn">Lesson Tracker</button>
         <button id="assignmentTrackerBtn">Assignment Tracker</button>
         <button id="backupBtn">Backup</button>
@@ -1943,9 +1944,14 @@
 
     <!-- Assignment Context Menu (for Assignment Tracker only) -->
     <div id="assignmentContextMenu" class="context-menu" style="display: none;">
-        <div class="context-menu-item split-action" id="splitAssignmentBtn">Split Assignment…</div>
+        <div class="context-menu-item split-action" id="splitAssignmentBtn">Split Assignment</div>
         <div class="context-menu-item complete-action" id="completeNowBtn">Complete Now</div>
         <div class="context-menu-item reset-action" id="resetSplitBtn" style="display: none;">Reset Split</div>
+    </div>
+
+    <!-- Lesson Context Menu (for Lesson Tracker only) -->
+    <div id="lessonContextMenu" class="context-menu" style="display: none;">
+        <div class="context-menu-item link-action" id="addLinksToLessonBtn">Add Links to Lesson Name</div>
     </div>
 
     <!-- Split Assignment Modal -->
@@ -1963,6 +1969,20 @@
         </div>
     </div>
 
+    <!-- Lesson Links Modal -->
+    <div id="lessonLinksModal" class="link-modal-overlay">
+        <div class="link-modal">
+            <h2>Add Links to Lesson Name</h2>
+            <div class="lesson-info" id="lessonLinksModalInfo"></div>
+            <input type="text" id="lessonLinksModalInput" class="link-modal-input"
+                placeholder="Paste links here (separate multiple links with commas)..." spellcheck="false">
+            <div class="link-modal-buttons">
+                <button class="btn-cancel" id="lessonLinksModalCancel">Cancel</button>
+                <button class="btn-save" id="lessonLinksModalSave">Save Links</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
 
@@ -1973,6 +1993,7 @@
             const LS_COURSE_CUSTOM_LINKS_KEY = 'course_custom_links'; // NEW: Custom link storage
             const LS_LINK_PREVIEW_TOGGLE_KEY = 'link_preview_toggle'; // NEW: Track which preview is shown
             const LS_SPLIT_ASSIGNMENTS_KEY = 'split_assignments'; // NEW: Split assignments progress data
+            const LS_LESSON_LINKS_KEY = 'lesson_links'; // NEW: Lesson links storage
             const ALL_COURSE_NAMES = [
                 "Advanced Functions", "Data Management", "English", "Economics", "Media Arts",
                 "Business Leadership", "Challenge & Change", "Ontario Literacy Course"
@@ -2100,6 +2121,41 @@
                     completedDays: 0,
                     isComplete: false
                 };
+            }
+
+            // **NEW FUNCTIONS:** Lesson Links Management
+            // Key format: "courseName::lessonName" to uniquely identify lessons
+            function getLessonLinks() {
+                const raw = localStorage.getItem(LS_LESSON_LINKS_KEY);
+                return raw ? JSON.parse(raw) : {};
+            }
+
+            function getLessonLinkKey(courseName, lessonName) {
+                return `${courseName}::${lessonName}`;
+            }
+
+            function getLessonLink(courseName, lessonName) {
+                const key = getLessonLinkKey(courseName, lessonName);
+                const links = getLessonLinks();
+                return links[key] || null;
+            }
+
+            function setLessonLink(courseName, lessonName, linksString) {
+                const key = getLessonLinkKey(courseName, lessonName);
+                const links = getLessonLinks();
+                links[key] = linksString;
+                localStorage.setItem(LS_LESSON_LINKS_KEY, JSON.stringify(links));
+            }
+
+            function deleteLessonLink(courseName, lessonName) {
+                const key = getLessonLinkKey(courseName, lessonName);
+                const links = getLessonLinks();
+                delete links[key];
+                localStorage.setItem(LS_LESSON_LINKS_KEY, JSON.stringify(links));
+            }
+
+            function hasLessonLink(courseName, lessonName) {
+                return getLessonLink(courseName, lessonName) !== null;
             }
 
             // **NEW:** Update href attribute on course title h3
@@ -2644,6 +2700,22 @@
                 return nextAssignment ? nextAssignment.name : null;
             }
 
+            // --- **NEW FUNCTION:** Auto-populate lesson links
+            function autoPopulateLessonLinks(courseCard, lessonName) {
+                const courseTitle = courseCard.querySelector('h3').textContent.trim();
+                if (lessonName) {
+                    const lessonLinks = getLessonLink(courseTitle, lessonName);
+                    if (lessonLinks) {
+                        const linkField = courseCard.querySelector('.task-link');
+                        if (linkField) {
+                            linkField.value = lessonLinks;
+                            applyThemeColor(linkField);
+                            renderEmbed(courseCard, lessonLinks);
+                        }
+                    }
+                }
+            }
+
             // --- **NEW FUNCTION:** Auto-populate assignment field when lesson is selected
             function autoPopulateAssignmentField(courseCard) {
                 const courseTitle = courseCard.querySelector('h3').textContent.trim();
@@ -2828,6 +2900,7 @@
                                     // **NEW:** Auto-populate assignment field if this is a lesson selection
                                     if (isLesson) {
                                         autoPopulateAssignmentField(suggestionCourseCard);
+                                        autoPopulateLessonLinks(suggestionCourseCard, e.target.getAttribute('data-name'));
                                     } else {
                                         // **NEW:** Check if selected assignment is a split assignment
                                         const selectedName = e.target.getAttribute('data-name');
@@ -2855,19 +2928,26 @@
             });
 
             // **NEW:** Check for split assignments when assignment field loses focus
+            // **NEW:** Check for split assignments and auto-populate lesson links when name fields lose focus
             mainContent.addEventListener('blur', (event) => {
                 const target = event.target;
+                const courseCard = target.closest('.course-card');
+                if (!courseCard) return;
 
+                const courseName = courseCard.querySelector('h3').textContent.trim();
+
+                // Check for split assignments when assignment field loses focus
                 if (target.classList.contains('task-assignment-name')) {
-                    const courseCard = target.closest('.course-card');
-                    if (!courseCard) return;
-
-                    const courseTitle = courseCard.querySelector('h3').textContent.trim();
                     const assignmentName = target.value.trim();
-
-                    if (assignmentName && isSplitAssignment(courseTitle, assignmentName)) {
-                        updateDayCardSplitProgress(courseCard, courseTitle, assignmentName);
+                    if (assignmentName && isSplitAssignment(courseName, assignmentName)) {
+                        updateDayCardSplitProgress(courseCard, courseName, assignmentName);
                     }
+                }
+
+                // Auto-populate lesson links when lesson name field loses focus
+                if (target.classList.contains('task-lesson-name')) {
+                    const lessonName = target.value.trim();
+                    autoPopulateLessonLinks(courseCard, lessonName);
                 }
             }, true);
 
@@ -3292,6 +3372,7 @@
                     } else if (dayId === 'lessonTracker') {
                         localStorage.removeItem(LS_LESSONS_KEY);
                         localStorage.removeItem(LS_PAUSED_COURSES_KEY); // Also reset pause state
+                        localStorage.removeItem(LS_LESSON_LINKS_KEY); // Also reset lesson links
                         initializeTrackerData(); // Initialize to empty array
                         renderTracker('lesson');
 
@@ -3569,6 +3650,11 @@
                             backupData[key] = value; // Store as raw string if not JSON
                         }
                     }
+                }
+
+                // Ensure lesson_links is included in export, even if empty
+                if (!backupData[LS_LESSON_LINKS_KEY]) {
+                    backupData[LS_LESSON_LINKS_KEY] = {}; // Store as object, will be stringified below
                 }
 
                 const dataStr = JSON.stringify(backupData, null, 2);
@@ -4042,6 +4128,7 @@
                 contextMenu.style.display = 'none';
                 dayCardContextMenu.style.display = 'none';
                 assignmentContextMenu.style.display = 'none';
+                lessonContextMenu.style.display = 'none'; // Hide lesson context menu
             });
 
             // **NEW:** Assignment Context Menu Logic (for Assignment Tracker only)
@@ -4140,6 +4227,45 @@
                     const itemId = itemRow.getAttribute('data-id');
 
                     showAssignmentContextMenu(e, courseName, assignmentName, itemId, itemName);
+                }
+            });
+
+            // **NEW:** Lesson Context Menu and Event Handlers
+            const lessonContextMenu = document.getElementById('lessonContextMenu');
+            const addLinksToLessonBtn = document.getElementById('addLinksToLessonBtn');
+            let lessonContextMenuData = { courseName: '', lessonName: '', itemId: '' };
+
+            function showLessonContextMenu(e, courseName, lessonName, itemId, targetElement) {
+                lessonContextMenuData = { courseName, lessonName, itemId };
+
+                const rect = targetElement.getBoundingClientRect();
+                lessonContextMenu.style.left = `${rect.left}px`;
+                lessonContextMenu.style.top = `${rect.bottom + 5}px`;
+                lessonContextMenu.style.display = 'block';
+            }
+
+            // Handle Add Links to Lesson Name button click
+            addLinksToLessonBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openLessonLinksModal(lessonContextMenuData.courseName, lessonContextMenuData.lessonName);
+                lessonContextMenu.style.display = 'none';
+            });
+
+            // Right-click on lesson names in Lesson Tracker
+            mainContent.addEventListener('contextmenu', (e) => {
+                const itemName = e.target.closest('.tracker-item-name');
+                const itemRow = e.target.closest('.tracker-item-row');
+                const lessonTrackerContent = e.target.closest('#lessonTrackerContent');
+
+                // Only show context menu for lesson names in Lesson Tracker
+                if (itemName && itemRow && lessonTrackerContent) {
+                    e.preventDefault();
+
+                    const courseName = itemRow.getAttribute('data-course');
+                    const lessonName = itemRow.getAttribute('data-name');
+                    const itemId = itemRow.getAttribute('data-id');
+
+                    showLessonContextMenu(e, courseName, lessonName, itemId, itemName);
                 }
             });
 
@@ -4417,6 +4543,74 @@
             linkModal.addEventListener('click', (e) => {
                 if (e.target === linkModal) {
                     closeLinkModal();
+                }
+            });
+
+            // **NEW:** Lesson Links Modal Dialog Logic
+            const lessonLinksModal = document.getElementById('lessonLinksModal');
+            const lessonLinksModalInput = document.getElementById('lessonLinksModalInput');
+            const lessonLinksModalInfo = document.getElementById('lessonLinksModalInfo');
+            const lessonLinksModalCancel = document.getElementById('lessonLinksModalCancel');
+            const lessonLinksModalSave = document.getElementById('lessonLinksModalSave');
+            let modalLessonCourseName = '';
+            let modalLessonName = '';
+
+            function openLessonLinksModal(courseName, lessonName) {
+                modalLessonCourseName = courseName;
+                modalLessonName = lessonName;
+                lessonLinksModalInfo.textContent = `${courseName} - ${lessonName}`;
+                lessonLinksModalInput.value = getLessonLink(courseName, lessonName) || '';
+                lessonLinksModal.classList.add('active');
+                setTimeout(() => lessonLinksModalInput.focus(), 100);
+            }
+
+            function closeLessonLinksModal() {
+                lessonLinksModal.classList.remove('active');
+                lessonLinksModalInput.value = '';
+                modalLessonCourseName = '';
+                modalLessonName = '';
+            }
+
+            lessonLinksModalCancel.addEventListener('click', closeLessonLinksModal);
+
+            lessonLinksModalSave.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const linksInput = lessonLinksModalInput.value.trim();
+
+                if (!linksInput) {
+                    // Allow empty to delete links
+                    deleteLessonLink(modalLessonCourseName, modalLessonName);
+                } else {
+                    // Process comma-separated links and ensure they have protocols
+                    const links = linksInput.split(',').map(link => {
+                        let trimmedLink = link.trim();
+                        if (trimmedLink && !trimmedLink.startsWith('http://') && !trimmedLink.startsWith('https://')) {
+                            trimmedLink = 'https://' + trimmedLink;
+                        }
+                        return trimmedLink;
+                    }).filter(link => link.length > 0); // Remove empty links
+
+                    if (links.length > 0) {
+                        setLessonLink(modalLessonCourseName, modalLessonName, links.join(', '));
+                    } else {
+                        deleteLessonLink(modalLessonCourseName, modalLessonName);
+                    }
+                }
+
+                closeLessonLinksModal();
+                hasUnsavedChanges = true;
+            });
+
+            lessonLinksModalInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    lessonLinksModalSave.click();
+                }
+            });
+
+            // Close modal on overlay click
+            lessonLinksModal.addEventListener('click', (e) => {
+                if (e.target === lessonLinksModal) {
+                    closeLessonLinksModal();
                 }
             });
 
