@@ -441,65 +441,76 @@
             margin: 15px auto 0;
         }
 
-        /* New: Add New Form Styling (Simplified to only use bulk section) */
-        .add-new-form {
-            display: flex;
-            flex-direction: row;
-            /* Layout fields horizontally */
-            align-items: flex-start;
-            /* Align top for textarea */
-            gap: 10px;
-            margin-bottom: 0;
-            /* Remove bottom margin to keep space clean */
-            padding: 15px;
-            border: 1px dashed #ccc;
-            border-radius: 12px;
-            background-color: #fff;
+        /* Add Items Trigger Button */
+        .add-items-trigger-btn {
+            display: block;
+            margin: 0 auto 0;
+            padding: 12px 28px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            color: white;
+            background-color: var(--color-button-green);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
 
-        /* Hiding the elements that were removed from HTML */
-        .add-single-section,
-        .form-divider {
-            display: none !important;
+        .add-items-trigger-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(88, 166, 92, 0.35);
         }
 
-        /* Targeting the main fields */
-        .add-new-form textarea {
-            flex-grow: 1;
-            resize: vertical;
-            height: 40px;
-            min-height: 40px;
-        }
-
-        .add-new-form select {
-            width: 150px;
-            /* Fixed width for course dropdown */
-            flex-shrink: 0;
-        }
-
-        .add-new-form input[type="text"],
-        .add-new-form select,
-        .add-new-form textarea {
-            /* ... (keep existing styling) */
-            padding: 10px;
+        /* Add Items Modal (extends link-modal pattern) */
+        .add-items-modal-textarea {
+            width: 100%;
+            padding: 10px 12px;
             border: 1px solid #ddd;
             border-radius: 6px;
             font-family: 'Montserrat', sans-serif;
             font-size: 14px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            resize: none;
+            overflow: hidden;
+            min-height: 80px;
+            line-height: 1.5;
         }
 
-        .add-new-form button {
-            padding: 10px 20px;
-            background-color: var(--color-button-green);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            flex-shrink: 0;
+        .add-items-modal-textarea:hover,
+        .add-items-modal-textarea:focus {
+            outline: none;
+            border-color: var(--color-tracker-green);
+            box-shadow: 0 0 0 1px var(--color-tracker-green);
+        }
 
-            /* NEW: Font fix */
+        .add-items-modal-select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
             font-family: 'Montserrat', sans-serif;
+            font-size: 14px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            background-color: #fff;
+            cursor: pointer;
+        }
+
+        .add-items-modal-select:hover,
+        .add-items-modal-select:focus {
+            outline: none;
+            border-color: var(--color-tracker-green);
+            box-shadow: 0 0 0 1px var(--color-tracker-green);
+        }
+
+        /* Hide old form elements (no longer used in HTML) */
+        .add-new-form,
+        .add-single-section,
+        .form-divider {
+            display: none !important;
         }
 
         .tracker-summary {
@@ -1839,13 +1850,7 @@
         </div>
 
         <div id="lessonTracker" class="tab-content">
-            <h2>Add New Lesson</h2>
-            <div class="add-new-form">
-                <textarea id="bulkLessonNames" placeholder="Paste lesson names here, one per line..."
-                    required></textarea>
-                <select id="bulkLessonCourse" required></select>
-                <button id="addLessonBtn">Add Lessons</button>
-            </div>
+            <button id="openAddLessonModal" class="add-items-trigger-btn">+ Add Lessons</button>
 
             <div id="lessonOverallProgress" class="progress-bar-container"></div>
 
@@ -1854,13 +1859,7 @@
         </div>
 
         <div id="assignmentTracker" class="tab-content">
-            <h2>Add New Assignment</h2>
-            <div class="add-new-form">
-                <textarea id="bulkAssignmentNames" placeholder="Paste assignment names here, one per line..."
-                    required></textarea>
-                <select id="bulkAssignmentCourse" required></select>
-                <button id="addAssignmentBtn">Add Assignments</button>
-            </div>
+            <button id="openAddAssignmentModal" class="add-items-trigger-btn">+ Add Assignments</button>
 
             <div id="assignmentOverallProgress" class="progress-bar-container"></div>
 
@@ -1979,6 +1978,38 @@
             <div class="link-modal-buttons">
                 <button class="btn-cancel" id="lessonLinksModalCancel">Cancel</button>
                 <button class="btn-save" id="lessonLinksModalSave">Save Links</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Lessons Modal -->
+    <div id="addLessonModal" class="link-modal-overlay">
+        <div class="link-modal">
+            <h2>Add Lessons</h2>
+            <p style="font-size: 14px; color: #767676; margin-bottom: 15px;">Select a course and paste lesson names
+                below, one per line.</p>
+            <select id="bulkLessonCourse" class="add-items-modal-select" required></select>
+            <textarea id="bulkLessonNames" class="add-items-modal-textarea"
+                placeholder="Paste lesson names here, one per line..." required></textarea>
+            <div class="link-modal-buttons">
+                <button class="btn-cancel" id="addLessonModalCancel">Cancel</button>
+                <button class="btn-save" id="addLessonBtn">Add Lessons</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Assignments Modal -->
+    <div id="addAssignmentModal" class="link-modal-overlay">
+        <div class="link-modal">
+            <h2>Add Assignments</h2>
+            <p style="font-size: 14px; color: #767676; margin-bottom: 15px;">Select a course and paste assignment names
+                below, one per line.</p>
+            <select id="bulkAssignmentCourse" class="add-items-modal-select" required></select>
+            <textarea id="bulkAssignmentNames" class="add-items-modal-textarea"
+                placeholder="Paste assignment names here, one per line..." required></textarea>
+            <div class="link-modal-buttons">
+                <button class="btn-cancel" id="addAssignmentModalCancel">Cancel</button>
+                <button class="btn-save" id="addAssignmentBtn">Add Assignments</button>
             </div>
         </div>
     </div>
@@ -3491,6 +3522,7 @@
                 }
 
                 nameTextarea.value = ''; // Clear textarea after successful bulk paste
+                nameTextarea.style.height = '80px'; // Reset textarea height
                 courseSelect.selectedIndex = 0; // Reset course select
 
                 let data = JSON.parse(localStorage.getItem(storageKey)) || [];
@@ -3509,12 +3541,84 @@
 
                 // Re-render the tracker
                 renderTracker(type);
+
+                // Close the modal after successful add
+                const modalId = type === 'lesson' ? 'addLessonModal' : 'addAssignmentModal';
+                document.getElementById(modalId).classList.remove('active');
             }
 
-            // Update event listeners for the new main buttons (renamed from bulk to main)
-            // Update event listeners for the new main buttons (renamed from bulk to main)
+            // Button listeners for add items (inside modals)
             document.getElementById('addLessonBtn').addEventListener('click', () => addNewItem('lesson'));
             document.getElementById('addAssignmentBtn').addEventListener('click', () => addNewItem('assignment'));
+
+            // --- **NEW:** Add Items Modal Open/Close/Auto-resize Logic ---
+
+            // Auto-resize textarea helper
+            function autoResizeTextarea(textarea) {
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
+            }
+
+            // Open Add Lessons Modal
+            document.getElementById('openAddLessonModal').addEventListener('click', () => {
+                const modal = document.getElementById('addLessonModal');
+                modal.classList.add('active');
+                const textarea = document.getElementById('bulkLessonNames');
+                textarea.value = '';
+                textarea.style.height = '80px';
+                textarea.focus();
+            });
+
+            // Open Add Assignments Modal
+            document.getElementById('openAddAssignmentModal').addEventListener('click', () => {
+                const modal = document.getElementById('addAssignmentModal');
+                modal.classList.add('active');
+                const textarea = document.getElementById('bulkAssignmentNames');
+                textarea.value = '';
+                textarea.style.height = '80px';
+                textarea.focus();
+            });
+
+            // Cancel buttons close modals
+            document.getElementById('addLessonModalCancel').addEventListener('click', () => {
+                const modal = document.getElementById('addLessonModal');
+                modal.classList.remove('active');
+                document.getElementById('bulkLessonNames').value = '';
+                document.getElementById('bulkLessonNames').style.height = '80px';
+            });
+
+            document.getElementById('addAssignmentModalCancel').addEventListener('click', () => {
+                const modal = document.getElementById('addAssignmentModal');
+                modal.classList.remove('active');
+                document.getElementById('bulkAssignmentNames').value = '';
+                document.getElementById('bulkAssignmentNames').style.height = '80px';
+            });
+
+            // Auto-resize on input for both modal textareas
+            document.getElementById('bulkLessonNames').addEventListener('input', function () {
+                autoResizeTextarea(this);
+            });
+
+            document.getElementById('bulkAssignmentNames').addEventListener('input', function () {
+                autoResizeTextarea(this);
+            });
+
+            // Close modals when clicking on overlay background
+            document.getElementById('addLessonModal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) {
+                    e.currentTarget.classList.remove('active');
+                    document.getElementById('bulkLessonNames').value = '';
+                    document.getElementById('bulkLessonNames').style.height = '80px';
+                }
+            });
+
+            document.getElementById('addAssignmentModal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) {
+                    e.currentTarget.classList.remove('active');
+                    document.getElementById('bulkAssignmentNames').value = '';
+                    document.getElementById('bulkAssignmentNames').style.height = '80px';
+                }
+            });
 
             // **NEW HELPER:** Sync Tracker updates to Day Cards
             function syncTrackerInputToDayCards(courseName, type, taskName, isComplete) {
