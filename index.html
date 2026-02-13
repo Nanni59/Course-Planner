@@ -1912,7 +1912,7 @@
     </main>
 
     <footer class="main-footer">
-        <h1 class="footer-title" data-tooltip="Version 1.9">Course Planner</h1>
+        <h1 class="footer-title" data-tooltip="Version 2.0">Course Planner</h1>
         <button id="lessonTrackerBtn">Lesson Tracker</button>
         <button id="assignmentTrackerBtn">Assignment Tracker</button>
         <button id="backupBtn">Backup</button>
@@ -3181,6 +3181,9 @@
                     if (nextLesson && lessonNameField) {
                         lessonNameField.value = nextLesson.name;
                         applyThemeColor(lessonNameField);
+
+                        // Auto-populate lesson links for this lesson
+                        autoPopulateLessonLinks(card, nextLesson.name);
                     }
 
                     // Get next unfinished assignment
