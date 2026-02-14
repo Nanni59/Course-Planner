@@ -2721,13 +2721,50 @@
             }
 
 
+            // --- **NEW:** Day A/B Deduplication Helpers ---
+
+            // Returns the other day's ID
+            function getOtherDayId(currentDayId) {
+                return currentDayId === 'dayA' ? 'dayB' : 'dayA';
+            }
+
+            // Returns a Set of lesson/assignment names already used in the OTHER day for a given course
+            function getNamesUsedInOtherDay(courseName, type, currentDayId) {
+                const otherDayId = getOtherDayId(currentDayId);
+                const otherDayContainer = document.getElementById(otherDayId);
+                const usedNames = new Set();
+                if (!otherDayContainer) return usedNames;
+
+                const selector = type === 'lesson' ? '.task-lesson-name' : '.task-assignment-name';
+
+                otherDayContainer.querySelectorAll('.course-card').forEach(card => {
+                    const cardCourseName = card.getAttribute('data-course-name') || card.querySelector('h3').textContent.trim();
+                    if (cardCourseName === courseName) {
+                        const field = card.querySelector(selector);
+                        if (field && field.value.trim() !== '') {
+                            usedNames.add(field.value.trim());
+                        }
+                    }
+                });
+                return usedNames;
+            }
+
+            // Checks if a course has ANY split assignment (scope limitation for dedup)
+            function courseHasAnySplitAssignment(courseName) {
+                const splits = getSplitAssignments();
+                return Object.keys(splits).some(key => key.startsWith(courseName + '::'));
+            }
+
             // --- **NEW FUNCTION:** Get next unfinished assignment for a course
-            function getNextUnfinishedAssignment(courseName) {
+            function getNextUnfinishedAssignment(courseName, excludeNames) {
                 const data = JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || [];
                 const courseAssignments = data.filter(item => item.course === courseName);
 
-                // Find the first assignment that is NOT finished (status = 'Not Started')
-                const nextAssignment = courseAssignments.find(item => item.status === 'Not Started');
+                // Find the first assignment that is NOT finished and NOT in excludeNames
+                const nextAssignment = courseAssignments.find(item =>
+                    item.status === 'Not Started' &&
+                    (!excludeNames || !excludeNames.has(item.name))
+                );
                 return nextAssignment ? nextAssignment.name : null;
             }
 
@@ -2754,7 +2791,14 @@
 
                 // Only auto-populate if assignment field is empty
                 if (assignmentField && assignmentField.value.trim() === '') {
-                    const nextAssignment = getNextUnfinishedAssignment(courseTitle);
+                    // Dedup: exclude names already used in the other day (if no split assignments)
+                    let excludeNames = null;
+                    const dayId = courseCard.closest('.tab-content')?.id;
+                    if (dayId && dayId.startsWith('day') && !courseHasAnySplitAssignment(courseTitle)) {
+                        excludeNames = getNamesUsedInOtherDay(courseTitle, 'assignment', dayId);
+                    }
+
+                    const nextAssignment = getNextUnfinishedAssignment(courseTitle, excludeNames);
                     if (nextAssignment) {
                         assignmentField.value = nextAssignment;
                         applyThemeColor(assignmentField);
@@ -2907,11 +2951,23 @@
                     const storageKey = trackerType === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                     const data = JSON.parse(localStorage.getItem(storageKey)) || [];
 
-                    // MODIFICATION: Filter items to only show those that are 'Not Started'
+                    // Dedup: get names used in the other day for this course
+                    const currentDayId = target.closest('.tab-content')?.id;
+                    let otherDayNames = new Set();
+                    const isAssignment = !isLesson;
+                    if (currentDayId && currentDayId.startsWith('day')) {
+                        // For lessons: always dedup. For assignments: only if no split assignments
+                        if (isLesson || !courseHasAnySplitAssignment(courseTitle)) {
+                            otherDayNames = getNamesUsedInOtherDay(courseTitle, trackerType, currentDayId);
+                        }
+                    }
+
+                    // MODIFICATION: Filter items to only show those that are 'Not Started' and not in the other day
                     const filteredResults = data.filter(item =>
                         item.course === courseTitle &&
                         item.name.toLowerCase().includes(searchTerm) &&
-                        item.status === 'Not Started'
+                        item.status === 'Not Started' &&
+                        !otherDayNames.has(item.name)
                     );
 
                     if (filteredResults.length > 0) {
@@ -3203,10 +3259,17 @@
                     const lessonNameField = card.querySelector('.task-lesson-name');
                     const assignmentNameField = card.querySelector('.task-assignment-name');
 
-                    // Get next unfinished lesson
+                    // Dedup: get names already used in the other day for this course
+                    const lessonExclude = getNamesUsedInOtherDay(courseName, 'lesson', dayId);
+                    const assignmentExclude = courseHasAnySplitAssignment(courseName)
+                        ? new Set()
+                        : getNamesUsedInOtherDay(courseName, 'assignment', dayId);
+
+                    // Get next unfinished lesson (excluding other day's lesson)
                     const lessonsData = JSON.parse(localStorage.getItem(LS_LESSONS_KEY)) || [];
                     const nextLesson = lessonsData.find(item =>
-                        item.course === courseName && item.status === 'Not Started'
+                        item.course === courseName && item.status === 'Not Started' &&
+                        !lessonExclude.has(item.name)
                     );
 
                     if (nextLesson && lessonNameField) {
@@ -3217,10 +3280,11 @@
                         autoPopulateLessonLinks(card, nextLesson.name);
                     }
 
-                    // Get next unfinished assignment
+                    // Get next unfinished assignment (excluding other day's assignment)
                     const assignmentsData = JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || [];
                     const nextAssignment = assignmentsData.find(item =>
-                        item.course === courseName && item.status === 'Not Started'
+                        item.course === courseName && item.status === 'Not Started' &&
+                        !assignmentExclude.has(item.name)
                     );
 
                     if (nextAssignment && assignmentNameField) {
