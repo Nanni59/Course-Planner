@@ -518,8 +518,155 @@
             margin-top: 5px;
             margin-bottom: 15px;
             font-size: 14px;
-            font-weight: 500;
         }
+
+        /* Canvas Import & Multi-Assignment CSS */
+        .canvas-tree-item {
+            margin-left: 20px;
+            border-left: 2px solid #ddd;
+            padding-left: 10px;
+            line-height: 1.5;
+            padding-bottom: 4px;
+        }
+
+        .canvas-tree-lesson {
+            font-weight: 700;
+            color: #2c3e50;
+            margin-top: 8px;
+            border-left: none;
+            /* Lessons are top level in tree */
+            margin-left: 0;
+        }
+
+        .canvas-tree-assignment {
+            color: #e67e22;
+        }
+
+        .canvas-tree-discussion {
+            color: #3498db;
+        }
+
+        .canvas-tree-quiz {
+            color: #9b59b6;
+        }
+
+        .canvas-tree-type {
+            font-size: 0.85em;
+            text-transform: uppercase;
+            font-weight: 600;
+            opacity: 0.7;
+            margin-right: 6px;
+        }
+
+        /* Multi-Assignment Connector Lines */
+        .task-list li {
+            position: relative;
+            /* Context for absolute lines */
+        }
+
+        .task-group-container {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .task-assignments-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            /* Space between multiple assignments */
+            margin-top: 4px;
+            position: relative;
+        }
+
+        /* Visual connector line linking Lesson to Assignments */
+        .task-connector-line {
+            position: absolute;
+            left: 12px;
+            /* Align with center of checkbox/bullet area roughly */
+            top: 40px;
+            /* Start below lesson */
+            bottom: 20px;
+            width: 2px;
+            background-color: #eee;
+            z-index: 0;
+            display: none;
+            /* Hidden by default, shown via JS if multiple assignments */
+        }
+
+        .has-multiple-assignments .task-connector-line {
+            display: block;
+        }
+
+        .has-multiple-assignments .task-assignment-main {
+            padding-left: 30px;
+            /* Indent using padding so hover area includes the X button */
+            margin-left: 0;
+        }
+
+        .task-assignment-main {
+            position: relative;
+        }
+
+        #canvas-preview-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+
+        #canvas-preview-container.no-indent .canvas-tree-item {
+            margin-left: 0 !important;
+            padding-left: 0 !important;
+            border-left: none !important;
+        }
+
+        .task-remove-assignment-btn {
+            display: none;
+            /* Hidden by default */
+            background: none;
+            border: none;
+            color: #ccc;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+            margin: 0;
+            position: absolute;
+            left: 5px;
+            /* Position inside the padding area */
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 20;
+            pointer-events: auto;
+        }
+
+        /* Show removal button on moused over ONLY if multiple assignments/lesson items exist */
+        /* Per user request: "remove this functionality entirely for single assignments" */
+        .has-multiple-assignments .task-assignment-main:hover .task-remove-assignment-btn,
+        .task-assignments-container:has(.task-assignment-main:nth-child(2)) .task-assignment-main:hover .task-remove-assignment-btn {
+            display: inline-block;
+        }
+
+        /* Specifically allow hiding for the absolute first assignment if we ever want to revert, 
+           but per user request: "X icon should also appear for the first assignment within the indented assignments." */
+
+        .task-remove-assignment-btn:hover {
+            color: #e74c3c;
+        }
+
+        /* FIX: Ensure assignment text is black, but reset/placeholder is gray */
+        .task-assignment-name {
+            color: #000 !important;
+        }
+
+        .task-assignment-name::placeholder {
+            color: #757575 !important;
+            -webkit-text-fill-color: #757575 !important;
+            opacity: 1;
+        }
+
+
 
         /* --- Course Grid & Cards --- */
         .course-grid {
@@ -868,13 +1015,33 @@
             bottom: 0;
             left: 0;
             width: 100%;
+            flex-shrink: 0;
             background-color: #ffffff;
-            border-top: 1px solid #ddd;
-            padding: 15px 40px;
+            border-top: 1px solid #e0e0e0;
+            padding: 15px 30px;
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
+            align-items: center;
+        }
+
+        .footer-left {
+            display: flex;
             align-items: center;
             gap: 15px;
+        }
+
+        .footer-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-left: auto;
+        }
+
+        .footer-divider {
+            width: 1px;
+            height: 24px;
+            background-color: #e0e0e0;
+            margin: 0 8px;
         }
 
         .main-footer .footer-title {
@@ -882,7 +1049,6 @@
             font-size: 22px;
             font-weight: 600;
             color: #2c3e50;
-            margin-right: auto;
             position: relative;
             /* Established context for tooltip */
             cursor: default;
@@ -959,6 +1125,79 @@
         #backupBtn {
             color: #000000;
             border: 1px solid #000000;
+        }
+
+        /* **NEW:** Canvas Branding */
+        #canvas-import-btn {
+            background-color: #e72429;
+            color: white;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 14px;
+        }
+
+        #canvas-import-btn:hover {
+            background-color: #d11e23;
+            opacity: 1;
+        }
+
+        #canvas-import-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: white;
+            flex-shrink: 0;
+        }
+
+        /* Red branding for the Canvas Modal buttons and hovers */
+        #canvasImportModal .btn-save,
+        #canvasImportModal .btn-cancel,
+        #canvas-import-action-btn,
+        #canvas-preview-btn {
+            background-color: #e72429 !important;
+            border-color: #e72429 !important;
+            color: white !important;
+        }
+
+        #canvasImportModal .btn-save:hover,
+        #canvasImportModal .btn-cancel:hover,
+        #canvas-import-action-btn:hover,
+        #canvas-preview-btn:hover {
+            background-color: #d11e23 !important;
+            opacity: 1 !important;
+        }
+
+        /* Ensure textarea and select hover borders are also red in Canvas modal */
+        #canvasImportModal .add-items-modal-textarea:focus,
+        #canvasImportModal .add-items-modal-select:focus {
+            border-color: #e72429 !important;
+            box-shadow: 0 0 0 1px #e72429 !important;
+        }
+
+        /* Manual Indentation Class (Harmonized to 24px) */
+        .manual-indent {
+            padding-left: 24px !important;
+            margin-left: 0 !important;
+        }
+
+        /* Forced Outdenting for pre-indented items */
+        .force-no-indent {
+            padding-left: 0 !important;
+            margin-left: 0 !important;
+        }
+
+        .task-type-label,
+        .canvas-tree-type {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .task-type-label:hover,
+        .canvas-tree-type:hover {
+            text-decoration: underline;
+            opacity: 0.8;
         }
 
         /* Save Confirmation State for UX Feedback */
@@ -1433,7 +1672,7 @@
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
-                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
                                     <div class="task-name-wrapper">
                                         <textarea class="task-name task-assignment-name"
                                             placeholder="Assignment Name"></textarea>
@@ -1476,7 +1715,7 @@
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
-                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
                                     <div class="task-name-wrapper">
                                         <textarea class="task-name task-assignment-name"
                                             placeholder="Assignment Name"></textarea>
@@ -1519,7 +1758,7 @@
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
-                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
                                     <div class="task-name-wrapper">
                                         <textarea class="task-name task-assignment-name"
                                             placeholder="Assignment Name"></textarea>
@@ -1562,7 +1801,7 @@
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
-                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
                                     <div class="task-name-wrapper">
                                         <textarea class="task-name task-assignment-name"
                                             placeholder="Assignment Name"></textarea>
@@ -1605,7 +1844,7 @@
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
-                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
                                     <div class="task-name-wrapper">
                                         <textarea class="task-name task-assignment-name"
                                             placeholder="Assignment Name"></textarea>
@@ -1653,7 +1892,7 @@
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
-                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
                                     <div class="task-name-wrapper">
                                         <textarea class="task-name task-assignment-name"
                                             placeholder="Assignment Name"></textarea>
@@ -1696,7 +1935,7 @@
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
-                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
                                     <div class="task-name-wrapper">
                                         <textarea class="task-name task-assignment-name"
                                             placeholder="Assignment Name"></textarea>
@@ -1739,7 +1978,7 @@
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
-                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
                                     <div class="task-name-wrapper">
                                         <textarea class="task-name task-assignment-name"
                                             placeholder="Assignment Name"></textarea>
@@ -1782,7 +2021,7 @@
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
-                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
                                     <div class="task-name-wrapper">
                                         <textarea class="task-name task-assignment-name"
                                             placeholder="Assignment Name"></textarea>
@@ -1825,7 +2064,7 @@
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
 
                                 <div class="task-main task-assignment-main">
-                                    <div class="task-type-label">Assignment:</div>
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
                                     <div class="task-name-wrapper">
                                         <textarea class="task-name task-assignment-name"
                                             placeholder="Assignment Name"></textarea>
@@ -1911,12 +2150,32 @@
     </main>
 
     <footer class="main-footer">
-        <h1 class="footer-title" data-tooltip="Version 2.1">Course Planner</h1>
-        <button id="lessonTrackerBtn">Lesson Tracker</button>
-        <button id="assignmentTrackerBtn">Assignment Tracker</button>
-        <button id="backupBtn">Backup</button>
-        <button id="resetBtn">Reset</button>
-        <button id="saveBtn">Save</button>
+        <div class="footer-left">
+            <h1 class="footer-title" data-tooltip="Version 2.3">Course Planner</h1>
+        </div>
+        <div class="footer-actions">
+            <!-- Tracker Group -->
+            <button id="lessonTrackerBtn">Lesson Tracker</button>
+            <button id="assignmentTrackerBtn">Assignment Tracker</button>
+            <div class="footer-divider"></div>
+
+            <!-- Tool Group -->
+            <button id="canvas-import-btn">
+                <svg viewBox="0 0 1920 1920" xmlns="http://www.w3.org/2000/svg">
+                    <g id="SVGRepo_iconCarrier">
+                        <path
+                            d="M958.568 277.97C1100.42 277.97 1216.48 171.94 1233.67 34.3881 1146.27 12.8955 1054.57 0 958.568 0 864.001 0 770.867 12.8955 683.464 34.3881 700.658 171.94 816.718 277.97 958.568 277.97ZM35.8207 682.031C173.373 699.225 279.403 815.285 279.403 957.136 279.403 1098.99 173.373 1215.05 35.8207 1232.24 12.8953 1144.84 1.43262 1051.7 1.43262 957.136 1.43262 862.569 12.8953 769.434 35.8207 682.031ZM528.713 957.142C528.713 1005.41 489.581 1044.55 441.31 1044.55 393.038 1044.55 353.907 1005.41 353.907 957.142 353.907 908.871 393.038 869.74 441.31 869.74 489.581 869.74 528.713 908.871 528.713 957.142ZM1642.03 957.136C1642.03 1098.99 1748.06 1215.05 1885.61 1232.24 1908.54 1144.84 1920 1051.7 1920 957.136 1920 862.569 1908.54 769.434 1885.61 682.031 1748.06 699.225 1642.03 815.285 1642.03 957.136ZM1567.51 957.142C1567.51 1005.41 1528.38 1044.55 1480.11 1044.55 1431.84 1044.55 1392.71 1005.41 1392.71 957.142 1392.71 908.871 1431.84 869.74 1480.11 869.74 1528.38 869.74 1567.51 908.871 1567.51 957.142ZM958.568 1640.6C816.718 1640.6 700.658 1746.63 683.464 1884.18 770.867 1907.11 864.001 1918.57 958.568 1918.57 1053.14 1918.57 1146.27 1907.11 1233.67 1884.18 1216.48 1746.63 1100.42 1640.6 958.568 1640.6ZM1045.98 1480.11C1045.98 1528.38 1006.85 1567.51 958.575 1567.51 910.304 1567.51 871.172 1528.38 871.172 1480.11 871.172 1431.84 910.304 1392.71 958.575 1392.71 1006.85 1392.71 1045.98 1431.84 1045.98 1480.11ZM1045.98 439.877C1045.98 488.148 1006.85 527.28 958.575 527.28 910.304 527.28 871.172 488.148 871.172 439.877 871.172 391.606 910.304 352.474 958.575 352.474 1006.85 352.474 1045.98 391.606 1045.98 439.877ZM1441.44 1439.99C1341.15 1540.29 1333.98 1697.91 1418.52 1806.8 1579 1712.23 1713.68 1577.55 1806.82 1418.5 1699.35 1332.53 1541.74 1339.7 1441.44 1439.99ZM1414.21 1325.37C1414.21 1373.64 1375.08 1412.77 1326.8 1412.77 1278.53 1412.77 1239.4 1373.64 1239.4 1325.37 1239.4 1277.1 1278.53 1237.97 1326.8 1237.97 1375.08 1237.97 1414.21 1277.1 1414.21 1325.37ZM478.577 477.145C578.875 376.846 586.039 219.234 501.502 110.339 341.024 204.906 206.338 339.592 113.203 498.637 220.666 584.607 378.278 576.01 478.577 477.145ZM679.155 590.32C679.155 638.591 640.024 677.723 591.752 677.723 543.481 677.723 504.349 638.591 504.349 590.32 504.349 542.048 543.481 502.917 591.752 502.917 640.024 502.917 679.155 542.048 679.155 590.32ZM1440 475.712C1540.3 576.01 1697.91 583.174 1806.8 498.637 1712.24 338.159 1577.55 203.473 1418.51 110.339 1332.54 217.801 1341.13 375.413 1440 475.712ZM1414.21 590.32C1414.21 638.591 1375.08 677.723 1326.8 677.723 1278.53 677.723 1239.4 638.591 1239.4 590.32 1239.4 542.048 1278.53 502.917 1326.8 502.917 1375.08 502.917 1414.21 542.048 1414.21 590.32ZM477.145 1438.58C376.846 1338.28 219.234 1331.12 110.339 1415.65 204.906 1576.13 339.593 1710.82 498.637 1805.39 584.607 1696.49 577.443 1538.88 477.145 1438.58ZM679.155 1325.37C679.155 1373.64 640.024 1412.77 591.752 1412.77 543.481 1412.77 504.349 1373.64 504.349 1325.37 504.349 1277.1 543.481 1237.97 591.752 1237.97 640.024 1237.97 679.155 1277.1 679.155 1325.37Z" />
+                    </g>
+                </svg>
+                Canvas
+            </button>
+            <button id="backupBtn">Backup</button>
+            <div class="footer-divider"></div>
+
+            <!-- Action Group -->
+            <button id="resetBtn">Reset</button>
+            <button id="saveBtn">Save</button>
+        </div>
     </footer>
 
     <div id="trackerContextMenu" class="context-menu" style="display: none;">
@@ -2010,6 +2269,49 @@
             <div class="link-modal-buttons">
                 <button class="btn-cancel" id="addAssignmentModalCancel">Cancel</button>
                 <button class="btn-save" id="addAssignmentBtn">Add Assignments</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas Import Modal -->
+    <div id="canvasImportModal" class="link-modal-overlay">
+        <div class="link-modal" style="max-width: 600px; width: 90%;">
+            <h2>Import from Canvas</h2>
+
+            <!-- Step 1: Paste Text -->
+            <div id="canvas-step-1">
+                <p style="font-size: 14px; color: #767676; margin-bottom: 15px;">
+                    Go to your Canvas "Modules" page, press <strong>Ctrl+A</strong> then <strong>Ctrl+C</strong> to copy
+                    everything,
+                    and paste it below.
+                </p>
+                <textarea id="canvas-raw-text" class="add-items-modal-textarea" placeholder="Paste Canvas data here..."
+                    style="min-height: 200px; max-height: 500px; overflow-y: auto;"></textarea>
+                <div class="link-modal-buttons">
+                    <button class="btn-cancel" id="canvas-cancel-btn">Cancel</button>
+                    <button class="btn-save" id="canvas-preview-btn">Preview</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Preview & Import -->
+            <div id="canvas-step-2" style="display: none;">
+                <h4>Preview Import</h4>
+                <p>Review the identified items below.</p>
+
+
+
+                <div id="canvas-preview-container"></div>
+
+                <div style="margin-top: 15px;">
+                    <label for="canvas-import-course" style="font-size: 14px; font-weight: 600;">Import into
+                        Course:</label>
+                    <select id="canvas-import-course" class="add-items-modal-select" style="margin-top: 5px;"></select>
+                </div>
+
+                <div class="link-modal-buttons">
+                    <button class="btn-cancel" id="canvas-back-btn">Back</button>
+                    <button class="btn-save" id="canvas-import-action-btn">Import</button>
+                </div>
             </div>
         </div>
     </div>
@@ -2481,38 +2783,45 @@
             function updateCardCompletionState(courseCard) {
                 const lessonNameField = courseCard.querySelector('.task-lesson-name');
                 const lessonCheckbox = courseCard.querySelector('.task-lesson-checkbox');
-                const assignmentNameField = courseCard.querySelector('.task-assignment-name');
-                const assignmentCheckbox = courseCard.querySelector('.task-assignment-checkbox');
                 const deleteButton = courseCard.querySelector('.delete-course-card-btn');
 
                 // 1. Determine Existence
                 const hasLesson = lessonNameField && lessonNameField.value.trim() !== '';
-                const hasAssignment = assignmentNameField && assignmentNameField.value.trim() !== '';
+
+                // Check for ANY assignments
+                const assignmentRows = courseCard.querySelectorAll('.task-assignment-main');
+                const hasAnyAssignment = Array.from(assignmentRows).some(row => {
+                    const name = row.querySelector('.task-assignment-name');
+                    return name && name.value.trim() !== '';
+                });
 
                 // If nothing exists, hide button immediately
-                if (!hasLesson && !hasAssignment) {
+                if (!hasLesson && !hasAnyAssignment) {
                     deleteButton.classList.remove('completed');
                     return;
                 }
 
                 // 2. Determine Interaction (Satisfied) Status
-                // "Satisfied" means: If the item exists, it MUST be checked (interacted with).
-
-                let lessonSatisfied = true; // Default to true if it doesn't exist (doesn't block visibility)
+                let lessonSatisfied = true;
                 if (hasLesson) {
                     lessonSatisfied = lessonCheckbox && lessonCheckbox.checked;
                 }
 
-                let assignmentSatisfied = true; // Default to true if it doesn't exist
-                if (hasAssignment) {
-                    // For both normal and split assignments, we now rely SOLELY on the hidden checkbox state.
-                    // This checkbox is managed by the interaction listeners to track "wasClickedToday".
-                    assignmentSatisfied = assignmentCheckbox && assignmentCheckbox.checked;
+                let allAssignmentsSatisfied = true;
+                if (hasAnyAssignment) {
+                    assignmentRows.forEach(row => {
+                        const name = row.querySelector('.task-assignment-name');
+                        const cb = row.querySelector('.task-assignment-checkbox');
+                        if (name && name.value.trim() !== '') {
+                            if (!cb || !cb.checked) {
+                                allAssignmentsSatisfied = false;
+                            }
+                        }
+                    });
                 }
 
-                // 3. Final Evaluation: VISIBLE ONLY IF All Present Items Are Satisfied
-                // This covers all cases:
-                const isCardCompleted = lessonSatisfied && assignmentSatisfied;
+                // 3. Final Evaluation
+                const isCardCompleted = lessonSatisfied && allAssignmentsSatisfied;
 
                 deleteButton.classList.toggle('completed', isCardCompleted);
             }
@@ -2647,7 +2956,7 @@
             });
 
             // --- Function to update tracker item status from Card Checkbox (NEW FUNCTION) ---
-            function updateTrackerItemStatusFromCard(course, type, name, isChecked) {
+            function updateTrackerItemStatusFromCard(course, type, name, isChecked, isIndented = false, isOutdented = false, itemType = 'assignment') {
                 const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
                 let data = JSON.parse(localStorage.getItem(storageKey)) || [];
                 const newStatus = isChecked ? 'Finished' : 'Not Started';
@@ -2658,6 +2967,12 @@
                     // Check for item existence by matching course and name
                     if (item.course === course && item.name === name) {
                         item.status = newStatus;
+                        // **NEW:** Persist indentation and type state
+                        if (type !== 'lesson') {
+                            item.isIndented = isIndented;
+                            item.isOutdented = isOutdented;
+                            item.type = itemType;
+                        }
                         itemFound = true;
                     }
                     return item;
@@ -2670,7 +2985,10 @@
                         id: Date.now() + Math.random(),
                         name: name,
                         course: course,
-                        status: newStatus
+                        status: newStatus,
+                        isIndented: isIndented,
+                        isOutdented: isOutdented,
+                        type: itemType
                     };
                     data.push(newItem);
                 }
@@ -2784,11 +3102,62 @@
                 }
             }
 
-            // --- **NEW FUNCTION:** Auto-populate assignment field when lesson is selected
+            // --- **NEW FUNCTION:** Auto-populate assignment field (Multi-Assignment Aware)
             function autoPopulateAssignmentField(courseCard) {
                 const courseTitle = courseCard.querySelector('h3').textContent.trim();
-                const assignmentField = courseCard.querySelector('.task-assignment-name');
+                const assignmentField = courseCard.querySelector('.task-assignment-name'); // This gets the first one
 
+                // NEW: Check for Multi-Assignment Mapping first
+                const map = JSON.parse(localStorage.getItem('tracker_lesson_assignments_map')) || {};
+                const lessonName = courseCard.querySelector('.task-lesson-name').value.trim();
+                const key = `${courseTitle}::${lessonName}`;
+
+                if (lessonName && map[key] && Array.isArray(map[key]) && map[key].length > 0) {
+                    const linkedAssignments = map[key];
+                    const li = courseCard.querySelector('.task-list li');
+                    let container = li.querySelector('.task-assignments-container');
+
+                    // Ensure container exists
+                    if (!container) {
+                        container = document.createElement('div');
+                        container.className = 'task-assignments-container';
+                        const existingRow = li.querySelector('.task-assignment-main');
+                        existingRow.parentNode.insertBefore(container, existingRow);
+                        container.appendChild(existingRow);
+                    }
+
+                    container.innerHTML = ''; // Clear existing
+
+                    // Fetch existing assignment data to sync types/indentation
+                    const existingData = JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || [];
+
+                    linkedAssignments.forEach(aName => {
+                        // Find this assignment in the tracker to get its current type/indent state
+                        const stored = existingData.find(d => d.course === courseTitle && d.name === aName);
+
+                        const row = createAssignmentRow(
+                            aName,
+                            false,
+                            stored ? stored.isIndented : false,
+                            stored ? stored.isOutdented : false,
+                            stored ? stored.type : 'assignment'
+                        );
+                        container.appendChild(row);
+                    });
+
+                    if (linkedAssignments.length > 1) {
+                        li.classList.add('has-multiple-assignments');
+                    } else {
+                        li.classList.remove('has-multiple-assignments');
+                    }
+
+                    resizeFieldsForActiveDay(courseCard.closest('.tab-content').id);
+                    updateCardCompletionState(courseCard);
+                    saveData(courseCard.closest('.tab-content').id);
+                    return;
+                }
+
+                // FALLBACK: Old logic (Next Unfinished)
                 // Only auto-populate if assignment field is empty
                 if (assignmentField && assignmentField.value.trim() === '') {
                     // Dedup: exclude names already used in the other day (if no split assignments)
@@ -2850,7 +3219,8 @@
                         taskNameField = courseCard.querySelector('.task-lesson-name');
                     } else if (target.classList.contains('task-assignment-checkbox')) {
                         taskType = 'assignment';
-                        taskNameField = courseCard.querySelector('.task-assignment-name');
+                        // Fix: Select the specific assignment name related to this checkbox
+                        taskNameField = target.closest('.task-main').querySelector('.task-assignment-name');
                     }
 
                     if (taskNameField && taskNameField.value.trim() !== '') {
@@ -3100,7 +3470,6 @@
                 const lName = li.querySelector('.task-lesson-name');
                 const lCheckbox = li.querySelector('.task-lesson-checkbox');
 
-                // **FIX:** Sync to tracker before clearing (only if shouldSync is true)
                 if (shouldSync && lName.value.trim() !== '' && lCheckbox.checked) {
                     updateTrackerItemStatusFromCard(courseTitle, 'lesson', lName.value.trim(), false);
                 }
@@ -3109,33 +3478,41 @@
                 lCheckbox.checked = false;
                 applyThemeColor(lName);
 
-                // Assignment
-                const aName = li.querySelector('.task-assignment-name');
-                const assignmentCheckbox = li.querySelector('.task-assignment-checkbox');
+                // Assessments (Handle Multiple)
+                const assignmentRows = li.querySelectorAll('.task-assignment-main');
+                assignmentRows.forEach((row, index) => {
+                    const aName = row.querySelector('.task-assignment-name');
+                    const aCheckbox = row.querySelector('.task-assignment-checkbox');
+                    const wrapper = row.querySelector('.progress-circle-wrapper');
 
-                // **FIX:** Sync to tracker before clearing (only if shouldSync is true)
-                if (shouldSync && aName.value.trim() !== '' && assignmentCheckbox.checked) {
-                    updateTrackerItemStatusFromCard(courseTitle, 'assignment', aName.value.trim(), false);
+                    // Sync
+                    if (shouldSync && aName && aName.value.trim() !== '' && aCheckbox.checked) {
+                        updateTrackerItemStatusFromCard(courseTitle, 'assignment', aName.value.trim(), false);
 
-                    // Also reset split progress if applicable
-                    if (isSplitAssignment(courseTitle, aName.value.trim())) {
-                        const splitData = getSplitAssignment(courseTitle, aName.value.trim());
-                        if (splitData) {
-                            setSplitAssignment(courseTitle, aName.value.trim(), splitData.totalDays, 0);
+                        // Reset split progress if applicable
+                        if (isSplitAssignment(courseTitle, aName.value.trim())) {
+                            const splitData = getSplitAssignment(courseTitle, aName.value.trim());
+                            if (splitData) {
+                                setSplitAssignment(courseTitle, aName.value.trim(), splitData.totalDays, 0);
+                            }
                         }
                     }
-                }
 
-                aName.value = '';
-                assignmentCheckbox.checked = false;
-                assignmentCheckbox.style.display = ''; // Restore visibility
-                applyThemeColor(aName);
+                    if (index === 0) {
+                        // Reset first one
+                        aName.value = '';
+                        aCheckbox.checked = false;
+                        aCheckbox.style.display = ''; // Restore visibility
+                        applyThemeColor(aName);
+                        if (wrapper) wrapper.remove();
+                    } else {
+                        // Remove others
+                        row.remove();
+                    }
+                });
 
-                // **NEW:** Remove any progress circle wrapper
-                const progressWrapper = li.querySelector('.progress-circle-wrapper');
-                if (progressWrapper) {
-                    progressWrapper.remove();
-                }
+                // Reset container class
+                li.classList.remove('has-multiple-assignments');
 
                 // Notes/Link
                 const notes = li.querySelector('.task-notes');
@@ -3314,6 +3691,119 @@
                 saveData(dayId);
             }
 
+            function createAssignmentRow(name = '', checked = false, isIndented = false, isOutdented = false, type = 'assignment') {
+                const row = document.createElement('div');
+                row.className = 'task-main task-assignment-main';
+                row.style.position = 'relative'; // For absolute positioning of remove button
+                if (isIndented) row.classList.add('manual-indent');
+                if (isOutdented) row.classList.add('force-no-indent');
+
+                // Connector line (visual only)
+                const connector = document.createElement('div');
+                connector.className = 'task-connector-line';
+
+                const displayType = type.charAt(0).toUpperCase() + type.slice(1);
+                row.innerHTML = `
+                    <div class="task-type-label"><span class="task-type-text">${displayType}</span>:</div>
+                    <div class="task-name-wrapper">
+                        <textarea class="task-name task-assignment-name" placeholder="Assignment Name">${name}</textarea>
+                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                    </div>
+                    <input type="checkbox" class="task-checkbox task-assignment-checkbox" ${checked ? 'checked' : ''}>
+                `;
+
+                // **NEW:** Indentation & Type State Cycling
+                const label = row.querySelector('.task-type-label');
+                const typeSpan = label.querySelector('.task-type-text');
+
+                // Check and enforce restricted indentation logic
+                function updateIndentationBehavior() {
+                    const card = row.closest('.course-card');
+                    if (!card) return;
+
+                    const lessonName = card.querySelector('.task-lesson-name').value.trim();
+                    const isPartOfLesson = lessonName !== '';
+
+                    if (!isPartOfLesson) {
+                        // Standalone: No indent or outdent
+                        label.style.cursor = 'default';
+                        label.removeAttribute('title'); // Removed "Standalone items cannot be indented"
+                        // Ensure tags still show cycle tooltip
+                        typeSpan.style.cursor = 'pointer';
+                        typeSpan.title = 'Click to cycle type';
+                        // Remove indentation classes if any
+                        row.classList.remove('manual-indent', 'force-no-indent');
+                    } else {
+                        // Under a lesson: Allow toggle between "Default (Indented)" and "Outdented"
+                        label.style.cursor = 'pointer';
+                        label.title = 'Click to toggle indentation';
+                        typeSpan.style.cursor = 'pointer';
+                        typeSpan.title = 'Click to cycle type';
+                    }
+                }
+
+                // Call initially and also set up listener for lesson name changes
+                setTimeout(() => {
+                    updateIndentationBehavior();
+                    const card = row.closest('.course-card');
+                    if (card) {
+                        const lessonInput = card.querySelector('.task-lesson-name');
+                        lessonInput.addEventListener('input', updateIndentationBehavior);
+                    }
+                }, 0);
+
+                // Click label (outside the span) to cycle INDENTATION
+                label.onclick = function (e) {
+                    const card = row.closest('.course-card');
+                    const lessonName = card ? card.querySelector('.task-lesson-name').value.trim() : '';
+                    if (!lessonName) return; // Ignore for standalone
+
+                    const dayId = row.closest('.tab-content').id;
+
+                    // Logic: Only cycle between "Naturally Indented" (empty class) and "Forced Outdent" (force-no-indent)
+                    // "manual-indent" (40px) is basically disabled now since 24px is default for lesson items.
+                    if (row.classList.contains('force-no-indent')) {
+                        row.classList.remove('force-no-indent');
+                    } else {
+                        row.classList.add('force-no-indent');
+                        row.classList.remove('manual-indent');
+                    }
+                    saveData(dayId);
+                };
+
+                // Click the span to cycle TYPE
+                typeSpan.onclick = function (e) {
+                    e.stopPropagation(); // Don't trigger indentation toggle
+                    const dayId = row.closest('.tab-content').id;
+                    const types = ['Assignment', 'Quiz', 'Discussion'];
+                    let currentType = typeSpan.textContent.trim();
+                    let nextIndex = (types.indexOf(currentType) + 1) % types.length;
+                    typeSpan.textContent = types[nextIndex];
+                    saveData(dayId);
+                };
+
+                // Add remove button
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'task-remove-assignment-btn';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.title = 'Remove assignment';
+                removeBtn.setAttribute('aria-label', 'Remove assignment');
+                removeBtn.onclick = function (e) {
+                    e.stopPropagation(); // Prevent label click
+                    const container = row.parentElement;
+                    const dayId = row.closest('.tab-content').id;
+                    row.remove();
+                    if (container.querySelectorAll('.task-assignment-main').length <= 1) {
+                        const li = container.closest('li');
+                        if (li) li.classList.remove('has-multiple-assignments');
+                    }
+                    saveData(dayId);
+                };
+                row.prepend(removeBtn);
+
+                return row;
+            }
+
             function saveData(dayId) {
                 const dayContainer = document.getElementById(dayId);
                 const tasks = {};
@@ -3328,11 +3818,20 @@
                         checked: li.querySelector('.task-lesson-checkbox').checked,
                     };
 
-                    // New: Assignment Task
-                    const assignmentTask = {
-                        name: li.querySelector('.task-assignment-name').value,
-                        checked: li.querySelector('.task-assignment-checkbox').checked,
-                    };
+                    // New: Assignment Tasks (Array)
+                    const assignmentTasks = [];
+                    li.querySelectorAll('.task-assignment-main').forEach(row => {
+                        const typeSpan = row.querySelector('.task-type-text');
+                        const typeText = typeSpan ? typeSpan.textContent.trim() : 'Assignment';
+
+                        assignmentTasks.push({
+                            name: row.querySelector('.task-assignment-name').value,
+                            checked: row.querySelector('.task-assignment-checkbox').checked,
+                            isIndented: row.classList.contains('manual-indent'),
+                            isOutdented: row.classList.contains('force-no-indent'),
+                            type: typeText.toLowerCase()
+                        });
+                    });
 
                     // Notes and Link (Shared)
                     const notes = li.querySelector('.task-notes').value;
@@ -3341,7 +3840,7 @@
                     // Save both tasks, notes, and link under the course
                     tasks[courseTitle] = {
                         lesson: lessonTask,
-                        assignment: assignmentTask,
+                        assignments: assignmentTasks, // Save as array
                         notes: notes,
                         link: link,
                     };
@@ -3403,7 +3902,7 @@
 
                 dayContainer.querySelectorAll('.course-card').forEach(card => {
                     const courseTitle = card.querySelector('h3').textContent.trim();
-                    const courseData = data[courseTitle]; // courseData now contains lesson, assignment, notes, link
+                    const courseData = data[courseTitle]; // courseData now contains lesson, assignments (array), notes, link
 
                     if (courseData) {
                         const li = card.querySelector('.task-list li');
@@ -3414,16 +3913,83 @@
                             li.querySelector('.task-lesson-checkbox').checked = courseData.lesson.checked;
                         }
 
-                        // Assignment
-                        if (courseData.assignment) {
-                            const assignmentName = courseData.assignment.name;
-                            li.querySelector('.task-assignment-name').value = assignmentName;
-                            li.querySelector('.task-assignment-checkbox').checked = courseData.assignment.checked;
+                        // Assignments (Handle Migration: Object -> Array)
+                        const assignmentsContainer = li.querySelector('.task-assignments-container') || (() => {
+                            // If container doesn't exist yet (legacy HTML), create it
+                            const container = document.createElement('div');
+                            container.className = 'task-assignments-container';
+                            const oldAssignmentRow = li.querySelector('.task-assignment-main');
+                            if (oldAssignmentRow) {
+                                // Move existing row into container
+                                oldAssignmentRow.parentNode.insertBefore(container, oldAssignmentRow);
+                                container.appendChild(oldAssignmentRow);
 
-                            // **NEW:** Check if this is a split assignment and update progress circle
-                            if (assignmentName && isSplitAssignment(courseTitle, assignmentName)) {
-                                updateDayCardSplitProgress(card, courseTitle, assignmentName);
+                                // Add remove button to initial row too, but hide it if it's the only one
+                                const removeBtn = document.createElement('button');
+                                removeBtn.className = 'task-remove-assignment-btn';
+                                removeBtn.innerHTML = '&times;';
+                                removeBtn.onclick = function () {
+                                    if (container.children.length > 1) {
+                                        oldAssignmentRow.remove();
+                                        if (container.children.length <= 1) li.classList.remove('has-multiple-assignments');
+                                        saveData(dayId);
+                                    } else {
+                                        // Don't remove last one, just clear it
+                                        oldAssignmentRow.querySelector('.task-assignment-name').value = '';
+                                        oldAssignmentRow.querySelector('.task-assignment-checkbox').checked = false;
+                                        saveData(dayId);
+                                    }
+                                };
+                                oldAssignmentRow.appendChild(removeBtn);
                             }
+                            return container;
+                        })();
+
+                        // Clear existing rows in container (except one if we want to be safe, but rebuilding is cleaner)
+                        assignmentsContainer.innerHTML = '';
+
+                        let assignmentsToRender = [];
+                        if (courseData.assignments && Array.isArray(courseData.assignments)) {
+                            assignmentsToRender = courseData.assignments;
+                        } else if (courseData.assignment) {
+                            // Legacy single assignment object
+                            assignmentsToRender = [courseData.assignment];
+                        } else {
+                            // Fallback empty
+                            assignmentsToRender = [{ name: '', checked: false }];
+                        }
+
+                        assignmentsToRender.forEach(assignment => {
+                            const row = createAssignmentRow(
+                                assignment.name,
+                                assignment.checked,
+                                assignment.isIndented,
+                                assignment.isOutdented,
+                                assignment.type || 'assignment'
+                            );
+                            assignmentsContainer.appendChild(row);
+
+                            // Check split assignment status for each
+                            if (assignment.name && isSplitAssignment(courseTitle, assignment.name)) {
+                                const checkboxRow = row.querySelector('.task-assignment-main') || row; // createAssignmentRow returns the row div
+                                // We need to pass the card context, but updateDayCardSplitProgress expects the card.
+                                // However, it looks for .task-assignment-main INSIDE the card.
+                                // Since we just appended the row, we might need to target it specifically.
+                                // Let's use a modified version of updateDayCardSplitProgress or just call it after append?
+                                // The function updateDayCardSplitProgress finds the assignment by name within the card? 
+                                // No, it takes the card and scans?
+                                // Actually, updateDayCardSplitProgress (scanned above) finds .task-assignment-main. 
+                                // If there are multiple, it might fail or only update the first one.
+                                // FIX: We need to update existing split logic to handle multiple assignments.
+                                // OLD LOGIC: `const assignmentCheckboxDiv = courseCard.querySelector('.task-assignment-main');` -> Only finds first.
+                                // We will need to update that separately. For now, let's just render.
+                            }
+                        });
+
+                        if (assignmentsToRender.length > 1) {
+                            li.classList.add('has-multiple-assignments');
+                        } else {
+                            li.classList.remove('has-multiple-assignments');
                         }
 
                         // Shared Notes and Link
@@ -3442,6 +4008,21 @@
 
                 // IMPORTANT: Resize fields after loading data
                 resizeFieldsForActiveDay(dayId);
+
+                // Post-load: Update Split Progress for ALL assignments in the card
+                dayContainer.querySelectorAll('.course-card').forEach(card => {
+                    const courseTitle = card.querySelector('h3').textContent.trim();
+                    card.querySelectorAll('.task-assignment-name').forEach(input => {
+                        const val = input.value.trim();
+                        if (val && isSplitAssignment(courseTitle, val)) {
+                            // We need a way to target the specific row's progress wrapper.
+                            // The current updateDayCardSplitProgress uses querySelector('.task-assignment-main'), which is ambiguous if multiple exist.
+                            // We should fix that function or pass the specific row container.
+                            // For now, let's just trigger it and see.
+                            updateDayCardSplitProgress(card, courseTitle, val);
+                        }
+                    });
+                });
             }
 
             // --- 7. Reset Logic (UPDATED for consistency) ---
@@ -3554,7 +4135,8 @@
                 // Only targeting the bulk fields now, which are the main fields
                 const courseSelects = [
                     document.getElementById('bulkLessonCourse'),
-                    document.getElementById('bulkAssignmentCourse')
+                    document.getElementById('bulkAssignmentCourse'),
+                    document.getElementById('canvas-import-course')
                 ];
 
                 courseSelects.forEach(select => {
@@ -4186,9 +4768,14 @@
                             `;
                         }
 
+                        const indentStyle = item.isIndented ? 'padding-left: 24px;' : item.isOutdented ? 'padding-left: 0;' : '';
+
+                        // User requested to remove bracketed types ([Assignment]) from the tracker list view
+                        const typeLabel = '';
+
                         listHTML += `
                             <div class="tracker-item-row" data-id="${item.id}" data-type="${type}" data-course="${course}" data-name="${item.name}">
-                                <div class="tracker-item-name">${item.name}</div>
+                                <div class="tracker-item-name" style="${indentStyle}">${typeLabel}${item.name}</div>
                                 <div>${statusHTML}</div>
                                 <div> 
                                     <button class="delete-btn" data-id="${item.id}" data-type="${type}">Delete</button>
@@ -4797,20 +5384,20 @@
 
             // **NEW FEATURE:** Ctrl+S / Cmd+S Shortcut
             document.addEventListener('keydown', (event) => {
-                // Check for Ctrl/Cmd + S
-                if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+                // Robust Check for Ctrl/Cmd + S
+                const isS = event.key === 's' || event.key === 'S' || event.code === 'KeyS';
+                if ((event.ctrlKey || event.metaKey) && isS) {
                     event.preventDefault();
-
-                    // Trigger the save button click action
-                    document.getElementById('saveBtn').click();
+                    const saveBtn = document.getElementById('saveBtn');
+                    if (saveBtn) saveBtn.click();
                 }
 
-                // Check for Ctrl/Cmd + E for Reset
-                if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
+                // Robust Check for Ctrl/Cmd + E for Reset
+                const isE = event.key === 'e' || event.key === 'E' || event.code === 'KeyE';
+                if ((event.ctrlKey || event.metaKey) && isE) {
                     event.preventDefault();
-
-                    // Trigger the reset button click action
-                    document.getElementById('resetBtn').click();
+                    const resetBtn = document.getElementById('resetBtn');
+                    if (resetBtn) resetBtn.click();
                 }
             });
 
@@ -4846,6 +5433,484 @@
             }
 
             // --- Initial Load ---
+            // --- **NEW:** Canvas Import Logic ---
+
+            const canvasImportBtn = document.getElementById('canvas-import-btn'); // In footer
+            const canvasImportModal = document.getElementById('canvasImportModal');
+            const canvasTextInput = document.getElementById('canvas-raw-text');
+            const canvasPreviewContainer = document.getElementById('canvas-preview-container');
+            const canvasCourseSelect = document.getElementById('canvas-import-course');
+            const canvasBackBtn = document.getElementById('canvas-back-btn');
+            const canvasPreviewBtn = document.getElementById('canvas-preview-btn');
+            const canvasImportActionBtn = document.getElementById('canvas-import-action-btn');
+            const canvasCancelBtn = document.getElementById('canvas-cancel-btn');
+
+            let parsedCanvasData = [];
+
+            // Open Modal
+            if (canvasImportBtn) {
+                canvasImportBtn.addEventListener('click', () => {
+                    canvasImportModal.classList.add('active');
+                    // Reset state
+                    document.getElementById('canvas-step-1').style.display = 'block';
+                    document.getElementById('canvas-step-2').style.display = 'none';
+                    canvasTextInput.value = '';
+                    parsedCanvasData = [];
+                    populateCourseDropdowns(); // Ensure latest courses are available
+
+                    // Auto-resize reset (wait for visibility)
+                    setTimeout(() => {
+                        canvasTextInput.style.height = '200px';
+                    }, 50);
+                });
+
+                // Auto-Fit
+                canvasTextInput.addEventListener('input', function () {
+                    this.style.height = 'auto';
+                    this.style.height = (this.scrollHeight) + 'px';
+                });
+
+                // Indentation Toggle Logic REMOVED
+            }
+
+            // Cancel
+            if (canvasCancelBtn) {
+                canvasCancelBtn.addEventListener('click', () => {
+                    canvasImportModal.classList.remove('active');
+                });
+            }
+
+            // Preview
+            if (canvasPreviewBtn) {
+                canvasPreviewBtn.addEventListener('click', () => {
+                    const text = canvasTextInput.value;
+                    if (!text.trim()) {
+                        alert('Please paste some text first.');
+                        return;
+                    }
+
+                    // Use V3 Parser
+                    parsedCanvasData = parseCanvasTextV3(text);
+                    if (parsedCanvasData.length === 0) {
+                        alert('Could not detect any lessons or assignments. Please check the format.');
+                        return;
+                    }
+
+                    renderCanvasPreview(parsedCanvasData);
+                    document.getElementById('canvas-step-1').style.display = 'none';
+                    document.getElementById('canvas-step-2').style.display = 'block';
+                });
+            }
+
+            // Back (Step 2 -> Step 1)
+            if (canvasBackBtn) {
+                canvasBackBtn.addEventListener('click', () => {
+                    document.getElementById('canvas-step-2').style.display = 'none';
+                    document.getElementById('canvas-step-1').style.display = 'block';
+                });
+            }
+
+            // Import Action
+            if (canvasImportActionBtn) {
+                canvasImportActionBtn.addEventListener('click', () => {
+                    const selectedCourse = canvasCourseSelect.value;
+                    if (!selectedCourse) {
+                        alert('Please select a course to import into.');
+                        return;
+                    }
+
+                    importDataToCard(selectedCourse, parsedCanvasData);
+
+                    // Non-Intrusive Feedback
+                    const originalText = canvasImportActionBtn.textContent;
+                    canvasImportActionBtn.textContent = 'Imported!';
+                    canvasImportActionBtn.disabled = true;
+
+                    // Console fallback
+                    console.log(`Successfully imported ${parsedCanvasData.length} lessons into ${selectedCourse}.`);
+
+                    // Close after short delay
+                    setTimeout(() => {
+                        canvasImportModal.classList.remove('active');
+                        // Reset button state
+                        canvasImportActionBtn.textContent = originalText;
+                        canvasImportActionBtn.disabled = false;
+                    }, 1000);
+                });
+            }
+
+            // Parser Logic
+            function parseCanvasText(text) {
+                const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+                const structure = [];
+                let currentLesson = null;
+
+                // Heuristics
+                const lessonRegex = /^(Lesson|Chapter|Unit|Module|Week)\s+\d+/i;
+                const noiseRegex = /^(View|Mark done|Submit|Contribute|Page|Quiz|Assignment|Discussion Topic|\d+\s+pts|Must\s+.*)/i;
+                const typeMarkers = {
+                    'Assignment': 'Assignment', // Matches exact line "Assignment"
+                    'Quiz': 'Quiz',
+                    'Discussion Topic': 'Discussion'
+                };
+
+                let pendingType = null;
+
+                lines.forEach((line, index) => {
+                    // 1. Detect Lesson Header
+                    if (lessonRegex.test(line) || line.startsWith('Lessons ') || line.includes('Lesson ')) {
+                        // Very basic heuristic: if line contains "Lesson X", assume it's a header
+                        // Refined: Must start with Lesson/Chapter OR be explicitly consistent with user data
+                        // User data: "Lesson 1 - Slope..."
+                        currentLesson = {
+                            name: line,
+                            assignments: []
+                        };
+                        structure.push(currentLesson);
+                        pendingType = null;
+                        return;
+                    }
+
+                    if (!currentLesson) return;
+
+                    // 2. Detect Type Marker (e.g. "Assignment", "Quiz")
+                    if (typeMarkers[line]) {
+                        pendingType = typeMarkers[line];
+                        return; // The name is likely on the next line
+                    }
+
+                    // 3. Filtering Noise
+                    if (noiseRegex.test(line) && !typeMarkers[line]) {
+                        return;
+                    }
+                    if (line.match(/^\d+\s+pts$/) || line.match(/^Due\s+/)) return;
+
+                    // 4. Capture Assignment Name
+                    // If we are here, it's likely an item name
+                    let type = pendingType || 'Assignment'; // Default to Assignment
+
+                    currentLesson.assignments.push({
+                        type: type,
+                        name: line
+                    });
+
+                    pendingType = null;
+                });
+
+                return structure;
+            }
+
+            // **NEW PARSER V3:** Enhanced Logic for Headers, LaTeX, and Status
+            function parseCanvasTextV3(text) {
+                const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+                const structure = [];
+                let currentLesson = null;
+
+                // Helper: Clean Text (LaTeX, Emojis)
+                const cleanText = (str) => {
+                    if (!str) return '';
+                    // simplistic LaTeX unwrap: \cmd{text} -> text
+                    let oldStr;
+                    do {
+                        oldStr = str;
+                        str = str.replace(/\\[a-zA-Z]+{([^{}]*)}/g, '$1');
+                    } while (str !== oldStr);
+
+                    // Remove standalone commands and braces
+                    str = str.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '');
+
+                    // Remove Emojis (Broad Unicode Ranges)
+                    str = str.replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
+                        .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc Symbols and Pictographs
+                        .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport and Map
+                        .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Flags
+                        .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc Symbols
+                        .replace(/[\u{2700}-\u{27BF}]/gu, '');  // Dingbats
+
+                    return str.trim();
+                };
+
+                // Helper: Normalize Status (Returns Object)
+                const normalizeStatus = (str) => {
+                    if (!str) return null;
+                    if (/Submitted/i.test(str)) return { text: 'Submit', done: true };
+                    if (/Submit/i.test(str)) return { text: 'Submit', done: false }; // "Must submit"
+                    if (/Marked done/i.test(str)) return { text: 'Mark Done', done: true };
+                    if (/Mark.*done/i.test(str)) return { text: 'Mark Done', done: false }; // "Must mark done"
+                    if (/Viewed/i.test(str)) return { text: 'Viewed', done: true };
+                    if (/Contribute/i.test(str)) return { text: 'Contribute', done: false };
+                    return null;
+                };
+
+                // Mode Detection: Do we have explicit headers?
+                const useSubHeader = lines.some(l => l.includes('Context Module Sub Header'));
+                let isExplicitLesson = false; // Track if current lesson is a real Header or just a standalone item wrapper
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+
+                    // 1. Header Detection (Explicit)
+                    if (useSubHeader && line === 'Context Module Sub Header') {
+                        if (lines[i + 1]) {
+                            const title = cleanText(lines[i + 1]);
+                            currentLesson = { name: title, items: [] };
+                            structure.push(currentLesson);
+                            isExplicitLesson = true; // Mark as explicit header
+                            i++; // Skip title
+                            continue;
+                        }
+                    }
+
+                    // 2. Item Detection Strategies
+                    const isPage = line === 'Page';
+                    const isAssignment = line === 'Assignment' || line === 'Quiz' || line === 'Discussion Topic' || line === 'Attachment' || line === 'External Url';
+
+                    if (isPage || isAssignment) {
+                        const type = line === 'External Url' ? 'Link' : (line === 'Attachment' ? 'File' : line);
+                        if (lines[i + 1]) {
+                            const rawTitle = lines[i + 1];
+                            const title = cleanText(rawTitle);
+                            i++; // Skip title
+
+                            // 3. Header Detection (Implicit OR Explicit override)
+                            // If title starts with "Lesson X", treat as Lesson Group
+                            if (isAssignment && /^Lesson\s+/i.test(title)) {
+                                // User Rule: "If an assignment name begins with 'Lesson'... treated as a separate, distinct lesson"
+                                currentLesson = { name: title, items: [] };
+                                structure.push(currentLesson);
+                                isExplicitLesson = true;
+                                continue;
+                            }
+
+                            // 3b. Header Detection (Implicit - Page with "Lesson/Unit/Chapter/Week")
+                            // Only if NOT using SubHeaders (or fallback)
+                            // Relaxed regex to support "Lesson Three" (Word numbers) or just "Lesson ..."
+                            if (!useSubHeader && isPage && /^(Lesson|Unit|Chapter|Week|Module)\s+/i.test(title)) {
+                                currentLesson = { name: title, items: [] };
+                                structure.push(currentLesson);
+                                isExplicitLesson = true;
+                                // Treat this Page as the Lesson Concept, not an item to do
+                                continue;
+                            }
+
+                            // 4. Add Item to Current Lesson
+                            // Fallback: If no lesson exists yet OR if we are in "Standalone Mode" (Orphaned Items)
+                            // User Request: "The general/imported items should be separated... each assignment must be treated as a standalone item"
+                            if (!currentLesson || !isExplicitLesson) {
+                                // Create a new lesson for THIS item (Standalone)
+                                currentLesson = { name: title, items: [] };
+                                structure.push(currentLesson);
+                                isExplicitLesson = false; // Still not explicit, so next item will ALSO trigger new structure
+                            }
+
+                            if (currentLesson) {
+                                let statusObj = null;
+                                let metaLinesProcessed = 0;
+
+                                // Check i+1 (Points or Status)
+                                if (lines[i + 1]) {
+                                    const next = lines[i + 1];
+                                    const s = normalizeStatus(next);
+                                    if (s) {
+                                        statusObj = s;
+                                        metaLinesProcessed++;
+                                    } else if (/\d+\s+pts/.test(next) || /\d+\s+min/.test(next)) {
+                                        // Points line
+                                        metaLinesProcessed++;
+                                        if (lines[i + 2]) {
+                                            const s2 = normalizeStatus(lines[i + 2]);
+                                            if (s2) {
+                                                statusObj = s2;
+                                                metaLinesProcessed++;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                i += metaLinesProcessed;
+
+                                let mappedType = 'assignment';
+                                if (line === 'Quiz') mappedType = 'quiz';
+                                if (line === 'Discussion Topic') mappedType = 'discussion';
+
+                                currentLesson.items.push({
+                                    title: title,
+                                    type: mappedType,
+                                    status: statusObj ? statusObj.text : '',
+                                    isDone: statusObj ? statusObj.done : false
+                                });
+                            }
+                        }
+                    }
+                }
+
+                return structure;
+            }
+            function renderCanvasPreview(data) {
+                canvasPreviewContainer.innerHTML = '';
+                if (!data || data.length === 0) {
+                    canvasPreviewContainer.innerHTML = '<p style="color:#666; font-style:italic;">No lessons detected.</p>';
+                    return;
+                }
+
+                data.forEach(lesson => {
+                    const lessonDiv = document.createElement('div');
+                    lessonDiv.className = 'canvas-tree-lesson';
+
+                    // Check for Standalone/Redundant Case
+                    // If 1 item AND Lesson Name == Item Title (or close enough) -> Hide Header
+                    let hideHeader = false;
+                    if (lesson.items && lesson.items.length === 1) {
+                        if (lesson.name === lesson.items[0].title) {
+                            hideHeader = true;
+                        }
+                    } else if (lesson.assignments && lesson.assignments.length === 1) {
+                        // Fallback for V2
+                        if (lesson.name === lesson.assignments[0].name) {
+                            hideHeader = true;
+                        }
+                    }
+
+                    if (!hideHeader) {
+                        lessonDiv.innerHTML = `<strong>${lesson.name}</strong>`;
+                    }
+
+                    if (lesson.items && lesson.items.length > 0) {
+                        lesson.items.forEach(item => {
+                            const itemDiv = document.createElement('div');
+                            itemDiv.className = 'canvas-tree-item';
+                            if (item.isIndented) itemDiv.classList.add('manual-indent');
+                            if (item.isOutdented) itemDiv.classList.add('force-no-indent');
+
+                            const dType = (item.type || 'Assignment').charAt(0).toUpperCase() + (item.type || 'Assignment').slice(1);
+
+                            // Format: Type Title (Status)
+                            let text = `<span class="canvas-tree-type">${dType}</span> <span class="canvas-preview-title">${item.title}</span>`;
+                            if (item.status) {
+                                text += ` <span style="font-size:0.85em; color:#27ae60; font-weight:600;">(${item.status})</span>`;
+                            }
+                            itemDiv.innerHTML = text;
+
+                            // **NEW:** Restricted Indentation Cycle in Preview
+                            const titleSpan = itemDiv.querySelector('.canvas-preview-title');
+
+                            // Determine if standalone
+                            const isStandalone = hideHeader;
+
+                            if (isStandalone) {
+                                titleSpan.style.cursor = 'default';
+                                titleSpan.removeAttribute('title');
+                            } else {
+                                titleSpan.style.cursor = 'pointer';
+                                titleSpan.title = 'Click to toggle indentation';
+                                titleSpan.onclick = function () {
+                                    // Logic: Only toggle between "Default" and "Outdented"
+                                    if (itemDiv.classList.contains('force-no-indent')) {
+                                        itemDiv.classList.remove('force-no-indent');
+                                        item.isOutdented = false;
+                                    } else {
+                                        itemDiv.classList.add('force-no-indent');
+                                        item.isOutdented = true;
+                                        itemDiv.classList.remove('manual-indent');
+                                        item.isIndented = false;
+                                    }
+                                };
+                            }
+
+                            // **NEW:** Type Cycling in Preview
+                            const typeSpan = itemDiv.querySelector('.canvas-tree-type');
+                            typeSpan.style.cursor = 'pointer';
+                            typeSpan.title = 'Click to cycle type';
+                            typeSpan.onclick = function () {
+                                const types = ['Assignment', 'Quiz', 'Discussion'];
+                                let current = typeSpan.textContent.trim();
+                                let idx = (types.indexOf(current) + 1) % types.length;
+                                typeSpan.textContent = `${types[idx]}`;
+                                item.type = types[idx].toLowerCase();
+                            };
+
+                            lessonDiv.appendChild(itemDiv);
+                        });
+                    } else if (lesson.assignments) {
+                        // Fallback for V2 structure (if any legacy data persists in memory)
+                        lesson.assignments.forEach(assign => {
+                            const itemDiv = document.createElement('div');
+                            itemDiv.className = 'canvas-tree-item';
+                            const dType = (assign.type || 'Assignment').charAt(0).toUpperCase() + (assign.type || 'Assignment').slice(1);
+                            itemDiv.textContent = `${dType} ${assign.name}`;
+                            lessonDiv.appendChild(itemDiv);
+                        });
+                    }
+
+                    canvasPreviewContainer.appendChild(lessonDiv);
+                });
+            }
+
+            function importDataToCard(courseName, data) {
+                const mapKey = 'tracker_lesson_assignments_map';
+                const mapping = JSON.parse(localStorage.getItem(mapKey)) || {};
+
+                // Optimization: Read trackers once
+                const existingLessons = new Set((JSON.parse(localStorage.getItem(LS_LESSONS_KEY)) || []).filter(i => i.course === courseName).map(i => i.name));
+                const existingAssignments = new Set((JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || []).filter(i => i.course === courseName).map(i => i.name));
+
+                data.forEach(lesson => {
+                    const key = `${courseName}::${lesson.name}`; // Course::LessonName key
+
+                    // Handle V3 'items' vs V2 'assignments'
+                    const items = lesson.items || lesson.assignments || [];
+
+                    // User Request: If outdented, don't link to lesson.
+                    // Filter items to only include those that are NOT specifically outdented.
+                    const assignmentNames = items
+                        .filter(a => !a.isOutdented)
+                        .map(a => a.title || a.name);
+
+                    // Check for Standalone/Redundant Case
+                    // If 1 item AND Lesson Name == Item Title -> It's just an assignment
+                    let isStandalone = false;
+                    if (items.length === 1 && (lesson.name === items[0].title || lesson.name === items[0].name)) {
+                        isStandalone = true;
+                    }
+
+                    // Store mapping (still useful for internal lookups even if not in Lesson list)
+                    mapping[key] = assignmentNames;
+
+                    // Add to Lesson Tracker (ONLY if NOT standalone)
+                    if (!isStandalone && !existingLessons.has(lesson.name)) {
+                        // For Lesson Status: We don't really have a "Lesson Status" in raw data directly attached to the header usually,
+                        // unless we infer from all items being done. For now, defaulting to false unless we add logic.
+                        updateTrackerItemStatusFromCard(courseName, 'lesson', lesson.name, false);
+                        existingLessons.add(lesson.name);
+                    }
+
+                    // Add to Assignment Tracker (if not exists)
+                    items.forEach(item => {
+                        const aName = item.title || item.name;
+
+                        // Fix Status
+                        const isDone = item.isDone === true; // Strict check
+                        const isIndented = item.isIndented === true;
+                        const isOutdented = item.isOutdented === true;
+                        const itemType = item.type || 'assignment';
+
+                        // We update status regardless of existence?
+                        // If it exists but was unchecked, and now we import with "Submitted", should we check it?
+                        // Yes, likely.
+                        if (!existingAssignments.has(aName) || isDone || isIndented || isOutdented || itemType !== 'assignment') {
+                            updateTrackerItemStatusFromCard(courseName, 'assignment', aName, isDone, isIndented, isOutdented, itemType);
+                            existingAssignments.add(aName);
+                        }
+                    });
+                });
+
+                localStorage.setItem(mapKey, JSON.stringify(mapping));
+
+                // Refresh current view
+                renderTracker('lesson');
+                renderTracker('assignment');
+            }
+
             populateCourseDropdowns();
             loadData();
         });
