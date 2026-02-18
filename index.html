@@ -6087,8 +6087,15 @@
                     // Remove the promoted item itself from the original parent
                     parentLesson.items.splice(itemIdx, 1);
 
-                    // Insert the new lesson after the current parent
-                    parsedCanvasData.splice(lessonIdx + 1, 0, newLesson);
+                    // Smart Cleanup: Only remove empty parent if it was a "wrapper" (same name as promoted item)
+                    if (parentLesson.items.length === 0 && parentLesson.name === newLesson.name) {
+                        parsedCanvasData.splice(lessonIdx, 1);
+                        // Insert the new lesson at the same index (where the empty parent was)
+                        parsedCanvasData.splice(lessonIdx, 0, newLesson);
+                    } else {
+                        // Insert the new lesson after the current parent
+                        parsedCanvasData.splice(lessonIdx + 1, 0, newLesson);
+                    }
                 }
 
                 renderCanvasPreview(parsedCanvasData);
