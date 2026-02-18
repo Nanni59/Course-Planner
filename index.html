@@ -2204,7 +2204,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 3">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 3.1">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -6053,8 +6053,8 @@
                         // If it's the first lesson, we can't merge upwards, 
                         // just turn the header into an item in a new 'General' group
                         const lessonToDemote = parsedCanvasData[lessonIdx];
-                        const items = lessonToDemote.items || [];
-                        items.unshift({
+                        if (!lessonToDemote.items) lessonToDemote.items = [];
+                        lessonToDemote.items.unshift({
                             title: lessonToDemote.name,
                             type: 'assignment',
                             status: '',
@@ -6076,15 +6076,8 @@
                     // Remove the promoted item itself from the original parent
                     parentLesson.items.splice(itemIdx, 1);
 
-                    // If the parent lesson has no items left, remove it entirely to prevent duplication
-                    if (parentLesson.items.length === 0) {
-                        parsedCanvasData.splice(lessonIdx, 1);
-                        // Insert the new lesson at the same index (where the empty parent was)
-                        parsedCanvasData.splice(lessonIdx, 0, newLesson);
-                    } else {
-                        // Insert the new lesson after the current parent
-                        parsedCanvasData.splice(lessonIdx + 1, 0, newLesson);
-                    }
+                    // Insert the new lesson after the current parent
+                    parsedCanvasData.splice(lessonIdx + 1, 0, newLesson);
                 }
 
                 renderCanvasPreview(parsedCanvasData);
