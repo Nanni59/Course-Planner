@@ -2204,7 +2204,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 3.1">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 3.2">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -6035,13 +6035,18 @@
                         const lessonToDemote = parsedCanvasData[lessonIdx];
                         const prevLesson = parsedCanvasData[lessonIdx - 1];
 
-                        // Add the header itself as an assignment
-                        prevLesson.items.push({
-                            title: lessonToDemote.name,
-                            type: 'assignment',
-                            status: '',
-                            isDone: false
-                        });
+                        // Check for duplicate: if lesson name == first item name, skip adding header
+                        const isDuplicate = lessonToDemote.items && lessonToDemote.items.length > 0 && lessonToDemote.items[0].title === lessonToDemote.name;
+
+                        // Add the header itself as an assignment (only if not duplicate)
+                        if (!isDuplicate) {
+                            prevLesson.items.push({
+                                title: lessonToDemote.name,
+                                type: 'assignment',
+                                status: '',
+                                isDone: false
+                            });
+                        }
 
                         // Add all its children
                         if (lessonToDemote.items) {
@@ -6054,12 +6059,18 @@
                         // just turn the header into an item in a new 'General' group
                         const lessonToDemote = parsedCanvasData[lessonIdx];
                         if (!lessonToDemote.items) lessonToDemote.items = [];
-                        lessonToDemote.items.unshift({
-                            title: lessonToDemote.name,
-                            type: 'assignment',
-                            status: '',
-                            isDone: false
-                        });
+
+                        // Check for duplicate
+                        const isDuplicate = lessonToDemote.items.length > 0 && lessonToDemote.items[0].title === lessonToDemote.name;
+
+                        if (!isDuplicate) {
+                            lessonToDemote.items.unshift({
+                                title: lessonToDemote.name,
+                                type: 'assignment',
+                                status: '',
+                                isDone: false
+                            });
+                        }
                         lessonToDemote.name = 'General / Misc';
                     }
                 } else {
