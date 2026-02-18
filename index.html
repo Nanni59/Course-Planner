@@ -2370,6 +2370,26 @@
         <div class="canvas-context-menu-item" id="canvasConvertAction">
             <span id="canvasConvertText">Convert to Lesson</span>
         </div>
+        <div class="canvas-context-menu-item" id="canvasRenameAction"
+            style="display: none; border-top: 1px solid #eee;">
+            <span>Rename Lesson</span>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <!-- Rename Modal -->
+    <div id="canvasRenameModal" class="link-modal-overlay" role="dialog" aria-modal="true"
+        aria-labelledby="canvasRenameTitle">
+        <div class="link-modal" style="max-width: 400px; width: 90%;">
+            <h2 id="canvasRenameTitle">Rename Lesson</h2>
+            <div class="course-name" style="margin-bottom: 20px;" id="canvasRenameSubtitle"></div>
+            <input type="text" id="canvas-rename-input" class="link-modal-input" placeholder="Enter new lesson name"
+                aria-label="New lesson name">
+            <div class="link-modal-buttons">
+                <button class="btn-cancel" id="canvas-rename-cancel" aria-label="Cancel rename">Cancel</button>
+                <button class="btn-save" id="canvas-rename-save" aria-label="Save new name">Save</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -5975,8 +5995,12 @@
 
                 if (itemIdx === -1) {
                     textEl.textContent = 'Convert to Assignment';
+                    // Show Rename Option only for lessons
+                    document.getElementById('canvasRenameAction').style.display = 'flex';
                 } else {
                     textEl.textContent = 'Convert to Lesson';
+                    // Hide Rename Option for items
+                    document.getElementById('canvasRenameAction').style.display = 'none';
                 }
 
                 // Show first to get dimensions
@@ -6052,21 +6076,73 @@
                     // Remove the promoted item itself from the original parent
                     parentLesson.items.splice(itemIdx, 1);
 
-                    // Insert the new lesson after the current parent
-                    parsedCanvasData.splice(lessonIdx + 1, 0, newLesson);
+                    // If the parent lesson has no items left, remove it entirely to prevent duplication
+                    if (parentLesson.items.length === 0) {
+                        parsedCanvasData.splice(lessonIdx, 1);
+                        // Insert the new lesson at the same index (where the empty parent was)
+                        parsedCanvasData.splice(lessonIdx, 0, newLesson);
+                    } else {
+                        // Insert the new lesson after the current parent
+                        parsedCanvasData.splice(lessonIdx + 1, 0, newLesson);
+                    }
                 }
 
                 renderCanvasPreview(parsedCanvasData);
                 document.getElementById('canvasContextMenu').style.display = 'none';
             }
 
-            // Context Menu Click Action
+            // Context Menu Click Action - Convert
             const canvasConvertAction = document.getElementById('canvasConvertAction');
             if (canvasConvertAction) {
                 canvasConvertAction.onclick = function (e) {
                     e.stopPropagation();
                     performCanvasConversion();
                 };
+            }
+
+            // Context Menu Click Action - Rename
+            const canvasRenameAction = document.getElementById('canvasRenameAction');
+            if (canvasRenameAction) {
+                canvasRenameAction.onclick = function (e) {
+                    e.stopPropagation();
+                    showRenameModal(canvasContextMenuTarget.lessonIdx);
+                    document.getElementById('canvasContextMenu').style.display = 'none';
+                };
+            }
+
+            // Rename Modal Logic
+            function showRenameModal(lessonIdx) {
+                const modal = document.getElementById('canvasRenameModal');
+                const input = document.getElementById('canvas-rename-input');
+                const lesson = parsedCanvasData[lessonIdx];
+
+                if (lesson) {
+                    input.value = lesson.name;
+                    modal.style.display = 'flex';
+                    input.focus();
+
+                    // Save on Enter
+                    input.onkeydown = function (e) {
+                        if (e.key === 'Enter') saveRename(lessonIdx);
+                    };
+
+                    document.getElementById('canvas-rename-save').onclick = () => saveRename(lessonIdx);
+                    document.getElementById('canvas-rename-cancel').onclick = () => {
+                        modal.style.display = 'none';
+                    };
+                }
+            }
+
+            function saveRename(lessonIdx) {
+                const modal = document.getElementById('canvasRenameModal');
+                const input = document.getElementById('canvas-rename-input');
+                const newName = input.value.trim();
+
+                if (newName && parsedCanvasData[lessonIdx]) {
+                    parsedCanvasData[lessonIdx].name = newName;
+                    renderCanvasPreview(parsedCanvasData);
+                }
+                modal.style.display = 'none';
             }
 
             // Global click to hide context menu
