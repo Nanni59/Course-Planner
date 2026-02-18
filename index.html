@@ -2141,7 +2141,7 @@
         </div>
 
         <div id="lessonTracker" class="tab-content">
-            <button id="openAddLessonModal" class="add-items-trigger-btn">Add Lessons</button>
+            <button id="openAddLessonModal" class="add-items-trigger-btn" style="display: none;">Add Lessons</button>
 
             <div id="lessonOverallProgress" class="progress-bar-container"></div>
 
@@ -2150,7 +2150,8 @@
         </div>
 
         <div id="assignmentTracker" class="tab-content">
-            <button id="openAddAssignmentModal" class="add-items-trigger-btn">Add Assignments</button>
+            <button id="openAddAssignmentModal" class="add-items-trigger-btn" style="display: none;">Add
+                Assignments</button>
 
             <div id="assignmentOverallProgress" class="progress-bar-container"></div>
 
@@ -2203,7 +2204,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 2.6">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 3">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -3187,10 +3188,19 @@
 
                     container.innerHTML = ''; // Clear existing
 
-                    // Fetch existing assignment data to sync types/indentation
+                    // Fetch existing assignment data to sync types/indentation AND filter finished
                     const existingData = JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || [];
 
-                    linkedAssignments.forEach(aName => {
+                    // Filter out finished assignments (respect split assignments — only finished if status is 'Finished')
+                    const unfinishedAssignments = linkedAssignments.filter(aName => {
+                        const stored = existingData.find(d => d.course === courseTitle && d.name === aName);
+                        return !stored || stored.status !== 'Finished';
+                    });
+
+                    // If all assignments for this lesson are done, skip populating
+                    if (unfinishedAssignments.length === 0) return;
+
+                    unfinishedAssignments.forEach(aName => {
                         // Find this assignment in the tracker to get its current type/indent state
                         const stored = existingData.find(d => d.course === courseTitle && d.name === aName);
 
@@ -3204,7 +3214,7 @@
                         container.appendChild(row);
                     });
 
-                    if (linkedAssignments.length > 1) {
+                    if (unfinishedAssignments.length > 1) {
                         li.classList.add('has-multiple-assignments');
                     } else {
                         li.classList.remove('has-multiple-assignments');
@@ -3313,6 +3323,25 @@
                         } else {
                             // Normal checkbox behavior
                             updateTrackerItemStatusFromCard(courseTitle, taskType, assignmentName, isChecked);
+                        }
+
+                        // Auto-finish lesson: If ALL assignments in the lesson's mapping are now 'Finished', mark the lesson done too
+                        if (taskType === 'assignment' && isChecked) {
+                            const map = JSON.parse(localStorage.getItem('tracker_lesson_assignments_map')) || {};
+                            const trackerData = JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || [];
+                            for (const [mapKey, assignments] of Object.entries(map)) {
+                                if (mapKey.startsWith(courseTitle + '::') && assignments.includes(assignmentName)) {
+                                    const allDone = assignments.every(a => {
+                                        const t = trackerData.find(d => d.course === courseTitle && d.name === a);
+                                        return t && t.status === 'Finished';
+                                    });
+                                    if (allDone) {
+                                        const lessonName = mapKey.split('::')[1];
+                                        updateTrackerItemStatusFromCard(courseTitle, 'lesson', lessonName, true);
+                                    }
+                                    break;
+                                }
+                            }
                         }
                     }
 
@@ -3716,20 +3745,22 @@
                         autoPopulateLessonLinks(card, nextLesson.name);
                     }
 
-                    // Get next unfinished assignment (excluding other day's assignment)
-                    const assignmentsData = JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || [];
-                    const nextAssignment = assignmentsData.find(item =>
-                        item.course === courseName && item.status === 'Not Started' &&
-                        !assignmentExclude.has(item.name)
-                    );
-
-                    if (nextAssignment && assignmentNameField) {
-                        assignmentNameField.value = nextAssignment.name;
-                        applyThemeColor(assignmentNameField);
-
-                        // Check if it's a split assignment and update progress
-                        if (isSplitAssignment(courseName, nextAssignment.name)) {
-                            updateDayCardSplitProgress(card, courseName, nextAssignment.name);
+                    // Use autoPopulateAssignmentField to fill ALL linked assignments from Canvas mapping
+                    if (nextLesson) {
+                        autoPopulateAssignmentField(card);
+                    } else if (assignmentNameField) {
+                        // No lesson found — fall back to next unfinished assignment
+                        const assignmentsData = JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || [];
+                        const nextAssignment = assignmentsData.find(item =>
+                            item.course === courseName && item.status === 'Not Started' &&
+                            !assignmentExclude.has(item.name)
+                        );
+                        if (nextAssignment) {
+                            assignmentNameField.value = nextAssignment.name;
+                            applyThemeColor(assignmentNameField);
+                            if (isSplitAssignment(courseName, nextAssignment.name)) {
+                                updateDayCardSplitProgress(card, courseName, nextAssignment.name);
+                            }
                         }
                     }
 
@@ -4871,6 +4902,16 @@
                     }, 0);
                 });
 
+                // Empty-state message when no tracker data exists
+                if (sortedCourses.length === 0) {
+                    const emptyMsg = document.createElement('p');
+                    emptyMsg.style.cssText = 'text-align: center; color: #999; font-style: italic; padding: 40px 20px; font-size: 15px;';
+                    emptyMsg.textContent = type === 'lesson'
+                        ? 'No lessons added. Use the Canvas button to import.'
+                        : 'No assignments added. Use the Canvas button to import.';
+                    contentContainer.appendChild(emptyMsg);
+                }
+
                 calculateAndRenderOverallProgress(type);
             }
 
@@ -5606,7 +5647,7 @@
 
                 // Heuristics
                 const lessonRegex = /^(Lesson|Chapter|Unit|Module|Week)\s+\d+/i;
-                const noiseRegex = /^(View|Mark done|Submit|Contribute|Page|Quiz|Assignment|Discussion Topic|\d+\s+pts|Must\s+.*)/i;
+                const noiseRegex = /^(View|Mark done|Submit|Contribute|Page|Quiz|Assignment|Discussion Topic|\d+\s+pts|Must\s+.*|Links to an external site\.?)/i;
                 const typeMarkers = {
                     'Assignment': 'Assignment', // Matches exact line "Assignment"
                     'Quiz': 'Quiz',
@@ -5685,6 +5726,15 @@
                         .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Flags
                         .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc Symbols
                         .replace(/[\u{2700}-\u{27BF}]/gu, '');  // Dingbats
+
+                    // Filter: Remove known noise phrases (inline fragments)
+                    const noiseFragments = [
+                        'Links to an external site.',
+                        'Links to an external site'
+                    ];
+                    noiseFragments.forEach(phrase => {
+                        str = str.split(phrase).join('');
+                    });
 
                     return str.trim();
                 };
