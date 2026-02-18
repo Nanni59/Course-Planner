@@ -1448,6 +1448,58 @@
             box-shadow: 0 0 0 1px var(--active-color);
         }
 
+        /* **NEW:** Canvas Preview Context Menu */
+        .canvas-context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            padding: 8px 0;
+            z-index: 10000;
+            display: none;
+            min-width: 180px;
+        }
+
+        .canvas-context-menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .canvas-context-menu-item:hover {
+            background-color: #f5f5f5;
+            color: #e72429;
+        }
+
+        .canvas-preview-title {
+            transition: text-decoration 0.2s;
+        }
+
+        /* Hover cue for right-click action */
+        .canvas-preview-title:hover {
+            text-decoration: underline;
+            color: #333;
+            /* Removed red, kept black */
+            cursor: pointer;
+        }
+
+        .canvas-tree-lesson strong {
+            transition: text-decoration 0.2s;
+            cursor: pointer;
+        }
+
+        .canvas-tree-lesson strong:hover {
+            text-decoration: underline;
+        }
+
         /* SVG Progress Circle - overlays on top */
         .progress-circle-svg {
             position: absolute;
@@ -2151,7 +2203,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 2.5">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 2.6">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -2313,6 +2365,13 @@
                     <button class="btn-save" id="canvas-import-action-btn">Import</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- New Canvas Context Menu -->
+    <div id="canvasContextMenu" class="canvas-context-menu">
+        <div class="canvas-context-menu-item" id="canvasConvertAction">
+            <span id="canvasConvertText">Convert to Lesson</span>
         </div>
     </div>
 
@@ -5630,16 +5689,16 @@
                     return str.trim();
                 };
 
-                // Helper: Normalize Status (Returns Object)
+                // Helper: Normalize Status (Returns Text Only)
                 const normalizeStatus = (str) => {
-                    if (!str) return null;
-                    if (/Submitted/i.test(str)) return { text: 'Submit', done: true };
-                    if (/Submit/i.test(str)) return { text: 'Submit', done: false }; // "Must submit"
-                    if (/Marked done/i.test(str)) return { text: 'Mark Done', done: true };
-                    if (/Mark.*done/i.test(str)) return { text: 'Mark Done', done: false }; // "Must mark done"
-                    if (/Viewed/i.test(str)) return { text: 'Viewed', done: true };
-                    if (/Contribute/i.test(str)) return { text: 'Contribute', done: false };
-                    return null;
+                    if (!str) return '';
+                    if (/Submitted/i.test(str)) return 'Submit';
+                    if (/Submit/i.test(str)) return 'Submit';
+                    if (/Marked done/i.test(str)) return 'Mark Done';
+                    if (/Mark.*done/i.test(str)) return 'Mark Done';
+                    if (/Viewed/i.test(str)) return 'Viewed';
+                    if (/Contribute/i.test(str)) return 'Contribute';
+                    return '';
                 };
 
                 // Mode Detection: Do we have explicit headers?
@@ -5736,8 +5795,8 @@
                                 currentLesson.items.push({
                                     title: title,
                                     type: mappedType,
-                                    status: statusObj ? statusObj.text : '',
-                                    isDone: statusObj ? statusObj.done : false
+                                    status: statusObj || '',
+                                    isDone: false // Forced off globally
                                 });
                             }
                         }
@@ -5753,7 +5812,19 @@
                     return;
                 }
 
-                data.forEach(lesson => {
+                data.forEach((lesson, lessonIdx) => {
+                    // Normalize Legacy Data: Ensure a V3 'items' array exists
+                    if (!lesson.items && lesson.assignments) {
+                        const rawAssignments = Array.isArray(lesson.assignments) ? lesson.assignments : [lesson.assignments];
+                        lesson.items = rawAssignments.map(assign => ({
+                            ...assign, // Preserve metadata
+                            title: assign.title || assign.name || 'Untitled',
+                            type: (assign.type || 'assignment').toLowerCase(),
+                            status: assign.status || '',
+                            isDone: assign.isDone === true
+                        }));
+                    }
+
                     const lessonDiv = document.createElement('div');
                     lessonDiv.className = 'canvas-tree-lesson';
 
@@ -5764,11 +5835,6 @@
                         if (lesson.name === lesson.items[0].title) {
                             hideHeader = true;
                         }
-                    } else if (lesson.assignments && lesson.assignments.length === 1) {
-                        // Fallback for V2
-                        if (lesson.name === lesson.assignments[0].name) {
-                            hideHeader = true;
-                        }
                     }
 
                     if (!hideHeader) {
@@ -5776,7 +5842,7 @@
                     }
 
                     if (lesson.items && lesson.items.length > 0) {
-                        lesson.items.forEach(item => {
+                        lesson.items.forEach((item, itemIdx) => {
                             const itemDiv = document.createElement('div');
                             itemDiv.className = 'canvas-tree-item';
                             if (item.isIndented) itemDiv.classList.add('manual-indent');
@@ -5784,11 +5850,8 @@
 
                             const dType = (item.type || 'Assignment').charAt(0).toUpperCase() + (item.type || 'Assignment').slice(1);
 
-                            // Format: Type Title (Status)
+                            // Format: Type Title (Status removed per user request)
                             let text = `<span class="canvas-tree-type">${dType}</span> <span class="canvas-preview-title">${item.title}</span>`;
-                            if (item.status) {
-                                text += ` <span style="font-size:0.85em; color:#27ae60; font-weight:600;">(${item.status})</span>`;
-                            }
                             itemDiv.innerHTML = text;
 
                             // **NEW:** Restricted Indentation Cycle in Preview
@@ -5817,6 +5880,13 @@
                                 };
                             }
 
+                            // **NEW: Right-Click for Conversion (Attached to Title specifically)**
+                            titleSpan.oncontextmenu = function (e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                showCanvasContextMenu(titleSpan, lessonIdx, itemIdx);
+                            };
+
                             // **NEW:** Type Cycling in Preview
                             const typeSpan = itemDiv.querySelector('.canvas-tree-type');
                             typeSpan.style.cursor = 'pointer';
@@ -5831,20 +5901,133 @@
 
                             lessonDiv.appendChild(itemDiv);
                         });
-                    } else if (lesson.assignments) {
-                        // Fallback for V2 structure (if any legacy data persists in memory)
-                        lesson.assignments.forEach(assign => {
-                            const itemDiv = document.createElement('div');
-                            itemDiv.className = 'canvas-tree-item';
-                            const dType = (assign.type || 'Assignment').charAt(0).toUpperCase() + (assign.type || 'Assignment').slice(1);
-                            itemDiv.textContent = `${dType} ${assign.name}`;
-                            lessonDiv.appendChild(itemDiv);
-                        });
                     }
+
+                    // **NEW: Lesson Header Right-Click**
+                    lessonDiv.oncontextmenu = function (e) {
+                        const header = lessonDiv.querySelector('strong') || lessonDiv;
+                        // Determine if we're clicking the header or the lessonDiv background
+                        if (e.target === lessonDiv || e.target === header) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            showCanvasContextMenu(header, lessonIdx, -1);
+                        }
+                    };
 
                     canvasPreviewContainer.appendChild(lessonDiv);
                 });
             }
+
+            // --- **NEW: Canvas Conversion Logic** ---
+            let canvasContextMenuTarget = { lessonIdx: -1, itemIdx: -1 };
+
+            function showCanvasContextMenu(targetEl, lessonIdx, itemIdx) {
+                const menu = document.getElementById('canvasContextMenu');
+                const textEl = document.getElementById('canvasConvertText');
+
+                canvasContextMenuTarget = { lessonIdx, itemIdx };
+
+                if (itemIdx === -1) {
+                    textEl.textContent = 'Convert to Assignment';
+                } else {
+                    textEl.textContent = 'Convert to Lesson';
+                }
+
+                // Show first to get dimensions
+                menu.style.display = 'block';
+
+                // Calculate position: Centered underneath targetEl
+                const rect = targetEl.getBoundingClientRect();
+                const menuRect = menu.getBoundingClientRect();
+
+                // Horizontal center: targetLeft + (targetWidth/2) - (menuWidth/2)
+                let left = rect.left + (rect.width / 2) - (menuRect.width / 2);
+
+                // Vertical: directly underneath
+                let top = rect.bottom + 5; // 5px gap
+
+                // Ensure it stays on screen
+                if (left < 10) left = 10;
+                if (left + menuRect.width > window.innerWidth - 10) left = window.innerWidth - menuRect.width - 10;
+
+                menu.style.left = left + 'px';
+                menu.style.top = top + 'px';
+            }
+
+            function performCanvasConversion() {
+                const { lessonIdx, itemIdx } = canvasContextMenuTarget;
+                if (lessonIdx === -1) return;
+
+                if (itemIdx === -1) {
+                    // CONVERT LESSON TO ASSIGNMENT
+                    // Merge this lesson's items into the previous lesson (if any)
+                    if (lessonIdx > 0) {
+                        const lessonToDemote = parsedCanvasData[lessonIdx];
+                        const prevLesson = parsedCanvasData[lessonIdx - 1];
+
+                        // Add the header itself as an assignment
+                        prevLesson.items.push({
+                            title: lessonToDemote.name,
+                            type: 'assignment',
+                            status: '',
+                            isDone: false
+                        });
+
+                        // Add all its children
+                        if (lessonToDemote.items) {
+                            prevLesson.items.push(...lessonToDemote.items);
+                        }
+
+                        parsedCanvasData.splice(lessonIdx, 1);
+                    } else {
+                        // If it's the first lesson, we can't merge upwards, 
+                        // just turn the header into an item in a new 'General' group
+                        const lessonToDemote = parsedCanvasData[lessonIdx];
+                        const items = lessonToDemote.items || [];
+                        items.unshift({
+                            title: lessonToDemote.name,
+                            type: 'assignment',
+                            status: '',
+                            isDone: false
+                        });
+                        lessonToDemote.name = 'General / Misc';
+                    }
+                } else {
+                    // CONVERT ITEM TO LESSON
+                    const parentLesson = parsedCanvasData[lessonIdx];
+                    const itemToPromote = parentLesson.items[itemIdx];
+
+                    // Create new lesson
+                    const newLesson = {
+                        name: itemToPromote.title,
+                        items: parentLesson.items.splice(itemIdx + 1) // Pull all subsequent items
+                    };
+
+                    // Remove the promoted item itself from the original parent
+                    parentLesson.items.splice(itemIdx, 1);
+
+                    // Insert the new lesson after the current parent
+                    parsedCanvasData.splice(lessonIdx + 1, 0, newLesson);
+                }
+
+                renderCanvasPreview(parsedCanvasData);
+                document.getElementById('canvasContextMenu').style.display = 'none';
+            }
+
+            // Context Menu Click Action
+            const canvasConvertAction = document.getElementById('canvasConvertAction');
+            if (canvasConvertAction) {
+                canvasConvertAction.onclick = function (e) {
+                    e.stopPropagation();
+                    performCanvasConversion();
+                };
+            }
+
+            // Global click to hide context menu
+            document.addEventListener('click', (e) => {
+                const menu = document.getElementById('canvasContextMenu');
+                if (menu) menu.style.display = 'none';
+            });
 
             function importDataToCard(courseName, data) {
                 const mapKey = 'tracker_lesson_assignments_map';
@@ -5888,16 +6071,14 @@
                     items.forEach(item => {
                         const aName = item.title || item.name;
 
-                        // Fix Status
-                        const isDone = item.isDone === true; // Strict check
+                        // Force isDone to false regardless of input data to disable automatic checkmarks entirely
+                        const isDone = false;
                         const isIndented = item.isIndented === true;
                         const isOutdented = item.isOutdented === true;
                         const itemType = item.type || 'assignment';
 
-                        // We update status regardless of existence?
-                        // If it exists but was unchecked, and now we import with "Submitted", should we check it?
-                        // Yes, likely.
-                        if (!existingAssignments.has(aName) || isDone || isIndented || isOutdented || itemType !== 'assignment') {
+                        // Add if not exists or if significant properties changed (Except status)
+                        if (!existingAssignments.has(aName) || isIndented || isOutdented || itemType !== 'assignment') {
                             updateTrackerItemStatusFromCard(courseName, 'assignment', aName, isDone, isIndented, isOutdented, itemType);
                             existingAssignments.add(aName);
                         }
