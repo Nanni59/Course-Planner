@@ -43,8 +43,9 @@
             font-family: 'Montserrat', sans-serif;
             background-color: #f4f7f6;
             color: #333;
-            /* Main body text color */
             line-height: 1.6;
+            overflow-y: scroll;
+            /* NEW: Prevent layout shift when switching to shorter pages like Backup */
         }
 
         /* --- State Management: Apply colors based on active tab --- */
@@ -120,6 +121,8 @@
 
         .tab-nav button:hover {
             color: #34495e;
+            /* NEW: Outline effect similar to active state */
+            border-color: #bdc3c7;
         }
 
         .tab-nav button.active {
@@ -1033,6 +1036,8 @@
         .footer-actions {
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
+            /* NEW: Allow wrapping on small screens */
             gap: 12px;
             margin-left: auto;
         }
@@ -1042,6 +1047,29 @@
             height: 24px;
             background-color: #e0e0e0;
             margin: 0 8px;
+        }
+
+        /* NEW: Responsive footer adjustments */
+        @media (max-width: 900px) {
+            .main-footer {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+                padding: 15px 20px;
+            }
+
+            .footer-actions {
+                margin-left: 0;
+            }
+
+            .footer-divider {
+                display: none;
+            }
+
+            #mainContent {
+                padding-bottom: 140px;
+                /* More space for stacked footer */
+            }
         }
 
         .main-footer .footer-title {
@@ -1104,6 +1132,7 @@
         }
 
         .main-footer button:hover {
+            /* Fallback generic hover if not specified below */
             opacity: 0.85;
         }
 
@@ -1114,11 +1143,25 @@
             border-color: var(--color-button-green);
         }
 
+        #lessonTrackerBtn:hover,
+        #assignmentTrackerBtn:hover {
+            background-color: rgba(16, 185, 129, 0.1);
+            /* Light green tint */
+            opacity: 1;
+        }
+
         /* Button Group 2: Reset & Save (Theme Color) */
         #saveBtn,
         #resetBtn {
             color: var(--active-color);
             border-color: var(--active-color);
+        }
+
+        #saveBtn:hover,
+        #resetBtn:hover {
+            background-color: rgba(36, 94, 231, 0.1);
+            /* Light blue tint matching var(--active-color) #245EE7 */
+            opacity: 1;
         }
 
         /* Button Group 3: Backup Navigation (Plain Black Outline) */
@@ -1127,11 +1170,17 @@
             border: 1px solid #000000;
         }
 
+        #backupBtn:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+            /* Light gray tint */
+            opacity: 1;
+        }
+
         /* **NEW:** Canvas Branding */
         #canvas-import-btn {
-            background-color: #e72429;
-            color: white;
-            border: none;
+            background-color: white;
+            color: #e72429;
+            border: 1px solid #e72429;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1140,14 +1189,20 @@
         }
 
         #canvas-import-btn:hover {
-            background-color: #d11e23;
+            background-color: #fdf2f2;
+            border-color: #d11e23;
+            color: #d11e23;
             opacity: 1;
+        }
+
+        #canvas-import-btn:hover svg {
+            fill: #d11e23;
         }
 
         #canvas-import-btn svg {
             width: 18px;
             height: 18px;
-            fill: white;
+            fill: #e72429;
             flex-shrink: 0;
         }
 
@@ -2204,7 +2259,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 3.2">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 3.3">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -2236,6 +2291,8 @@
     </div>
 
     <div id="dayCardContextMenu" class="context-menu" style="display: none;">
+        <div class="context-menu-item" id="pauseDayCardCourseBtn">Pause Course</div>
+        <div style="border-top: 1px solid #eee;"></div>
         <div class="context-menu-item link-action" id="addEditLinkBtn">Add / Edit Link</div>
         <div class="context-menu-item link-action" id="removeLinkBtn" style="display: none;">Remove Link</div>
     </div>
@@ -2370,21 +2427,23 @@
         <div class="canvas-context-menu-item" id="canvasConvertAction">
             <span id="canvasConvertText">Convert to Lesson</span>
         </div>
-        <div class="canvas-context-menu-item" id="canvasRenameAction"
-            style="display: none; border-top: 1px solid #eee;">
-            <span>Rename Lesson</span>
+        <div class="canvas-context-menu-item" id="canvasRenameAction" style="border-top: 1px solid #eee;">
+            <span id="canvasRenameText">Rename</span>
+        </div>
+        <div class="canvas-context-menu-item" id="canvasDeleteAction"
+            style="border-top: 1px solid #eee; color: #e74c3c;">
+            <span id="canvasDeleteText">Delete</span>
         </div>
     </div>
 
     <!-- Rename Modal -->
-    <!-- Rename Modal -->
     <div id="canvasRenameModal" class="link-modal-overlay" role="dialog" aria-modal="true"
         aria-labelledby="canvasRenameTitle">
         <div class="link-modal" style="max-width: 400px; width: 90%;">
-            <h2 id="canvasRenameTitle">Rename Lesson</h2>
+            <h2 id="canvasRenameTitle">Rename Item</h2>
             <div class="course-name" style="margin-bottom: 20px;" id="canvasRenameSubtitle"></div>
-            <input type="text" id="canvas-rename-input" class="link-modal-input" placeholder="Enter new lesson name"
-                aria-label="New lesson name">
+            <input type="text" id="canvas-rename-input" class="link-modal-input" placeholder="Enter new name"
+                aria-label="New name">
             <div class="link-modal-buttons">
                 <button class="btn-cancel" id="canvas-rename-cancel" aria-label="Cancel rename">Cancel</button>
                 <button class="btn-save" id="canvas-rename-save" aria-label="Save new name">Save</button>
@@ -2774,6 +2833,14 @@
                     // Backup tab uses white background, no special theme class needed for now
                     // but we ensure tracker-green is removed
                 }
+
+                // **NEW:** Show Reset and Save buttons ONLY on Day A and Day B
+                const saveBtn = document.getElementById('saveBtn');
+                const resetBtn = document.getElementById('resetBtn');
+                const isDayView = (dayId === 'dayA' || dayId === 'dayB');
+
+                if (saveBtn) saveBtn.style.display = isDayView ? '' : 'none';
+                if (resetBtn) resetBtn.style.display = isDayView ? '' : 'none';
 
                 // 4. Handle Tracker Tabs and render progress
                 if (dayId === 'lessonTracker') {
@@ -4169,8 +4236,9 @@
                         renderTracker('assignment');
                     }
 
-                    // Since pause state was reset, re-apply it (unpause all)
-                    ALL_COURSE_NAMES.forEach(courseName => updateDayCardPauseState(courseName, false));
+                    // FIX: Re-apply pause states based on ACTUAL data after reset
+                    const currentPausedCourses = getPausedCourses().lesson || [];
+                    ALL_COURSE_NAMES.forEach(courseName => updateDayCardPauseState(courseName, currentPausedCourses.includes(courseName)));
 
                     // **NEW:** Update autofill button visibility after reset
                     updateAutofillButtonVisibility();
@@ -4941,12 +5009,20 @@
             const dayCardContextMenu = document.getElementById('dayCardContextMenu');
             const addEditLinkBtn = document.getElementById('addEditLinkBtn');
             const removeLinkBtn = document.getElementById('removeLinkBtn');
+            const pauseDayCardCourseBtn = document.getElementById('pauseDayCardCourseBtn'); // NEW
             let dayCardContextMenuCourseName = '';
             let dayCardContextMenuDayId = '';
 
             function showDayCardContextMenu(e, courseName, dayId, h3Element) {
                 dayCardContextMenuCourseName = courseName;
                 dayCardContextMenuDayId = dayId;
+
+                // Set Pause/Unpause Text dynamically
+                const pausedCourses = getPausedCourses().lesson || [];
+                const isPaused = pausedCourses.includes(courseName);
+
+                pauseDayCardCourseBtn.textContent = isPaused ? 'Unpause Course' : 'Pause Course';
+                pauseDayCardCourseBtn.classList.add('pause-action'); // Always purple
 
                 const hasLink = hasCustomLink(courseName);
                 removeLinkBtn.style.display = hasLink ? 'block' : 'none';
@@ -4971,6 +5047,13 @@
                     deleteCustomLink(dayCardContextMenuCourseName);
                     updateCourseH3Href(dayCardContextMenuCourseName);
                 }
+                dayCardContextMenu.style.display = 'none';
+            });
+
+            // NEW: Handle Pause Course from Day Card
+            pauseDayCardCourseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleCoursePauseState(dayCardContextMenuCourseName, 'lesson');
                 dayCardContextMenu.style.display = 'none';
             });
 
@@ -5823,7 +5906,7 @@
                             // User Request: "The general/imported items should be separated... each assignment must be treated as a standalone item"
                             if (!currentLesson || !isExplicitLesson) {
                                 // Create a new lesson for THIS item (Standalone)
-                                currentLesson = { name: title, items: [] };
+                                currentLesson = { name: title, items: [], isStandaloneWrapper: true };
                                 structure.push(currentLesson);
                                 isExplicitLesson = false; // Still not explicit, so next item will ALSO trigger new structure
                             }
@@ -5894,13 +5977,11 @@
                     const lessonDiv = document.createElement('div');
                     lessonDiv.className = 'canvas-tree-lesson';
 
-                    // Check for Standalone/Redundant Case
-                    // If 1 item AND Lesson Name == Item Title (or close enough) -> Hide Header
+                    // Check for Standalone Case
+                    // Only hide the header if it was explicitly parsed as a standalone wrapper
                     let hideHeader = false;
-                    if (lesson.items && lesson.items.length === 1) {
-                        if (lesson.name === lesson.items[0].title) {
-                            hideHeader = true;
-                        }
+                    if (lesson.isStandaloneWrapper) {
+                        hideHeader = true;
                     }
 
                     if (!hideHeader) {
@@ -5990,18 +6071,24 @@
             function showCanvasContextMenu(targetEl, lessonIdx, itemIdx) {
                 const menu = document.getElementById('canvasContextMenu');
                 const textEl = document.getElementById('canvasConvertText');
+                const renameTextEl = document.getElementById('canvasRenameText'); // NEW
+                const deleteTextEl = document.getElementById('canvasDeleteText'); // NEW
 
                 canvasContextMenuTarget = { lessonIdx, itemIdx };
 
                 if (itemIdx === -1) {
                     textEl.textContent = 'Convert to Assignment';
-                    // Show Rename Option only for lessons
-                    document.getElementById('canvasRenameAction').style.display = 'flex';
+                    renameTextEl.textContent = 'Rename Lesson';
+                    deleteTextEl.textContent = 'Delete Lesson';
                 } else {
                     textEl.textContent = 'Convert to Lesson';
-                    // Hide Rename Option for items
-                    document.getElementById('canvasRenameAction').style.display = 'none';
+                    renameTextEl.textContent = 'Rename Assignment';
+                    deleteTextEl.textContent = 'Delete Assignment';
                 }
+
+                // Always show rename and delete
+                document.getElementById('canvasRenameAction').style.display = 'flex';
+                document.getElementById('canvasDeleteAction').style.display = 'flex';
 
                 // Show first to get dimensions
                 menu.style.display = 'block';
@@ -6111,46 +6198,86 @@
                 };
             }
 
+            // NEW: Context Menu Click Action - Delete
+            const canvasDeleteAction = document.getElementById('canvasDeleteAction');
+            if (canvasDeleteAction) {
+                canvasDeleteAction.onclick = function (e) {
+                    e.stopPropagation();
+                    const { lessonIdx, itemIdx } = canvasContextMenuTarget;
+                    if (lessonIdx === -1) return;
+
+                    if (itemIdx === -1) {
+                        // Delete Lesson
+                        parsedCanvasData.splice(lessonIdx, 1);
+                    } else {
+                        // Delete Assignment Item
+                        if (parsedCanvasData[lessonIdx] && parsedCanvasData[lessonIdx].items) {
+                            parsedCanvasData[lessonIdx].items.splice(itemIdx, 1);
+                        }
+                    }
+
+                    renderCanvasPreview(parsedCanvasData);
+                    document.getElementById('canvasContextMenu').style.display = 'none';
+                };
+            }
+
             // Context Menu Click Action - Rename
             const canvasRenameAction = document.getElementById('canvasRenameAction');
             if (canvasRenameAction) {
                 canvasRenameAction.onclick = function (e) {
                     e.stopPropagation();
-                    showRenameModal(canvasContextMenuTarget.lessonIdx);
+                    showRenameModal(canvasContextMenuTarget.lessonIdx, canvasContextMenuTarget.itemIdx); // Updated params
                     document.getElementById('canvasContextMenu').style.display = 'none';
                 };
             }
 
-            // Rename Modal Logic
-            function showRenameModal(lessonIdx) {
+            // Rename Modal Logic (Updated to support items)
+            function showRenameModal(lessonIdx, itemIdx) {
                 const modal = document.getElementById('canvasRenameModal');
                 const input = document.getElementById('canvas-rename-input');
+                const titleEl = document.getElementById('canvasRenameTitle'); // NEW
                 const lesson = parsedCanvasData[lessonIdx];
 
                 if (lesson) {
-                    input.value = lesson.name;
+                    let currentName = '';
+                    const type = (itemIdx === -1) ? 'lesson' : 'assignment';
+                    if (itemIdx === -1) {
+                        currentName = lesson.name;
+                    } else if (lesson.items && lesson.items[itemIdx]) {
+                        currentName = lesson.items[itemIdx].title;
+                    }
+                    titleEl.textContent = `Rename ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+                    input.placeholder = `Enter new ${type} name`;
+                    input.setAttribute('aria-label', `New ${type} name`);
+
+                    input.value = currentName;
                     modal.style.display = 'flex';
                     input.focus();
 
                     // Save on Enter
                     input.onkeydown = function (e) {
-                        if (e.key === 'Enter') saveRename(lessonIdx);
+                        if (e.key === 'Enter') saveRename(lessonIdx, itemIdx);
                     };
 
-                    document.getElementById('canvas-rename-save').onclick = () => saveRename(lessonIdx);
+                    document.getElementById('canvas-rename-save').onclick = () => saveRename(lessonIdx, itemIdx);
                     document.getElementById('canvas-rename-cancel').onclick = () => {
                         modal.style.display = 'none';
                     };
                 }
             }
 
-            function saveRename(lessonIdx) {
+            // Updated saveRename to handle both items and lessons
+            function saveRename(lessonIdx, itemIdx) {
                 const modal = document.getElementById('canvasRenameModal');
                 const input = document.getElementById('canvas-rename-input');
                 const newName = input.value.trim();
 
                 if (newName && parsedCanvasData[lessonIdx]) {
-                    parsedCanvasData[lessonIdx].name = newName;
+                    if (itemIdx === -1) {
+                        parsedCanvasData[lessonIdx].name = newName;
+                    } else if (parsedCanvasData[lessonIdx].items && parsedCanvasData[lessonIdx].items[itemIdx]) {
+                        parsedCanvasData[lessonIdx].items[itemIdx].title = newName;
+                    }
                     renderCanvasPreview(parsedCanvasData);
                 }
                 modal.style.display = 'none';
