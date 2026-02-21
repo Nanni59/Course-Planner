@@ -2259,7 +2259,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 3.5">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 3.6">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -6024,13 +6024,13 @@
                             }
 
                             // 4. Add Item to Current Lesson
-                            // Fallback: If no lesson exists yet OR if we are in "Standalone Mode" (Orphaned Items)
-                            // User Request: "The general/imported items should be separated... each assignment must be treated as a standalone item"
-                            if (!currentLesson || !isExplicitLesson) {
+                            // Fallback: If no lesson exists yet (at the start of the file)
+                            // User Request: Group orphans into a single group so indentation can work.
+                            if (!currentLesson) {
                                 // Create a new lesson for THIS item (Standalone)
                                 currentLesson = { name: title, items: [], isStandaloneWrapper: true };
                                 structure.push(currentLesson);
-                                isExplicitLesson = false; // Still not explicit, so next item will ALSO trigger new structure
+                                isExplicitLesson = false;
                             }
 
                             if (currentLesson) {
@@ -6118,16 +6118,19 @@
                             if (item.isOutdented) itemDiv.classList.add('force-no-indent');
 
                             const dType = (item.type || 'Assignment').charAt(0).toUpperCase() + (item.type || 'Assignment').slice(1);
+                            const itemTitle = (item.title || item.name || '');
 
                             // Format: Type Title (Status removed per user request)
-                            let text = `<span class="canvas-tree-type">${dType}</span> <span class="canvas-preview-title">${item.title}</span>`;
+                            let text = `<span class="canvas-tree-type">${dType}</span> <span class="canvas-preview-title">${itemTitle}</span>`;
                             itemDiv.innerHTML = text;
 
                             // **NEW:** Restricted Indentation Cycle in Preview
                             const titleSpan = itemDiv.querySelector('.canvas-preview-title');
 
-                            // Determine if standalone
-                            const isStandalone = hideHeader;
+                            // Determine if standalone: only disable indentation for true single-item standalone wrappers
+                            // (where item title == lesson name), NOT for all hidden-header groups.
+                            // This allows assignment-only groups to still have full indentation control.
+                            const isStandalone = hideHeader && lesson.items.length === 1 && itemTitle === lesson.name;
 
                             if (isStandalone) {
                                 titleSpan.style.cursor = 'default';
