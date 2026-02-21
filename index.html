@@ -2259,7 +2259,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 3.3">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 3.5">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -3255,9 +3255,44 @@
                 const lessonName = courseCard.querySelector('.task-lesson-name').value.trim();
                 const key = `${courseTitle}::${lessonName}`;
 
-                if (lessonName && map[key] && Array.isArray(map[key]) && map[key].length > 0) {
+                if (lessonName && map.hasOwnProperty(key) && Array.isArray(map[key])) {
                     const linkedAssignments = map[key];
                     const li = courseCard.querySelector('.task-list li');
+
+                    if (linkedAssignments.length === 0) {
+                        // Standalone lesson: safely clean up any existing container WITHOUT destroying the base row
+                        const existContainer = li.querySelector('.task-assignments-container');
+                        if (existContainer) {
+                            // Unwrap the first row back into the li before removing the container
+                            const firstRow = existContainer.querySelector('.task-assignment-main');
+                            if (firstRow) existContainer.parentNode.insertBefore(firstRow, existContainer);
+                            // Remove any extra rows
+                            existContainer.querySelectorAll('.task-assignment-main').forEach(r => r.remove());
+                            existContainer.remove();
+                        }
+
+                        // Find the base assignment row (now safely back in the li)
+                        const baseAssignmentRow = li.querySelector('.task-assignment-main');
+                        if (baseAssignmentRow) {
+                            const nameField = baseAssignmentRow.querySelector('.task-assignment-name');
+                            if (nameField) { nameField.value = ''; applyThemeColor(nameField); }
+                            // Reset checkbox so stale checked-state doesn't bleed through
+                            const cb = baseAssignmentRow.querySelector('input[type="checkbox"]');
+                            if (cb) cb.checked = false;
+                            // Remove any progress wrapper so the circle/bar doesn't reappear
+                            const progressWrapper = baseAssignmentRow.querySelector('.progress-circle-wrapper');
+                            if (progressWrapper) progressWrapper.remove();
+                            // Hide the row — it stays in the DOM and can be restored on reset
+                            baseAssignmentRow.style.display = 'none';
+                        }
+
+                        li.classList.remove('has-multiple-assignments');
+                        resizeFieldsForActiveDay(courseCard.closest('.tab-content').id);
+                        updateCardCompletionState(courseCard);
+                        saveData(courseCard.closest('.tab-content').id);
+                        return;
+                    }
+
                     let container = li.querySelector('.task-assignments-container');
 
                     // Ensure container exists
@@ -3649,6 +3684,12 @@
                 lCheckbox.checked = false;
                 applyThemeColor(lName);
 
+                // Restore lesson row visibility (in case it was hidden for a standalone assignment)
+                const lessonRow = li.querySelector('.task-lesson-main');
+                if (lessonRow) lessonRow.style.display = '';
+                const hr = li.querySelector('.task-lesson-main + hr');
+                if (hr) hr.style.display = '';
+
                 // Assessments (Handle Multiple)
                 const assignmentRows = li.querySelectorAll('.task-assignment-main');
                 assignmentRows.forEach((row, index) => {
@@ -3675,6 +3716,7 @@
                         aCheckbox.checked = false;
                         aCheckbox.style.display = ''; // Restore visibility
                         applyThemeColor(aName);
+                        row.style.display = ''; // Restore native CSS visibility (fixes width bug)
                         if (wrapper) wrapper.remove();
                     } else {
                         // Remove others
@@ -3682,8 +3724,19 @@
                     }
                 });
 
-                // Reset container class
+                // Reset container class and unwrap any dynamically added container
                 li.classList.remove('has-multiple-assignments');
+                const container = li.querySelector('.task-assignments-container');
+                if (container) {
+                    const firstRow = container.querySelector('.task-assignment-main');
+                    if (firstRow) {
+                        container.parentNode.insertBefore(firstRow, container);
+                    }
+                    container.remove();
+                }
+
+                // Both fields are now empty — restore full visibility of both rows
+                updateCardFieldVisibility(courseCard);
 
                 // Notes/Link
                 const notes = li.querySelector('.task-notes');
@@ -3784,6 +3837,49 @@
                 }
             }
 
+            // --- Real-time field visibility: hides lesson row when only assignment present and vice versa ---
+            function updateCardFieldVisibility(card) {
+                const li = card.querySelector('.task-list li');
+                if (!li) return;
+
+                const lessonVal = (li.querySelector('.task-lesson-name')?.value || '').trim();
+                // Scan ALL assignment inputs so multi-assignment cards are handled correctly
+                const hasAnyAssignment = Array.from(li.querySelectorAll('.task-assignment-name')).some(el => el.value.trim() !== '');
+
+                const lessonRow = li.querySelector('.task-lesson-main');
+                const assignmentRow = li.querySelector('.task-assignment-main');
+                const hr = li.querySelector('.task-lesson-main + hr');
+
+                if (lessonVal && !hasAnyAssignment) {
+                    // Lesson only — canonical behavior: hide assignment, show lesson
+                    if (assignmentRow) assignmentRow.style.display = 'none';
+                    if (lessonRow) lessonRow.style.display = '';
+                    if (hr) hr.style.display = '';
+                } else if (hasAnyAssignment && !lessonVal) {
+                    // Assignment only — mirror behavior: hide lesson, show assignment
+                    if (lessonRow) lessonRow.style.display = 'none';
+                    if (hr) hr.style.display = 'none';
+                    if (assignmentRow) assignmentRow.style.display = '';
+                } else {
+                    // Both filled, both empty, or transitional — show everything
+                    if (lessonRow) lessonRow.style.display = '';
+                    if (hr) hr.style.display = '';
+                    if (assignmentRow) assignmentRow.style.display = '';
+                }
+            }
+
+            // Delegated input listener for Day A and Day B
+            ['dayA', 'dayB'].forEach(dayId => {
+                const container = document.getElementById(dayId);
+                if (!container) return;
+                container.addEventListener('input', function (e) {
+                    if (e.target.matches('.task-lesson-name, .task-assignment-name')) {
+                        const card = e.target.closest('[data-course-name]');
+                        if (card) updateCardFieldVisibility(card);
+                    }
+                });
+            });
+
             // Autofill all cards with next unfinished lessons and assignments
             function autofillAllCards() {
                 const pausedCourses = getPausedCourses().lesson || [];
@@ -3846,6 +3942,9 @@
                             }
                         }
                     }
+
+                    // Apply real-time visibility (lesson-only hides assignment, assignment-only hides lesson)
+                    updateCardFieldVisibility(card);
 
                     // Update completion state for this card
                     updateCardCompletionState(card);
@@ -4080,10 +4179,21 @@
                     if (courseData) {
                         const li = card.querySelector('.task-list li');
 
-                        // Lesson
-                        if (courseData.lesson) {
+                        // Lesson (Hide if empty but assignments exist - standalone assignment)
+                        const hasAssignments = (courseData.assignments && courseData.assignments.some(a => a.name.trim() !== '')) ||
+                            (courseData.assignment && courseData.assignment.name.trim() !== '');
+
+                        const lessonNameValue = courseData.lesson ? courseData.lesson.name.trim() : '';
+
+                        if (lessonNameValue !== '') {
                             li.querySelector('.task-lesson-name').value = courseData.lesson.name;
                             li.querySelector('.task-lesson-checkbox').checked = courseData.lesson.checked;
+                        } else if (hasAssignments) {
+                            // Standalone assignment detected visually on load
+                            const lessonRow = li.querySelector('.task-lesson-main');
+                            if (lessonRow) lessonRow.style.display = 'none';
+                            const hr = li.querySelector('.task-lesson-main + hr');
+                            if (hr) hr.style.display = 'none';
                         }
 
                         // Assignments (Handle Migration: Object -> Array)
@@ -4132,6 +4242,12 @@
                             assignmentsToRender = [{ name: '', checked: false }];
                         }
 
+                        // Map check for standalone lessons
+                        const map = JSON.parse(localStorage.getItem('tracker_lesson_assignments_map')) || {};
+                        const lessonName = courseData.lesson ? courseData.lesson.name : '';
+                        const mapKey = `${courseTitle}::${lessonName}`;
+                        const isStandalone = (lessonName && map.hasOwnProperty(mapKey) && Array.isArray(map[mapKey]) && map[mapKey].length === 0);
+
                         assignmentsToRender.forEach(assignment => {
                             const row = createAssignmentRow(
                                 assignment.name,
@@ -4140,6 +4256,12 @@
                                 assignment.isOutdented,
                                 assignment.type || 'assignment'
                             );
+
+                            // Hide empty assignments for standalone lessons
+                            if (isStandalone && !assignment.name) {
+                                row.style.display = 'none';
+                            }
+
                             assignmentsContainer.appendChild(row);
 
                             // Check split assignment status for each
