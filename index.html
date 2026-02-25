@@ -2149,48 +2149,6 @@
                     </div>
                 </div>
 
-                <div class="course-card" data-course-name="Ontario Literacy Course" data-day="dayB">
-                    <h3>Ontario Literacy Course</h3>
-                    <button class="delete-course-card-btn" data-course="Ontario Literacy Course" data-day="dayB"
-                        title="Clear all tasks in this card">
-                        &times;
-                    </button>
-                    <div class="course-content-scroll-area">
-                        <ul class="task-list">
-                            <li>
-                                <div class="task-main task-lesson-main">
-                                    <div class="task-type-label">Lesson:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name"
-                                            placeholder="Lesson Name"></textarea>
-                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                                </div>
-
-                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-
-                                <div class="task-main task-assignment-main">
-                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name"
-                                            placeholder="Assignment Name"></textarea>
-                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                                </div>
-
-                                <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
-                                </div>
-                                <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
-                                </div>
-                            </li>
-                        </ul>
-                        <div class="course-embed-container"></div>
-                    </div>
-                </div>
 
             </div>
         </div>
@@ -2259,7 +2217,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 3.6">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 3.7">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -2464,7 +2422,7 @@
             const LS_LESSON_LINKS_KEY = 'lesson_links'; // NEW: Lesson links storage
             const ALL_COURSE_NAMES = [
                 "Calculus & Vectors", "Data Management", "English", "Economics", "Media Arts",
-                "Business Leadership", "Challenge & Change", "Ontario Literacy Course"
+                "Business Leadership", "Challenge & Change"
             ];
 
             // Define colors for JavaScript use
@@ -4124,6 +4082,14 @@
             // --- 6. Load Logic (UPDATED to call new resize function, completion check, and pause state) ---
             function loadData() {
                 initializeTrackerData(); // Initialize/Load Tracker data first
+
+                // --- One-time migration: purge entries for courses no longer in ALL_COURSE_NAMES ---
+                [LS_LESSONS_KEY, LS_ASSIGNMENTS_KEY].forEach(key => {
+                    let data = JSON.parse(localStorage.getItem(key)) || [];
+                    const before = data.length;
+                    data = data.filter(item => ALL_COURSE_NAMES.includes(item.course));
+                    if (data.length !== before) localStorage.setItem(key, JSON.stringify(data));
+                });
 
                 loadDay('dayA');
                 loadDay('dayB');
