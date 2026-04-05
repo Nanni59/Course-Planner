@@ -320,12 +320,52 @@
         }
 
         /* Day-specific badge colors */
-        [data-day="dayA"] .priority-badge { background-color: var(--color-day-a); }
-        [data-day="dayB"] .priority-badge { background-color: var(--color-day-b); }
+        [data-day="dayA"] .priority-badge {
+            background-color: var(--color-day-a);
+        }
+
+        [data-day="dayB"] .priority-badge {
+            background-color: var(--color-day-b);
+        }
 
         /* Hide priority badge when the X (completed) button is visible */
-        .delete-course-card-btn.completed ~ .priority-badge {
+        .delete-course-card-btn.completed~.priority-badge {
             display: none !important;
+        }
+
+        /* Visible expand button on course cards (keyboard/touch accessible) */
+        .expand-card-inline-btn {
+            position: absolute;
+            top: 27px;
+            left: 24px;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            color: #777;
+            font-size: 14px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+            font-family: Arial, sans-serif;
+            line-height: 1;
+            z-index: 10;
+            outline: none;
+        }
+
+        .expand-card-inline-btn.visible {
+            display: flex;
+        }
+
+        .expand-card-inline-btn:hover,
+        .expand-card-inline-btn:focus-visible {
+            background-color: var(--active-color);
+            border-color: var(--active-color);
+            color: #fff;
         }
 
         /* MODIFIED FOR HOVER BOX CUE */
@@ -1064,53 +1104,86 @@
             flex-shrink: 0;
             background-color: #ffffff;
             border-top: 1px solid #e0e0e0;
-            padding: 15px 30px;
+            padding: 12px 24px;
             display: flex;
-            justify-content: flex-start;
+            justify-content: space-between;
             align-items: center;
+            box-sizing: border-box;
+            z-index: 100;
+            gap: 12px;
         }
 
         .footer-left {
             display: flex;
             align-items: center;
             gap: 15px;
+            flex-shrink: 0;
         }
 
         .footer-actions {
             display: flex;
             align-items: center;
             flex-wrap: wrap;
-            /* NEW: Allow wrapping on small screens */
-            gap: 12px;
+            gap: 8px;
             margin-left: auto;
+            justify-content: flex-end;
         }
 
         .footer-divider {
             width: 1px;
             height: 24px;
             background-color: #e0e0e0;
-            margin: 0 8px;
+            margin: 0 2px;
+            flex-shrink: 0;
         }
 
-        /* NEW: Responsive footer adjustments */
-        @media (max-width: 900px) {
+        /* Medium screens / scaled displays: two-row centered layout */
+        @media (max-width: 1200px) {
             .main-footer {
                 flex-direction: column;
-                align-items: flex-start;
-                gap: 15px;
-                padding: 15px 20px;
+                align-items: center;
+                padding: 10px 20px;
+                gap: 8px;
+            }
+
+            .footer-left {
+                justify-content: center;
             }
 
             .footer-actions {
                 margin-left: 0;
+                justify-content: center;
+                gap: 8px;
+            }
+
+            .main-footer button {
+                font-size: 13px;
+                padding: 7px 14px;
+            }
+
+            #mainContent {
+                padding-bottom: 140px;
+            }
+        }
+
+        /* Narrow screens */
+        @media (max-width: 768px) {
+            .main-footer {
+                padding: 10px 14px;
+                gap: 10px;
             }
 
             .footer-divider {
                 display: none;
             }
 
+            .main-footer button {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+
             #mainContent {
-                padding-bottom: 140px;
+                padding-bottom: 160px;
                 /* More space for stacked footer */
             }
         }
@@ -1503,6 +1576,233 @@
 
         .link-modal-buttons .btn-save:hover {
             opacity: 0.9;
+        }
+
+        /* --- Expand Card Modal (Full-Screen Two-Column) --- */
+        .expand-card-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #f4f7f6;
+            z-index: 3000;
+            flex-direction: column;
+            animation: expandFadeIn 0.2s ease-out;
+        }
+
+        .expand-card-overlay.active {
+            display: flex;
+        }
+
+        @keyframes expandFadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .expand-card-header {
+            padding: 16px 28px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+        }
+
+        .expand-card-header h2 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            color: var(--active-color);
+        }
+
+        .expand-card-close {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: none;
+            background-color: rgba(0, 0, 0, 0.06);
+            color: #555;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.15s ease;
+            font-family: Arial, sans-serif;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .expand-card-close:hover {
+            background-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .expand-card-content-area {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .expand-card-body {
+            flex: 0 0 360px;
+            padding: 28px 32px;
+            overflow-y: auto;
+            background-color: #ffffff;
+            border-right: 1px solid #e8e8e8;
+        }
+
+        .expand-card-field {
+            margin-bottom: 20px;
+        }
+
+        .expand-card-field-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #999;
+            margin-bottom: 6px;
+        }
+
+        .expand-card-field-value {
+            font-size: 15px;
+            font-weight: 500;
+            color: #333;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.5;
+        }
+
+        .expand-card-field-value.empty {
+            color: #bbb;
+            font-style: italic;
+        }
+
+        .expand-card-field-value.assignment-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .expand-card-field-value .assignment-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .expand-card-field-value .assignment-item .type-tag {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background-color: var(--active-color);
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .expand-card-divider {
+            border: none;
+            border-top: 1px solid #eee;
+            margin: 8px 0 20px;
+        }
+
+        .expand-card-videos {
+            flex: 1;
+            padding: 28px 32px;
+            overflow-y: auto;
+        }
+
+        .expand-card-videos-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .expand-card-videos-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #999;
+            margin-bottom: 18px;
+        }
+
+        .expand-card-videos .video-embed-wrapper {
+            margin-bottom: 0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        @media (max-width: 1100px) {
+            .expand-card-videos-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .expand-card-videos-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .expand-card-videos .expand-link-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            background-color: #ffffff;
+            margin-bottom: 10px;
+            text-decoration: none;
+            color: var(--active-color);
+            font-weight: 600;
+            font-size: 14px;
+            transition: background-color 0.15s ease, box-shadow 0.15s ease;
+            word-break: break-all;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        }
+
+        .expand-card-videos .expand-link-item:hover {
+            background-color: #f8f8f8;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .expand-link-icon {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            opacity: 0.6;
+        }
+
+        /* Responsive: stack vertically on narrow screens */
+        @media (max-width: 768px) {
+            .expand-card-content-area {
+                flex-direction: column;
+            }
+
+            .expand-card-body {
+                flex: none;
+                border-right: none;
+                border-bottom: 1px solid #e8e8e8;
+            }
+
+            .expand-card-videos {
+                flex: 1;
+            }
         }
 
         /* **NEW:** Context Menu Item Specific Colors */
@@ -2260,7 +2560,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 3.7">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 3.8">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -2297,6 +2597,21 @@
         <div style="border-top: 1px solid #eee;"></div>
         <div class="context-menu-item link-action" id="addEditLinkBtn">Add / Edit Link</div>
         <div class="context-menu-item link-action" id="removeLinkBtn" style="display: none;">Remove Link</div>
+        <div class="context-menu-item link-action" id="expandCardBtn" style="display: none;">Expand Card</div>
+    </div>
+
+    <!-- Expand Card Modal (Full-Screen) -->
+    <div id="expandCardOverlay" class="expand-card-overlay" role="dialog" aria-modal="true"
+        aria-labelledby="expandCardTitle">
+        <div class="expand-card-header">
+            <h2 id="expandCardTitle">Course Name</h2>
+            <button class="expand-card-close" id="expandCardClose" title="Close"
+                aria-label="Close expanded card">&times;</button>
+        </div>
+        <div class="expand-card-content-area">
+            <div class="expand-card-body" id="expandCardBody"></div>
+            <div class="expand-card-videos" id="expandCardVideos"></div>
+        </div>
     </div>
 
     <div id="linkModal" class="link-modal-overlay">
@@ -5171,6 +5486,12 @@
                 const hasLink = hasCustomLink(courseName);
                 removeLinkBtn.style.display = hasLink ? 'block' : 'none';
 
+                // Show "Expand Card" only if the card has a link (inline or custom)
+                const card = document.querySelector(`.course-card[data-course-name="${courseName}"][data-day="${dayId}"]`);
+                const inlineLink = card ? (card.querySelector('.task-link')?.value || '').trim() : '';
+                const hasAnyLink = hasLink || inlineLink !== '';
+                expandCardBtn.style.display = hasAnyLink ? 'block' : 'none';
+
                 // Set Prioritize/Unprioritize text and color dynamically
                 const priorities = getCoursePriorities();
                 const priKey = `${dayId}_${courseName}`;
@@ -5197,6 +5518,7 @@
                 if (confirm(`Remove link from "${dayCardContextMenuCourseName}"?`)) {
                     deleteCustomLink(dayCardContextMenuCourseName);
                     updateCourseH3Href(dayCardContextMenuCourseName);
+                    if (typeof updateInlineExpandButtons === 'function') updateInlineExpandButtons();
                 }
                 dayCardContextMenu.style.display = 'none';
             });
@@ -5207,6 +5529,195 @@
                 toggleCoursePauseState(dayCardContextMenuCourseName, 'lesson');
                 dayCardContextMenu.style.display = 'none';
             });
+
+            // --- NEW: Expand Card Feature ---
+            const expandCardBtn = document.getElementById('expandCardBtn');
+            const expandCardOverlay = document.getElementById('expandCardOverlay');
+            const expandCardClose = document.getElementById('expandCardClose');
+            const expandCardTitle = document.getElementById('expandCardTitle');
+            const expandCardBody = document.getElementById('expandCardBody');
+            const expandCardVideos = document.getElementById('expandCardVideos');
+
+            function openExpandCard(courseName, dayId) {
+                const card = document.querySelector(`.course-card[data-course-name="${courseName}"][data-day="${dayId}"]`);
+                if (!card) return;
+
+                expandCardTitle.textContent = courseName;
+
+                // --- Build body content ---
+                const li = card.querySelector('.task-list li');
+                let bodyHTML = '';
+
+                // Lesson
+                const lessonVal = (li.querySelector('.task-lesson-name')?.value || '').trim();
+                if (lessonVal) {
+                    bodyHTML += `
+                        <div class="expand-card-field">
+                            <div class="expand-card-field-label">Lesson</div>
+                            <div class="expand-card-field-value">${escapeHTML(lessonVal)}</div>
+                        </div>`;
+                }
+
+                // Assignments
+                const assignmentRows = li.querySelectorAll('.task-assignment-main');
+                const assignments = [];
+                assignmentRows.forEach(row => {
+                    if (row.style.display === 'none') return;
+                    const name = (row.querySelector('.task-assignment-name')?.value || '').trim();
+                    if (!name) return;
+                    const typeSpan = row.querySelector('.task-type-text');
+                    const type = typeSpan ? typeSpan.textContent.trim() : 'Assignment';
+                    assignments.push({ name, type });
+                });
+
+                if (assignments.length > 0) {
+                    bodyHTML += `
+                        <div class="expand-card-field">
+                            <div class="expand-card-field-label">Assignment${assignments.length > 1 ? 's' : ''}</div>
+                            <div class="expand-card-field-value assignment-list">
+                                ${assignments.map(a => `<div class="assignment-item"><span class="type-tag">${escapeHTML(a.type)}</span> ${escapeHTML(a.name)}</div>`).join('')}
+                            </div>
+                        </div>`;
+                }
+
+                // Notes
+                const notesVal = (li.querySelector('.task-notes')?.value || '').trim();
+                if (notesVal) {
+                    bodyHTML += `
+                        <hr class="expand-card-divider">
+                        <div class="expand-card-field">
+                            <div class="expand-card-field-label">Notes</div>
+                            <div class="expand-card-field-value">${escapeHTML(notesVal)}</div>
+                        </div>`;
+                }
+
+                if (!bodyHTML) {
+                    bodyHTML = `<div class="expand-card-field"><div class="expand-card-field-value empty">No content yet.</div></div>`;
+                }
+
+                expandCardBody.innerHTML = bodyHTML;
+
+                // --- Build videos/links section using safe DOM APIs ---
+                const inlineLink = (li.querySelector('.task-link')?.value || '').trim();
+                const customLink = getCustomLink(courseName) || '';
+                const allLinksRaw = [inlineLink, customLink].join(',');
+                const links = allLinksRaw.split(',').map(l => l.trim()).filter(l => l !== '');
+                const uniqueLinks = [...new Set(links)];
+
+                expandCardVideos.innerHTML = '';
+                if (uniqueLinks.length > 0) {
+                    const titleEl = document.createElement('div');
+                    titleEl.className = 'expand-card-videos-title';
+                    titleEl.textContent = 'Linked Resources';
+                    expandCardVideos.appendChild(titleEl);
+
+                    const grid = document.createElement('div');
+                    grid.className = 'expand-card-videos-grid';
+
+                    uniqueLinks.forEach(link => {
+                        const embedUrl = getYouTubeEmbed(link);
+                        if (embedUrl) {
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'video-embed-wrapper';
+                            const iframe = document.createElement('iframe');
+                            iframe.src = embedUrl;
+                            iframe.title = 'YouTube video player';
+                            iframe.setAttribute('frameborder', '0');
+                            iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                            iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+                            iframe.allowFullscreen = true;
+                            wrapper.appendChild(iframe);
+                            grid.appendChild(wrapper);
+                        } else {
+                            const displayUrl = link.startsWith('http') ? link : `http://${link}`;
+                            const anchor = document.createElement('a');
+                            anchor.className = 'expand-link-item';
+                            anchor.href = displayUrl;
+                            anchor.target = '_blank';
+                            anchor.rel = 'noopener noreferrer';
+                            anchor.innerHTML = '<svg class="expand-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+                            const label = document.createTextNode(' ' + link);
+                            anchor.appendChild(label);
+                            grid.appendChild(anchor);
+                        }
+                    });
+
+                    expandCardVideos.appendChild(grid);
+                    expandCardVideos.style.display = 'block';
+                } else {
+                    expandCardVideos.style.display = 'none';
+                }
+
+                // Focus management: save previous focus, show dialog, focus close button
+                expandCardPreviousFocus = document.activeElement;
+                expandCardOverlay.classList.add('active');
+                expandCardClose.focus();
+            }
+
+            let expandCardPreviousFocus = null;
+
+            function closeExpandCard() {
+                expandCardOverlay.classList.remove('active');
+                // Stop any playing videos by clearing iframes
+                expandCardVideos.innerHTML = '';
+                // Restore previous focus
+                if (expandCardPreviousFocus && expandCardPreviousFocus.focus) {
+                    expandCardPreviousFocus.focus();
+                    expandCardPreviousFocus = null;
+                }
+            }
+
+            // Helper: escape HTML to prevent injection
+            function escapeHTML(str) {
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            }
+
+            expandCardClose.addEventListener('click', closeExpandCard);
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && expandCardOverlay.classList.contains('active')) {
+                    closeExpandCard();
+                }
+            });
+
+            expandCardBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openExpandCard(dayCardContextMenuCourseName, dayCardContextMenuDayId);
+                dayCardContextMenu.style.display = 'none';
+            });
+
+            // --- Visible inline expand buttons on cards (keyboard/touch accessible) ---
+            function initInlineExpandButtons() {
+                document.querySelectorAll('.course-card[data-course-name][data-day]').forEach(card => {
+                    if (card.querySelector('.expand-card-inline-btn')) return;
+                    const btn = document.createElement('button');
+                    btn.className = 'expand-card-inline-btn';
+                    btn.setAttribute('aria-label', 'Expand card');
+                    btn.title = 'Expand card';
+                    // Expand icon (⤢ arrows)
+                    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const cn = card.getAttribute('data-course-name');
+                        const di = card.getAttribute('data-day');
+                        openExpandCard(cn, di);
+                    });
+                    card.appendChild(btn);
+                });
+            }
+
+            function updateInlineExpandButtons() {
+                document.querySelectorAll('.course-card[data-course-name][data-day]').forEach(card => {
+                    const btn = card.querySelector('.expand-card-inline-btn');
+                    if (!btn) return;
+                    const inlineLink = (card.querySelector('.task-link')?.value || '').trim();
+                    btn.classList.toggle('visible', inlineLink !== '');
+                });
+            }
+
+            initInlineExpandButtons();
+            // updateInlineExpandButtons is called after loadData completes
 
             // --- NEW: Prioritization Feature ---
             const prioritizeDayCardBtn = document.getElementById('prioritizeDayCardBtn');
@@ -5739,6 +6250,7 @@
                 setCustomLink(modalCourseName, fullUrl);
                 updateCourseH3Href(modalCourseName);
                 closeLinkModal();
+                if (typeof updateInlineExpandButtons === 'function') updateInlineExpandButtons();
 
                 // Mark as unsaved
                 hasUnsavedChanges = true;
@@ -6611,6 +7123,7 @@
 
             populateCourseDropdowns();
             loadData();
+            updateInlineExpandButtons(); // Show expand buttons for cards with links
         });
     </script>
 </body>
