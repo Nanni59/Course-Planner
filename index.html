@@ -1788,6 +1788,110 @@
             opacity: 0.6;
         }
 
+        /* Left Panel Navigation Styles */
+        .expand-nav-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #999;
+            margin-bottom: 8px;
+            margin-top: 20px;
+        }
+
+        .expand-nav-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        button.expand-nav-item {
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: inherit;
+            text-align: left;
+            width: 100%;
+            font-weight: 600;
+            color: #555;
+            background-color: #fcfcfc;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid transparent;
+            user-select: none;
+        }
+
+        button.expand-nav-item:hover {
+            background-color: #f0f0f0;
+        }
+
+        button.expand-nav-item.active {
+            background-color: #f0f8ff;
+            /* Soft blue highlight */
+            color: var(--active-color);
+            border-color: rgba(0, 0, 0, 0.05);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+
+        .expand-nav-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.8;
+            flex-shrink: 0;
+        }
+
+        /* Right Panel Layout */
+        .expand-card-right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: #fdfdfd;
+        }
+
+        .expand-videos-container {
+            padding: 28px 32px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .expand-iframe-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .expand-preview-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            background-color: #fff;
+        }
+
+        .expand-preview-url-bar {
+            padding: 12px 28px;
+            background-color: #f8f8f8;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .expand-preview-url-bar a {
+            color: var(--active-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .expand-preview-url-bar a:hover {
+            text-decoration: underline;
+        }
+
         /* Responsive: stack vertically on narrow screens */
         @media (max-width: 768px) {
             .expand-card-content-area {
@@ -2560,7 +2664,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 3.8">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 3.9">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -2610,7 +2714,7 @@
         </div>
         <div class="expand-card-content-area">
             <div class="expand-card-body" id="expandCardBody"></div>
-            <div class="expand-card-videos" id="expandCardVideos"></div>
+            <div class="expand-card-right-panel" id="expandCardRightPanel"></div>
         </div>
     </div>
 
@@ -3079,12 +3183,11 @@
                 return null;
             }
 
-            // --- Embed/Link Rendering Logic (MODIFIED for comma-separated links) ---
+            // --- Embed/Link Rendering Logic (MODIFIED: all links as clickable text in card view) ---
             function renderEmbed(courseCardElement, rawLinksString) {
                 const embedContainer = courseCardElement.querySelector('.course-embed-container');
                 embedContainer.innerHTML = '';
 
-                // 1. Split the raw string by comma, trim whitespace, and filter out empty strings
                 const links = (rawLinksString || '').split(',').map(link => link.trim()).filter(link => link !== '');
 
                 if (links.length === 0) {
@@ -3092,33 +3195,17 @@
                     return;
                 }
 
-                let allEmbedsHTML = '';
-
+                // Show all links as clickable text (no auto-embedding in card view)
                 links.forEach(link => {
-                    const embedUrl = getYouTubeEmbed(link);
-
-                    if (embedUrl) {
-                        // This is a YouTube video
-                        allEmbedsHTML += `
-                            <div class="video-embed-wrapper" style="margin-bottom: 15px;">
-                                <iframe 
-                                    src="${embedUrl}" 
-                                    title="YouTube video player"
-                                    frameborder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                                    referrerpolicy="strict-origin-when-cross-origin" 
-                                    allowfullscreen>
-                                </iframe>
-                            </div>
-                        `;
-                    } else {
-                        // This is a regular link
-                        const displayUrl = link.startsWith('http') ? link : `http://${link}`;
-                        allEmbedsHTML += `<a href="${displayUrl}" target="_blank" rel="noopener noreferrer">${link}</a>`;
-                    }
+                    const displayUrl = link.startsWith('http') ? link : `http://${link}`;
+                    const anchor = document.createElement('a');
+                    anchor.href = displayUrl;
+                    anchor.target = '_blank';
+                    anchor.rel = 'noopener noreferrer';
+                    anchor.textContent = link;
+                    embedContainer.appendChild(anchor);
                 });
 
-                embedContainer.innerHTML = allEmbedsHTML;
                 embedContainer.style.display = 'block';
             }
 
@@ -5549,33 +5636,59 @@
                 let bodyHTML = '';
 
                 // Lesson
-                const lessonVal = (li.querySelector('.task-lesson-name')?.value || '').trim();
+                const lessonTA = li.querySelector('.task-lesson-name');
+                const lessonCheckbox = li.querySelector('.task-lesson-checkbox');
+                const lessonVal = (lessonTA?.value || '').trim();
+                const lessonHeight = lessonTA ? lessonTA.style.height : '38px';
                 if (lessonVal) {
+                    const lessonChecked = lessonCheckbox ? lessonCheckbox.checked : false;
                     bodyHTML += `
                         <div class="expand-card-field">
-                            <div class="expand-card-field-label">Lesson</div>
-                            <div class="expand-card-field-value">${escapeHTML(lessonVal)}</div>
+                            <ul class="task-list" style="margin: 0; padding: 0; list-style: none;">
+                                <li>
+                                    <div class="task-main task-lesson-main">
+                                        <div class="task-type-label">Lesson:</div>
+                                        <div class="task-name-wrapper">
+                                            <textarea class="task-name task-lesson-name expand-sync-target" readonly style="resize: none; overflow: hidden; background-color: #f9f9f9; cursor: default; height: ${lessonHeight || '38px'}; ${lessonChecked ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHTML(lessonVal)}</textarea>
+                                        </div>
+                                        <input type="checkbox" class="task-checkbox expand-sync-checkbox" data-sync-type="lesson" ${lessonChecked ? 'checked' : ''}>
+                                    </div>
+                                </li>
+                            </ul>
                         </div>`;
                 }
 
                 // Assignments
                 const assignmentRows = li.querySelectorAll('.task-assignment-main');
                 const assignments = [];
-                assignmentRows.forEach(row => {
+                assignmentRows.forEach((row, idx) => {
                     if (row.style.display === 'none') return;
-                    const name = (row.querySelector('.task-assignment-name')?.value || '').trim();
+                    const ta = row.querySelector('.task-assignment-name');
+                    const name = (ta?.value || '').trim();
                     if (!name) return;
+                    const height = ta ? ta.style.height : '38px';
                     const typeSpan = row.querySelector('.task-type-text');
                     const type = typeSpan ? typeSpan.textContent.trim() : 'Assignment';
-                    assignments.push({ name, type });
+                    const cb = row.querySelector('.task-assignment-checkbox');
+                    const checked = cb ? cb.checked : false;
+                    assignments.push({ name, type, checked, rowIndex: idx, height });
                 });
 
                 if (assignments.length > 0) {
                     bodyHTML += `
                         <div class="expand-card-field">
-                            <div class="expand-card-field-label">Assignment${assignments.length > 1 ? 's' : ''}</div>
                             <div class="expand-card-field-value assignment-list">
-                                ${assignments.map(a => `<div class="assignment-item"><span class="type-tag">${escapeHTML(a.type)}</span> ${escapeHTML(a.name)}</div>`).join('')}
+                                <ul class="task-list" style="margin: 0; padding: 0; list-style: none;">
+                                    ${assignments.map(a => `<li>
+                                        <div class="task-main task-assignment-main" style="margin-bottom: 10px;">
+                                            <div class="task-type-label"><span class="task-type-text">${escapeHTML(a.type)}</span>:</div>
+                                            <div class="task-name-wrapper">
+                                                <textarea class="task-name task-assignment-name expand-sync-target" readonly style="resize: none; overflow: hidden; background-color: #f9f9f9; cursor: default; height: ${a.height || '38px'}; ${a.checked ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHTML(a.name)}</textarea>
+                                            </div>
+                                            <input type="checkbox" class="task-checkbox expand-sync-checkbox" data-sync-type="assignment" data-sync-row="${a.rowIndex}" ${a.checked ? 'checked' : ''}>
+                                        </div>
+                                    </li>`).join('')}
+                                </ul>
                             </div>
                         </div>`;
                 }
@@ -5595,6 +5708,24 @@
                     bodyHTML = `<div class="expand-card-field"><div class="expand-card-field-value empty">No content yet.</div></div>`;
                 }
 
+                // Show priority badge in header (same round style as card badges)
+                const priorities = getCoursePriorities();
+                const priKey = `${dayId}_${courseName}`;
+                // Remove old badge if present
+                const oldBadge = document.getElementById('expandPriorityBadge');
+                if (oldBadge) oldBadge.remove();
+
+                expandCardTitle.innerHTML = escapeHTML(courseName);
+
+                if (priorities[priKey] && priorities[priKey] > 0) {
+                    const dayColor = dayId === 'dayA' ? 'var(--color-day-a)' : 'var(--color-day-b)';
+                    const badge = document.createElement('span');
+                    badge.id = 'expandPriorityBadge';
+                    badge.textContent = priorities[priKey];
+                    badge.style.cssText = `display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background-color:${dayColor}; color:#fff; font-size:14px; font-weight:700; font-family:'Montserrat',sans-serif; box-shadow:0 2px 4px rgba(0,0,0,0.2); margin-left:auto; margin-right:auto; flex-shrink:0;`;
+                    expandCardTitle.after(badge);
+                }
+
                 expandCardBody.innerHTML = bodyHTML;
 
                 // --- Build videos/links section using safe DOM APIs ---
@@ -5604,48 +5735,165 @@
                 const links = allLinksRaw.split(',').map(l => l.trim()).filter(l => l !== '');
                 const uniqueLinks = [...new Set(links)];
 
-                expandCardVideos.innerHTML = '';
-                if (uniqueLinks.length > 0) {
+                // Categorize links
+                const youtubeLinks = [];
+                const siteLinks = [];
+                uniqueLinks.forEach(link => {
+                    const embedUrl = getYouTubeEmbed(link);
+                    if (embedUrl) {
+                        youtubeLinks.push({ link, embedUrl });
+                    } else {
+                        siteLinks.push(link);
+                    }
+                });
+
+                // Add links to left panel
+                if (youtubeLinks.length > 0 || siteLinks.length > 0) {
+                    bodyHTML += `<hr class="expand-card-divider">
+                        <div class="expand-nav-section-title">Resources Navigation</div>
+                        <div class="expand-nav-list" role="tablist" id="expandNavList"></div>`;
+                }
+
+                expandCardBody.innerHTML = bodyHTML;
+
+                // Wire up checkbox sync: clicking a checkbox in the expand view proxies to the real card checkbox
+                expandCardBody.querySelectorAll('.expand-sync-checkbox').forEach(syncCb => {
+                    syncCb.addEventListener('change', () => {
+                        const syncType = syncCb.getAttribute('data-sync-type');
+                        let realCheckbox;
+                        if (syncType === 'lesson') {
+                            realCheckbox = card.querySelector('.task-lesson-checkbox');
+                        } else if (syncType === 'assignment') {
+                            const rowIdx = parseInt(syncCb.getAttribute('data-sync-row'), 10);
+                            const allRows = card.querySelectorAll('.task-assignment-main');
+                            if (allRows[rowIdx]) {
+                                realCheckbox = allRows[rowIdx].querySelector('.task-assignment-checkbox');
+                            }
+                        }
+                        if (realCheckbox) {
+                            realCheckbox.checked = syncCb.checked;
+                            realCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                            // Sync back canonical state in case side-effects overrode it
+                            syncCb.checked = realCheckbox.checked;
+                            // Update visual strikethrough based on canonical state
+                            const textEl = syncCb.closest('.task-main')?.querySelector('.expand-sync-target');
+                            if (textEl) {
+                                textEl.style.textDecoration = syncCb.checked ? 'line-through' : 'none';
+                                textEl.style.opacity = syncCb.checked ? '0.6' : '1';
+                            }
+                        }
+                    });
+                });
+
+                const rightPanel = document.getElementById('expandCardRightPanel');
+
+                function renderVideoTab() {
+                    rightPanel.innerHTML = '';
+                    const container = document.createElement('div');
+                    container.className = 'expand-videos-container';
+
                     const titleEl = document.createElement('div');
                     titleEl.className = 'expand-card-videos-title';
-                    titleEl.textContent = 'Linked Resources';
-                    expandCardVideos.appendChild(titleEl);
+                    titleEl.textContent = 'YouTube Videos';
+                    container.appendChild(titleEl);
 
                     const grid = document.createElement('div');
                     grid.className = 'expand-card-videos-grid';
 
-                    uniqueLinks.forEach(link => {
-                        const embedUrl = getYouTubeEmbed(link);
-                        if (embedUrl) {
-                            const wrapper = document.createElement('div');
-                            wrapper.className = 'video-embed-wrapper';
-                            const iframe = document.createElement('iframe');
-                            iframe.src = embedUrl;
-                            iframe.title = 'YouTube video player';
-                            iframe.setAttribute('frameborder', '0');
-                            iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-                            iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-                            iframe.allowFullscreen = true;
-                            wrapper.appendChild(iframe);
-                            grid.appendChild(wrapper);
-                        } else {
-                            const displayUrl = link.startsWith('http') ? link : `http://${link}`;
-                            const anchor = document.createElement('a');
-                            anchor.className = 'expand-link-item';
-                            anchor.href = displayUrl;
-                            anchor.target = '_blank';
-                            anchor.rel = 'noopener noreferrer';
-                            anchor.innerHTML = '<svg class="expand-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
-                            const label = document.createTextNode(' ' + link);
-                            anchor.appendChild(label);
-                            grid.appendChild(anchor);
-                        }
+                    youtubeLinks.forEach(({ embedUrl }) => {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'video-embed-wrapper';
+                        const iframe = document.createElement('iframe');
+                        iframe.src = embedUrl;
+                        iframe.title = 'YouTube video player';
+                        iframe.setAttribute('frameborder', '0');
+                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+                        iframe.allowFullscreen = true;
+                        wrapper.appendChild(iframe);
+                        grid.appendChild(wrapper);
                     });
 
-                    expandCardVideos.appendChild(grid);
-                    expandCardVideos.style.display = 'block';
+                    container.appendChild(grid);
+                    rightPanel.appendChild(container);
+                }
+
+                function renderSiteTab(url, rawLink) {
+                    rightPanel.innerHTML = '';
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'expand-iframe-container';
+
+                    const iframe = document.createElement('iframe');
+                    iframe.className = 'expand-preview-iframe';
+                    iframe.src = url;
+                    iframe.title = 'Website preview';
+                    iframe.loading = 'lazy';
+
+                    wrapper.appendChild(iframe);
+                    rightPanel.appendChild(wrapper);
+                }
+
+                if (youtubeLinks.length > 0 || siteLinks.length > 0) {
+                    const navList = document.getElementById('expandNavList');
+                    let isFirst = true;
+
+                    if (youtubeLinks.length > 0) {
+                        const item = document.createElement('button');
+                        item.type = 'button';
+                        item.role = 'tab';
+                        item.className = 'expand-nav-item' + (isFirst ? ' active' : '');
+                        if (isFirst) item.setAttribute('aria-selected', 'true');
+                        item.innerHTML = `<svg class="expand-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg> YouTube Videos`;
+                        item.addEventListener('click', () => {
+                            document.querySelectorAll('button.expand-nav-item').forEach(el => {
+                                el.classList.remove('active');
+                                el.setAttribute('aria-selected', 'false');
+                            });
+                            item.classList.add('active');
+                            item.setAttribute('aria-selected', 'true');
+                            renderVideoTab();
+                        });
+                        navList.appendChild(item);
+                        if (isFirst) {
+                            renderVideoTab();
+                            isFirst = false;
+                        }
+                    }
+
+                    siteLinks.forEach(link => {
+                        const displayUrl = link.startsWith('http') ? link : `https://${link}`;
+                        let domain = link;
+                        try {
+                            domain = new URL(displayUrl).hostname.replace('www.', '');
+                        } catch (e) { }
+
+                        const item = document.createElement('button');
+                        item.type = 'button';
+                        item.role = 'tab';
+                        item.className = 'expand-nav-item' + (isFirst ? ' active' : '');
+                        if (isFirst) item.setAttribute('aria-selected', 'true');
+                        item.title = displayUrl;
+                        item.innerHTML = `<svg class="expand-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg> `;
+                        item.appendChild(document.createTextNode(domain));
+
+                        item.addEventListener('click', () => {
+                            document.querySelectorAll('button.expand-nav-item').forEach(el => {
+                                el.classList.remove('active');
+                                el.setAttribute('aria-selected', 'false');
+                            });
+                            item.classList.add('active');
+                            item.setAttribute('aria-selected', 'true');
+                            renderSiteTab(displayUrl, link);
+                        });
+
+                        navList.appendChild(item);
+                        if (isFirst) {
+                            renderSiteTab(displayUrl, link);
+                            isFirst = false;
+                        }
+                    });
                 } else {
-                    expandCardVideos.style.display = 'none';
+                    rightPanel.innerHTML = '<div style="padding: 28px 32px; color: #999; font-style: italic;">No linked resources available.</div>';
                 }
 
                 // Focus management: save previous focus, show dialog, focus close button
@@ -5658,8 +5906,11 @@
 
             function closeExpandCard() {
                 expandCardOverlay.classList.remove('active');
-                // Stop any playing videos by clearing iframes
-                expandCardVideos.innerHTML = '';
+
+                // Clear the right panel so videos stop playing and iframes are unloaded
+                const rightPanel = document.getElementById('expandCardRightPanel');
+                if (rightPanel) rightPanel.innerHTML = '';
+
                 // Restore previous focus
                 if (expandCardPreviousFocus && expandCardPreviousFocus.focus) {
                     expandCardPreviousFocus.focus();
