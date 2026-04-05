@@ -741,11 +741,14 @@
             color: #e74c3c;
         }
 
-        /* FIX: Ensure assignment text is black, but reset/placeholder is gray */
+        /* FIX: Ensure lesson and assignment text is black, but reset/placeholder is gray */
+        .task-lesson-name,
         .task-assignment-name {
             color: #000 !important;
+            -webkit-text-fill-color: #000 !important;
         }
 
+        .task-lesson-name::placeholder,
         .task-assignment-name::placeholder {
             color: #757575 !important;
             -webkit-text-fill-color: #757575 !important;
@@ -2664,7 +2667,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 3.9">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 4.0">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -5634,6 +5637,7 @@
                 // --- Build body content ---
                 const li = card.querySelector('.task-list li');
                 let bodyHTML = '';
+                let listItemsHTML = '';
 
                 // Lesson
                 const lessonTA = li.querySelector('.task-lesson-name');
@@ -5642,54 +5646,74 @@
                 const lessonHeight = lessonTA ? lessonTA.style.height : '38px';
                 if (lessonVal) {
                     const lessonChecked = lessonCheckbox ? lessonCheckbox.checked : false;
-                    bodyHTML += `
-                        <div class="expand-card-field">
-                            <ul class="task-list" style="margin: 0; padding: 0; list-style: none;">
-                                <li>
-                                    <div class="task-main task-lesson-main">
-                                        <div class="task-type-label">Lesson:</div>
-                                        <div class="task-name-wrapper">
-                                            <textarea class="task-name task-lesson-name expand-sync-target" readonly style="resize: none; overflow: hidden; background-color: #f9f9f9; cursor: default; height: ${lessonHeight || '38px'}; ${lessonChecked ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHTML(lessonVal)}</textarea>
-                                        </div>
-                                        <input type="checkbox" class="task-checkbox expand-sync-checkbox" data-sync-type="lesson" ${lessonChecked ? 'checked' : ''}>
-                                    </div>
-                                </li>
-                            </ul>
+                    listItemsHTML += `
+                        <div class="task-main task-lesson-main">
+                            <div class="task-type-label">Lesson:</div>
+                            <div class="task-name-wrapper">
+                                <textarea class="task-name task-lesson-name expand-sync-target" readonly style="resize: none; overflow: hidden; background-color: #f9f9f9; cursor: default; height: ${lessonHeight || '38px'}; ${lessonChecked ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHTML(lessonVal)}</textarea>
+                            </div>
+                            <input type="checkbox" class="task-checkbox expand-sync-checkbox" data-sync-type="lesson" ${lessonChecked ? 'checked' : ''}>
                         </div>`;
                 }
 
                 // Assignments
                 const assignmentRows = li.querySelectorAll('.task-assignment-main');
-                const assignments = [];
                 assignmentRows.forEach((row, idx) => {
                     if (row.style.display === 'none') return;
                     const ta = row.querySelector('.task-assignment-name');
                     const name = (ta?.value || '').trim();
                     if (!name) return;
+
+                    if (listItemsHTML !== '') {
+                        listItemsHTML += '<hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">';
+                    }
+
                     const height = ta ? ta.style.height : '38px';
                     const typeSpan = row.querySelector('.task-type-text');
                     const type = typeSpan ? typeSpan.textContent.trim() : 'Assignment';
                     const cb = row.querySelector('.task-assignment-checkbox');
-                    const checked = cb ? cb.checked : false;
-                    assignments.push({ name, type, checked, rowIndex: idx, height });
+                    const splitWrapper = row.querySelector('.progress-circle-wrapper');
+
+                    let isCompleted = false;
+                    if (splitWrapper) {
+                        isCompleted = splitWrapper.classList.contains('completed') ||
+                            splitWrapper.classList.contains('completed-day-a') ||
+                            splitWrapper.classList.contains('completed-day-b');
+                    } else if (cb) {
+                        isCompleted = cb.checked;
+                    }
+
+                    const cbHidden = cb && cb.style.display === 'none';
+                    let splitHTML = '';
+                    if (splitWrapper) {
+                        const tempDiv = document.createElement('div');
+                        tempDiv.appendChild(splitWrapper.cloneNode(true));
+                        const clone = tempDiv.firstChild;
+                        clone.classList.add('expand-sync-split');
+                        clone.setAttribute('data-sync-row', idx);
+                        clone.style.pointerEvents = 'auto';
+                        splitHTML = tempDiv.innerHTML;
+                    }
+
+                    listItemsHTML += `
+                        <div class="task-main task-assignment-main">
+                            <div class="task-type-label"><span class="task-type-text">${escapeHTML(type)}</span>:</div>
+                            <div class="task-name-wrapper">
+                                <textarea class="task-name task-assignment-name expand-sync-target" readonly style="resize: none; overflow: hidden; background-color: #f9f9f9; cursor: default; height: ${height || '38px'}; ${isCompleted ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHTML(name)}</textarea>
+                            </div>
+                            ${splitHTML}
+                            <input type="checkbox" class="task-checkbox expand-sync-checkbox" data-sync-type="assignment" data-sync-row="${idx}" ${isCompleted ? 'checked' : ''} style="${cbHidden ? 'display: none;' : ''}">
+                        </div>`;
                 });
 
-                if (assignments.length > 0) {
+                if (listItemsHTML) {
                     bodyHTML += `
-                        <div class="expand-card-field">
-                            <div class="expand-card-field-value assignment-list">
-                                <ul class="task-list" style="margin: 0; padding: 0; list-style: none;">
-                                    ${assignments.map(a => `<li>
-                                        <div class="task-main task-assignment-main" style="margin-bottom: 10px;">
-                                            <div class="task-type-label"><span class="task-type-text">${escapeHTML(a.type)}</span>:</div>
-                                            <div class="task-name-wrapper">
-                                                <textarea class="task-name task-assignment-name expand-sync-target" readonly style="resize: none; overflow: hidden; background-color: #f9f9f9; cursor: default; height: ${a.height || '38px'}; ${a.checked ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHTML(a.name)}</textarea>
-                                            </div>
-                                            <input type="checkbox" class="task-checkbox expand-sync-checkbox" data-sync-type="assignment" data-sync-row="${a.rowIndex}" ${a.checked ? 'checked' : ''}>
-                                        </div>
-                                    </li>`).join('')}
-                                </ul>
-                            </div>
+                        <div class="expand-card-field" style="margin-bottom: 20px;">
+                            <ul class="task-list" style="margin: 0; padding: 0; list-style: none;">
+                                <li>
+                                    ${listItemsHTML}
+                                </li>
+                            </ul>
                         </div>`;
                 }
 
@@ -5756,6 +5780,19 @@
 
                 expandCardBody.innerHTML = bodyHTML;
 
+                // Dynamically adjust textarea heights to safely expand any text that wrapped onto new lines
+                // requestAnimationFrame ensures the DOM has fully rendered the injected constraints
+                requestAnimationFrame(() => {
+                    expandCardBody.querySelectorAll('.expand-sync-target').forEach(ta => {
+                        const currentHeight = parseInt(ta.style.height || '38', 10);
+                        // Temporarily reset height to deeply read natural wrapped boundaries
+                        ta.style.height = '1px';
+                        const newHeight = ta.scrollHeight;
+                        // Pick max to guarantee it never shrinks single lines but expands wraps
+                        ta.style.height = Math.max(currentHeight, newHeight) + 'px';
+                    });
+                });
+
                 // Wire up checkbox sync: clicking a checkbox in the expand view proxies to the real card checkbox
                 expandCardBody.querySelectorAll('.expand-sync-checkbox').forEach(syncCb => {
                     syncCb.addEventListener('change', () => {
@@ -5780,6 +5817,52 @@
                             if (textEl) {
                                 textEl.style.textDecoration = syncCb.checked ? 'line-through' : 'none';
                                 textEl.style.opacity = syncCb.checked ? '0.6' : '1';
+                            }
+                        }
+                    });
+                });
+
+                // Wire up split circle sync
+                expandCardBody.querySelectorAll('.expand-sync-split').forEach(splitCb => {
+                    splitCb.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const rowIdx = parseInt(splitCb.getAttribute('data-sync-row'), 10);
+                        const allRows = card.querySelectorAll('.task-assignment-main');
+                        if (allRows[rowIdx]) {
+                            const realWrapper = allRows[rowIdx].querySelector('.progress-circle-wrapper');
+                            if (realWrapper) {
+                                realWrapper.click(); // Dispatch click to real wrapper
+
+                                // Since complex layout/progress recalculations occur on the real card,
+                                // the quickest robust way to resync the cloned visual state of the split circle
+                                // is to wait a tick and re-clone its outerHTML over itself.
+                                setTimeout(() => {
+                                    if (splitCb.parentNode && realWrapper.isConnected) {
+                                        const clone = realWrapper.cloneNode(true);
+                                        clone.classList.add('expand-sync-split');
+                                        clone.setAttribute('data-sync-row', rowIdx);
+                                        clone.style.pointerEvents = 'auto'; // allow click
+
+                                        // Move listeners by reattaching replacing node
+                                        const replacementElement = clone;
+                                        splitCb.parentNode.replaceChild(replacementElement, splitCb);
+
+                                        // Need to resync strikethrough based on hidden checkbox
+                                        const realCb = allRows[rowIdx].querySelector('.task-assignment-checkbox');
+                                        if (realCb) {
+                                            const textEl = replacementElement.closest('.task-main')?.querySelector('.expand-sync-target');
+                                            if (textEl) {
+                                                textEl.style.textDecoration = realCb.checked ? 'line-through' : 'none';
+                                                textEl.style.opacity = realCb.checked ? '0.6' : '1';
+                                            }
+                                        }
+
+                                        // In order for the new element to be clickable we'd need event delegation or to attach it again:
+                                        // For simplicity, because we replaced it, let's just trigger a full re-render of expandCard via openExpandCard
+                                        // That way it reliably syncs.
+                                        openExpandCard(courseName, dayId);
+                                    }
+                                }, 50);
                             }
                         }
                     });
