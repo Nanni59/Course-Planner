@@ -285,6 +285,49 @@
             justify-content: center;
         }
 
+        /* Priority Badge on Day A/B Cards */
+        .priority-badge {
+            position: absolute;
+            top: 27px;
+            right: 24px;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: none;
+            color: white;
+            font-size: 14px;
+            font-weight: 700;
+            text-align: center;
+            cursor: pointer;
+            padding: 0;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            font-family: 'Montserrat', sans-serif;
+            z-index: 11;
+            outline: none;
+            display: none;
+        }
+
+        .priority-badge.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .priority-badge:hover {
+            transform: scale(1.12);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Day-specific badge colors */
+        [data-day="dayA"] .priority-badge { background-color: var(--color-day-a); }
+        [data-day="dayB"] .priority-badge { background-color: var(--color-day-b); }
+
+        /* Hide priority badge when the X (completed) button is visible */
+        .delete-course-card-btn.completed ~ .priority-badge {
+            display: none !important;
+        }
+
         /* MODIFIED FOR HOVER BOX CUE */
         .tracker-course-card h3 {
             font-weight: 600;
@@ -2250,6 +2293,7 @@
 
     <div id="dayCardContextMenu" class="context-menu" style="display: none;">
         <div class="context-menu-item" id="pauseDayCardCourseBtn">Pause Course</div>
+        <div class="context-menu-item" id="prioritizeDayCardBtn" style="font-weight: 600;">Prioritize</div>
         <div style="border-top: 1px solid #eee;"></div>
         <div class="context-menu-item link-action" id="addEditLinkBtn">Add / Edit Link</div>
         <div class="context-menu-item link-action" id="removeLinkBtn" style="display: none;">Remove Link</div>
@@ -2420,6 +2464,7 @@
             const LS_LINK_PREVIEW_TOGGLE_KEY = 'link_preview_toggle'; // NEW: Track which preview is shown
             const LS_SPLIT_ASSIGNMENTS_KEY = 'split_assignments'; // NEW: Split assignments progress data
             const LS_LESSON_LINKS_KEY = 'lesson_links'; // NEW: Lesson links storage
+            const LS_PRIORITIES_KEY = 'course_priorities'; // NEW: Course prioritization storage
             const ALL_COURSE_NAMES = [
                 "Calculus & Vectors", "Data Management", "English", "Economics", "Media Arts",
                 "Business Leadership", "Challenge & Change"
@@ -4328,6 +4373,17 @@
                     const currentPausedCourses = getPausedCourses().lesson || [];
                     ALL_COURSE_NAMES.forEach(courseName => updateDayCardPauseState(courseName, currentPausedCourses.includes(courseName)));
 
+                    // Clear priorities for the reset day and re-render badges
+                    if (dayId.startsWith(TAB_PREFIX)) {
+                        const priorities = getCoursePriorities();
+                        const prefix = `${dayId}_`;
+                        Object.keys(priorities).forEach(k => {
+                            if (k.startsWith(prefix)) delete priorities[k];
+                        });
+                        localStorage.setItem(LS_PRIORITIES_KEY, JSON.stringify(priorities));
+                        renderAllPriorityBadges();
+                    }
+
                     // **NEW:** Update autofill button visibility after reset
                     updateAutofillButtonVisibility();
                 }
@@ -5115,6 +5171,13 @@
                 const hasLink = hasCustomLink(courseName);
                 removeLinkBtn.style.display = hasLink ? 'block' : 'none';
 
+                // Set Prioritize/Unprioritize text and color dynamically
+                const priorities = getCoursePriorities();
+                const priKey = `${dayId}_${courseName}`;
+                const hasPriority = priorities[priKey] && priorities[priKey] > 0;
+                prioritizeDayCardBtn.textContent = hasPriority ? 'Unprioritize' : 'Prioritize';
+                prioritizeDayCardBtn.style.color = dayId === 'dayA' ? '#3498DB' : '#ED7D31';
+
                 const rect = h3Element.getBoundingClientRect();
                 dayCardContextMenu.style.left = `${rect.left}px`;
                 dayCardContextMenu.style.top = `${rect.bottom + 5}px`;
@@ -5144,6 +5207,109 @@
                 toggleCoursePauseState(dayCardContextMenuCourseName, 'lesson');
                 dayCardContextMenu.style.display = 'none';
             });
+
+            // --- NEW: Prioritization Feature ---
+            const prioritizeDayCardBtn = document.getElementById('prioritizeDayCardBtn');
+
+            function getCoursePriorities() {
+                return JSON.parse(localStorage.getItem(LS_PRIORITIES_KEY)) || {};
+            }
+
+            function setCoursePriority(courseName, dayId, priority) {
+                const priorities = getCoursePriorities();
+                const key = `${dayId}_${courseName}`;
+                if (priority && priority > 0) {
+                    priorities[key] = priority;
+                } else {
+                    delete priorities[key];
+                }
+                localStorage.setItem(LS_PRIORITIES_KEY, JSON.stringify(priorities));
+            }
+
+            function promptAndSetPriority(courseName, dayId) {
+                const priorities = getCoursePriorities();
+                const key = `${dayId}_${courseName}`;
+
+                if (priorities[key]) {
+                    // Already prioritized — remove and renumber
+                    const removedVal = priorities[key];
+                    delete priorities[key];
+
+                    // Renumber: shift every priority in the same day that was higher down by 1
+                    const prefix = `${dayId}_`;
+                    Object.keys(priorities).forEach(k => {
+                        if (k.startsWith(prefix) && priorities[k] > removedVal) {
+                            priorities[k]--;
+                        }
+                    });
+                } else {
+                    // Not prioritized — auto-assign next sequential number for this day
+                    const prefix = `${dayId}_`;
+                    let maxPriority = 0;
+                    Object.keys(priorities).forEach(k => {
+                        if (k.startsWith(prefix) && priorities[k] > maxPriority) {
+                            maxPriority = priorities[k];
+                        }
+                    });
+                    priorities[key] = maxPriority + 1;
+                }
+
+                localStorage.setItem(LS_PRIORITIES_KEY, JSON.stringify(priorities));
+                renderAllPriorityBadges();
+            }
+
+            function initPriorityBadges() {
+                document.querySelectorAll('.course-card[data-course-name][data-day]').forEach(card => {
+                    if (card.querySelector('.priority-badge')) return; // already exists
+                    const badge = document.createElement('button');
+                    badge.className = 'priority-badge';
+                    badge.title = 'Click to remove priority';
+                    badge.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const cn = card.getAttribute('data-course-name');
+                        const di = card.getAttribute('data-day');
+                        promptAndSetPriority(cn, di); // toggles off (removes & renumbers)
+                    });
+                    // Insert right after the delete button so the CSS ~ selector works
+                    const deleteBtn = card.querySelector('.delete-course-card-btn');
+                    if (deleteBtn) {
+                        deleteBtn.after(badge);
+                    } else {
+                        card.appendChild(badge);
+                    }
+                });
+            }
+
+            function renderAllPriorityBadges() {
+                const priorities = getCoursePriorities();
+                document.querySelectorAll('.course-card[data-course-name][data-day]').forEach(card => {
+                    const courseName = card.getAttribute('data-course-name');
+                    const dayId = card.getAttribute('data-day');
+                    const key = `${dayId}_${courseName}`;
+                    const badge = card.querySelector('.priority-badge');
+                    if (!badge) return;
+
+                    const priority = priorities[key];
+                    if (priority && priority > 0) {
+                        badge.textContent = priority;
+                        badge.classList.add('active');
+                    } else {
+                        badge.textContent = '';
+                        badge.classList.remove('active');
+                    }
+                });
+            }
+
+            // Context menu handler for Prioritize (auto-assigns next number)
+            prioritizeDayCardBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                promptAndSetPriority(dayCardContextMenuCourseName, dayCardContextMenuDayId);
+                dayCardContextMenu.style.display = 'none';
+            });
+
+            // Initialize badges and render on startup
+            initPriorityBadges();
+            renderAllPriorityBadges();
 
             // MODIFIED: Added h3Element parameter for positioning
             function showPauseContextMenu(e, courseName, type, h3Element) {
