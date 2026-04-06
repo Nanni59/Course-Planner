@@ -52,11 +52,15 @@
         body.day-a {
             --active-color: var(--color-day-a);
             --active-tint: var(--color-day-a-tint);
+            --chip-bg: #f0f8ff;
+            --chip-hover: #e6f3ff;
         }
 
         body.day-b {
             --active-color: var(--color-day-b);
             --active-tint: var(--color-day-b-tint);
+            --chip-bg: #fff5eb;
+            --chip-hover: #ffe8d6;
         }
 
         /* NEW: Green Theme for Tracker Tabs */
@@ -966,10 +970,84 @@
         }
 
         /* Hover effect for all fields */
-        .task-list textarea:hover,
         .task-link:hover {
             border-color: var(--active-color);
             /* FIX: Removed box-shadow to prevent vertical line artifact on right side */
+        }
+
+        /* Inline Link Chip UI */
+        .link-list-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .inline-link-chip {
+            display: none; /* hidden by default, JS toggles */
+            align-items: center;
+            justify-content: space-between;
+            background-color: var(--chip-bg, #f0f8ff);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            padding: 8px 12px;
+            border-radius: 6px;
+            text-decoration: none;
+            width: 100%;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+        }
+
+        .inline-link-chip:hover {
+            background-color: var(--chip-hover, #e6f3ff);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .inline-link-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            overflow: hidden;
+            flex-grow: 1;
+        }
+
+        .inline-link-icon svg {
+            width: 14px;
+            height: 14px;
+            stroke: var(--active-color);
+            flex-shrink: 0;
+        }
+
+        .inline-link-text {
+            font-size: 13px;
+            color: var(--active-color);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .inline-link-edit {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #999;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            background: none;
+            border: none;
+        }
+
+        .inline-link-edit:hover {
+            background-color: rgba(0,0,0,0.05);
+            color: #333;
+        }
+
+        .inline-link-edit svg {
+            width: 12px;
+            height: 12px;
+            stroke: currentColor;
         }
 
         /* **NEW:** Paused Card Field Hover Effects (Purple) */
@@ -1832,8 +1910,7 @@
         }
 
         button.expand-nav-item.active {
-            background-color: #f0f8ff;
-            /* Soft blue highlight */
+            background-color: var(--chip-bg, #f0f8ff);
             color: var(--active-color);
             border-color: rgba(0, 0, 0, 0.05);
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
@@ -2241,8 +2318,19 @@
                                 <div class="task-notes-row">
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
-                                <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                <div class="link-list-container">
+                                    <div class="link-input-row">
+                                        <input type="text" class="task-link" placeholder="Paste link here...">
+                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                                            <div class="inline-link-content">
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <span class="inline-link-text"></span>
+                                            </div>
+                                            <button class="inline-link-edit" type="button" title="Edit Link">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            </button>
+                                        </a>
+                                    </div>
                                 </div>
                             </li>
                         </ul>
@@ -2284,8 +2372,19 @@
                                 <div class="task-notes-row">
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
-                                <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                <div class="link-list-container">
+                                    <div class="link-input-row">
+                                        <input type="text" class="task-link" placeholder="Paste link here...">
+                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                                            <div class="inline-link-content">
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <span class="inline-link-text"></span>
+                                            </div>
+                                            <button class="inline-link-edit" type="button" title="Edit Link">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            </button>
+                                        </a>
+                                    </div>
                                 </div>
                             </li>
                         </ul>
@@ -2327,8 +2426,19 @@
                                 <div class="task-notes-row">
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
-                                <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                <div class="link-list-container">
+                                    <div class="link-input-row">
+                                        <input type="text" class="task-link" placeholder="Paste link here...">
+                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                                            <div class="inline-link-content">
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <span class="inline-link-text"></span>
+                                            </div>
+                                            <button class="inline-link-edit" type="button" title="Edit Link">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            </button>
+                                        </a>
+                                    </div>
                                 </div>
                             </li>
                         </ul>
@@ -2370,8 +2480,19 @@
                                 <div class="task-notes-row">
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
-                                <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                <div class="link-list-container">
+                                    <div class="link-input-row">
+                                        <input type="text" class="task-link" placeholder="Paste link here...">
+                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                                            <div class="inline-link-content">
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <span class="inline-link-text"></span>
+                                            </div>
+                                            <button class="inline-link-edit" type="button" title="Edit Link">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            </button>
+                                        </a>
+                                    </div>
                                 </div>
                             </li>
                         </ul>
@@ -2413,8 +2534,19 @@
                                 <div class="task-notes-row">
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
-                                <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                <div class="link-list-container">
+                                    <div class="link-input-row">
+                                        <input type="text" class="task-link" placeholder="Paste link here...">
+                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                                            <div class="inline-link-content">
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <span class="inline-link-text"></span>
+                                            </div>
+                                            <button class="inline-link-edit" type="button" title="Edit Link">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            </button>
+                                        </a>
+                                    </div>
                                 </div>
                             </li>
                         </ul>
@@ -2461,8 +2593,19 @@
                                 <div class="task-notes-row">
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
-                                <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                <div class="link-list-container">
+                                    <div class="link-input-row">
+                                        <input type="text" class="task-link" placeholder="Paste link here...">
+                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                                            <div class="inline-link-content">
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <span class="inline-link-text"></span>
+                                            </div>
+                                            <button class="inline-link-edit" type="button" title="Edit Link">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            </button>
+                                        </a>
+                                    </div>
                                 </div>
                             </li>
                         </ul>
@@ -2504,8 +2647,19 @@
                                 <div class="task-notes-row">
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
-                                <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                <div class="link-list-container">
+                                    <div class="link-input-row">
+                                        <input type="text" class="task-link" placeholder="Paste link here...">
+                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                                            <div class="inline-link-content">
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <span class="inline-link-text"></span>
+                                            </div>
+                                            <button class="inline-link-edit" type="button" title="Edit Link">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            </button>
+                                        </a>
+                                    </div>
                                 </div>
                             </li>
                         </ul>
@@ -2547,8 +2701,19 @@
                                 <div class="task-notes-row">
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
-                                <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                <div class="link-list-container">
+                                    <div class="link-input-row">
+                                        <input type="text" class="task-link" placeholder="Paste link here...">
+                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                                            <div class="inline-link-content">
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <span class="inline-link-text"></span>
+                                            </div>
+                                            <button class="inline-link-edit" type="button" title="Edit Link">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            </button>
+                                        </a>
+                                    </div>
                                 </div>
                             </li>
                         </ul>
@@ -2590,8 +2755,19 @@
                                 <div class="task-notes-row">
                                     <textarea class="task-notes" placeholder="Notes"></textarea>
                                 </div>
-                                <div class="link-input-row">
-                                    <input type="text" class="task-link" placeholder="Paste link here...">
+                                <div class="link-list-container">
+                                    <div class="link-input-row">
+                                        <input type="text" class="task-link" placeholder="Paste link here...">
+                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                                            <div class="inline-link-content">
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <span class="inline-link-text"></span>
+                                            </div>
+                                            <button class="inline-link-edit" type="button" title="Edit Link">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            </button>
+                                        </a>
+                                    </div>
                                 </div>
                             </li>
                         </ul>
@@ -3186,30 +3362,135 @@
                 return null;
             }
 
-            // --- Embed/Link Rendering Logic (MODIFIED: all links as clickable text in card view) ---
-            function renderEmbed(courseCardElement, rawLinksString) {
-                const embedContainer = courseCardElement.querySelector('.course-embed-container');
-                embedContainer.innerHTML = '';
+            // --- Inline Link Chip State Management ---
+            function formatDomain(url) {
+                try {
+                    let fullUrl = url.trim();
+                    if (!fullUrl.startsWith('http')) fullUrl = 'https://' + fullUrl;
+                    return new URL(fullUrl).hostname.replace('www.', '');
+                } catch(e) {
+                    return url; 
+                }
+            }
 
-                const links = (rawLinksString || '').split(',').map(link => link.trim()).filter(link => link !== '');
+            function updateLinkChipState(input) {
+                const row = input.closest('.link-input-row');
+                if (!row) return;
+                const chip = row.querySelector('.inline-link-chip');
+                if (!chip) return;
+                
+                const val = input.value.trim();
+                // Determine whether to display chip or raw input automatically
+                if (val !== '') {
+                    const isFirstRow = row.parentElement && row.parentElement.firstElementChild === row;
+                    if (!isFirstRow) {
+                        input.style.display = 'none';
+                    }
+                    chip.style.display = 'flex';
+                    
+                    const domain = formatDomain(val);
+                    chip.querySelector('.inline-link-text').textContent = domain;
+                    
+                    let targetUrl = val;
+                    if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
+                    chip.href = targetUrl;
+                } else {
+                    input.style.display = 'block';
+                    chip.style.display = 'none';
+                }
 
+                // Dynamically update the expand icon toggle immediately
+                const card = input.closest('.course-card');
+                if (card) {
+                    const expandBtn = card.querySelector('.expand-card-inline-btn');
+                    if (expandBtn) {
+                        const activeLinks = Array.from(card.querySelectorAll('.task-link')).filter(inp => inp.value.trim() !== '');
+                        expandBtn.classList.toggle('visible', activeLinks.length > 0);
+                    }
+                }
+            }
+
+            function createLinkRow(value = '') {
+                const row = document.createElement('div');
+                row.className = 'link-input-row';
+                row.style.position = 'relative'; // Ensure layout constraint
+                row.innerHTML = `
+                    <input type="text" class="task-link" placeholder="Paste link here..." value="${escapeHTML(value)}">
+                    <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                        <div class="inline-link-content">
+                            <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                            <span class="inline-link-text"></span>
+                        </div>
+                        <button class="inline-link-edit" type="button" title="Edit Link">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                        </button>
+                    </a>
+                `;
+                const input = row.querySelector('.task-link');
+                updateLinkChipState(input);
+                applyThemeColor(input);
+                return row;
+            }
+
+            function processCommaLinks(input) {
+                const val = input.value;
+                const container = input.closest('.link-list-container');
+                if (!container) return;
+
+                const allInputs = Array.from(container.querySelectorAll('.task-link'));
+                const isTopField = (input === allInputs[0]);
+
+                const links = val.split(',').map(l => l.trim()).filter(l => l !== '');
+
+                // Handle empty value (user deleted the text)
                 if (links.length === 0) {
-                    embedContainer.style.display = 'none';
+                    if (!isTopField && val.trim() === '') {
+                        const card = input.closest('.course-card');
+                        input.closest('.link-input-row').remove();
+                        
+                        if (card) {
+                            const expandBtn = card.querySelector('.expand-card-inline-btn');
+                            if (expandBtn) {
+                                const activeLinks = Array.from(card.querySelectorAll('.task-link')).filter(inp => inp.value.trim() !== '');
+                                expandBtn.classList.toggle('visible', activeLinks.length > 0);
+                            }
+                        }
+                    } else {
+                        updateLinkChipState(input);
+                    }
                     return;
                 }
 
-                // Show all links as clickable text (no auto-embedding in card view)
-                links.forEach(link => {
-                    const displayUrl = link.startsWith('http') ? link : `http://${link}`;
-                    const anchor = document.createElement('a');
-                    anchor.href = displayUrl;
-                    anchor.target = '_blank';
-                    anchor.rel = 'noopener noreferrer';
-                    anchor.textContent = link;
-                    embedContainer.appendChild(anchor);
-                });
+                // Handle populated value
+                if (isTopField) {
+                    // All links pasted into the permanent top field spawn exclusively as new children
+                    links.forEach(linkStr => {
+                        const newRow = createLinkRow(linkStr);
+                        container.appendChild(newRow);
+                    });
+                    // Reset the permanent top field cleanly
+                    input.value = '';
+                    updateLinkChipState(input);
+                } else {
+                    // Logic for editing a pre-existing active chip
+                    if (links.length === 1) {
+                        updateLinkChipState(input);
+                    } else {
+                        const parentRow = input.closest('.link-input-row');
+                        links.forEach(linkStr => {
+                            const newRow = createLinkRow(linkStr);
+                            container.insertBefore(newRow, parentRow);
+                        });
+                        parentRow.remove();
+                    }
+                }
+            }
 
-                embedContainer.style.display = 'block';
+            // --- Embed/Link Rendering Logic ---
+            // Note: In the main day view, we no longer render duplicative text links because the Chip UI replaces them perfectly.
+            function renderEmbed(courseCardElement, rawLinksString) {
+                const embedContainer = courseCardElement.querySelector('.course-embed-container');
+                if (embedContainer) embedContainer.innerHTML = '';
             }
 
             // --- Centralized function to manage all day-switching logic (UPDATED for Green Theme and Progress Bar) ---
@@ -4148,20 +4429,28 @@
 
                 // Notes/Link
                 const notes = li.querySelector('.task-notes');
-                const link = li.querySelector('.task-link');
                 const embedArea = courseCard.querySelector('.course-embed-container');
 
                 notes.value = '';
                 applyThemeColor(notes);
 
-                link.value = '';
-                applyThemeColor(link);
-                embedArea.innerHTML = '';
-                embedArea.style.display = 'none';
+                const linkContainer = li.querySelector('.link-list-container');
+                if (linkContainer) {
+                    linkContainer.innerHTML = '';
+                    linkContainer.appendChild(createLinkRow(''));
+                }
+
+                if (embedArea) {
+                    embedArea.innerHTML = '';
+                    embedArea.style.display = 'none';
+                }
 
                 // Reset heights and completion state
                 resizeFieldsForActiveDay(courseCard.closest('.tab-content').id);
                 updateCardCompletionState(courseCard); // Hides the X button
+
+                const expandBtn = courseCard.querySelector('.expand-card-inline-btn');
+                if (expandBtn) expandBtn.classList.remove('visible');
 
                 hasUnsavedChanges = true; // Mark as unsaved
 
@@ -4515,7 +4804,8 @@
 
                     // Notes and Link (Shared)
                     const notes = li.querySelector('.task-notes').value;
-                    const link = li.querySelector('.task-link').value;
+                    const linkArray = Array.from(li.querySelectorAll('.task-link')).map(inp => inp.value.trim()).filter(v => v !== '');
+                    const link = linkArray.join(',');
 
                     // Save both tasks, notes, and link under the course
                     tasks[courseTitle] = {
@@ -4706,9 +4996,20 @@
                         // Shared Notes and Link
                         li.querySelector('.task-notes').value = courseData.notes || '';
 
-                        const linkInput = li.querySelector('.task-link');
-                        linkInput.value = courseData.link || '';
-                        renderEmbed(card, linkInput.value);
+                        const linkData = courseData.link || '';
+                        const linkContainer = li.querySelector('.link-list-container');
+                        if (linkContainer) {
+                            linkContainer.innerHTML = '';
+                            
+                            // Initialize the permanent top Empty input field FIRST
+                            linkContainer.appendChild(createLinkRow(''));
+
+                            // Iterate memory array and append distinct loaded chips underneath it natively
+                            const links = linkData.split(',').map(l => l.trim()).filter(l => l !== '');
+                            links.forEach(l => {
+                                linkContainer.appendChild(createLinkRow(l));
+                            });
+                        }
                     }
                 });
 
@@ -4797,7 +5098,8 @@
             // --- Function to apply theme color to a field (MODIFIED for pause override) ---
             function applyThemeColor(field) {
                 // Check if the parent card is paused using CSS class check
-                const isPaused = field.closest('.course-card').classList.contains('paused');
+                const card = field.closest('.course-card');
+                const isPaused = card && card.classList.contains('paused');
 
                 if (isPaused) {
                     // If paused, rely purely on the CSS rules added for the '.paused' state.
@@ -5196,9 +5498,29 @@
             });
             document.getElementById('importFile').addEventListener('change', importData);
 
-            // **MODIFIED:** General click handler now also handles the Day A/B clear button
+            mainContent.addEventListener('focusout', (event) => {
+                if (event.target.classList.contains('task-link')) {
+                    processCommaLinks(event.target);
+                    hasUnsavedChanges = true;
+                }
+            });
+
+            // **MODIFIED:** General click handler now also handles the Day A/B clear button and inline link edits
             mainContent.addEventListener('click', (event) => {
                 const target = event.target;
+
+                const editLinkBtn = target.closest('.inline-link-edit');
+                if (editLinkBtn) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const row = editLinkBtn.closest('.link-input-row');
+                    const input = row.querySelector('.task-link');
+                    const chip = row.querySelector('.inline-link-chip');
+                    chip.style.display = 'none';
+                    input.style.display = 'block';
+                    input.focus();
+                    return;
+                }
 
                 // 1. Individual Task Delete Button (Tracker Tabs)
                 if (target.classList.contains('delete-btn')) {
@@ -5578,7 +5900,8 @@
 
                 // Show "Expand Card" only if the card has a link (inline or custom)
                 const card = document.querySelector(`.course-card[data-course-name="${courseName}"][data-day="${dayId}"]`);
-                const inlineLink = card ? (card.querySelector('.task-link')?.value || '').trim() : '';
+                const inlineLinkArray = card ? Array.from(card.querySelectorAll('.task-link')).map(inp => inp.value.trim()).filter(v => v !== '') : [];
+                const inlineLink = inlineLinkArray.join(',');
                 const hasAnyLink = hasLink || inlineLink !== '';
                 expandCardBtn.style.display = hasAnyLink ? 'block' : 'none';
 
@@ -5753,7 +6076,8 @@
                 expandCardBody.innerHTML = bodyHTML;
 
                 // --- Build videos/links section using safe DOM APIs ---
-                const inlineLink = (li.querySelector('.task-link')?.value || '').trim();
+                const inlineLinkArray = Array.from(li.querySelectorAll('.task-link')).map(inp => inp.value.trim()).filter(v => v !== '');
+                const inlineLink = inlineLinkArray.join(',');
                 const customLink = getCustomLink(courseName) || '';
                 const allLinksRaw = [inlineLink, customLink].join(',');
                 const links = allLinksRaw.split(',').map(l => l.trim()).filter(l => l !== '');
@@ -5869,51 +6193,78 @@
                 });
 
                 const rightPanel = document.getElementById('expandCardRightPanel');
+                rightPanel.innerHTML = ''; // Reset panel each time card opened
+                const tabCaches = new Map();
 
-                function renderVideoTab() {
-                    rightPanel.innerHTML = '';
-                    const container = document.createElement('div');
-                    container.className = 'expand-videos-container';
-
-                    const titleEl = document.createElement('div');
-                    titleEl.className = 'expand-card-videos-title';
-                    titleEl.textContent = 'YouTube Videos';
-                    container.appendChild(titleEl);
-
-                    const grid = document.createElement('div');
-                    grid.className = 'expand-card-videos-grid';
-
-                    youtubeLinks.forEach(({ embedUrl }) => {
-                        const wrapper = document.createElement('div');
-                        wrapper.className = 'video-embed-wrapper';
-                        const iframe = document.createElement('iframe');
-                        iframe.src = embedUrl;
-                        iframe.title = 'YouTube video player';
-                        iframe.setAttribute('frameborder', '0');
-                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-                        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-                        iframe.allowFullscreen = true;
-                        wrapper.appendChild(iframe);
-                        grid.appendChild(wrapper);
+                function showTab(cacheKey, createFunc) {
+                    Array.from(rightPanel.children).forEach(child => {
+                        const iframes = child.querySelectorAll('iframe');
+                        if (iframes.length > 0 || child.tagName === 'IFRAME') {
+                            child.remove(); // Teardown active media
+                        } else {
+                            child.style.display = 'none';
+                        }
                     });
 
-                    container.appendChild(grid);
-                    rightPanel.appendChild(container);
+                    const cachedContainer = tabCaches.get(cacheKey);
+                    if (cachedContainer && rightPanel.contains(cachedContainer)) {
+                        cachedContainer.style.display = cachedContainer.dataset.displayType || 'block';
+                    } else {
+                        const container = createFunc();
+                        tabCaches.set(cacheKey, container);
+                        rightPanel.appendChild(container);
+                        // Save original display model so we securely toggle
+                        container.dataset.displayType = container.className === 'expand-iframe-container' ? 'flex' : 'block';
+                        container.style.display = container.dataset.displayType;
+                    }
+                }
+
+                function renderVideoTab() {
+                    showTab('youtube', () => {
+                        const container = document.createElement('div');
+                        container.className = 'expand-videos-container';
+
+                        const titleEl = document.createElement('div');
+                        titleEl.className = 'expand-card-videos-title';
+                        titleEl.textContent = 'YouTube Videos';
+                        container.appendChild(titleEl);
+
+                        const grid = document.createElement('div');
+                        grid.className = 'expand-card-videos-grid';
+
+                        youtubeLinks.forEach(({ embedUrl }) => {
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'video-embed-wrapper';
+                            const iframe = document.createElement('iframe');
+                            iframe.src = embedUrl;
+                            iframe.title = 'YouTube video player';
+                            iframe.setAttribute('frameborder', '0');
+                            iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                            iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+                            iframe.allowFullscreen = true;
+                            wrapper.appendChild(iframe);
+                            grid.appendChild(wrapper);
+                        });
+
+                        container.appendChild(grid);
+                        return container;
+                    });
                 }
 
                 function renderSiteTab(url, rawLink) {
-                    rightPanel.innerHTML = '';
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'expand-iframe-container';
+                    showTab(url, () => {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'expand-iframe-container';
 
-                    const iframe = document.createElement('iframe');
-                    iframe.className = 'expand-preview-iframe';
-                    iframe.src = url;
-                    iframe.title = 'Website preview';
-                    iframe.loading = 'lazy';
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'expand-preview-iframe';
+                        iframe.src = url;
+                        iframe.title = 'Website preview';
+                        iframe.loading = 'lazy';
 
-                    wrapper.appendChild(iframe);
-                    rightPanel.appendChild(wrapper);
+                        wrapper.appendChild(iframe);
+                        return wrapper;
+                    });
                 }
 
                 if (youtubeLinks.length > 0 || siteLinks.length > 0) {
@@ -6045,7 +6396,8 @@
                 document.querySelectorAll('.course-card[data-course-name][data-day]').forEach(card => {
                     const btn = card.querySelector('.expand-card-inline-btn');
                     if (!btn) return;
-                    const inlineLink = (card.querySelector('.task-link')?.value || '').trim();
+                    const inlineLinkArray = Array.from(card.querySelectorAll('.task-link')).map(inp => inp.value.trim()).filter(v => v !== '');
+                    const inlineLink = inlineLinkArray.join(',');
                     btn.classList.toggle('visible', inlineLink !== '');
                 });
             }
