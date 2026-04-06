@@ -3357,7 +3357,7 @@
                 if (match) {
                     const videoId = match[1];
                     const origin = window.location.origin;
-                    return `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&origin=${origin}`;
+                    return `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1&origin=${origin}`;
                 }
                 return null;
             }
@@ -6198,12 +6198,13 @@
 
                 function showTab(cacheKey, createFunc) {
                     Array.from(rightPanel.children).forEach(child => {
-                        const iframes = child.querySelectorAll('iframe');
-                        if (iframes.length > 0 || child.tagName === 'IFRAME') {
-                            child.remove(); // Teardown active media
-                        } else {
-                            child.style.display = 'none';
+                        if (child.classList.contains('expand-videos-container')) {
+                            // Pause videos over API explicitly to refrain from wiping viewer progress
+                            child.querySelectorAll('iframe').forEach(iframe => {
+                                iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+                            });
                         }
+                        child.style.display = 'none'; // Preserve application progress for all sites AND videos
                     });
 
                     const cachedContainer = tabCaches.get(cacheKey);
