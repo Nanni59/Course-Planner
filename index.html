@@ -698,7 +698,8 @@
             position: relative;
         }
 
-        #canvas-preview-container {
+        #canvas-preview-container,
+        #manual-preview-container {
             max-height: 400px;
             overflow-y: auto;
             border: 1px solid #ccc;
@@ -764,9 +765,9 @@
         /* --- Course Grid & Cards --- */
         .course-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 20px;
-            /* **FIX:** Prevent cards from stretching to match the tallest one */
+            /* Prevent cards from stretching to match the tallest one vertically */
             align-items: start;
         }
 
@@ -778,12 +779,13 @@
             border: 2px solid var(--active-color);
             position: relative;
             /* REQUIRED for delete button */
-            /* **NEW:** Add smooth transition for reordering animation */
+            /* Add smooth transition for reordering animation */
             transition: opacity 0.3s ease, transform 0.3s ease;
 
-            /* **FIX:** Removed fixed height and flex layout to allow content-driven height */
-            /* **FIX:** Add max-width to prevent card expansion with long URLs */
-            max-width: 600px;
+            /* Allow items to shrink in grid below their content width if needed */
+            min-width: 0;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
 
         /* NEW: Paused Day Card Styling (Matches Tracker Card) */
@@ -907,6 +909,8 @@
             /* Highlight the type */
             align-self: center;
             flex-shrink: 0;
+            /* Prevent colon from wrapping to next line if container shrinks */
+            white-space: nowrap;
         }
 
         /* New wrapper for name input and suggestions (1. Search Positioning Fix) */
@@ -983,7 +987,8 @@
         }
 
         .inline-link-chip {
-            display: none; /* hidden by default, JS toggles */
+            display: none;
+            /* hidden by default, JS toggles */
             align-items: center;
             justify-content: space-between;
             background-color: var(--chip-bg, #f0f8ff);
@@ -998,7 +1003,7 @@
 
         .inline-link-chip:hover {
             background-color: var(--chip-hover, #e6f3ff);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         .inline-link-content {
@@ -1040,7 +1045,7 @@
         }
 
         .inline-link-edit:hover {
-            background-color: rgba(0,0,0,0.05);
+            background-color: rgba(0, 0, 0, 0.05);
             color: #333;
         }
 
@@ -1403,9 +1408,9 @@
             flex-shrink: 0;
         }
 
-        /* Red branding for the Canvas Modal buttons and hovers */
-        #canvasImportModal .btn-save,
-        #canvasImportModal .btn-cancel,
+        /* Red branding for the Canvas Import section buttons and hovers */
+        #canvas-import-section .btn-save,
+        #canvas-import-section .btn-cancel,
         #canvas-import-action-btn,
         #canvas-preview-btn {
             background-color: #e72429 !important;
@@ -1413,19 +1418,109 @@
             color: white !important;
         }
 
-        #canvasImportModal .btn-save:hover,
-        #canvasImportModal .btn-cancel:hover,
+        #canvas-import-section .btn-save:hover,
+        #canvas-import-section .btn-cancel:hover,
         #canvas-import-action-btn:hover,
         #canvas-preview-btn:hover {
             background-color: #d11e23 !important;
             opacity: 1 !important;
         }
 
-        /* Ensure textarea and select hover borders are also red in Canvas modal */
-        #canvasImportModal .add-items-modal-textarea:focus,
-        #canvasImportModal .add-items-modal-select:focus {
+        /* Ensure textarea and select hover borders are also red in Canvas section */
+        #canvas-import-section .add-items-modal-textarea:focus,
+        #canvas-import-section .add-items-modal-select:focus {
             border-color: #e72429 !important;
             box-shadow: 0 0 0 1px #e72429 !important;
+        }
+
+        /* Import Modal Tab Navigation */
+        .import-tab-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .import-tab-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: 2px solid #ddd;
+            border-radius: 50px;
+            background-color: #fff;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: #999;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .import-tab-btn:hover {
+            border-color: #bbb;
+            color: #666;
+        }
+
+        .import-tab-btn.active-canvas {
+            border-color: #e72429;
+            color: #e72429;
+            background-color: #fdf2f2;
+        }
+
+        .import-tab-btn.active-manual {
+            border-color: var(--color-tracker-green);
+            color: var(--color-tracker-green);
+            background-color: #f0f9f0;
+        }
+
+        /* Green branding for Manual Import buttons */
+        .manual-import-section .btn-save {
+            background-color: var(--color-tracker-green) !important;
+            border-color: var(--color-tracker-green) !important;
+            color: white !important;
+        }
+
+        .manual-import-section .btn-save:hover {
+            background-color: #4a9150 !important;
+            opacity: 1 !important;
+        }
+
+        .manual-import-section .add-items-modal-textarea:focus,
+        .manual-import-section .add-items-modal-select:focus {
+            border-color: var(--color-tracker-green) !important;
+            box-shadow: 0 0 0 1px var(--color-tracker-green) !important;
+        }
+
+        /* Type selector row for manual import */
+        .manual-type-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .manual-type-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: #fff;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            color: #999;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .manual-type-btn:hover {
+            border-color: var(--color-tracker-green);
+            color: var(--color-tracker-green);
+        }
+
+        .manual-type-btn.active {
+            border-color: var(--color-tracker-green);
+            color: var(--color-tracker-green);
+            background-color: #f0f9f0;
         }
 
         /* Manual Indentation Class (Harmonized to 24px) */
@@ -2323,11 +2418,23 @@
                                         <input type="text" class="task-link" placeholder="Paste link here...">
                                         <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
                                             <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                        stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                        <path
+                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                                        </path>
+                                                    </svg></div>
                                                 <span class="inline-link-text"></span>
                                             </div>
                                             <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
+                                                    </path>
+                                                </svg>
                                             </button>
                                         </a>
                                     </div>
@@ -2377,11 +2484,23 @@
                                         <input type="text" class="task-link" placeholder="Paste link here...">
                                         <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
                                             <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                        stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                        <path
+                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                                        </path>
+                                                    </svg></div>
                                                 <span class="inline-link-text"></span>
                                             </div>
                                             <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
+                                                    </path>
+                                                </svg>
                                             </button>
                                         </a>
                                     </div>
@@ -2431,11 +2550,23 @@
                                         <input type="text" class="task-link" placeholder="Paste link here...">
                                         <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
                                             <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                        stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                        <path
+                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                                        </path>
+                                                    </svg></div>
                                                 <span class="inline-link-text"></span>
                                             </div>
                                             <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
+                                                    </path>
+                                                </svg>
                                             </button>
                                         </a>
                                     </div>
@@ -2485,11 +2616,23 @@
                                         <input type="text" class="task-link" placeholder="Paste link here...">
                                         <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
                                             <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                        stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                        <path
+                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                                        </path>
+                                                    </svg></div>
                                                 <span class="inline-link-text"></span>
                                             </div>
                                             <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
+                                                    </path>
+                                                </svg>
                                             </button>
                                         </a>
                                     </div>
@@ -2539,11 +2682,23 @@
                                         <input type="text" class="task-link" placeholder="Paste link here...">
                                         <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
                                             <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                        stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                        <path
+                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                                        </path>
+                                                    </svg></div>
                                                 <span class="inline-link-text"></span>
                                             </div>
                                             <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
+                                                    </path>
+                                                </svg>
                                             </button>
                                         </a>
                                     </div>
@@ -2598,11 +2753,23 @@
                                         <input type="text" class="task-link" placeholder="Paste link here...">
                                         <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
                                             <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                        stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                        <path
+                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                                        </path>
+                                                    </svg></div>
                                                 <span class="inline-link-text"></span>
                                             </div>
                                             <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
+                                                    </path>
+                                                </svg>
                                             </button>
                                         </a>
                                     </div>
@@ -2652,11 +2819,23 @@
                                         <input type="text" class="task-link" placeholder="Paste link here...">
                                         <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
                                             <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                        stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                        <path
+                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                                        </path>
+                                                    </svg></div>
                                                 <span class="inline-link-text"></span>
                                             </div>
                                             <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
+                                                    </path>
+                                                </svg>
                                             </button>
                                         </a>
                                     </div>
@@ -2706,11 +2885,23 @@
                                         <input type="text" class="task-link" placeholder="Paste link here...">
                                         <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
                                             <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                        stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                        <path
+                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                                        </path>
+                                                    </svg></div>
                                                 <span class="inline-link-text"></span>
                                             </div>
                                             <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
+                                                    </path>
+                                                </svg>
                                             </button>
                                         </a>
                                     </div>
@@ -2760,11 +2951,23 @@
                                         <input type="text" class="task-link" placeholder="Paste link here...">
                                         <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
                                             <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                        stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                        <path
+                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                                        </path>
+                                                    </svg></div>
                                                 <span class="inline-link-text"></span>
                                             </div>
                                             <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
+                                                    </path>
+                                                </svg>
                                             </button>
                                         </a>
                                     </div>
@@ -2843,7 +3046,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 4.0">Course Planner</h1>
+            <h1 class="footer-title" data-tooltip="Version 4.1">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Group -->
@@ -2877,6 +3080,7 @@
     <div id="dayCardContextMenu" class="context-menu" style="display: none;">
         <div class="context-menu-item" id="pauseDayCardCourseBtn">Pause Course</div>
         <div class="context-menu-item" id="prioritizeDayCardBtn" style="font-weight: 600;">Prioritize</div>
+        <div class="context-menu-item" id="moveDayCardCourseBtn">Move Course</div>
         <div style="border-top: 1px solid #eee;"></div>
         <div class="context-menu-item link-action" id="addEditLinkBtn">Add / Edit Link</div>
         <div class="context-menu-item link-action" id="removeLinkBtn" style="display: none;">Remove Link</div>
@@ -2983,42 +3187,97 @@
         </div>
     </div>
 
-    <!-- Canvas Import Modal -->
+    <!-- Canvas Import Modal (Tabbed: Canvas + Manual) -->
     <div id="canvasImportModal" class="link-modal-overlay">
         <div class="link-modal" style="max-width: 600px; width: 90%;">
-            <h2>Import from Canvas</h2>
 
-            <!-- Step 1: Paste Text -->
-            <div id="canvas-step-1">
+            <!-- Tab Navigation -->
+            <div class="import-tab-nav">
+                <button class="import-tab-btn active-canvas" id="importTabCanvas" data-import-tab="canvas">Import from
+                    Canvas</button>
+                <button class="import-tab-btn" id="importTabManual" data-import-tab="manual">Manual Import</button>
+            </div>
 
-                <textarea id="canvas-raw-text" class="add-items-modal-textarea" placeholder="Paste Canvas data here..."
-                    style="min-height: 200px; max-height: 500px; overflow-y: auto;"></textarea>
-                <div class="link-modal-buttons">
-                    <button class="btn-cancel" id="canvas-cancel-btn">Cancel</button>
-                    <button class="btn-save" id="canvas-preview-btn">Preview</button>
+            <!-- ========== CANVAS TAB ========== -->
+            <div id="canvas-import-section">
+
+                <!-- Canvas Step 1: Paste Text -->
+                <div id="canvas-step-1">
+                    <textarea id="canvas-raw-text" class="add-items-modal-textarea"
+                        placeholder="Paste Canvas data here..."
+                        style="min-height: 200px; max-height: 500px; overflow-y: auto;"></textarea>
+                    <div class="link-modal-buttons">
+                        <button class="btn-cancel" id="canvas-cancel-btn">Cancel</button>
+                        <button class="btn-save" id="canvas-preview-btn">Preview</button>
+                    </div>
+                </div>
+
+                <!-- Canvas Step 2: Preview & Import -->
+                <div id="canvas-step-2" style="display: none;">
+                    <h4>Preview Import</h4>
+                    <p>Review the identified items below.</p>
+
+                    <div id="canvas-preview-container"></div>
+
+                    <div style="margin-top: 15px;">
+                        <label for="canvas-import-course" style="font-size: 14px; font-weight: 600;">Import into
+                            Course:</label>
+                        <select id="canvas-import-course" class="add-items-modal-select"
+                            style="margin-top: 5px;"></select>
+                    </div>
+
+                    <div class="link-modal-buttons">
+                        <button class="btn-cancel" id="canvas-back-btn">Back</button>
+                        <button class="btn-save" id="canvas-import-action-btn">Import</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Step 2: Preview & Import -->
-            <div id="canvas-step-2" style="display: none;">
-                <h4>Preview Import</h4>
-                <p>Review the identified items below.</p>
+            <!-- ========== MANUAL IMPORT TAB ========== -->
+            <div id="manual-import-section" class="manual-import-section" style="display: none;">
 
+                <!-- Manual Step 1: Enter Items -->
+                <div id="manual-step-1">
+                    <div style="margin-bottom: 10px;">
+                        <label for="manual-import-type" style="font-size: 14px; font-weight: 600;">Import Type:</label>
+                        <select id="manual-import-type" class="add-items-modal-select"
+                            style="margin-top: 5px; margin-bottom: 15px;">
+                            <option value="both">Both (Auto-detect hierarchy)</option>
+                            <option value="lessons">Lessons Only</option>
+                            <option value="assignments">Assignments Only</option>
+                        </select>
+                    </div>
+                    <textarea id="manual-raw-text" class="add-items-modal-textarea"
+                        placeholder="Import manual data here..."
+                        style="min-height: 200px; max-height: 500px; overflow-y: auto;"></textarea>
 
-
-                <div id="canvas-preview-container"></div>
-
-                <div style="margin-top: 15px;">
-                    <label for="canvas-import-course" style="font-size: 14px; font-weight: 600;">Import into
-                        Course:</label>
-                    <select id="canvas-import-course" class="add-items-modal-select" style="margin-top: 5px;"></select>
+                    <div class="link-modal-buttons">
+                        <button class="btn-cancel" id="manual-cancel-btn">Cancel</button>
+                        <button class="btn-save" id="manual-preview-btn">Preview</button>
+                    </div>
                 </div>
 
-                <div class="link-modal-buttons">
-                    <button class="btn-cancel" id="canvas-back-btn">Back</button>
-                    <button class="btn-save" id="canvas-import-action-btn">Import</button>
+                <!-- Manual Step 2: Preview & Import -->
+                <div id="manual-step-2" style="display: none;">
+                    <h4>Preview Import</h4>
+                    <p>Review the identified items below.</p>
+
+                    <div id="manual-preview-container"></div>
+
+                    <div style="margin-top: 15px;">
+                        <label for="manual-import-course" style="font-size: 14px; font-weight: 600;">Import into
+                            Course:</label>
+                        <select id="manual-import-course" class="add-items-modal-select"
+                            style="margin-top: 5px;"></select>
+                    </div>
+
+                    <div class="link-modal-buttons">
+                        <button class="btn-cancel" id="manual-back-btn">Back</button>
+                        <button class="btn-save" id="manual-import-action-btn">Import</button>
+                    </div>
                 </div>
             </div>
+
         </div>
     </div>
 
@@ -3058,6 +3317,7 @@
             const LS_LESSONS_KEY = 'tracker_lessons';
             const LS_ASSIGNMENTS_KEY = 'tracker_assignments';
             const LS_PAUSED_COURSES_KEY = 'tracker_paused_courses'; // NEW KEY
+            const LS_MOVED_COURSES_KEY = 'moved_courses'; // **NEW KEY**
             const LS_COURSE_CUSTOM_LINKS_KEY = 'course_custom_links'; // NEW: Custom link storage
             const LS_LINK_PREVIEW_TOGGLE_KEY = 'link_preview_toggle'; // NEW: Track which preview is shown
             const LS_SPLIT_ASSIGNMENTS_KEY = 'split_assignments'; // NEW: Split assignments progress data
@@ -3234,7 +3494,9 @@
                         const h3 = card.querySelector('h3');
                         if (h3) {
                             let linkEl = h3.querySelector('a.course-link');
-                            const customLink = getCustomLink(courseName);
+                            let customLinkRaw = getCustomLink(courseName);
+                            // If multiple comma-separated links exist, only open the first one from the title click
+                            const customLink = customLinkRaw ? customLinkRaw.split(',')[0].trim() : null;
 
                             if (customLink && !linkEl) {
                                 // Create anchor tag and wrap the content
@@ -3284,6 +3546,15 @@
                 return paused;
             }
 
+            // --- **NEW:** Helpers to manage moved courses data ---
+            function getMovedCourses() {
+                return JSON.parse(localStorage.getItem(LS_MOVED_COURSES_KEY)) || {};
+            }
+
+            function setMovedCourses(data) {
+                localStorage.setItem(LS_MOVED_COURSES_KEY, JSON.stringify(data));
+            }
+
             // --- Toggle Pause State (MODIFIED for cross-tracker synchronization) ---
             function toggleCoursePauseState(courseName, type) {
                 let pausedCourses = getPausedCourses();
@@ -3312,6 +3583,17 @@
                 // Apply the new state to BOTH trackers for synchronization
                 setPauseState('lesson', shouldPause);
                 setPauseState('assignment', shouldPause);
+
+                // **NEW:** If pausing, remove any existing priorities and renumber
+                if (shouldPause && typeof promptAndSetPriority === 'function') {
+                    const priorities = getCoursePriorities();
+                    ['dayA', 'dayB'].forEach(dayId => {
+                        const key = `${dayId}_${courseName}`;
+                        if (priorities[key]) {
+                            promptAndSetPriority(courseName, dayId);
+                        }
+                    });
+                }
 
                 localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(pausedCourses));
 
@@ -3368,8 +3650,8 @@
                     let fullUrl = url.trim();
                     if (!fullUrl.startsWith('http')) fullUrl = 'https://' + fullUrl;
                     return new URL(fullUrl).hostname.replace('www.', '');
-                } catch(e) {
-                    return url; 
+                } catch (e) {
+                    return url;
                 }
             }
 
@@ -3378,7 +3660,7 @@
                 if (!row) return;
                 const chip = row.querySelector('.inline-link-chip');
                 if (!chip) return;
-                
+
                 const val = input.value.trim();
                 // Determine whether to display chip or raw input automatically
                 if (val !== '') {
@@ -3387,10 +3669,10 @@
                         input.style.display = 'none';
                     }
                     chip.style.display = 'flex';
-                    
+
                     const domain = formatDomain(val);
                     chip.querySelector('.inline-link-text').textContent = domain;
-                    
+
                     let targetUrl = val;
                     if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
                     chip.href = targetUrl;
@@ -3447,7 +3729,7 @@
                     if (!isTopField && val.trim() === '') {
                         const card = input.closest('.course-card');
                         input.closest('.link-input-row').remove();
-                        
+
                         if (card) {
                             const expandBtn = card.querySelector('.expand-card-inline-btn');
                             if (expandBtn) {
@@ -3547,29 +3829,50 @@
                 updateAutofillButtonVisibility();
             }
 
-            // --- **NEW:** Reorder Day Cards to Push Paused Cards to the Back ---
+            // --- **NEW:** Reorder Day Cards to Push Paused Cards to the Back and Sort by Priority ---
             function reorderDayCards(dayId) {
                 const dayContainer = document.getElementById(dayId);
                 const courseGrid = dayContainer.querySelector('.course-grid');
                 if (!courseGrid) return;
 
                 const cards = Array.from(courseGrid.querySelectorAll('.course-card'));
+                // Use getCoursePriorities if available, otherwise empty object
+                const priorities = typeof getCoursePriorities === 'function' ? getCoursePriorities() : {};
 
-                // Separate unpaused and paused cards, maintaining alphabetical order within each group
+                // Separate unpaused and paused cards
                 const unpausedCards = cards.filter(card => !card.classList.contains('paused'));
                 const pausedCards = cards.filter(card => card.classList.contains('paused'));
 
-                // Sort both groups alphabetically by course name
-                const sortByCourseName = (a, b) => {
+                // Helper to get priority for a card (returns Infinity if no priority so they go last)
+                const getCardPriority = (card) => {
+                    const courseName = card.getAttribute('data-course-name') || card.querySelector('h3').textContent.trim();
+                    const key = `${dayId}_${courseName}`;
+                    const pri = priorities[key];
+                    return (pri && pri > 0) ? pri : Infinity;
+                };
+
+                // Sort unpaused cards: priority first, then alphabetically
+                unpausedCards.sort((a, b) => {
+                    const priA = getCardPriority(a);
+                    const priB = getCardPriority(b);
+
+                    if (priA !== priB) {
+                        return priA - priB;
+                    }
+
                     const nameA = a.getAttribute('data-course-name') || a.querySelector('h3').textContent.trim();
                     const nameB = b.getAttribute('data-course-name') || b.querySelector('h3').textContent.trim();
                     return nameA.localeCompare(nameB);
-                };
+                });
 
-                unpausedCards.sort(sortByCourseName);
-                pausedCards.sort(sortByCourseName);
+                // Sort paused cards alphabetically (they cannot be prioritized)
+                pausedCards.sort((a, b) => {
+                    const nameA = a.getAttribute('data-course-name') || a.querySelector('h3').textContent.trim();
+                    const nameB = b.getAttribute('data-course-name') || b.querySelector('h3').textContent.trim();
+                    return nameA.localeCompare(nameB);
+                });
 
-                // Clear the grid and re-append in the new order (unpaused first, then paused)
+                // Clear the grid and re-append in the new order
                 courseGrid.innerHTML = '';
                 [...unpausedCards, ...pausedCards].forEach(card => {
                     courseGrid.appendChild(card);
@@ -4819,8 +5122,31 @@
                 localStorage.setItem(`${dayId}_data`, JSON.stringify(tasks));
             }
 
+            // --- **NEW:** Apply Moved Courses to DOM ---
+            function applyMovedCourses() {
+                const movedCourses = getMovedCourses();
+                for (const [courseName, data] of Object.entries(movedCourses)) {
+                    // Find the card in whatever day it currently resides in the DOM
+                    const card = document.querySelector(`.course-card[data-course-name="${courseName}"]`);
+                    if (card) {
+                        const targetGrid = document.querySelector(`#${data.currentDay} .course-grid`);
+                        if (targetGrid && card.parentElement !== targetGrid) {
+                            card.setAttribute('data-day', data.currentDay);
+                            targetGrid.appendChild(card);
+                        }
+                    }
+                }
+
+                // **FIX:** Ensure priority badges are re-rendered after cards are moved,
+                // so they correctly check their new data-day priority keys.
+                if (typeof renderAllPriorityBadges === 'function') {
+                    renderAllPriorityBadges();
+                }
+            }
+
             // --- 6. Load Logic (UPDATED to call new resize function, completion check, and pause state) ---
             function loadData() {
+                applyMovedCourses(); // Apply DOM shifts for moved courses before loading data
                 initializeTrackerData(); // Initialize/Load Tracker data first
 
                 // --- One-time migration: purge entries for courses no longer in ALL_COURSE_NAMES ---
@@ -5000,7 +5326,7 @@
                         const linkContainer = li.querySelector('.link-list-container');
                         if (linkContainer) {
                             linkContainer.innerHTML = '';
-                            
+
                             // Initialize the permanent top Empty input field FIRST
                             linkContainer.appendChild(createLinkRow(''));
 
@@ -5049,6 +5375,38 @@
                 if (confirm(`Are you sure you want to reset all fields for ${formattedDay}? (Custom links will be preserved)`)) {
 
                     if (dayId.startsWith(TAB_PREFIX)) {
+                        // **NEW:** Revert moved courses related to this day before clearing
+                        const movedCourses = getMovedCourses();
+                        let daysToReorder = new Set();
+                        let movedChanged = false;
+
+                        for (const courseName of Object.keys(movedCourses)) {
+                            const data = movedCourses[courseName];
+                            if (data.originalDay === dayId || data.currentDay === dayId) {
+                                const card = document.querySelector(`.course-card[data-course-name="${courseName}"]`);
+                                if (card) {
+                                    const targetGrid = document.querySelector(`#${data.originalDay} .course-grid`);
+                                    if (targetGrid) {
+                                        card.setAttribute('data-day', data.originalDay);
+                                        targetGrid.appendChild(card);
+                                        daysToReorder.add(data.currentDay);
+                                        daysToReorder.add(data.originalDay);
+                                    }
+                                }
+                                delete movedCourses[courseName];
+                                movedChanged = true;
+                            }
+                        }
+
+                        if (movedChanged) {
+                            setMovedCourses(movedCourses);
+                            daysToReorder.forEach(d => {
+                                if (typeof reorderDayCards === 'function') reorderDayCards(d);
+                                // Save the OTHER day so it captures the addition/removal
+                                if (d !== dayId && typeof saveData === 'function') saveData(d);
+                            });
+                        }
+
                         localStorage.removeItem(`${dayId}_data`);
                         localStorage.removeItem('selectedDay');
 
@@ -5161,7 +5519,8 @@
                 const courseSelects = [
                     document.getElementById('bulkLessonCourse'),
                     document.getElementById('bulkAssignmentCourse'),
-                    document.getElementById('canvas-import-course')
+                    document.getElementById('canvas-import-course'),
+                    document.getElementById('manual-import-course')
                 ];
 
                 courseSelects.forEach(select => {
@@ -5912,6 +6271,25 @@
                 prioritizeDayCardBtn.textContent = hasPriority ? 'Unprioritize' : 'Prioritize';
                 prioritizeDayCardBtn.style.color = dayId === 'dayA' ? '#3498DB' : '#ED7D31';
 
+                // **NEW:** Hide Prioritize option if the course is paused
+                prioritizeDayCardBtn.style.display = isPaused ? 'none' : 'block';
+
+                // **NEW:** Configure Move Course button dynamically
+                const moveDayCardCourseBtn = document.getElementById('moveDayCardCourseBtn');
+                if (moveDayCardCourseBtn) {
+                    moveDayCardCourseBtn.textContent = dayId === 'dayA' ? 'Move to Day B' : 'Move to Day A';
+                    // Ensure font exactly matches the Prioritize button
+                    moveDayCardCourseBtn.style.fontWeight = '600';
+                    moveDayCardCourseBtn.style.fontFamily = "'Montserrat', sans-serif";
+                    moveDayCardCourseBtn.style.color = dayId === 'dayA' ? '#3498DB' : '#ED7D31';
+
+                    if (courseName === 'Calculus & Vectors' || courseName === 'Data Management') {
+                        moveDayCardCourseBtn.style.display = 'none';
+                    } else {
+                        moveDayCardCourseBtn.style.display = 'block';
+                    }
+                }
+
                 const rect = h3Element.getBoundingClientRect();
                 dayCardContextMenu.style.left = `${rect.left}px`;
                 dayCardContextMenu.style.top = `${rect.bottom + 5}px`;
@@ -5942,6 +6320,63 @@
                 toggleCoursePauseState(dayCardContextMenuCourseName, 'lesson');
                 dayCardContextMenu.style.display = 'none';
             });
+
+            // NEW: Handle Temporary Move Course
+            const moveDayCardCourseBtn = document.getElementById('moveDayCardCourseBtn');
+            if (moveDayCardCourseBtn) {
+                moveDayCardCourseBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const courseName = dayCardContextMenuCourseName;
+                    const currentDayId = dayCardContextMenuDayId;
+                    const targetDayId = currentDayId === 'dayA' ? 'dayB' : 'dayA';
+
+                    // Save state
+                    const movedCourses = getMovedCourses();
+                    const originalDay = movedCourses[courseName] ? movedCourses[courseName].originalDay : currentDayId;
+
+                    if (originalDay === targetDayId) {
+                        // Moving it BACK to its original day
+                        delete movedCourses[courseName];
+                    } else {
+                        movedCourses[courseName] = { originalDay: originalDay, currentDay: targetDayId };
+                    }
+                    setMovedCourses(movedCourses);
+
+                    // Move DOM element
+                    const card = document.querySelector(`.course-card[data-course-name="${courseName}"][data-day="${currentDayId}"]`);
+                    if (card) {
+                        const targetGrid = document.querySelector(`#${targetDayId} .course-grid`);
+                        if (targetGrid) {
+                            card.setAttribute('data-day', targetDayId);
+                            targetGrid.appendChild(card);
+
+                            // Automatically save both days to move data storage
+                            if (typeof saveData === 'function') {
+                                saveData(currentDayId);
+                                saveData(targetDayId);
+                            }
+
+                            // Reorder both days
+                            if (typeof reorderDayCards === 'function') {
+                                reorderDayCards(currentDayId);
+                                reorderDayCards(targetDayId);
+                            }
+
+                            // Re-render badges to clear/update based on the new day's priority
+                            if (typeof renderAllPriorityBadges === 'function') {
+                                renderAllPriorityBadges();
+                            }
+
+                            // Recompute autofill visibility in case this empty/fills the day
+                            if (typeof updateAutofillButtonVisibility === 'function') {
+                                updateAutofillButtonVisibility();
+                            }
+                        }
+                    }
+
+                    dayCardContextMenu.style.display = 'none';
+                });
+            }
 
             // --- NEW: Expand Card Feature ---
             const expandCardBtn = document.getElementById('expandCardBtn');
@@ -6095,14 +6530,134 @@
                     }
                 });
 
-                // Add links to left panel
-                if (youtubeLinks.length > 0 || siteLinks.length > 0) {
-                    bodyHTML += `<hr class="expand-card-divider">
-                        <div class="expand-nav-section-title">Resources Navigation</div>
-                        <div class="expand-nav-list" role="tablist" id="expandNavList"></div>`;
-                }
+                // ALWAYS add left panel with input field for new links
+                bodyHTML += `<hr class="expand-card-divider">
+                    <div class="expand-nav-section-title">Resources Navigation</div>
+                    <div class="expand-nav-list" role="tablist" id="expandNavList"></div>
+                    <div style="margin-top: 15px;">
+                        <input type="text" class="task-link expand-new-link-input" placeholder="Paste link here..." style="width: 100%; border: 1px solid #ddd; padding: 10px 12px; border-radius: 8px; font-size: 13px; font-family: inherit; margin-bottom: 5px; outline: none; transition: border-color 0.2s;">
+                    </div>`;
 
                 expandCardBody.innerHTML = bodyHTML;
+
+                // Wire up new link input
+                const expandNewLinkInput = expandCardBody.querySelector('.expand-new-link-input');
+                if (expandNewLinkInput) {
+                    expandNewLinkInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const newLinksStr = expandNewLinkInput.value.trim();
+                            if (newLinksStr) {
+                                expandNewLinkInput.value = ''; // Clear input immediately
+                                // 1. Save directly to the underlying course card's 'Paste link here' field
+                                const realCard = document.querySelector(`.course-card[data-course-name="${courseName}"][data-day="${dayId}"]`);
+                                if (realCard) {
+                                    // Find the first task link field
+                                    const topLinkField = realCard.querySelector('.task-link');
+                                    if (topLinkField) {
+                                        if (topLinkField.value.trim() !== '') {
+                                            topLinkField.value = topLinkField.value + ', ' + newLinksStr;
+                                        } else {
+                                            topLinkField.value = newLinksStr;
+                                        }
+                                        if (typeof processCommaLinks === 'function') {
+                                            processCommaLinks(topLinkField);
+                                        }
+                                        if (typeof saveData === 'function') {
+                                            saveData(dayId);
+                                        }
+                                        hasUnsavedChanges = true;
+                                    }
+                                }
+
+                                // 2. Dynamically append the new link(s) without refreshing the modal
+                                const newLinksArray = newLinksStr.split(',').map(l => l.trim()).filter(l => l !== '');
+                                const navList = document.getElementById('expandNavList');
+
+                                if (navList) {
+                                    newLinksArray.forEach(link => {
+                                        const displayUrl = link.startsWith('http') ? link : `https://${link}`;
+                                        let domain = link;
+                                        try { domain = new URL(displayUrl).hostname.replace('www.', ''); } catch (err) { }
+
+                                        const embedUrl = typeof getYouTubeEmbed === 'function' ? getYouTubeEmbed(displayUrl) : null;
+
+                                        if (embedUrl) {
+                                            // Handle YouTube Link
+                                            youtubeLinks.push({ link: displayUrl, embedUrl: embedUrl });
+
+                                            let ytTabBtn = Array.from(document.querySelectorAll('.expand-nav-item')).find(el => el.textContent.includes('YouTube Videos'));
+                                            if (ytTabBtn) {
+                                                // Tab exists: Dynamically append the iframe to avoid refreshing active videos
+                                                const cachedContainer = tabCaches.get('youtube');
+                                                if (cachedContainer) {
+                                                    const grid = cachedContainer.querySelector('.expand-card-videos-grid');
+                                                    if (grid) {
+                                                        const wrapper = document.createElement('div');
+                                                        wrapper.className = 'video-embed-wrapper';
+
+                                                        const iframe = document.createElement('iframe');
+                                                        iframe.className = 'video-embed-iframe';
+                                                        iframe.src = embedUrl;
+                                                        iframe.title = 'YouTube video player';
+                                                        iframe.setAttribute('frameborder', '0');
+                                                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                                                        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+                                                        iframe.allowFullscreen = true;
+
+                                                        wrapper.appendChild(iframe);
+                                                        grid.appendChild(wrapper);
+                                                    }
+                                                }
+                                                ytTabBtn.click(); // Switch to it visually
+                                            } else {
+                                                // Tab does not exist: Create it and prepend to the TOP
+                                                const item = document.createElement('button');
+                                                item.type = 'button';
+                                                item.role = 'tab';
+                                                item.className = 'expand-nav-item';
+                                                item.innerHTML = `<svg class="expand-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg> YouTube Videos`;
+                                                item.addEventListener('click', () => {
+                                                    document.querySelectorAll('button.expand-nav-item').forEach(el => {
+                                                        el.classList.remove('active');
+                                                        el.setAttribute('aria-selected', 'false');
+                                                    });
+                                                    item.classList.add('active');
+                                                    item.setAttribute('aria-selected', 'true');
+                                                    renderVideoTab(); // Will naturally use the updated youtubeLinks array
+                                                });
+
+                                                navList.insertBefore(item, navList.firstChild);
+                                                item.click();
+                                            }
+                                        } else {
+                                            // Handle Standard Site Link
+                                            const item = document.createElement('button');
+                                            item.type = 'button';
+                                            item.role = 'tab';
+                                            item.className = 'expand-nav-item';
+                                            item.title = displayUrl;
+                                            item.innerHTML = `<svg class="expand-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg> ` + domain;
+
+                                            item.addEventListener('click', () => {
+                                                document.querySelectorAll('button.expand-nav-item').forEach(el => {
+                                                    el.classList.remove('active');
+                                                    el.setAttribute('aria-selected', 'false');
+                                                });
+                                                item.classList.add('active');
+                                                item.setAttribute('aria-selected', 'true');
+                                                renderSiteTab(displayUrl, displayUrl);
+                                            });
+
+                                            navList.appendChild(item);
+                                            item.click();
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
 
                 // Dynamically adjust textarea heights to safely expand any text that wrapped onto new lines
                 // requestAnimationFrame ensures the DOM has fully rendered the injected constraints
@@ -7097,42 +7652,95 @@
             const canvasImportActionBtn = document.getElementById('canvas-import-action-btn');
             const canvasCancelBtn = document.getElementById('canvas-cancel-btn');
 
+            // Manual Import Elements
+            const manualTextInput = document.getElementById('manual-raw-text');
+            const manualPreviewContainer = document.getElementById('manual-preview-container');
+            const manualCourseSelect = document.getElementById('manual-import-course');
+            const manualBackBtn = document.getElementById('manual-back-btn');
+            const manualPreviewBtn2 = document.getElementById('manual-preview-btn');
+            const manualImportActionBtn = document.getElementById('manual-import-action-btn');
+            const manualCancelBtn = document.getElementById('manual-cancel-btn');
+
             let parsedCanvasData = [];
+            let parsedManualData = [];
+
+
+            // --- Import Modal Tab Switching ---
+            document.querySelectorAll('.import-tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tab = btn.dataset.importTab;
+                    document.querySelectorAll('.import-tab-btn').forEach(b => {
+                        b.classList.remove('active-canvas', 'active-manual');
+                    });
+                    if (tab === 'canvas') {
+                        btn.classList.add('active-canvas');
+                        document.getElementById('canvas-import-section').style.display = 'block';
+                        document.getElementById('manual-import-section').style.display = 'none';
+                    } else {
+                        btn.classList.add('active-manual');
+                        document.getElementById('canvas-import-section').style.display = 'none';
+                        document.getElementById('manual-import-section').style.display = 'block';
+                    }
+                });
+            });
+
 
             // Open Modal
             if (canvasImportBtn) {
                 canvasImportBtn.addEventListener('click', () => {
                     canvasImportModal.classList.add('active');
-                    // Reset state
+                    // Reset Canvas tab state
                     document.getElementById('canvas-step-1').style.display = 'block';
                     document.getElementById('canvas-step-2').style.display = 'none';
                     canvasTextInput.value = '';
                     parsedCanvasData = [];
-                    populateCourseDropdowns(); // Ensure latest courses are available
+                    // Reset Manual tab state
+                    document.getElementById('manual-step-1').style.display = 'block';
+                    document.getElementById('manual-step-2').style.display = 'none';
+                    if (manualTextInput) manualTextInput.value = '';
+                    parsedManualData = [];
+                    // Reset to Canvas tab
+                    document.querySelectorAll('.import-tab-btn').forEach(b => b.classList.remove('active-canvas', 'active-manual'));
+                    document.getElementById('importTabCanvas').classList.add('active-canvas');
+                    document.getElementById('canvas-import-section').style.display = 'block';
+                    document.getElementById('manual-import-section').style.display = 'none';
 
-                    // Auto-resize reset (wait for visibility)
+                    populateCourseDropdowns();
+
                     setTimeout(() => {
                         canvasTextInput.style.height = '200px';
+                        if (manualTextInput) manualTextInput.style.height = '200px';
                     }, 50);
                 });
 
-                // Auto-Fit
+                // Auto-Fit for Canvas textarea
                 canvasTextInput.addEventListener('input', function () {
                     this.style.height = 'auto';
                     this.style.height = (this.scrollHeight) + 'px';
                 });
-
-                // Indentation Toggle Logic REMOVED
             }
 
-            // Cancel
+            // Auto-Fit for Manual textarea
+            if (manualTextInput) {
+                manualTextInput.addEventListener('input', function () {
+                    this.style.height = 'auto';
+                    this.style.height = (this.scrollHeight) + 'px';
+                });
+            }
+
+            // Cancel (both tabs)
             if (canvasCancelBtn) {
                 canvasCancelBtn.addEventListener('click', () => {
                     canvasImportModal.classList.remove('active');
                 });
             }
+            if (manualCancelBtn) {
+                manualCancelBtn.addEventListener('click', () => {
+                    canvasImportModal.classList.remove('active');
+                });
+            }
 
-            // Preview
+            // Canvas Preview
             if (canvasPreviewBtn) {
                 canvasPreviewBtn.addEventListener('click', () => {
                     const text = canvasTextInput.value;
@@ -7141,7 +7749,6 @@
                         return;
                     }
 
-                    // Use V3 Parser
                     parsedCanvasData = parseCanvasTextV3(text);
                     if (parsedCanvasData.length === 0) {
                         alert('Could not detect any lessons or assignments. Please check the format.');
@@ -7154,15 +7761,45 @@
                 });
             }
 
-            // Back (Step 2 -> Step 1)
+            // Manual Preview
+            if (manualPreviewBtn2) {
+                manualPreviewBtn2.addEventListener('click', () => {
+                    const text = manualTextInput.value;
+                    if (!text.trim()) {
+                        alert('Please enter some items first.');
+                        return;
+                    }
+
+                    const manualModeSelector = document.getElementById('manual-import-type');
+                    const mode = manualModeSelector ? manualModeSelector.value : 'both';
+                    parsedManualData = parseManualText(text, mode);
+
+                    if (parsedManualData.length === 0) {
+                        alert('Could not detect any items. Please check the format.');
+                        return;
+                    }
+
+                    renderCanvasPreview(parsedManualData, manualPreviewContainer);
+                    document.getElementById('manual-step-1').style.display = 'none';
+                    document.getElementById('manual-step-2').style.display = 'block';
+                });
+            }
+
+            // Back buttons
             if (canvasBackBtn) {
                 canvasBackBtn.addEventListener('click', () => {
                     document.getElementById('canvas-step-2').style.display = 'none';
                     document.getElementById('canvas-step-1').style.display = 'block';
                 });
             }
+            if (manualBackBtn) {
+                manualBackBtn.addEventListener('click', () => {
+                    document.getElementById('manual-step-2').style.display = 'none';
+                    document.getElementById('manual-step-1').style.display = 'block';
+                });
+            }
 
-            // Import Action
+            // Canvas Import Action
             if (canvasImportActionBtn) {
                 canvasImportActionBtn.addEventListener('click', () => {
                     const selectedCourse = canvasCourseSelect.value;
@@ -7173,20 +7810,41 @@
 
                     importDataToCard(selectedCourse, parsedCanvasData);
 
-                    // Non-Intrusive Feedback
                     const originalText = canvasImportActionBtn.textContent;
                     canvasImportActionBtn.textContent = 'Imported!';
                     canvasImportActionBtn.disabled = true;
 
-                    // Console fallback
                     console.log(`Successfully imported ${parsedCanvasData.length} lessons into ${selectedCourse}.`);
 
-                    // Close after short delay
                     setTimeout(() => {
                         canvasImportModal.classList.remove('active');
-                        // Reset button state
                         canvasImportActionBtn.textContent = originalText;
                         canvasImportActionBtn.disabled = false;
+                    }, 1000);
+                });
+            }
+
+            // Manual Import Action
+            if (manualImportActionBtn) {
+                manualImportActionBtn.addEventListener('click', () => {
+                    const selectedCourse = manualCourseSelect.value;
+                    if (!selectedCourse) {
+                        alert('Please select a course to import into.');
+                        return;
+                    }
+
+                    importDataToCard(selectedCourse, parsedManualData);
+
+                    const originalText = manualImportActionBtn.textContent;
+                    manualImportActionBtn.textContent = 'Imported!';
+                    manualImportActionBtn.disabled = true;
+
+                    console.log(`Successfully imported ${parsedManualData.length} groups into ${selectedCourse}.`);
+
+                    setTimeout(() => {
+                        canvasImportModal.classList.remove('active');
+                        manualImportActionBtn.textContent = originalText;
+                        manualImportActionBtn.disabled = false;
                     }, 1000);
                 });
             }
@@ -7277,7 +7935,18 @@
                         .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport and Map
                         .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Flags
                         .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc Symbols
-                        .replace(/[\u{2700}-\u{27BF}]/gu, '');  // Dingbats
+                        .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
+                        .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental Symbols
+                        .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '') // Chess Symbols
+                        .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols Extended-A
+                        .replace(/[\u{2300}-\u{23FF}]/gu, '')   // Misc Technical
+                        .replace(/[\u{200D}]/gu, '')             // Zero Width Joiner
+                        .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Variation Selectors
+                        .replace(/[\u{E0020}-\u{E007F}]/gu, '') // Tags
+                        .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, ''); // Skin Tone Modifiers
+
+                    // Collapse multiple spaces left after stripping
+                    str = str.replace(/\s{2,}/g, ' ');
 
                     // Filter: Remove known noise phrases (inline fragments)
                     const noiseFragments = [
@@ -7313,11 +7982,21 @@
                     // 1. Header Detection (Explicit)
                     if (useSubHeader && line === 'Context Module Sub Header') {
                         if (lines[i + 1]) {
-                            const title = cleanText(lines[i + 1]);
+                            let title = cleanText(lines[i + 1]);
+                            let skip = 1;
+                            // FIX: If title is empty after cleaning (emoji-only line), scan forward
+                            while (!title && lines[i + skip + 1]) {
+                                skip++;
+                                const candidate = lines[i + skip];
+                                // Stop if we hit another type marker
+                                if (['Page', 'Assignment', 'Quiz', 'Discussion Topic', 'Attachment', 'External Url', 'Context Module Sub Header'].includes(candidate)) break;
+                                title = cleanText(candidate);
+                            }
+                            if (!title) { i += skip; continue; } // Skip entirely if no real title found
                             currentLesson = { name: title, items: [] };
                             structure.push(currentLesson);
-                            isExplicitLesson = true; // Mark as explicit header
-                            i++; // Skip title
+                            isExplicitLesson = true;
+                            i += skip; // Skip title (and any emoji lines before it)
                             continue;
                         }
                     }
@@ -7329,9 +8008,18 @@
                     if (isPage || isAssignment) {
                         const type = line === 'External Url' ? 'Link' : (line === 'Attachment' ? 'File' : line);
                         if (lines[i + 1]) {
-                            const rawTitle = lines[i + 1];
-                            const title = cleanText(rawTitle);
-                            i++; // Skip title
+                            let rawTitle = lines[i + 1];
+                            let title = cleanText(rawTitle);
+                            let titleSkip = 1;
+                            // FIX: If title is empty after cleaning (emoji-only line), scan forward
+                            while (!title && lines[i + titleSkip + 1]) {
+                                titleSkip++;
+                                const candidate = lines[i + titleSkip];
+                                if (['Page', 'Assignment', 'Quiz', 'Discussion Topic', 'Attachment', 'External Url', 'Context Module Sub Header'].includes(candidate)) break;
+                                title = cleanText(candidate);
+                            }
+                            if (!title) { i += titleSkip; continue; } // Skip if no real title
+                            i += titleSkip; // Skip title (and any emoji lines before it)
 
                             // 3. Header Detection (Implicit OR Explicit override)
                             // If title starts with "Lesson X", treat as Lesson Group
@@ -7358,8 +8046,9 @@
                             // Fallback: If no lesson exists yet (at the start of the file)
                             // User Request: Group orphans into a single group so indentation can work.
                             if (!currentLesson) {
-                                // Create a new lesson for THIS item (Standalone)
-                                currentLesson = { name: title, items: [], isStandaloneWrapper: true };
+                                // FIX: Create orphan group WITHOUT using the item title as the lesson name.
+                                // This prevents the first assignment from being treated as both a lesson and assignment.
+                                currentLesson = { name: '__orphan__', items: [], isStandaloneWrapper: true };
                                 structure.push(currentLesson);
                                 isExplicitLesson = false;
                             }
@@ -7407,10 +8096,67 @@
 
                 return structure;
             }
-            function renderCanvasPreview(data) {
-                canvasPreviewContainer.innerHTML = '';
+            // **NEW:** Manual Import Parser
+            function parseManualText(text, mode) {
+                const rawLines = text.split('\n');
+                const structure = [];
+
+                if (mode === 'lessons') {
+                    // Every non-empty line is a lesson (no assignments)
+                    rawLines.forEach(line => {
+                        const trimmed = line.trim();
+                        if (trimmed) {
+                            structure.push({ name: trimmed, items: [] });
+                        }
+                    });
+                } else if (mode === 'assignments') {
+                    // Every non-empty line is an assignment in a single orphan group
+                    const orphan = { name: '__orphan__', items: [], isStandaloneWrapper: true };
+                    rawLines.forEach(line => {
+                        const trimmed = line.trim();
+                        if (trimmed) {
+                            orphan.items.push({
+                                title: trimmed,
+                                type: 'assignment',
+                                status: '',
+                                isDone: false
+                            });
+                        }
+                    });
+                    if (orphan.items.length > 0) structure.push(orphan);
+                } else {
+                    // 'both' mode: non-indented = lesson, indented (tab or 2+ spaces) = assignment
+                    let currentLesson = null;
+                    rawLines.forEach(line => {
+                        if (!line.trim()) return; // Skip empty lines
+
+                        const isIndented = /^(\t|  )/.test(line); // Tab or 2+ spaces
+                        const trimmed = line.trim();
+
+                        if (isIndented && currentLesson) {
+                            // Indented line → assignment under current lesson
+                            currentLesson.items.push({
+                                title: trimmed,
+                                type: 'assignment',
+                                status: '',
+                                isDone: false
+                            });
+                        } else {
+                            // Non-indented line → new lesson
+                            currentLesson = { name: trimmed, items: [] };
+                            structure.push(currentLesson);
+                        }
+                    });
+                }
+
+                return structure;
+            }
+
+            function renderCanvasPreview(data, targetContainer) {
+                const container = targetContainer || canvasPreviewContainer;
+                container.innerHTML = '';
                 if (!data || data.length === 0) {
-                    canvasPreviewContainer.innerHTML = '<p style="color:#666; font-style:italic;">No lessons detected.</p>';
+                    container.innerHTML = '<p style="color:#666; font-style:italic;">No items detected.</p>';
                     return;
                 }
 
@@ -7430,10 +8176,9 @@
                     const lessonDiv = document.createElement('div');
                     lessonDiv.className = 'canvas-tree-lesson';
 
-                    // Check for Standalone Case
-                    // Only hide the header if it was explicitly parsed as a standalone wrapper
+                    // Check for Standalone / Orphan Case
                     let hideHeader = false;
-                    if (lesson.isStandaloneWrapper) {
+                    if (lesson.isStandaloneWrapper || lesson.name === '__orphan__') {
                         hideHeader = true;
                     }
 
@@ -7461,7 +8206,8 @@
                             // Determine if standalone: only disable indentation for true single-item standalone wrappers
                             // (where item title == lesson name), NOT for all hidden-header groups.
                             // This allows assignment-only groups to still have full indentation control.
-                            const isStandalone = hideHeader && lesson.items.length === 1 && itemTitle === lesson.name;
+                            // Orphan groups are never standalone (they contain real assignments)
+                            const isStandalone = hideHeader && lesson.name !== '__orphan__' && lesson.items.length === 1 && itemTitle === lesson.name;
 
                             if (isStandalone) {
                                 titleSpan.style.cursor = 'default';
@@ -7517,7 +8263,7 @@
                         }
                     };
 
-                    canvasPreviewContainer.appendChild(lessonDiv);
+                    container.appendChild(lessonDiv);
                 });
             }
 
@@ -7754,31 +8500,30 @@
                 const existingAssignments = new Set((JSON.parse(localStorage.getItem(LS_ASSIGNMENTS_KEY)) || []).filter(i => i.course === courseName).map(i => i.name));
 
                 data.forEach(lesson => {
-                    const key = `${courseName}::${lesson.name}`; // Course::LessonName key
-
                     // Handle V3 'items' vs V2 'assignments'
                     const items = lesson.items || lesson.assignments || [];
 
+                    // FIX: Detect orphan groups (assignment-only paste, no lesson header)
+                    const isOrphan = lesson.name === '__orphan__';
+
+                    const key = isOrphan ? `${courseName}::__orphan__` : `${courseName}::${lesson.name}`;
+
                     // User Request: If outdented, don't link to lesson.
-                    // Filter items to only include those that are NOT specifically outdented.
                     const assignmentNames = items
                         .filter(a => !a.isOutdented)
                         .map(a => a.title || a.name);
 
                     // Check for Standalone/Redundant Case
-                    // If 1 item AND Lesson Name == Item Title -> It's just an assignment
                     let isStandalone = false;
-                    if (items.length === 1 && (lesson.name === items[0].title || lesson.name === items[0].name)) {
+                    if (!isOrphan && items.length === 1 && (lesson.name === items[0].title || lesson.name === items[0].name)) {
                         isStandalone = true;
                     }
 
-                    // Store mapping (still useful for internal lookups even if not in Lesson list)
+                    // Store mapping
                     mapping[key] = assignmentNames;
 
-                    // Add to Lesson Tracker (ONLY if NOT standalone)
-                    if (!isStandalone && !existingLessons.has(lesson.name)) {
-                        // For Lesson Status: We don't really have a "Lesson Status" in raw data directly attached to the header usually,
-                        // unless we infer from all items being done. For now, defaulting to false unless we add logic.
+                    // Add to Lesson Tracker (ONLY if NOT standalone and NOT orphan)
+                    if (!isStandalone && !isOrphan && !existingLessons.has(lesson.name)) {
                         updateTrackerItemStatusFromCard(courseName, 'lesson', lesson.name, false);
                         existingLessons.add(lesson.name);
                     }
