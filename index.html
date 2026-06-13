@@ -32,6 +32,10 @@
             --color-tracker-tint: #F7FCF7;
             /* Very light green tint */
 
+            /* Study Tools Indigo Theme */
+            --color-study: #58A65C;
+            --color-study-tint: #f7fcf7;
+
             /* New Global Colors */
             --color-text-gray: #767676;
             --color-button-green: #58A65C;
@@ -94,6 +98,14 @@
             --active-tint: var(--color-tracker-tint);
         }
 
+        /* NEW: Indigo Theme for Study Tools */
+        body.study-tools {
+            --active-color: var(--color-study);
+            --active-tint: var(--color-study-tint);
+            --chip-bg: #e9f6ea;
+            --chip-hover: #d6ecd8;
+        }
+
         /* --- Header & Tabs --- */
         .main-header {
             background-color: rgba(255, 255, 255, 0.65);
@@ -142,6 +154,7 @@
             background-color: rgba(120, 140, 180, 0.10);
             border-radius: 50px;
             box-shadow: var(--clay-shadow-field-inset);
+            position: relative;
         }
 
         .tab-nav button {
@@ -153,9 +166,11 @@
             background-color: transparent;
             cursor: pointer;
             color: #8a94a6;
-            transition: all 0.25s ease;
+            transition: color 0.25s ease;
             border-radius: 50px;
             margin: 0;
+            position: relative;
+            z-index: 1;
         }
 
         .tab-nav button:hover {
@@ -164,8 +179,34 @@
 
         .tab-nav button.active {
             color: #ffffff;
-            background-color: var(--active-color);
+            background-color: transparent;
+        }
+
+        /* Sliding pill indicator shared by the Day A/B nav and the footer tracker toggle.
+           Position/size are set in JS (positionToggleThumb); it glides between segments. */
+        .toggle-thumb {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 0;
+            border-radius: 50px;
+            z-index: 0;
+            opacity: 0;
+            pointer-events: none;
             box-shadow: 0 3px 8px rgba(90, 110, 150, 0.22);
+            transition: transform 0.34s cubic-bezier(0.4, 1.15, 0.5, 1),
+                        width 0.34s cubic-bezier(0.4, 1.15, 0.5, 1),
+                        background-color 0.3s ease,
+                        opacity 0.18s ease;
+        }
+
+        .tab-nav .toggle-thumb {
+            background-color: var(--active-color);
+        }
+
+        .footer-tracker-toggle .toggle-thumb {
+            background-color: var(--color-tracker-green);
         }
 
         /* --- Tab Content --- */
@@ -627,24 +668,49 @@
             box-shadow: 0 0 0 1px var(--color-tracker-green);
         }
 
+        /* ===== Modern dropdowns site-wide (custom chevron, no native arrow) ===== */
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23748098' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 13px center;
+            background-size: 15px;
+        }
+
+        select::-ms-expand {
+            display: none;
+        }
+
         .add-items-modal-select {
             width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+            padding: 12px 40px 12px 15px;
+            border: 1.5px solid #e4e9f2;
+            border-radius: 12px;
             font-family: 'Century Gothic', 'Futura', 'Montserrat', sans-serif;
             font-size: 14px;
+            color: #2c3340;
             margin-bottom: 15px;
             box-sizing: border-box;
             background-color: #fff;
             cursor: pointer;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
-        .add-items-modal-select:hover,
+        .add-items-modal-select:hover {
+            border-color: #cfd6e6;
+        }
+
         .add-items-modal-select:focus {
             outline: none;
             border-color: var(--color-tracker-green);
-            box-shadow: 0 0 0 1px var(--color-tracker-green);
+            box-shadow: 0 0 0 3px rgba(88, 166, 92, 0.16);
+        }
+
+        /* Study Tools selects: leave room for the shared chevron */
+        .st-select {
+            padding-right: 40px;
         }
 
         /* Hide old form elements (no longer used in HTML) */
@@ -1457,6 +1523,7 @@
             border-radius: 50px;
             box-shadow: var(--clay-shadow-field-inset);
             flex-shrink: 0;
+            position: relative;
         }
 
         .footer-tracker-toggle button {
@@ -1468,6 +1535,9 @@
             box-shadow: none;
             font-size: 14px;
             font-weight: 600;
+            transition: color 0.25s ease;
+            position: relative;
+            z-index: 1;
         }
 
         .footer-tracker-toggle button:hover {
@@ -1478,9 +1548,9 @@
 
         .footer-tracker-toggle button.active {
             color: #ffffff;
-            background-color: var(--color-tracker-green);
+            background-color: transparent;
             border: none;
-            box-shadow: 0 3px 8px rgba(90, 110, 150, 0.22);
+            box-shadow: none;
         }
 
         /* Save: green filled primary action */
@@ -2341,11 +2411,23 @@
             background-color: var(--chip-bg, #f0f8ff);
             color: var(--active-color);
             border-color: var(--clay-border);
-            box-shadow: 0 4px 12px rgba(90, 110, 150, 0.12);
+            box-shadow: 0 6px 16px rgba(90, 110, 150, 0.16), 0 2px 5px rgba(90, 110, 150, 0.10);
         }
 
         button.expand-nav-item.active .expand-nav-icon {
             opacity: 1;
+        }
+
+        /* Collapsible groups clip with overflow:hidden (for the expand/collapse
+           animation), which was cutting the active item's drop shadow into a hard
+           straight band. Add horizontal breathing room inside the clip and offset it
+           with a negative margin so items keep their exact position/width while the
+           shadow can render rounded on all sides. */
+        .expand-nav-group-content {
+            padding-left: 16px;
+            padding-right: 16px;
+            margin-left: -16px;
+            margin-right: -16px;
         }
 
         .expand-nav-icon {
@@ -2421,7 +2503,8 @@
 
         .expand-preview-iframe {
             width: 100%;
-            height: 100%;
+            flex: 1;
+            min-height: 0;
             border: none;
             display: block;
             background-color: #fff;
@@ -2746,6 +2829,273 @@
         .split-modal-buttons .btn-split:hover {
             opacity: 0.9;
         }
+        /* =========================================================
+           STUDY TOOLS  — claymorphism, indigo accent, soft 3D depth
+           ========================================================= */
+        #studyTools { padding: 0; }
+        .st-wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+
+        /* Top bar: title + Connect API */
+        .st-topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom: 34px; flex-wrap: wrap; }
+        .st-topbar .st-eyebrow { font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color: var(--color-study); margin-bottom:6px; }
+        .st-topbar h2 { font-size: 30px; font-weight: 700; color:#2c3340; margin:0 0 6px; }
+        .st-topbar p { font-size:14px; color:#6b7280; margin:0; max-width: 520px; line-height:1.6; }
+
+        /* Connect API button (pill, shows connection state) */
+        .st-api-btn { display:inline-flex; align-items:center; gap:9px; font-family:inherit; font-size:13.5px; font-weight:600;
+            padding: 11px 18px; border-radius: 14px; cursor:pointer; border:1px solid var(--clay-border);
+            background:#fff; color:#475067; box-shadow: var(--clay-shadow-card); transition: transform .15s ease, box-shadow .15s ease; }
+        .st-api-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(80,100,140,0.16); }
+        .st-api-btn .st-dot { width:9px; height:9px; border-radius:50%; background:#cbd2e0; box-shadow:0 0 0 3px rgba(203,210,224,0.3); }
+        .st-api-btn.connected { color:#2c3340; }
+        .st-api-btn.connected .st-dot { background:#3fbf6a; box-shadow:0 0 0 3px rgba(63,191,106,0.25); }
+
+        /* Hub: 3 tool cards */
+        .st-hub-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap:24px; }
+        .st-tool-card { position:relative; text-align:left; cursor:pointer; border:none; font-family:inherit;
+            background: var(--clay-surface); border-radius: var(--clay-radius); padding: 28px 26px 26px;
+            box-shadow: var(--clay-shadow-tracker); transition: transform .18s ease, box-shadow .18s ease; }
+        .st-tool-card:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(80,100,140,0.22), inset 0 1px 0 rgba(255,255,255,0.8); }
+        .st-tool-card .st-ico { width:58px; height:58px; border-radius:18px; display:flex; align-items:center; justify-content:center; margin-bottom:18px;
+            background: linear-gradient(145deg, #e9f6ea, #dcefdd); color: var(--color-study);
+            box-shadow: 4px 4px 10px rgba(80,100,140,0.14), -4px -4px 10px rgba(255,255,255,0.9); }
+        .st-tool-card h3 { font-size:19px; font-weight:700; color:#2c3340; margin:0 0 8px; }
+        .st-tool-card p { font-size:13.5px; color:#6b7280; line-height:1.6; margin:0 0 18px; }
+        .st-tool-card .st-go { display:inline-flex; align-items:center; gap:7px; font-size:13.5px; font-weight:600; color: var(--color-study); }
+        .st-tool-card:hover .st-go { gap:11px; }
+        .st-tool-card .st-go svg { transition: transform .18s ease; }
+        .st-tool-card:hover .st-go svg { transform: translateX(3px); }
+
+        /* Screen router */
+        .st-screen { display:none; }
+        .st-screen.active { display:block; animation: stFade .25s ease; }
+        @keyframes stFade { from { opacity:0; transform: translateY(6px);} to { opacity:1; transform:none; } }
+
+        /* Tool header (back + title) */
+        .st-toolhead { display:flex; align-items:center; gap:16px; margin-bottom:26px; }
+        .st-back { display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px; flex:0 0 auto;
+            border-radius:14px; border:1px solid var(--clay-border); background:#fff; color:#475067; cursor:pointer;
+            box-shadow: var(--clay-shadow-card); transition: transform .15s ease; }
+        .st-back:hover { transform: translateX(-3px); }
+        .st-toolhead .st-th-ico { width:46px; height:46px; border-radius:14px; display:flex; align-items:center; justify-content:center;
+            background: linear-gradient(145deg, #e9f6ea, #dcefdd); color: var(--color-study);
+            box-shadow: 3px 3px 8px rgba(80,100,140,0.12), -3px -3px 8px rgba(255,255,255,0.9); }
+        .st-toolhead h2 { font-size:23px; font-weight:700; color:#2c3340; margin:0; }
+        .st-toolhead .st-sub { font-size:13px; color:#6b7280; margin-top:2px; }
+
+        /* Stage router inside a tool */
+        .st-stage { display:none; }
+        .st-stage.active { display:block; }
+
+        /* Panels & form fields */
+        .st-panel { background: var(--clay-surface); border-radius: var(--clay-radius); padding: 28px;
+            box-shadow: var(--clay-shadow-tracker); margin-bottom:22px; }
+        .st-panel-title { font-size:15px; font-weight:700; color:#2c3340; margin:0 0 4px; }
+        .st-panel-hint { font-size:12.5px; color:#9097a6; margin:0 0 18px; }
+        .st-field { margin-bottom:18px; }
+        .st-field > label { display:block; font-size:13px; font-weight:600; color:#475067; margin-bottom:8px; }
+        .st-input, .st-select, .st-textarea { width:100%; font-family:inherit; font-size:14px; color:#2c3340; box-sizing:border-box;
+            background: var(--clay-field-bg); border:1px solid transparent; border-radius:12px; padding:12px 14px;
+            box-shadow: var(--clay-shadow-field-inset); transition: box-shadow .15s ease, background .15s ease, border-color .15s ease; }
+        .st-textarea { resize:vertical; min-height:90px; line-height:1.6; }
+        .st-input:focus, .st-select:focus, .st-textarea:focus { outline:none; background:#fff; border-color: var(--active-color);
+            box-shadow: 0 0 0 3px rgba(88,166,92,0.16); }
+        .st-grid2 { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:18px; }
+
+        /* Selectable chips (question types) */
+        .st-chips { display:flex; flex-wrap:wrap; gap:10px; }
+        .st-chip { font-family:inherit; font-size:13px; font-weight:600; color:#5b6473; cursor:pointer; user-select:none;
+            padding:9px 15px; border-radius:11px; background: var(--clay-field-bg); border:1px solid transparent;
+            box-shadow: var(--clay-shadow-field-inset); transition: all .15s ease; }
+        .st-chip:hover { background:#eef1f8; }
+        .st-chip.on { background: var(--color-study); color:#fff; border-color: var(--color-study);
+            box-shadow: 0 4px 12px rgba(88,166,92,0.30); }
+
+        /* Toggle pill (LaTeX / math formatting) */
+        .st-toggle-pill { display:flex; align-items:center; gap:12px; width:100%; font-family:inherit; font-size:13.5px; font-weight:600;
+            color:#475067; cursor:pointer; text-align:left; padding:11px 13px; border-radius:13px;
+            background: var(--clay-field-bg); border:1px solid transparent; box-shadow: var(--clay-shadow-field-inset);
+            transition: all .15s ease; }
+        .st-toggle-pill:hover { background:#eef1f8; }
+        .st-toggle-pill .st-tp-ico { flex:0 0 auto; width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+            font-style:italic; font-weight:700; font-size:14px; background:#fff; color: var(--active-color);
+            box-shadow: 2px 2px 5px rgba(80,100,140,0.10), -2px -2px 5px rgba(255,255,255,0.9); transition: all .15s ease; }
+        .st-toggle-pill .st-tp-label { flex:1; }
+        .st-toggle-pill .st-tp-state { flex:0 0 auto; font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+            padding:4px 10px; border-radius:8px; background:#e6e9f2; color:#8a93a6; transition: all .15s ease; }
+        .st-toggle-pill.on { background: var(--active-color); color:#fff; border-color: var(--active-color);
+            box-shadow: 0 4px 12px rgba(88,166,92,0.30); }
+        .st-toggle-pill.on .st-tp-ico { background: rgba(255,255,255,0.22); color:#fff; box-shadow:none; }
+        .st-toggle-pill.on .st-tp-state { background: rgba(255,255,255,0.25); color:#fff; }
+
+        /* Source inputs (file drop + youtube) */
+        .st-dropzone { border:2px dashed #cfd6e6; border-radius:16px; padding:30px 20px; text-align:center; cursor:pointer;
+            background: var(--clay-field-bg); transition: all .18s ease; }
+        .st-dropzone:hover, .st-dropzone.drag { border-color: var(--color-study); background:#e9f6ea; }
+        .st-dropzone .st-dz-ico { color: var(--color-study); margin-bottom:10px; }
+        .st-dropzone p { font-size:13.5px; color:#5b6473; margin:0; }
+        .st-dropzone .st-dz-types { font-size:11.5px; color:#9097a6; margin-top:6px; }
+        .st-yt-row { display:flex; gap:10px; margin-top:16px; }
+        .st-yt-row .st-input { flex:1; }
+        .st-source-list { display:flex; flex-direction:column; gap:9px; margin-top:16px; }
+        .st-srcchip { display:flex; align-items:center; gap:11px; padding:10px 13px; border-radius:12px; background:#fff;
+            border:1px solid var(--clay-border); box-shadow: var(--clay-shadow-card); }
+        .st-srcchip .st-sc-ico { width:32px; height:32px; flex:0 0 auto; border-radius:9px; display:flex; align-items:center; justify-content:center;
+            background:#e9f6ea; color:var(--color-study); }
+        .st-srcchip .st-sc-ico.yt { background:#ffeaea; color:#e23b3b; }
+        .st-srcchip .st-sc-meta { flex:1; min-width:0; }
+        .st-srcchip .st-sc-name { font-size:13px; font-weight:600; color:#2c3340; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .st-srcchip .st-sc-sz { font-size:11px; color:#9097a6; }
+        .st-srcchip .st-sc-x { flex:0 0 auto; width:26px; height:26px; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#9097a6; display:flex; align-items:center; justify-content:center; }
+        .st-srcchip .st-sc-x:hover { background:#f1f1f4; color:#e23b3b; }
+
+        /* Buttons */
+        .st-btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; font-family:inherit; font-size:14.5px; font-weight:600;
+            padding:13px 26px; border:none; border-radius:14px; cursor:pointer; color:#fff;
+            background: linear-gradient(135deg, #6cc070, #58A65C); box-shadow: 0 6px 16px rgba(88,166,92,0.34);
+            transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease; }
+        .st-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(88,166,92,0.40); }
+        .st-btn:disabled { opacity:.55; cursor:not-allowed; transform:none; box-shadow:none; }
+        .st-btn-ghost { background:#fff; color:#475067; border:1px solid var(--clay-border); box-shadow: var(--clay-shadow-card); }
+        .st-btn-ghost:hover { box-shadow: 0 8px 18px rgba(80,100,140,0.16); }
+        .st-actions { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+
+        /* Generating state */
+        .st-gen { text-align:center; padding:50px 20px; }
+        .st-gen .st-spinner { width:58px; height:58px; margin:0 auto 24px; border-radius:50%;
+            border:5px solid #e6e9f5; border-top-color: var(--color-study); animation: stSpin .9s linear infinite; }
+        @keyframes stSpin { to { transform: rotate(360deg); } }
+        .st-gen h3 { font-size:18px; font-weight:700; color:#2c3340; margin:0 0 6px; }
+        .st-gen .st-gen-sub { font-size:13.5px; color:#6b7280; margin:0 0 26px; }
+        .st-gensteps { display:inline-flex; flex-direction:column; gap:12px; text-align:left; }
+        .st-genstep { display:flex; align-items:center; gap:12px; font-size:13.5px; color:#9097a6; transition: color .3s ease; }
+        .st-genstep .st-gs-dot { width:20px; height:20px; flex:0 0 auto; border-radius:50%; background:#e6e9f5; display:flex; align-items:center; justify-content:center; color:#fff; transition: background .3s ease; }
+        .st-genstep.done { color:#2c3340; }
+        .st-genstep.done .st-gs-dot { background:#3fbf6a; }
+        .st-genstep.active { color: var(--color-study); font-weight:600; }
+        .st-genstep.active .st-gs-dot { background: var(--color-study); animation: stPulse 1s ease infinite; }
+        @keyframes stPulse { 0%,100%{ box-shadow:0 0 0 0 rgba(88,166,92,0.4);} 50%{ box-shadow:0 0 0 6px rgba(88,166,92,0);} }
+
+        /* ---------- Worksheet A4 sheet ---------- */
+        .st-ws-bar { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
+        .st-ws-toggle { display:inline-flex; background: var(--clay-field-bg); border-radius:12px; padding:4px; box-shadow: var(--clay-shadow-field-inset); }
+        .st-ws-toggle button { font-family:inherit; font-size:13px; font-weight:600; color:#5b6473; border:none; background:transparent; padding:9px 18px; border-radius:9px; cursor:pointer; }
+        .st-ws-toggle button.on { background:#fff; color: var(--color-study); box-shadow: var(--clay-shadow-card); }
+        .st-a4-scroll { overflow-x:auto; padding:6px; }
+        .st-a4 { width:794px; min-height:1123px; margin:0 auto; background:#fff; color:#1f2430; box-sizing:border-box;
+            padding:64px 68px; border-radius:6px; box-shadow: 0 18px 40px rgba(80,100,140,0.22); font-size:13.5px; line-height:1.7; }
+        .st-a4-head { text-align:center; border-bottom:2px solid #1f2430; padding-bottom:16px; margin-bottom:8px; }
+        .st-a4-head .st-a4-sub { font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#6b7280; }
+        .st-a4-head h1 { display:block; font-size:24px; font-weight:700; color:#1f2430; margin:6px 0 4px; }
+        .st-a4-meta { display:flex; justify-content:space-between; font-size:12px; color:#444; margin:14px 0 4px; }
+        .st-a4-name { display:flex; gap:30px; font-size:12.5px; margin:18px 0 22px; }
+        .st-a4-name span { border-bottom:1px solid #1f2430; flex:1; padding-bottom:2px; }
+        .st-a4-instr { font-style:italic; color:#444; font-size:12.5px; margin-bottom:24px; }
+        .st-q { margin-bottom:22px; page-break-inside:avoid; }
+        .st-q .st-q-head { display:flex; gap:10px; }
+        .st-q .st-q-num { font-weight:700; color: var(--color-study); }
+        .st-q .st-q-text { flex:1; }
+        .st-q .st-q-badge { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#8a8f9c; border:1px solid #d7dce5; border-radius:5px; padding:1px 6px; height:fit-content; }
+        .st-q .st-opts { list-style:none; margin:10px 0 0; padding:0 0 0 26px; }
+        .st-q .st-opts li { margin:6px 0; }
+        .st-q .st-opts li::before { content: attr(data-l) ")"; font-weight:600; margin-right:8px; color:#444; }
+        .st-q .st-worklines { margin-top:10px; }
+        .st-q .st-worklines div { border-bottom:1px solid #d7dce5; height:26px; }
+        .st-q .st-answer { margin-top:9px; padding:10px 13px; border-radius:8px; background:#eef7f0; border-left:3px solid #3fbf6a; font-size:12.5px; color:#1f3a26; }
+        .st-q .st-answer b { color:#1f3a26; }
+        .st-a4.is-key .st-q .st-worklines { display:none; }
+
+        /* ---------- Study Guide ---------- */
+        .st-guide-head { background: var(--clay-surface); border-radius: var(--clay-radius); padding:28px; box-shadow: var(--clay-shadow-tracker); margin-bottom:22px; }
+        .st-guide-head h2 { font-size:26px; font-weight:700; color:#2c3340; margin:0 0 8px; }
+        .st-guide-head .st-guide-meta { display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:#6b7280; }
+        .st-guide-head .st-guide-meta span { display:inline-flex; align-items:center; gap:6px; }
+        .st-gsec { background: var(--clay-surface); border-radius: var(--clay-radius); padding:26px 28px; box-shadow: var(--clay-shadow-card); margin-bottom:18px; }
+        .st-gsec > h3 { display:flex; align-items:center; gap:10px; font-size:16px; font-weight:700; color:#2c3340; margin:0 0 16px; }
+        .st-gsec > h3 .st-gsec-ico { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:#e9f6ea; color:var(--color-study); }
+        .st-gsec p { font-size:14px; color:#3f4654; line-height:1.75; margin:0 0 12px; }
+        .st-concept { padding:12px 0; border-bottom:1px solid #f0f2f7; }
+        .st-concept:last-child { border-bottom:none; }
+        .st-concept .st-c-term { font-size:14px; font-weight:700; color: var(--color-study); margin-bottom:4px; }
+        .st-concept .st-c-body { font-size:13.5px; color:#3f4654; line-height:1.7; }
+        .st-formula { font-family: 'Cambria Math','Georgia',serif; font-size:15px; color:#1f2430; background: var(--clay-field-bg);
+            border-radius:10px; padding:12px 16px; margin:8px 0; box-shadow: var(--clay-shadow-field-inset); }
+        .st-steps { margin:0; padding-left:22px; }
+        .st-steps li { font-size:13.5px; color:#3f4654; line-height:1.7; margin:6px 0; }
+        .st-take { display:flex; gap:11px; align-items:flex-start; font-size:13.5px; color:#3f4654; line-height:1.6; margin:9px 0; }
+        .st-take .st-take-ck { flex:0 0 auto; color:#3fbf6a; margin-top:2px; }
+        .st-quiz { counter-reset: q; }
+        .st-quiz .st-quiz-item { font-size:13.5px; color:#3f4654; line-height:1.7; margin:9px 0; padding-left:30px; position:relative; }
+        .st-quiz .st-quiz-item::before { counter-increment:q; content: "Q" counter(q); position:absolute; left:0; font-weight:700; color:var(--color-study); }
+
+        /* ---------- Flashcards ---------- */
+        .st-deck-top { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
+        .st-deck-title { font-size:18px; font-weight:700; color:#2c3340; }
+        .st-deck-counter { font-size:13px; color:#6b7280; font-weight:600; }
+        .st-flip { perspective: 1600px; max-width:560px; margin:0 auto 22px; }
+        .st-flip-inner { position:relative; width:100%; min-height:300px; cursor:pointer; transform-style:preserve-3d; transition: transform .55s cubic-bezier(.4,.2,.2,1); }
+        .st-flip.flipped .st-flip-inner { transform: rotateY(180deg); }
+        .st-flip-face { position:absolute; inset:0; -webkit-backface-visibility:hidden; backface-visibility:hidden;
+            display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px;
+            border-radius: var(--clay-radius); background: var(--clay-surface); box-shadow: var(--clay-shadow-tracker); }
+        .st-flip-face .st-face-tag { position:absolute; top:18px; left:22px; font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#9097a6; }
+        .st-flip-face .st-face-text { font-size:21px; font-weight:600; color:#2c3340; line-height:1.5; }
+        .st-flip-back { transform: rotateY(180deg); background: linear-gradient(150deg, #eef8ef, #e9f6ea); }
+        .st-flip-back .st-face-text { font-size:17px; font-weight:500; color:#2c3340; }
+        .st-flip-hint { position:absolute; bottom:16px; left:0; right:0; text-align:center; font-size:11.5px; color:#aab0c0; }
+        .st-deck-ctrls { display:flex; align-items:center; justify-content:center; gap:14px; }
+        .st-deck-ctrls button { font-family:inherit; font-size:14px; font-weight:600; border:1px solid var(--clay-border); background:#fff; color:#475067;
+            border-radius:13px; padding:11px 18px; cursor:pointer; box-shadow: var(--clay-shadow-card); display:inline-flex; align-items:center; gap:8px; transition: transform .15s ease; }
+        .st-deck-ctrls button:hover { transform: translateY(-2px); }
+        .st-deck-ctrls button:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+        .st-dots { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:20px 0 8px; }
+        .st-dots span { width:8px; height:8px; border-radius:50%; background:#d4d9e6; transition: all .2s ease; }
+        .st-dots span.on { background: var(--color-study); transform: scale(1.35); }
+        .st-saved-list { margin-top:30px; }
+        .st-saved-list h4 { font-size:13px; font-weight:700; color:#475067; text-transform:uppercase; letter-spacing:1px; margin:0 0 14px; }
+        .st-saved-row { display:flex; align-items:center; gap:12px; padding:13px 16px; border-radius:13px; background:#fff; border:1px solid var(--clay-border); box-shadow: var(--clay-shadow-card); margin-bottom:10px; cursor:pointer; transition: transform .15s ease; }
+        .st-saved-row:hover { transform: translateX(3px); }
+        .st-saved-row .st-sr-ico { width:38px; height:38px; flex:0 0 auto; border-radius:11px; display:flex; align-items:center; justify-content:center; background:#e9f6ea; color:var(--color-study); }
+        .st-saved-row .st-sr-meta { flex:1; }
+        .st-saved-row .st-sr-title { font-size:14px; font-weight:600; color:#2c3340; }
+        .st-saved-row .st-sr-sub { font-size:12px; color:#9097a6; }
+        .st-saved-row .st-sr-del { flex:0 0 auto; width:30px; height:30px; border:none; border-radius:9px; background:transparent; color:#9097a6; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+        .st-saved-row .st-sr-del:hover { background:#ffeaea; color:#e23b3b; }
+        .st-empty { text-align:center; padding:30px; color:#9097a6; font-size:13px; }
+
+        /* ---------- API key modal ---------- */
+        .st-modal-ov { position:fixed; inset:0; z-index:4000; display:none; align-items:center; justify-content:center; padding:20px;
+            background: rgba(30,38,58,0.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+        .st-modal-ov.open { display:flex; animation: stFade .2s ease; }
+        .st-modal { width:100%; max-width:480px; background:#fff; border-radius:22px; padding:30px; box-shadow: 0 30px 70px rgba(20,30,60,0.35); }
+        .st-modal .st-m-ico { width:52px; height:52px; border-radius:16px; display:flex; align-items:center; justify-content:center; margin-bottom:16px;
+            background: linear-gradient(145deg,#e9f6ea,#dcefdd); color:var(--color-study); box-shadow:4px 4px 10px rgba(80,100,140,0.14), -4px -4px 10px rgba(255,255,255,0.9); }
+        .st-modal h3 { font-size:20px; font-weight:700; color:#2c3340; margin:0 0 8px; }
+        .st-modal p { font-size:13.5px; color:#6b7280; line-height:1.65; margin:0 0 18px; }
+        .st-modal p a { color: var(--color-study); font-weight:600; text-decoration:none; }
+        .st-modal p a:hover { text-decoration:underline; }
+        .st-modal .st-actions { margin-top:22px; }
+        .st-modal-note { font-size:11.5px; color:#9097a6; margin-top:14px; line-height:1.55; display:flex; gap:8px; }
+        .st-modal-note svg { flex:0 0 auto; color:#e0a01e; margin-top:1px; }
+
+        /* ---------- Toast ---------- */
+        #stToast { position:fixed; left:50%; bottom:96px; transform:translateX(-50%) translateY(20px); z-index:5000;
+            background:#2c3340; color:#fff; font-size:13.5px; font-weight:500; padding:13px 20px; border-radius:13px;
+            box-shadow:0 12px 30px rgba(20,30,60,0.3); opacity:0; pointer-events:none; transition: all .3s ease; max-width:90vw; }
+        #stToast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+        #stToast.err { background:#c0392b; }
+        #stToast.ok { background:#2f9e57; }
+
+        /* ---------- Print: only the worksheet sheet ---------- */
+        @media print {
+            @page { size: A4 portrait; margin: 0; }
+            body * { visibility: hidden !important; }
+            #stPrintArea, #stPrintArea * { visibility: visible !important; }
+            #stPrintArea { position:absolute; left:0; top:0; width:100%; display:block !important; }
+            #stPrintArea .st-a4 { width:100%; min-height:auto; margin:0; border-radius:0; box-shadow:none; padding:18mm 16mm; page-break-after:always; }
+            #stPrintArea .st-a4:last-child { page-break-after:auto; }
+        }
+        #stPrintArea { display:none; }
     </style>
 </head>
 
@@ -2753,6 +3103,7 @@
 
     <header class="main-header">
         <nav class="tab-nav">
+            <span class="toggle-thumb" aria-hidden="true"></span>
             <button class="tab-link active" data-tab="dayA">Day A</button>
             <button class="tab-link" data-tab="dayB">Day B</button>
         </nav>
@@ -3265,6 +3616,9 @@
             </div>
         </div>
 
+        <!-- Study Tools view (populated by the Study Tools engine script) -->
+        <div id="studyTools" class="tab-content"></div>
+
     </main>
 
     <footer class="main-footer">
@@ -3274,6 +3628,8 @@
         <div class="footer-actions">
             <!-- Tracker Toggle (segmented pill) -->
             <div class="footer-tracker-toggle">
+                <span class="toggle-thumb" aria-hidden="true"></span>
+                <button id="studyToolsBtn">Study Tools</button>
                 <button id="lessonTrackerBtn">Lesson Tracker</button>
                 <button id="assignmentTrackerBtn">Assignment Tracker</button>
             </div>
@@ -4042,6 +4398,40 @@
                 if (embedContainer) embedContainer.innerHTML = '';
             }
 
+            // --- Sliding pill indicator for the segmented toggles (Day A/B + footer trackers) ---
+            let toggleThumbsReady = false;
+
+            function positionToggleThumb(container, animate) {
+                if (!container) return;
+                const thumb = container.querySelector('.toggle-thumb');
+                if (!thumb) return;
+                const active = container.querySelector('button.active');
+                if (!active) { thumb.style.opacity = '0'; return; }
+
+                if (!animate) thumb.style.transition = 'none';
+                thumb.style.width = active.offsetWidth + 'px';
+                thumb.style.height = active.offsetHeight + 'px';
+                thumb.style.transform = 'translate(' + active.offsetLeft + 'px, ' + active.offsetTop + 'px)';
+                thumb.style.opacity = '1';
+                if (!animate) {
+                    // Force a reflow so the snapped position commits, then re-enable transitions.
+                    void thumb.offsetWidth;
+                    thumb.style.transition = '';
+                }
+            }
+
+            function updateToggleThumbs(animate) {
+                positionToggleThumb(document.querySelector('.tab-nav'), animate);
+                positionToggleThumb(document.querySelector('.footer-tracker-toggle'), animate);
+            }
+
+            // Reposition (without animating) when layout changes can shift button widths.
+            window.addEventListener('resize', () => updateToggleThumbs(false));
+            // Re-snap once the custom font finishes loading (it can change button widths).
+            if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(() => updateToggleThumbs(false));
+            }
+
             // --- Centralized function to manage all day-switching logic (UPDATED for Green Theme and Progress Bar) ---
             function switchDay(dayId) {
                 // 1. Update localStorage for user preference
@@ -4060,12 +4450,14 @@
                 });
 
                 // 3. Update Body Class for CSS Variables
-                document.body.classList.remove('day-a', 'day-b', 'tracker-green');
+                document.body.classList.remove('day-a', 'day-b', 'tracker-green', 'study-tools');
                 if (dayId === 'dayA') {
                     document.body.classList.add('day-a');
                 } else if (dayId === 'dayB') {
                     document.body.classList.add('day-b');
                 } else if (dayId === 'lessonTracker' || dayId === 'assignmentTracker') {
+                    document.body.classList.add('tracker-green');
+                } else if (dayId === 'studyTools') {
                     document.body.classList.add('tracker-green');
                 } else if (dayId === 'backupTab') {
                     // Backup tab uses white background, no special theme class needed for now
@@ -4085,12 +4477,18 @@
                 const footerNavMap = {
                     lessonTracker: 'lessonTrackerBtn',
                     assignmentTracker: 'assignmentTrackerBtn',
+                    studyTools: 'studyToolsBtn',
                     backupTab: 'backupBtn'
                 };
-                ['lessonTrackerBtn', 'assignmentTrackerBtn', 'backupBtn'].forEach(id => {
+                ['lessonTrackerBtn', 'assignmentTrackerBtn', 'studyToolsBtn', 'backupBtn'].forEach(id => {
                     const btn = document.getElementById(id);
                     if (btn) btn.classList.toggle('active', footerNavMap[dayId] === id);
                 });
+
+                // Slide the segmented-toggle indicators to their new active segment.
+                // First switch (on load) snaps into place; later switches animate.
+                updateToggleThumbs(toggleThumbsReady);
+                toggleThumbsReady = true;
 
                 // 4. Handle Tracker Tabs and render progress.
                 // Pass animate=true so the donut rings and progress bar replay their fill
@@ -4657,6 +5055,10 @@
 
             document.getElementById('backupBtn').addEventListener('click', () => {
                 switchDay('backupTab');
+            });
+
+            document.getElementById('studyToolsBtn').addEventListener('click', () => {
+                switchDay('studyTools');
             });
 
             // --- 4. Checkbox Click Logic & Link Change (UPDATED to include Tracker Sync) ---
@@ -6813,7 +7215,7 @@
                         <div class="task-main task-lesson-main">
                             <div class="task-type-label">Lesson:</div>
                             <div class="task-name-wrapper">
-                                <textarea class="task-name task-lesson-name expand-sync-target" readonly style="resize: none; overflow: hidden; background-color: #f9f9f9; cursor: default; height: auto; ${lessonChecked ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHTML(lessonVal)}</textarea>
+                                <textarea class="task-name task-lesson-name expand-sync-target" rows="1" readonly style="resize: none; overflow: hidden; background-color: #f9f9f9; cursor: default; height: auto; ${lessonChecked ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHTML(lessonVal)}</textarea>
                             </div>
                             <input type="checkbox" class="task-checkbox expand-sync-checkbox" data-sync-type="lesson" ${lessonChecked ? 'checked' : ''}>
                         </div>`;
@@ -6862,7 +7264,7 @@
                         <div class="task-main task-assignment-main">
                             <div class="task-type-label"><span class="task-type-text">${escapeHTML(type)}</span>:</div>
                             <div class="task-name-wrapper">
-                                <textarea class="task-name task-assignment-name expand-sync-target" readonly style="resize: none; overflow: hidden; background-color: #f9f9f9; cursor: default; height: auto; ${isCompleted ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHTML(name)}</textarea>
+                                <textarea class="task-name task-assignment-name expand-sync-target" rows="1" readonly style="resize: none; overflow: hidden; background-color: #f9f9f9; cursor: default; height: auto; ${isCompleted ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHTML(name)}</textarea>
                             </div>
                             ${splitHTML}
                             <input type="checkbox" class="task-checkbox expand-sync-checkbox" data-sync-type="assignment" data-sync-row="${idx}" ${isCompleted ? 'checked' : ''} style="${cbHidden ? 'display: none;' : ''}">
@@ -7449,7 +7851,8 @@
                         iframe.className = 'expand-preview-iframe';
                         iframe.src = url;
                         iframe.title = 'Website preview';
-                        iframe.loading = 'lazy';
+                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                        iframe.allowFullscreen = true;
 
                         wrapper.appendChild(iframe);
                         return wrapper;
@@ -9834,6 +10237,814 @@
             loadData();
             updateInlineExpandButtons(); // Show expand buttons for cards with links
         });
+    </script>
+
+    <!-- ============================================================
+         STUDY TOOLS ENGINE — self-contained (Gemini-powered)
+         Builds the hub + 3 tools into #studyTools, handles the API
+         key, file/YouTube source inputs, generation, render & export.
+         ============================================================ -->
+    <script>
+    (function () {
+        'use strict';
+        const root = document.getElementById('studyTools');
+        if (!root) return;
+
+        /* ---------- constants ---------- */
+        const ST_KEY_STORE = 'cp_gemini_api_key';
+        const ST_MODEL_STORE = 'cp_gemini_model';
+        const ST_DECKS = 'cp_study_decks';
+        const ST_GUIDES = 'cp_study_guides';
+        const ST_WORKSHEETS = 'cp_study_worksheets';
+        const MAX_INLINE = 18 * 1024 * 1024; // 18 MB per binary file
+
+        // Selectable models. 2.5 Pro = most accurate (best for transcription / dense materials);
+        // Flash = fast + accurate default; Flash-Lite = cheapest/fastest.
+        const ST_MODELS = [
+            { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro — most accurate (best for transcription)' },
+            { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — recommended (fast & accurate)' },
+            { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite — fastest / lowest cost' },
+            { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash — legacy fast' }
+        ];
+        const DEFAULT_MODEL = 'gemini-2.5-flash';
+        const getModel = () => localStorage.getItem(ST_MODEL_STORE) || DEFAULT_MODEL;
+        const geminiUrl = () => 'https://generativelanguage.googleapis.com/v1beta/models/' + getModel() + ':generateContent';
+
+        /* ---------- tiny helpers ---------- */
+        const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const escNL = s => esc(s).replace(/\n/g, '<br>');
+        const wait = ms => new Promise(r => setTimeout(r, ms));
+        const hasKey = () => !!(localStorage.getItem(ST_KEY_STORE) || '').trim();
+
+        /* ---------- icons ---------- */
+        const I = {
+            sheet: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg>',
+            guide: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+            cards: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="14" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/></svg>',
+            back: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
+            arrow: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
+            upload: '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+            file: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+            yt: '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M23 12s0-3.8-.5-5.6a2.9 2.9 0 0 0-2-2C18.7 4 12 4 12 4s-6.7 0-8.5.4a2.9 2.9 0 0 0-2 2C1 8.2 1 12 1 12s0 3.8.5 5.6a2.9 2.9 0 0 0 2 2C5.3 20 12 20 12 20s6.7 0 8.5-.4a2.9 2.9 0 0 0 2-2C23 15.8 23 12 23 12zM10 15.5v-7l6 3.5z"/></svg>',
+            x: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+            check: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+            key: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>',
+            dl: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+            save: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+            book: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+            clock: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+            shuffle: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>',
+            prev: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
+            next: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+            trash: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+            warn: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+            spark: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>'
+        };
+        const sectionIco = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+
+        const WS_TYPE_LABEL = { mc: 'Multiple Choice', short: 'Short Answer', work: 'Show Work', tf: 'True / False', fill: 'Fill the Blank' };
+
+        /* ---------- toast ---------- */
+        let toastEl = document.getElementById('stToast');
+        if (!toastEl) { toastEl = document.createElement('div'); toastEl.id = 'stToast'; document.body.appendChild(toastEl); }
+        let toastT;
+        function toast(msg, kind) {
+            toastEl.textContent = msg;
+            toastEl.className = 'show' + (kind ? ' ' + kind : '');
+            clearTimeout(toastT);
+            toastT = setTimeout(() => { toastEl.className = ''; }, 3600);
+        }
+
+        /* ---------- print area ---------- */
+        let printArea = document.getElementById('stPrintArea');
+        if (!printArea) { printArea = document.createElement('div'); printArea.id = 'stPrintArea'; document.body.appendChild(printArea); }
+
+        /* =========================================================
+           Gemini
+           ========================================================= */
+        async function gemini(parts, schema) {
+            const key = (localStorage.getItem(ST_KEY_STORE) || '').trim();
+            if (!key) throw new Error('NO_KEY');
+            const res = await fetch(geminiUrl(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+                body: JSON.stringify({
+                    contents: [{ parts }],
+                    generationConfig: schema ? { responseMimeType: 'application/json', responseSchema: schema } : {}
+                })
+            });
+            if (!res.ok) {
+                const body = await res.text().catch(() => '');
+                throw new Error('GEMINI_' + res.status + ': ' + body.slice(0, 300));
+            }
+            const data = await res.json();
+            const text = (((data.candidates || [])[0] || {}).content || {}).parts;
+            const out = text && text[0] && text[0].text ? text[0].text : '';
+            if (!out) throw new Error('Empty response from Gemini.');
+            return schema ? JSON.parse(out) : out;
+        }
+        function geminiErr(e) {
+            const m = (e && e.message) || '';
+            if (m.indexOf('NO_KEY') >= 0) return 'Connect your Gemini API key first.';
+            if (m.indexOf('FILE_TOO_BIG') >= 0) return 'A file is too large (max 18 MB). Remove it and try again.';
+            if (m.indexOf('GEMINI_400') >= 0 || m.indexOf('GEMINI_403') >= 0) return 'Request rejected — check your API key is valid and the Generative Language API is enabled.';
+            if (m.indexOf('GEMINI_429') >= 0) return 'Rate limit / quota exceeded. Wait a moment and try again.';
+            if (m.indexOf('GEMINI_5') >= 0) return 'Gemini service error. Please try again shortly.';
+            if (m.indexOf('JSON') >= 0 || e instanceof SyntaxError) return 'Could not parse the AI response. Try again.';
+            return 'Something went wrong: ' + (m || 'network error') + '.';
+        }
+
+        /* ---------- response schemas ---------- */
+        const WS_SCHEMA = {
+            type: 'object',
+            properties: {
+                title: { type: 'string' }, subject: { type: 'string' }, unit: { type: 'string' }, instructions: { type: 'string' },
+                questions: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            type: { type: 'string', enum: ['mc', 'short', 'work', 'tf', 'fill'] },
+                            q: { type: 'string' },
+                            opts: { type: 'array', items: { type: 'string' } },
+                            answer: { type: 'string' }
+                        },
+                        required: ['type', 'q', 'answer'], propertyOrdering: ['type', 'q', 'opts', 'answer']
+                    }
+                }
+            },
+            required: ['title', 'subject', 'instructions', 'questions'],
+            propertyOrdering: ['title', 'subject', 'unit', 'instructions', 'questions']
+        };
+        const GUIDE_SCHEMA = {
+            type: 'object',
+            properties: {
+                title: { type: 'string' }, course: { type: 'string' }, readTime: { type: 'string' }, overview: { type: 'string' },
+                concepts: { type: 'array', items: { type: 'object', properties: { term: { type: 'string' }, body: { type: 'string' } }, required: ['term', 'body'], propertyOrdering: ['term', 'body'] } },
+                formulas: { type: 'array', items: { type: 'string' } },
+                example: { type: 'object', properties: { prompt: { type: 'string' }, steps: { type: 'array', items: { type: 'string' } } }, propertyOrdering: ['prompt', 'steps'] },
+                takeaways: { type: 'array', items: { type: 'string' } },
+                quiz: { type: 'array', items: { type: 'string' } }
+            },
+            required: ['title', 'overview', 'concepts', 'takeaways'],
+            propertyOrdering: ['title', 'course', 'readTime', 'overview', 'concepts', 'formulas', 'example', 'takeaways', 'quiz']
+        };
+        const DECK_SCHEMA = {
+            type: 'object',
+            properties: {
+                deckTitle: { type: 'string' },
+                cards: { type: 'array', items: { type: 'object', properties: { front: { type: 'string' }, back: { type: 'string' } }, required: ['front', 'back'], propertyOrdering: ['front', 'back'] } }
+            },
+            required: ['deckTitle', 'cards'], propertyOrdering: ['deckTitle', 'cards']
+        };
+
+        /* =========================================================
+           Source inputs (files + YouTube) → Gemini parts
+           ========================================================= */
+        function loadScript(src) {
+            return new Promise((res, rej) => {
+                const s = document.createElement('script');
+                s.src = src; s.onload = res; s.onerror = () => rej(new Error('Failed to load ' + src));
+                document.head.appendChild(s);
+            });
+        }
+        let mammothP, jszipP;
+        const ensureMammoth = () => (mammothP = mammothP || loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js'));
+        const ensureJSZip = () => (jszipP = jszipP || loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'));
+
+        function fileToB64(file) {
+            return new Promise((res, rej) => {
+                const r = new FileReader();
+                r.onload = () => res(String(r.result).split(',')[1]);
+                r.onerror = rej;
+                r.readAsDataURL(file);
+            });
+        }
+        function guessMime(ext) {
+            return ({ pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' })[ext] || 'application/octet-stream';
+        }
+        async function extractPptx(file) {
+            await ensureJSZip();
+            const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
+            const names = Object.keys(zip.files).filter(n => /ppt\/slides\/slide\d+\.xml$/.test(n))
+                .sort((a, b) => (parseInt(a.match(/(\d+)/)[1]) - parseInt(b.match(/(\d+)/)[1])));
+            let out = '';
+            for (const n of names) {
+                const xml = await zip.files[n].async('string');
+                const text = (xml.match(/<a:t>([\s\S]*?)<\/a:t>/g) || []).map(t => t.replace(/<\/?a:t>/g, '')).join(' ');
+                if (text.trim()) out += '\n' + text;
+            }
+            return out.trim();
+        }
+        async function fileToPart(file) {
+            const name = file.name;
+            const ext = (name.split('.').pop() || '').toLowerCase();
+            if (['txt', 'md', 'csv', 'json'].indexOf(ext) >= 0) {
+                return { text: '--- File: ' + name + ' ---\n' + (await file.text()) };
+            }
+            if (ext === 'docx') {
+                await ensureMammoth();
+                const r = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+                return { text: '--- File: ' + name + ' ---\n' + (r.value || '') };
+            }
+            if (ext === 'pptx') {
+                return { text: '--- File: ' + name + ' ---\n' + (await extractPptx(file)) };
+            }
+            if (file.size > MAX_INLINE) throw new Error('FILE_TOO_BIG:' + name);
+            return { inlineData: { mimeType: file.type || guessMime(ext), data: await fileToB64(file) } };
+        }
+        const isYouTube = u => /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/i.test(u.trim());
+
+        // Source manager bound to a screen element
+        function initSource(scr) {
+            const state = { files: [], yt: [] };
+            scr._src = state;
+            const dz = scr.querySelector('[data-dz]');
+            const fileInput = scr.querySelector('[data-file]');
+            const ytInput = scr.querySelector('[data-yt]');
+            const ytAdd = scr.querySelector('[data-ytadd]');
+            const listEl = scr.querySelector('[data-srclist]');
+            if (!dz) return;
+
+            function render() {
+                const rows = [];
+                state.files.forEach((f, i) => rows.push(srcRow('file', f.name, fmtSize(f.size), 'f' + i)));
+                state.yt.forEach((u, i) => rows.push(srcRow('yt', u, 'YouTube video', 'y' + i)));
+                listEl.innerHTML = rows.join('');
+            }
+            function srcRow(kind, name, sub, id) {
+                return '<div class="st-srcchip"><div class="st-sc-ico ' + (kind === 'yt' ? 'yt' : '') + '">' + (kind === 'yt' ? I.yt : I.file) +
+                    '</div><div class="st-sc-meta"><div class="st-sc-name">' + esc(name) + '</div><div class="st-sc-sz">' + esc(sub) + '</div></div>' +
+                    '<button class="st-sc-x" data-rm="' + id + '" title="Remove">' + I.x + '</button></div>';
+            }
+            function addFiles(fl) {
+                Array.from(fl).forEach(f => state.files.push(f));
+                render();
+            }
+            dz.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', e => { addFiles(e.target.files); fileInput.value = ''; });
+            ['dragover', 'dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag'); }));
+            ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
+            dz.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+            function addYt() {
+                const v = (ytInput.value || '').trim();
+                if (!v) return;
+                if (!isYouTube(v)) { toast('That doesn’t look like a YouTube link.', 'err'); return; }
+                state.yt.push(v); ytInput.value = ''; render();
+            }
+            ytAdd.addEventListener('click', addYt);
+            ytInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addYt(); } });
+            listEl.addEventListener('click', e => {
+                const b = e.target.closest('[data-rm]'); if (!b) return;
+                const id = b.getAttribute('data-rm');
+                if (id[0] === 'f') state.files.splice(+id.slice(1), 1);
+                else state.yt.splice(+id.slice(1), 1);
+                render();
+            });
+        }
+        function fmtSize(b) {
+            if (b < 1024) return b + ' B';
+            if (b < 1048576) return (b / 1024).toFixed(0) + ' KB';
+            return (b / 1048576).toFixed(1) + ' MB';
+        }
+        async function sourceParts(scr) {
+            const st = scr._src || { files: [], yt: [] };
+            const parts = [];
+            for (const f of st.files) parts.push(await fileToPart(f));
+            // YouTube links are passed straight to Gemini, which reads the video natively
+            // (no backend transcript service — this app is hosted as a static site).
+            for (const u of st.yt) parts.push({ fileData: { fileUri: u } });
+            return parts;
+        }
+        const srcCount = scr => { const s = scr._src || { files: [], yt: [] }; return s.files.length + s.yt.length; };
+
+        /* ---------- LaTeX (KaTeX, lazy-loaded) ---------- */
+        let katexP;
+        function ensureKatex() {
+            if (katexP) return katexP;
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
+            document.head.appendChild(link);
+            katexP = loadScript('https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js')
+                .then(() => loadScript('https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js'));
+            return katexP;
+        }
+        function renderMath(el) {
+            if (!el) return;
+            ensureKatex().then(() => {
+                if (!window.renderMathInElement) return;
+                try {
+                    window.renderMathInElement(el, {
+                        delimiters: [
+                            { left: '$$', right: '$$', display: true },
+                            { left: '\\[', right: '\\]', display: true },
+                            { left: '\\(', right: '\\)', display: false }
+                        ],
+                        throwOnError: false,
+                        ignoredTags: ['script', 'style', 'textarea', 'pre', 'code', 'input', 'select']
+                    });
+                } catch (e) { }
+            }).catch(() => { });
+        }
+
+        /* =========================================================
+           UI markup
+           ========================================================= */
+        function sourceBlockHTML(optional) {
+            return '<div class="st-field"><label>Source materials ' + (optional ? '<span style="color:#9097a6;font-weight:400">(optional)</span>' : '') + '</label>' +
+                '<div class="st-dropzone" data-dz><div class="st-dz-ico">' + I.upload + '</div>' +
+                '<p><strong>Click to upload</strong> or drag &amp; drop</p>' +
+                '<div class="st-dz-types">PDF · Word · PowerPoint · Markdown · TXT · MP3 · Images</div>' +
+                '<input type="file" data-file multiple style="display:none" accept=".pdf,.docx,.pptx,.txt,.md,.markdown,.csv,.json,.mp3,.wav,.m4a,.png,.jpg,.jpeg,.webp,.gif"></div>' +
+                '<div class="st-yt-row"><input type="text" class="st-input" data-yt placeholder="Paste a YouTube link…"><button type="button" class="st-btn st-btn-ghost" data-ytadd>Add</button></div>' +
+                '<div class="st-source-list" data-srclist></div></div>';
+        }
+        function toolHeadHTML(ico, title, sub) {
+            return '<div class="st-toolhead"><button class="st-back" data-back>' + I.back + '</button>' +
+                '<div class="st-th-ico">' + ico + '</div><div><h2>' + title + '</h2><div class="st-sub">' + sub + '</div></div></div>';
+        }
+        function genStageHTML(title, sub) {
+            return '<div class="st-stage" data-stage="gen"><div class="st-gen"><div class="st-spinner"></div>' +
+                '<h3>' + title + '</h3><div class="st-gen-sub">' + sub + '</div><div class="st-gensteps"></div></div></div>';
+        }
+
+        root.innerHTML =
+            '<div class="st-wrap">' +
+            '<div class="st-topbar"><div>' +
+            '<h2>Study Tools</h2>' +
+            '<p>Generate worksheets, study guides, and flashcards from your topics and course materials.</p>' +
+            '</div><button class="st-api-btn" id="stApiBtn"><span class="st-dot"></span><span id="stApiLabel">Connect API</span></button></div>' +
+
+            // HUB
+            '<div class="st-screen active" data-screen="hub"><div class="st-hub-grid">' +
+            hubCard('worksheet', I.sheet, 'Worksheet Generator', 'Build a print-ready A4 worksheet with a matching answer key from a topic or your materials.') +
+            hubCard('guide', I.guide, 'Study Guide Generator', 'Turn notes, slides, PDFs, audio or YouTube into a structured, readable study guide.') +
+            hubCard('flashcards', I.cards, 'Flashcard Generator', 'Create a flippable term/definition deck that’s saved on this device for later review.') +
+            '</div></div>' +
+
+            // WORKSHEET
+            '<div class="st-screen" data-screen="worksheet">' +
+            toolHeadHTML(I.sheet, 'Worksheet Generator', 'Topic + options → A4 worksheet & answer key') +
+            '<div class="st-stage active" data-stage="setup">' +
+            '<div class="st-panel"><div class="st-panel-title">What should the worksheet cover?</div><div class="st-panel-hint">Describe a topic, or add source materials below (or both).</div>' +
+            '<div class="st-field"><label>Topic / prompt</label><textarea class="st-textarea" id="wsTopic" placeholder="e.g. The dot product and vector operations for grade 12 Calculus &amp; Vectors"></textarea></div>' +
+            '<div class="st-grid2">' +
+            '<div class="st-field"><label>Subject</label><input class="st-input" id="wsSubject" placeholder="e.g. Calculus &amp; Vectors"></div>' +
+            '<div class="st-field"><label>Grade / level</label><select class="st-select" id="wsLevel"><option>Grade 9</option><option>Grade 10</option><option>Grade 11</option><option selected>Grade 12</option><option>University / College</option></select></div>' +
+            '<div class="st-field"><label>Number of questions</label><select class="st-select" id="wsCount"><option>5</option><option selected>8</option><option>10</option><option>12</option><option>15</option><option>20</option></select></div>' +
+            '</div>' +
+            '<div class="st-field"><label>Question types</label><div class="st-chips" id="wsTypes">' +
+            wsChip('mc', 'Multiple Choice', true) + wsChip('short', 'Short Answer', true) + wsChip('work', 'Show Work', true) + wsChip('tf', 'True / False', false) + wsChip('fill', 'Fill the Blank', false) +
+            '</div></div>' + sourceBlockHTML(true) + latexToggleHTML('wsLatex') +
+            '<div class="st-actions"><button class="st-btn" id="wsGen">' + I.spark + ' Generate worksheet</button></div>' +
+            '</div><div class="st-saved-list" data-saved="ws"></div></div>' +
+            genStageHTML('Generating your worksheet…', 'Gemini is writing questions and the answer key.') +
+            '<div class="st-stage" data-stage="result" id="wsResult"></div>' +
+            '</div>' +
+
+            // GUIDE
+            '<div class="st-screen" data-screen="guide">' +
+            toolHeadHTML(I.guide, 'Study Guide Generator', 'Materials → structured guide on the page') +
+            '<div class="st-stage active" data-stage="setup">' +
+            '<div class="st-panel"><div class="st-panel-title">Add your materials</div><div class="st-panel-hint">Upload files or paste YouTube links, then optionally narrow the focus.</div>' +
+            sourceBlockHTML(false) +
+            '<div class="st-field"><label>Focus <span style="color:#9097a6;font-weight:400">(optional)</span></label><input class="st-input" id="gFocus" placeholder="e.g. only the section on photosynthesis"></div>' +
+            latexToggleHTML('gLatex') +
+            '<div class="st-actions"><button class="st-btn" id="gGen">' + I.spark + ' Generate study guide</button></div>' +
+            '</div><div class="st-saved-list" data-saved="guide"></div></div>' +
+            genStageHTML('Building your study guide…', 'Gemini is reading your materials and organising the guide.') +
+            '<div class="st-stage" data-stage="result" id="gResult"></div>' +
+            '</div>' +
+
+            // FLASHCARDS
+            '<div class="st-screen" data-screen="flashcards">' +
+            toolHeadHTML(I.cards, 'Flashcard Generator', 'Materials → flippable deck, saved on this device') +
+            '<div class="st-stage active" data-stage="setup">' +
+            '<div class="st-panel"><div class="st-panel-title">Add your materials</div><div class="st-panel-hint">Upload files or paste YouTube links and choose how many cards.</div>' +
+            sourceBlockHTML(false) +
+            '<div class="st-grid2">' +
+            '<div class="st-field"><label>Deck title <span style="color:#9097a6;font-weight:400">(optional)</span></label><input class="st-input" id="fTitle" placeholder="Auto-named if left blank"></div>' +
+            '<div class="st-field"><label>Number of cards</label><select class="st-select" id="fCount"><option>10</option><option selected>15</option><option>20</option><option>25</option><option>30</option></select></div>' +
+            '</div>' +
+            latexToggleHTML('fLatex') +
+            '<div class="st-actions"><button class="st-btn" id="fGen">' + I.spark + ' Generate flashcards</button></div>' +
+            '</div>' +
+            '<div class="st-saved-list" data-saved="deck"></div></div>' +
+            genStageHTML('Creating your flashcards…', 'Gemini is pulling out key terms and definitions.') +
+            '<div class="st-stage" data-stage="result" id="fResult"></div>' +
+            '</div>' +
+
+            '</div>';
+
+        function hubCard(open, ico, title, desc) {
+            return '<button class="st-tool-card" data-open="' + open + '"><div class="st-ico">' + ico + '</div>' +
+                '<h3>' + title + '</h3><p>' + desc + '</p>' +
+                '<span class="st-go">Open ' + I.arrow + '</span></button>';
+        }
+        function wsChip(val, label, on) { return '<div class="st-chip' + (on ? ' on' : '') + '" data-type="' + val + '">' + label + '</div>'; }
+
+        /* ---------- routing ---------- */
+        const screenEl = name => root.querySelector('.st-screen[data-screen="' + name + '"]');
+        function setScreen(name) {
+            root.querySelectorAll('.st-screen').forEach(s => s.classList.toggle('active', s.getAttribute('data-screen') === name));
+        }
+        function setStage(scr, name) {
+            scr.querySelectorAll('.st-stage').forEach(s => s.classList.toggle('active', s.getAttribute('data-stage') === name));
+        }
+        root.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
+            const t = b.getAttribute('data-open');
+            const scr = screenEl(t); setStage(scr, 'setup'); setScreen(t);
+        }));
+        root.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => setScreen('hub')));
+
+        // question-type chips
+        root.querySelector('#wsTypes').addEventListener('click', e => {
+            const c = e.target.closest('.st-chip'); if (c) c.classList.toggle('on');
+        });
+
+        // LaTeX / math-formatting toggle
+        function latexToggleHTML(id) {
+            return '<div class="st-field"><label>Math formatting</label>' +
+                '<button type="button" class="st-toggle-pill on" id="' + id + '" data-latex>' +
+                '<span class="st-tp-ico">fx</span>' +
+                '<span class="st-tp-label">Render math &amp; numbers as LaTeX</span>' +
+                '<span class="st-tp-state">On</span></button>' +
+                '<div class="st-panel-hint" style="margin-top:8px">Recommended for math/science or anything with equations/numbers. Turn off for text-only subjects.</div></div>';
+        }
+        const latexOn = id => { const el = document.getElementById(id); return !el || el.classList.contains('on'); };
+        const LATEX_ON = ' IMPORTANT: Render EVERY mathematical expression, equation, symbol, variable, fraction, exponent, unit and numeric formula as valid LaTeX — wrap inline math in \\( ... \\) and display equations in $$ ... $$. Never write math, fractions or exponents as plain text.';
+        root.querySelectorAll('[data-latex]').forEach(b => b.addEventListener('click', () => {
+            b.querySelector('.st-tp-state').textContent = b.classList.toggle('on') ? 'On' : 'Off';
+        }));
+
+        // init source managers
+        ['worksheet', 'guide', 'flashcards'].forEach(n => initSource(screenEl(n)));
+
+        /* ---------- generating animation ---------- */
+        function animateSteps(container, steps) {
+            container.innerHTML = steps.map(s => '<div class="st-genstep"><span class="st-gs-dot">' + I.check + '</span><span>' + esc(s) + '</span></div>').join('');
+            const nodes = Array.prototype.slice.call(container.children);
+            let i = 0, stopped = false;
+            if (nodes[0]) nodes[0].classList.add('active');
+            const iv = setInterval(() => {
+                if (stopped || i >= nodes.length) return;
+                nodes[i].classList.remove('active'); nodes[i].classList.add('done'); i++;
+                if (i < nodes.length) nodes[i].classList.add('active');
+            }, 1200);
+            return {
+                finishAll() { stopped = true; clearInterval(iv); nodes.forEach(n => { n.classList.remove('active'); n.classList.add('done'); }); },
+                stop() { stopped = true; clearInterval(iv); }
+            };
+        }
+        async function runTool(name, steps, task) {
+            if (!hasKey()) { openApiModal(); return; }
+            const scr = screenEl(name);
+            setStage(scr, 'gen');
+            const ctrl = animateSteps(scr.querySelector('[data-stage="gen"] .st-gensteps'), steps);
+            try {
+                await task();
+                ctrl.finishAll();
+                await wait(400);
+                setStage(scr, 'result');
+            } catch (e) {
+                ctrl.stop();
+                console.error('[Study Tools]', e);
+                setStage(scr, 'setup');
+                toast(geminiErr(e), 'err');
+            }
+        }
+
+        /* =========================================================
+           WORKSHEET
+           ========================================================= */
+        let WS_DATA = null;
+        document.getElementById('wsGen').addEventListener('click', () => {
+            const topic = document.getElementById('wsTopic').value.trim();
+            const scr = screenEl('worksheet');
+            const types = Array.prototype.slice.call(root.querySelectorAll('#wsTypes .st-chip.on')).map(c => c.getAttribute('data-type'));
+            if (!topic && srcCount(scr) === 0) { toast('Enter a topic or add source materials.', 'err'); return; }
+            if (types.length === 0) { toast('Pick at least one question type.', 'err'); return; }
+            const subject = document.getElementById('wsSubject').value.trim();
+            const level = document.getElementById('wsLevel').value;
+            const count = document.getElementById('wsCount').value;
+            runTool('worksheet', ['Reading your inputs', 'Designing questions', 'Writing the answer key', 'Formatting the worksheet'], async () => {
+                const prompt =
+                    'You are an expert teacher creating a printable classroom worksheet.\n' +
+                    'Topic: ' + (topic || '(derive from the attached materials)') + '\n' +
+                    'Subject: ' + (subject || 'General') + '\nGrade / Level: ' + level + '\n' +
+                    'Create exactly ' + count + ' questions. Use ONLY these question types: ' + types.join(', ') + '.\n' +
+                    'Type meanings — mc: multiple choice, supply 4 entries in "opts" and put the correct option letter + a brief reason in "answer". ' +
+                    'short: short answer. work: a show-your-work problem with a full step-by-step solution in "answer". tf: true/false. fill: fill-in-the-blank (use ____ in the question).\n' +
+                    'Vary the difficulty. Every question MUST include a correct, complete "answer". ' +
+                    'Also provide a descriptive "title", the "subject", a "unit" label, and a short student "instructions" line.' +
+                    (latexOn('wsLatex') ? LATEX_ON : '') +
+                    (srcCount(scr) ? '\nBase the questions on the attached source materials.' : '');
+                const parts = [{ text: prompt }].concat(await sourceParts(scr));
+                WS_DATA = await gemini(parts, WS_SCHEMA);
+                renderWorksheet(WS_DATA);
+            });
+        });
+
+        function questionHTML(q, idx, isKey) {
+            const badge = WS_TYPE_LABEL[q.type] || q.type;
+            let body = '';
+            if (q.type === 'mc' && q.opts && q.opts.length) {
+                body = '<ul class="st-opts">' + q.opts.map((o, i) => '<li data-l="' + ('abcdefgh'[i] || '•') + '">' + esc(o) + '</li>').join('') + '</ul>';
+            } else if (q.type === 'tf') {
+                body = '<div style="margin-top:8px;color:#444">True&nbsp;&nbsp;/&nbsp;&nbsp;False</div>';
+            } else if (q.type === 'work') {
+                body = '<div class="st-worklines">' + '<div></div>'.repeat(6) + '</div>';
+            } else if (q.type === 'short') {
+                body = '<div class="st-worklines">' + '<div></div>'.repeat(2) + '</div>';
+            }
+            const ans = isKey ? '<div class="st-answer"><b>Answer:</b> ' + escNL(q.answer) + '</div>' : '';
+            return '<div class="st-q"><div class="st-q-head"><span class="st-q-num">' + (idx + 1) + '.</span>' +
+                '<div class="st-q-text">' + escNL(q.q) + '</div><span class="st-q-badge">' + esc(badge) + '</span></div>' + body + ans + '</div>';
+        }
+        function sheetHTML(d, isKey) {
+            const sub = [d.subject, d.unit].filter(Boolean).map(esc).join(' · ');
+            return '<div class="st-a4' + (isKey ? ' is-key' : '') + '">' +
+                '<div class="st-a4-head">' + (sub ? '<div class="st-a4-sub">' + sub + '</div>' : '') +
+                '<h1>' + esc(d.title || 'Worksheet') + (isKey ? ' — Answer Key' : '') + '</h1></div>' +
+                (isKey ? '' : '<div class="st-a4-name"><span>Name:</span><span>Date:</span></div>') +
+                (d.instructions ? '<div class="st-a4-instr">' + esc(d.instructions) + '</div>' : '') +
+                (d.questions || []).map((q, i) => questionHTML(q, i, isKey)).join('') +
+                '</div>';
+        }
+        function renderWorksheet(d) {
+            WS_DATA = d;
+            const res = document.getElementById('wsResult');
+            res.innerHTML =
+                '<div class="st-ws-bar"><div class="st-ws-toggle">' +
+                '<button data-wsmode="sheet" class="on">Worksheet</button><button data-wsmode="key">Answer Key</button></div>' +
+                '<div class="st-actions">' +
+                '<button class="st-btn st-btn-ghost" data-wsnew>New</button>' +
+                '<button class="st-btn st-btn-ghost" data-wssave>' + I.save + ' Save</button>' +
+                '<button class="st-btn st-btn-ghost" data-wsprint="key">' + I.dl + ' Answer Key PDF</button>' +
+                '<button class="st-btn" data-wsprint="sheet">' + I.dl + ' Download PDF</button>' +
+                '</div></div><div class="st-a4-scroll" data-wssheet></div>';
+            const sheetWrap = res.querySelector('[data-wssheet]');
+            let mode = 'sheet';
+            const draw = () => { sheetWrap.innerHTML = sheetHTML(d, mode === 'key'); renderMath(sheetWrap); };
+            draw();
+            res.querySelectorAll('[data-wsmode]').forEach(b => b.addEventListener('click', () => {
+                mode = b.getAttribute('data-wsmode');
+                res.querySelectorAll('[data-wsmode]').forEach(x => x.classList.toggle('on', x === b));
+                draw();
+            }));
+            res.querySelector('[data-wsnew]').addEventListener('click', () => setStage(screenEl('worksheet'), 'setup'));
+            res.querySelector('[data-wssave]').addEventListener('click', e => {
+                saveItem('ws', { id: 'w' + Date.now(), createdAt: Date.now(), data: d });
+                e.currentTarget.disabled = true; e.currentTarget.innerHTML = I.check + ' Saved';
+                toast('Worksheet saved on this device.', 'ok');
+            });
+            res.querySelectorAll('[data-wsprint]').forEach(b => b.addEventListener('click', () => printWorksheet(b.getAttribute('data-wsprint'))));
+        }
+        function printWorksheet(which) {
+            if (!WS_DATA) return;
+            printArea.innerHTML = sheetHTML(WS_DATA, which === 'key');
+            renderMath(printArea);
+            ensureKatex().then(() => setTimeout(() => window.print(), 220)).catch(() => window.print());
+        }
+
+        /* =========================================================
+           STUDY GUIDE
+           ========================================================= */
+        document.getElementById('gGen').addEventListener('click', () => {
+            const scr = screenEl('guide');
+            if (srcCount(scr) === 0) { toast('Add at least one file or YouTube link.', 'err'); return; }
+            const focus = document.getElementById('gFocus').value.trim();
+            runTool('guide', ['Reading your materials', 'Extracting key concepts', 'Structuring the guide', 'Polishing the layout'], async () => {
+                const prompt =
+                    'You are an expert tutor. Using the provided materials' + (focus ? ' (focus on: ' + focus + ')' : '') + ', ' +
+                    'produce a clear, well-structured study guide. Include: a concise title; the course/unit if identifiable; an estimated read time; ' +
+                    'a plain-language overview (1–2 paragraphs); key concepts as term + explanation; important formulas if any; ' +
+                    'one fully worked example with ordered steps; key takeaways; and a few short self-check quiz questions.' +
+                    (latexOn('gLatex') ? LATEX_ON : '');
+                const parts = [{ text: prompt }].concat(await sourceParts(scr));
+                const g = await gemini(parts, GUIDE_SCHEMA);
+                renderGuide(g);
+            });
+        });
+        function gSection(title, inner) {
+            return '<div class="st-gsec"><h3><span class="st-gsec-ico">' + sectionIco + '</span>' + esc(title) + '</h3>' + inner + '</div>';
+        }
+        function renderGuide(g, alreadySaved) {
+            let html =
+                '<div class="st-actions" style="margin-bottom:18px">' +
+                '<button class="st-btn st-btn-ghost" data-gnew>' + I.back + ' New guide</button>' +
+                (alreadySaved
+                    ? '<button class="st-btn st-btn-ghost" disabled>' + I.check + ' Saved</button>'
+                    : '<button class="st-btn" data-gsave>' + I.save + ' Save guide</button>') + '</div>' +
+                '<div class="st-guide-head"><h2>' + esc(g.title || 'Study Guide') + '</h2><div class="st-guide-meta">' +
+                (g.course ? '<span>' + I.book + ' ' + esc(g.course) + '</span>' : '') +
+                (g.readTime ? '<span>' + I.clock + ' ' + esc(g.readTime) + '</span>' : '') + '</div></div>';
+            if (g.overview) html += gSection('Overview', '<p>' + escNL(g.overview) + '</p>');
+            if (g.concepts && g.concepts.length) html += gSection('Key Concepts', g.concepts.map(c => '<div class="st-concept"><div class="st-c-term">' + esc(c.term) + '</div><div class="st-c-body">' + escNL(c.body) + '</div></div>').join(''));
+            if (g.formulas && g.formulas.length) html += gSection('Formulas', g.formulas.map(f => '<div class="st-formula">' + esc(f) + '</div>').join(''));
+            if (g.example && (g.example.prompt || (g.example.steps || []).length)) html += gSection('Worked Example', (g.example.prompt ? '<p><strong>' + escNL(g.example.prompt) + '</strong></p>' : '') + '<ol class="st-steps">' + (g.example.steps || []).map(s => '<li>' + escNL(s) + '</li>').join('') + '</ol>');
+            if (g.takeaways && g.takeaways.length) html += gSection('Key Takeaways', g.takeaways.map(t => '<div class="st-take"><span class="st-take-ck">' + I.check + '</span><span>' + escNL(t) + '</span></div>').join(''));
+            if (g.quiz && g.quiz.length) html += gSection('Self-Check', '<div class="st-quiz">' + g.quiz.map(q => '<div class="st-quiz-item">' + escNL(q) + '</div>').join('') + '</div>');
+            const res = document.getElementById('gResult');
+            res.innerHTML = html;
+            renderMath(res);
+            res.querySelector('[data-gnew]').addEventListener('click', () => setStage(screenEl('guide'), 'setup'));
+            const gsave = res.querySelector('[data-gsave]');
+            if (gsave) gsave.addEventListener('click', e => {
+                saveItem('guide', { id: 'g' + Date.now(), createdAt: Date.now(), data: g });
+                e.currentTarget.disabled = true; e.currentTarget.innerHTML = I.check + ' Saved';
+                toast('Study guide saved on this device.', 'ok');
+            });
+        }
+
+        /* =========================================================
+           FLASHCARDS
+           ========================================================= */
+        const FC = { cards: [], idx: 0, flipped: false, title: '' };
+        document.getElementById('fGen').addEventListener('click', () => {
+            const scr = screenEl('flashcards');
+            if (srcCount(scr) === 0) { toast('Add at least one file or YouTube link.', 'err'); return; }
+            const title = document.getElementById('fTitle').value.trim();
+            const count = document.getElementById('fCount').value;
+            runTool('flashcards', ['Reading your materials', 'Identifying key terms', 'Writing definitions', 'Building the deck'], async () => {
+                const prompt =
+                    'You are an expert tutor. From the provided materials, create a focused flashcard deck of about ' + count + ' cards. ' +
+                    'Each card has a concise "front" (a term or question) and a clear "back" (the definition or answer).' +
+                    (latexOn('fLatex') ? LATEX_ON : ' ') +
+                    'Give the deck a short descriptive "deckTitle".' + (title ? ' Prefer this deck title: "' + title + '".' : '');
+                const parts = [{ text: prompt }].concat(await sourceParts(scr));
+                const deck = await gemini(parts, DECK_SCHEMA);
+                if (title) deck.deckTitle = title;
+                saveDeck(deck);
+                showDeck(deck);
+            });
+        });
+        function saveDeck(deck) {
+            saveItem('deck', { id: 'd' + Date.now(), deckTitle: deck.deckTitle, cards: deck.cards, createdAt: Date.now() });
+        }
+        function showDeck(deck) {
+            FC.cards = deck.cards || []; FC.idx = 0; FC.flipped = false; FC.title = deck.deckTitle || 'Deck';
+            const res = document.getElementById('fResult');
+            res.innerHTML =
+                '<div class="st-actions" style="margin-bottom:18px">' +
+                '<button class="st-btn st-btn-ghost" data-fnew>' + I.back + ' New deck</button>' +
+                '<button class="st-btn st-btn-ghost" data-fshuffle>' + I.shuffle + ' Shuffle</button></div>' +
+                '<div class="st-deck-top"><div class="st-deck-title" data-decktitle></div><div class="st-deck-counter" data-deckcount></div></div>' +
+                '<div class="st-flip" data-flip><div class="st-flip-inner">' +
+                '<div class="st-flip-face st-flip-front"><span class="st-face-tag">Term</span><div class="st-face-text" data-front></div><div class="st-flip-hint">Click to flip</div></div>' +
+                '<div class="st-flip-face st-flip-back"><span class="st-face-tag">Definition</span><div class="st-face-text" data-back></div><div class="st-flip-hint">Click to flip</div></div>' +
+                '</div></div><div class="st-dots" data-dots></div>' +
+                '<div class="st-deck-ctrls"><button data-prev>' + I.prev + ' Prev</button><button data-flipbtn>Flip</button><button data-next>Next ' + I.next + '</button></div>' +
+                '<div class="st-saved-list" data-saved="deck"></div>';
+            const flip = res.querySelector('[data-flip]');
+            flip.addEventListener('click', toggleFlip);
+            res.querySelector('[data-flipbtn]').addEventListener('click', toggleFlip);
+            res.querySelector('[data-prev]').addEventListener('click', () => move(-1));
+            res.querySelector('[data-next]').addEventListener('click', () => move(1));
+            res.querySelector('[data-fnew]').addEventListener('click', () => setStage(screenEl('flashcards'), 'setup'));
+            res.querySelector('[data-fshuffle]').addEventListener('click', () => {
+                for (let i = FC.cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[FC.cards[i], FC.cards[j]] = [FC.cards[j], FC.cards[i]]; }
+                FC.idx = 0; FC.flipped = false; updateDeck();
+            });
+            renderSaved('deck');
+            updateDeck();
+        }
+        function toggleFlip() { FC.flipped = !FC.flipped; updateDeck(); }
+        function move(d) {
+            const n = FC.idx + d;
+            if (n < 0 || n >= FC.cards.length) return;
+            FC.idx = n; FC.flipped = false; updateDeck();
+        }
+        function updateDeck() {
+            const res = document.getElementById('fResult');
+            const cur = FC.cards[FC.idx] || { front: '', back: '' };
+            res.querySelector('[data-decktitle]').textContent = FC.title;
+            res.querySelector('[data-deckcount]').textContent = (FC.idx + 1) + ' / ' + FC.cards.length;
+            res.querySelector('[data-front]').innerHTML = escNL(cur.front);
+            res.querySelector('[data-back]').innerHTML = escNL(cur.back);
+            res.querySelector('[data-flip]').classList.toggle('flipped', FC.flipped);
+            res.querySelector('[data-prev]').disabled = FC.idx === 0;
+            res.querySelector('[data-next]').disabled = FC.idx === FC.cards.length - 1;
+            res.querySelector('[data-dots]').innerHTML = FC.cards.map((_, i) => '<span class="' + (i === FC.idx ? 'on' : '') + '"></span>').join('');
+            renderMath(res.querySelector('[data-flip]'));
+        }
+        /* =========================================================
+           GENERIC SAVED-CONTENT SYSTEM (worksheets / guides / decks)
+           ========================================================= */
+        const SAVE_KEYS = { ws: ST_WORKSHEETS, guide: ST_GUIDES, deck: ST_DECKS };
+        const SAVE_ICO = { ws: I.sheet, guide: I.guide, deck: I.cards };
+        const SAVE_HEAD = { ws: 'Saved worksheets', guide: 'Saved guides', deck: 'Saved decks' };
+        function savedMeta(kind, it) {
+            if (kind === 'deck') return { title: it.deckTitle || 'Deck', sub: (it.cards ? it.cards.length : 0) + ' cards' };
+            const d = it.data || {};
+            if (kind === 'ws') return { title: d.title || 'Worksheet', sub: (d.questions ? d.questions.length : 0) + ' questions' };
+            return { title: d.title || 'Study guide', sub: d.readTime || ((d.concepts ? d.concepts.length : 0) + ' concepts') };
+        }
+        function renderSaved(kind) {
+            const arr = readJSON(SAVE_KEYS[kind]);
+            const rows = arr.map(it => {
+                const m = savedMeta(kind, it);
+                return '<div class="st-saved-row" data-srow data-skind="' + kind + '" data-sid="' + it.id + '">' +
+                    '<div class="st-sr-ico">' + SAVE_ICO[kind] + '</div>' +
+                    '<div class="st-sr-meta"><div class="st-sr-title">' + esc(m.title) + '</div>' +
+                    '<div class="st-sr-sub">' + esc(m.sub) + ' · ' + new Date(it.createdAt).toLocaleDateString() + '</div></div>' +
+                    '<button class="st-sr-del" data-sdel data-skind="' + kind + '" data-sid="' + it.id + '" title="Delete">' + I.trash + '</button></div>';
+            }).join('');
+            const block = '<h4>' + SAVE_HEAD[kind] + '</h4>' + rows;
+            root.querySelectorAll('[data-saved="' + kind + '"]').forEach(c => { c.innerHTML = arr.length ? block : ''; });
+        }
+        function saveItem(kind, item) {
+            const arr = readJSON(SAVE_KEYS[kind]);
+            arr.unshift(item);
+            localStorage.setItem(SAVE_KEYS[kind], JSON.stringify(arr));
+            renderSaved(kind);
+        }
+        function deleteItem(kind, id) {
+            localStorage.setItem(SAVE_KEYS[kind], JSON.stringify(readJSON(SAVE_KEYS[kind]).filter(x => x.id !== id)));
+            renderSaved(kind);
+        }
+        function loadSaved(kind, id) {
+            const it = readJSON(SAVE_KEYS[kind]).find(x => x.id === id);
+            if (!it) return;
+            if (kind === 'deck') { setScreen('flashcards'); setStage(screenEl('flashcards'), 'result'); showDeck(it); }
+            else if (kind === 'ws') { setScreen('worksheet'); setStage(screenEl('worksheet'), 'result'); renderWorksheet(it.data); }
+            else { setScreen('guide'); setStage(screenEl('guide'), 'result'); renderGuide(it.data, true); }
+        }
+        root.addEventListener('click', e => {
+            const del = e.target.closest('[data-sdel]');
+            if (del) {
+                e.stopPropagation();
+                deleteItem(del.getAttribute('data-skind'), del.getAttribute('data-sid'));
+                toast('Removed from saved.', 'ok');
+                return;
+            }
+            const row = e.target.closest('[data-srow]');
+            if (row) loadSaved(row.getAttribute('data-skind'), row.getAttribute('data-sid'));
+        });
+
+        /* =========================================================
+           API KEY MODAL
+           ========================================================= */
+        let modal = document.createElement('div');
+        modal.className = 'st-modal-ov'; modal.id = 'stApiModal';
+        modal.innerHTML =
+            '<div class="st-modal"><div class="st-m-ico">' + I.key + '</div>' +
+            '<h3>Connect your Gemini API key</h3>' +
+            '<p>The study tools call Google Gemini directly from your browser. Get a free key from ' +
+            '<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a> and paste it below.</p>' +
+            '<div class="st-field"><label>API key</label><input class="st-input" id="stKeyInput" type="password" placeholder="AIza…" autocomplete="off"></div>' +
+            '<div class="st-field"><label>AI model</label><select class="st-select" id="stModelInput">' +
+            ST_MODELS.map(m => '<option value="' + m.id + '">' + esc(m.label) + '</option>').join('') + '</select>' +
+            '<div class="st-panel-hint" style="margin-top:8px">Use <strong>2.5 Pro</strong> for the most accurate results and YouTube transcription; <strong>Flash</strong> is faster and cheaper for everyday use.</div></div>' +
+            '<div class="st-actions"><button class="st-btn" id="stKeySave">Save settings</button>' +
+            '<button class="st-btn st-btn-ghost" id="stKeyClear">Clear key</button>' +
+            '<button class="st-btn st-btn-ghost" id="stKeyCancel">Cancel</button></div>' +
+            '<div class="st-modal-note">' + I.warn + '<span>Stored only in this browser’s localStorage. Anyone with access to this device can read it — fine for personal use, but don’t use a shared/public machine.</span></div>' +
+            '</div>';
+        document.body.appendChild(modal);
+        const keyInput = modal.querySelector('#stKeyInput');
+        const modelInput = modal.querySelector('#stModelInput');
+        function openApiModal() {
+            keyInput.value = (localStorage.getItem(ST_KEY_STORE) || '');
+            modelInput.value = getModel();
+            modal.classList.add('open');
+            setTimeout(() => keyInput.focus(), 50);
+        }
+        function closeApiModal() { modal.classList.remove('open'); }
+        modal.addEventListener('click', e => { if (e.target === modal) closeApiModal(); });
+        modal.querySelector('#stKeyCancel').addEventListener('click', closeApiModal);
+        modal.querySelector('#stKeySave').addEventListener('click', () => {
+            const v = keyInput.value.trim();
+            localStorage.setItem(ST_MODEL_STORE, modelInput.value);
+            if (v) localStorage.setItem(ST_KEY_STORE, v);
+            if (!hasKey()) { toast('Paste your Gemini API key to connect.', 'err'); return; }
+            updateApiBtn(); closeApiModal();
+            toast('Settings saved.', 'ok');
+        });
+        modal.querySelector('#stKeyClear').addEventListener('click', () => {
+            localStorage.removeItem(ST_KEY_STORE);
+            keyInput.value = ''; updateApiBtn(); closeApiModal();
+            toast('API key cleared.', 'ok');
+        });
+        keyInput.addEventListener('keydown', e => { if (e.key === 'Enter') modal.querySelector('#stKeySave').click(); });
+
+        const apiBtn = document.getElementById('stApiBtn');
+        const apiLabel = document.getElementById('stApiLabel');
+        function updateApiBtn() {
+            const on = hasKey();
+            apiBtn.classList.toggle('connected', on);
+            apiLabel.textContent = on ? 'API Connected' : 'Connect API';
+        }
+        apiBtn.addEventListener('click', openApiModal);
+
+        /* ---------- shared ---------- */
+        function readJSON(k) { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch (e) { return []; } }
+
+        /* ---------- init ---------- */
+        updateApiBtn();
+        ['ws', 'guide', 'deck'].forEach(renderSaved);
+    })();
     </script>
 </body>
 
