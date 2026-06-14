@@ -708,6 +708,115 @@
             box-shadow: 0 0 0 3px rgba(88, 166, 92, 0.16);
         }
 
+        /* Themed dropdown — drop-in enhancement for native <select> outside of
+           Study Tools (Canvas import, bulk add modals). Mirrors the .st-dd look
+           so every tab shares the same dropdown UI/UX. The native <select> stays
+           in the DOM (hidden) and is kept in sync, so existing .value reads work. */
+        .cp-dd {
+            position: relative;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .cp-dd-head {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            font-family: inherit;
+            font-size: 14px;
+            color: #2c3340;
+            text-align: left;
+            cursor: pointer;
+            background-color: #fff;
+            border: 1.5px solid #e4e9f2;
+            border-radius: 12px;
+            padding: 12px 15px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .cp-dd-head:hover {
+            border-color: #cfd6e6;
+        }
+
+        .cp-dd-val {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cp-dd-chev {
+            display: flex;
+            flex: none;
+            color: #748098;
+            transition: transform 0.2s ease;
+        }
+
+        .cp-dd.open .cp-dd-head {
+            border-color: var(--active-color);
+            box-shadow: 0 0 0 3px rgba(88, 166, 92, 0.16);
+        }
+
+        .cp-dd.open .cp-dd-chev {
+            transform: rotate(180deg);
+        }
+
+        .cp-dd-list {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            z-index: 50;
+            background: #fff;
+            border-radius: 12px;
+            padding: 6px;
+            box-shadow: 0 4px 14px rgba(90, 110, 150, 0.10), 0 14px 32px rgba(80, 100, 140, 0.20);
+            max-height: 244px;
+            overflow-y: auto;
+            opacity: 0;
+            transform: translateY(-6px);
+            pointer-events: none;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+
+        .cp-dd.open .cp-dd-list {
+            opacity: 1;
+            transform: none;
+            pointer-events: auto;
+        }
+
+        .cp-dd-opt {
+            display: block;
+            width: 100%;
+            text-align: left;
+            font-family: inherit;
+            font-size: 13.5px;
+            color: #3a4252;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 12px;
+            cursor: pointer;
+            transition: background 0.12s ease;
+        }
+
+        .cp-dd-opt:hover {
+            background: #f6f8fc;
+        }
+
+        .cp-dd-opt.on {
+            background: var(--active-color);
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .cp-dd-opt.disabled {
+            color: #aab0c0;
+            cursor: default;
+            pointer-events: none;
+        }
+
         /* Study Tools selects: leave room for the shared chevron */
         .st-select {
             padding-right: 40px;
@@ -1063,8 +1172,9 @@
             opacity: 0.9;
         }
 
-        /* Hover effect for all fields */
-        .task-link:hover {
+        /* Hover effect for all fields (link input + lesson/assignment/notes textareas) */
+        .task-link:hover,
+        .task-list textarea:hover {
             border-color: var(--active-color);
             /* FIX: Removed box-shadow to prevent vertical line artifact on right side */
         }
@@ -1536,7 +1646,8 @@
         /* Tactile "pop" buttons: Canvas, Backup, Reset — raised by default, press in on hover */
         #canvas-import-btn,
         #backupBtn:not(.active),
-        #resetBtn {
+        #resetBtn,
+        #themeToggleBtn {
             background-color: #f3f6fb;
             border: 1px solid transparent;
             box-shadow: 3px 3px 7px rgba(80, 100, 140, 0.12),
@@ -1545,11 +1656,31 @@
 
         #canvas-import-btn:hover,
         #backupBtn:not(.active):hover,
-        #resetBtn:hover {
+        #resetBtn:hover,
+        #themeToggleBtn:hover {
             background-color: #eef2f8;
             box-shadow: inset 2px 2px 5px rgba(80, 100, 140, 0.16),
                 inset -2px -2px 5px rgba(255, 255, 255, 0.95);
             opacity: 1;
+        }
+
+        /* Dark-mode toggle: compact icon-only pill in the footer */
+        #themeToggleBtn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 11px;
+            color: #5b6473;
+        }
+
+        #themeToggleBtn svg {
+            width: 18px;
+            height: 18px;
+            display: block;
+        }
+
+        body.dark-mode #themeToggleBtn {
+            color: #ffd479;
         }
 
         /* Canvas: red brand text + icon (matches mockup) */
@@ -1716,10 +1847,14 @@
             opacity: 0.8;
         }
 
-        /* Save Confirmation State for UX Feedback */
+        /* Save Confirmation State for UX Feedback.
+           Keep the label white so it stays legible against the green button
+           (previously it faded to green-on-green); a slightly deeper green
+           background still signals the "Saved!" confirmation. */
         #saveBtn.saved-state {
-            color: var(--color-button-green);
-            border-color: var(--color-button-green);
+            color: #ffffff;
+            background-color: #4e9852;
+            border-color: transparent;
         }
 
         /* **NEW:** Custom Context Menu Styling */
@@ -2437,6 +2572,11 @@
             color: #9aa3b5;
         }
 
+        .expand-new-link-input:hover,
+        .expand-new-folder-input:hover {
+            border-color: var(--active-color);
+        }
+
         .expand-new-link-input:focus,
         .expand-new-folder-input:focus {
             background-color: #ffffff;
@@ -2864,6 +3004,7 @@
             background-color: var(--clay-field-bg); border:1px solid transparent; border-radius:12px; padding:12px 14px;
             box-shadow: var(--clay-shadow-field-inset); transition: box-shadow .15s ease, background .15s ease, border-color .15s ease; }
         .st-textarea { resize:vertical; min-height:90px; line-height:1.6; }
+        .st-input:hover, .st-select:hover, .st-textarea:hover { border-color: var(--active-color); }
         .st-input:focus, .st-select:focus, .st-textarea:focus { outline:none; background-color:#fff; border-color: var(--active-color);
             box-shadow: 0 0 0 3px rgba(88,166,92,0.16); }
         .st-grid2 { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:18px; }
@@ -2875,6 +3016,7 @@
             box-shadow: var(--clay-shadow-field-inset); transition: box-shadow .15s ease, background .15s ease, border-color .15s ease; }
         .st-dd-val { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .st-dd-chev { display:flex; flex:none; color:#748098; transition: transform .2s ease; }
+        .st-dd-head:hover { border-color: var(--active-color); }
         .st-dd.open .st-dd-head { background-color:#fff; border-color: var(--active-color); box-shadow: 0 0 0 3px rgba(88,166,92,0.16); }
         .st-dd.open .st-dd-chev { transform: rotate(180deg); }
         .st-dd-list { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:50; background:#fff;
@@ -2978,7 +3120,7 @@
         .st-a4-scroll { overflow-x:auto; padding:6px; }
         .st-a4 { width:794px; min-height:1123px; margin:0 auto; background:#fff; color:#1f2430; box-sizing:border-box;
             padding:64px 68px; border-radius:6px; box-shadow: 0 18px 40px rgba(80,100,140,0.22); font-size:13.5px; line-height:1.7; }
-        .st-a4-head { text-align:center; border-bottom:2px solid #1f2430; padding-bottom:9px; margin-bottom:8px; }
+        .st-a4-head { text-align:center; border-bottom:2px solid #1f2430; padding-bottom:3px; margin-bottom:8px; }
         .st-a4-head .st-a4-sub { font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#6b7280; }
         .st-a4-head .st-a4-meta { display:flex; justify-content:space-between; align-items:baseline; gap:14px; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#6b7280; font-weight:600; }
         .st-a4-head .st-a4-meta span:last-child { text-align:right; }
@@ -3003,6 +3145,8 @@
         .st-ws-toggle.sm button { font-size:12px; padding:7px 13px; }
         .st-ws-toggle.dim { opacity:.4; }
         .st-ws-toggle.dim button { cursor:not-allowed; }
+        /* Inline subject editor in the worksheet result toolbar */
+        .st-ws-subject { width:160px; padding:8px 12px; font-size:13px; }
         .st-q .st-answer { margin-top:9px; padding:10px 13px; border-radius:8px; background:#eef7f0; border-left:3px solid #3fbf6a; font-size:12.5px; color:#1f3a26; }
         .st-q .st-answer b { color:#1f3a26; }
         .st-a4.is-key .st-q .st-worklines { display:none; }
@@ -3053,6 +3197,8 @@
         .st-dots { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:20px 0 8px; }
         .st-dots span { width:8px; height:8px; border-radius:50%; background:#d4d9e6; transition: all .2s ease; }
         .st-dots span.on { background: var(--color-study); transform: scale(1.35); }
+        /* All-in-one result list (reuses .st-saved-row styling for each item) */
+        .st-aio-grid { margin-top:4px; }
         .st-saved-list { margin-top:30px; }
         .st-saved-list h4 { font-size:13px; font-weight:700; color:#475067; text-transform:uppercase; letter-spacing:1px; margin:0 0 14px; }
         .st-saved-row { display:flex; align-items:center; gap:12px; padding:13px 16px; border-radius:13px; background:#fff; border:1px solid var(--clay-border); box-shadow: var(--clay-shadow-card); margin-bottom:10px; cursor:pointer; transition: transform .15s ease; }
@@ -3061,8 +3207,10 @@
         .st-saved-row .st-sr-meta { flex:1; }
         .st-saved-row .st-sr-title { font-size:14px; font-weight:600; color:#2c3340; }
         .st-saved-row .st-sr-sub { font-size:12px; color:#9097a6; }
-        .st-saved-row .st-sr-del { flex:0 0 auto; width:30px; height:30px; border:none; border-radius:9px; background:transparent; color:#9097a6; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+        .st-saved-row .st-sr-del,
+        .st-saved-row .st-sr-ren { flex:0 0 auto; width:30px; height:30px; border:none; border-radius:9px; background:transparent; color:#9097a6; cursor:pointer; display:flex; align-items:center; justify-content:center; }
         .st-saved-row .st-sr-del:hover { background:#ffeaea; color:#e23b3b; }
+        .st-saved-row .st-sr-ren:hover { background: var(--clay-field-bg); color: var(--color-study); }
         .st-empty { text-align:center; padding:30px; color:#9097a6; font-size:13px; }
 
         /* ---------- API key modal ---------- */
@@ -3101,6 +3249,141 @@
             #stPrintArea .st-a4:last-child { page-break-after:auto; }
         }
         #stPrintArea { display:none; }
+
+        /* =========================================================
+           DARK MODE
+           Toggled from the footer (persisted in localStorage as cp_theme).
+           Most surfaces already use the --clay-* design tokens, so the bulk of
+           the theme is achieved by re-pointing those tokens; the rules below
+           then patch the components that hard-code light colours. The printable
+           A4 worksheet sheet (.st-a4*) is deliberately left light — it is a
+           paper preview meant to be printed on white paper.
+           ========================================================= */
+        body.dark-mode {
+            --clay-surface: #1f2630;
+            --clay-field-bg: #28313f;
+            --clay-border: rgba(255, 255, 255, 0.09);
+            --color-text-gray: #aab2c2;
+            --color-study-tint: #18221a;
+            --color-tracker-tint: #18221a;
+            --clay-shadow-card: 0 4px 14px rgba(0, 0, 0, 0.45);
+            --clay-shadow-tracker: 0 12px 28px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            --clay-shadow-field-inset: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+            --chip-bg: #243017;
+            color: #e4e8f0;
+            background-color: #11151d;
+            background-image: linear-gradient(180deg, #11151d 0%, #131722 55%, #15131e 100%);
+        }
+
+        /* Glass panels */
+        body.dark-mode .main-header { background-color: rgba(22, 27, 36, 0.72); }
+        body.dark-mode .main-footer { background-color: rgba(22, 27, 36, 0.92); }
+        body.dark-mode .footer-title { color: #e4e8f0; }
+        body.dark-mode .main-footer button { color: #cbd2e0; }
+        body.dark-mode #canvas-import-btn,
+        body.dark-mode #backupBtn:not(.active),
+        body.dark-mode #resetBtn {
+            background-color: #242c38;
+            box-shadow: 3px 3px 7px rgba(0, 0, 0, 0.4), -3px -3px 7px rgba(255, 255, 255, 0.03);
+        }
+        body.dark-mode #canvas-import-btn:hover,
+        body.dark-mode #backupBtn:not(.active):hover,
+        body.dark-mode #resetBtn:hover {
+            background-color: #2b3442;
+            box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.45), inset -2px -2px 5px rgba(255, 255, 255, 0.03);
+        }
+        body.dark-mode .footer-tracker-toggle { background-color: #242c38; }
+
+        /* Course-card / tracker headings + generic dark text → light */
+        body.dark-mode .course-card h3,
+        body.dark-mode .tracker-card-title,
+        body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, body.dark-mode h4 { color: #e8ebf2; }
+        body.dark-mode .course-card h3 { color: #e8ebf2; }
+
+        /* Fields keep light text; fix the focus-to-white flash → dark surface */
+        body.dark-mode .task-list textarea:focus,
+        body.dark-mode .task-link:focus,
+        body.dark-mode .expand-new-link-input:focus,
+        body.dark-mode .expand-new-folder-input:focus,
+        body.dark-mode .st-input:focus,
+        body.dark-mode .st-textarea:focus,
+        body.dark-mode .st-dd.open .st-dd-head,
+        body.dark-mode .cp-dd.open .cp-dd-head,
+        body.dark-mode .add-items-modal-textarea:focus { background-color: #2f3a4a; }
+
+        /* Native modal selects / textareas */
+        body.dark-mode .add-items-modal-select,
+        body.dark-mode .add-items-modal-textarea,
+        body.dark-mode .cp-dd-head { background-color: #28313f; color: #e4e8f0; border-color: var(--clay-border); }
+        body.dark-mode .cp-dd-list { background: #232b37; box-shadow: 0 4px 14px rgba(0,0,0,0.5), 0 14px 32px rgba(0,0,0,0.55); }
+        body.dark-mode .cp-dd-opt { color: #cdd4e1; }
+        body.dark-mode .cp-dd-opt:hover { background: #2f3a4a; }
+        body.dark-mode .link-modal,
+        body.dark-mode .context-menu { background-color: #1f2630; color: #e4e8f0; border-color: var(--clay-border); }
+        body.dark-mode .context-menu-item:hover { background-color: #2b3442; }
+
+        /* ---- Study Tools ---- */
+        body.dark-mode .st-topbar h2,
+        body.dark-mode .st-tool-card h3,
+        body.dark-mode .st-toolhead h2,
+        body.dark-mode .st-panel-title,
+        body.dark-mode .st-input, body.dark-mode .st-textarea,
+        body.dark-mode .st-dd-head,
+        body.dark-mode .st-guide-head h2,
+        body.dark-mode .st-gsec > h3,
+        body.dark-mode .st-deck-title,
+        body.dark-mode .st-flip-face .st-face-text,
+        body.dark-mode .st-flip-back .st-face-text,
+        body.dark-mode .st-saved-row .st-sr-title,
+        body.dark-mode .st-api-btn.connected,
+        body.dark-mode .st-gen-num,
+        body.dark-mode .st-gen h3,
+        body.dark-mode .st-modal h3 { color: #e8ebf2; }
+        body.dark-mode .st-topbar p,
+        body.dark-mode .st-tool-card p,
+        body.dark-mode .st-toolhead .st-sub,
+        body.dark-mode .st-gsec p,
+        body.dark-mode .st-concept .st-c-body,
+        body.dark-mode .st-steps li,
+        body.dark-mode .st-take,
+        body.dark-mode .st-quiz .st-quiz-item,
+        body.dark-mode .st-guide-head .st-guide-meta,
+        body.dark-mode .st-deck-counter,
+        body.dark-mode .st-gen .st-gen-sub,
+        body.dark-mode .st-modal p { color: #aab2c2; }
+        body.dark-mode .st-panel-hint,
+        body.dark-mode .st-dropzone .st-dz-types,
+        body.dark-mode .st-srcchip .st-sc-sz,
+        body.dark-mode .st-saved-row .st-sr-sub,
+        body.dark-mode .st-empty { color: #8b94a6; }
+        body.dark-mode .st-field > label,
+        body.dark-mode .st-toggle-pill,
+        body.dark-mode .st-chip,
+        body.dark-mode .st-ws-toggle button,
+        body.dark-mode .st-saved-list h4,
+        body.dark-mode .st-dropzone p { color: #c2c9d6; }
+        body.dark-mode .st-dd-opt { color: #cdd4e1; }
+        body.dark-mode .st-dd-opt:hover,
+        body.dark-mode .st-chip:hover,
+        body.dark-mode .st-toggle-pill:hover { background: #2f3a4a; }
+        body.dark-mode .st-api-btn,
+        body.dark-mode .st-back,
+        body.dark-mode .st-btn-ghost,
+        body.dark-mode .st-srcchip,
+        body.dark-mode .st-deck-ctrls button,
+        body.dark-mode .st-saved-row,
+        body.dark-mode .st-ws-toggle button.on,
+        body.dark-mode .st-dd-list { background: #232b37; color: #cdd4e1; }
+        body.dark-mode .st-api-btn { color: #cbd2e0; }
+        body.dark-mode .st-dd-list { box-shadow: 0 4px 14px rgba(0,0,0,0.5), 0 14px 32px rgba(0,0,0,0.55); }
+        body.dark-mode .st-toggle-pill .st-tp-ico { background: #2f3a4a; }
+        body.dark-mode .st-modal { background: #1f2630; }
+        body.dark-mode .st-formula { color: #e4e8f0; }
+        body.dark-mode .st-dropzone:hover,
+        body.dark-mode .st-dropzone.drag { background: #243017; }
+        body.dark-mode #stToast { background: #2b3442; }
+
+        /* The "fx" math pill and accent text stay readable as-is (green accent). */
     </style>
 </head>
 
@@ -3651,6 +3934,7 @@
                 Canvas
             </button>
             <button id="backupBtn">Backup</button>
+            <button id="themeToggleBtn" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
             <div class="footer-divider"></div>
 
             <!-- Action Group -->
@@ -10241,6 +10525,116 @@
             populateCourseDropdowns();
             loadData();
             updateInlineExpandButtons(); // Show expand buttons for cards with links
+
+            /* =========================================================
+               Dark / light mode toggle (footer). Persisted in localStorage
+               so the choice survives reloads.
+               ========================================================= */
+            (function initThemeToggle() {
+                const THEME_KEY = 'cp_theme';
+                const btn = document.getElementById('themeToggleBtn');
+                if (!btn) return;
+                const moon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+                const sun = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+                function apply(dark) {
+                    document.body.classList.toggle('dark-mode', dark);
+                    // Show the icon for the mode you can switch TO.
+                    btn.innerHTML = dark ? sun : moon;
+                    btn.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+                }
+                apply(localStorage.getItem(THEME_KEY) === 'dark');
+                btn.addEventListener('click', () => {
+                    const dark = !document.body.classList.contains('dark-mode');
+                    localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+                    apply(dark);
+                });
+            })();
+
+            /* =========================================================
+               Themed dropdowns for native <select>s outside Study Tools
+               (Canvas import + bulk-add modals). The native <select> stays in
+               the DOM (hidden) and remains the source of truth, so all existing
+               .value reads keep working; a .cp-dd overlay mirrors it and is kept
+               in sync both ways (option list, programmatic value/selectedIndex).
+               ========================================================= */
+            (function initThemedSelects() {
+                const chev = '<span class="cp-dd-chev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>';
+                function closeAllCpDD(except) {
+                    document.querySelectorAll('.cp-dd.open').forEach(d => { if (d !== except) d.classList.remove('open'); });
+                }
+                document.addEventListener('click', () => closeAllCpDD(null));
+
+                function themeSelect(sel) {
+                    if (sel.dataset.cpThemed) return;
+                    sel.dataset.cpThemed = '1';
+                    sel.style.display = 'none';
+
+                    const dd = document.createElement('div');
+                    dd.className = 'cp-dd';
+                    const head = document.createElement('button');
+                    head.type = 'button';
+                    head.className = 'cp-dd-head';
+                    head.innerHTML = '<span class="cp-dd-val"></span>' + chev;
+                    const list = document.createElement('div');
+                    list.className = 'cp-dd-list';
+                    dd.appendChild(head);
+                    dd.appendChild(list);
+                    sel.parentNode.insertBefore(dd, sel.nextSibling);
+
+                    const valEl = head.querySelector('.cp-dd-val');
+                    function sync() {
+                        const opt = sel.options[sel.selectedIndex];
+                        valEl.textContent = opt ? opt.textContent : '';
+                        list.querySelectorAll('.cp-dd-opt').forEach(b =>
+                            b.classList.toggle('on', b.dataset.val === sel.value && !b.classList.contains('disabled')));
+                    }
+                    function rebuild() {
+                        list.innerHTML = '';
+                        Array.from(sel.options).forEach(opt => {
+                            const b = document.createElement('button');
+                            b.type = 'button';
+                            b.className = 'cp-dd-opt' + (opt.disabled ? ' disabled' : '');
+                            b.dataset.val = opt.value;
+                            b.textContent = opt.textContent;
+                            if (!opt.disabled) {
+                                b.addEventListener('click', e => {
+                                    e.stopPropagation();
+                                    sel.value = opt.value;
+                                    dd.classList.remove('open');
+                                    sel.dispatchEvent(new Event('change', { bubbles: true }));
+                                });
+                            }
+                            list.appendChild(b);
+                        });
+                        sync();
+                    }
+                    head.addEventListener('click', e => {
+                        e.stopPropagation();
+                        const open = dd.classList.contains('open');
+                        closeAllCpDD(dd);
+                        dd.classList.toggle('open', !open);
+                    });
+
+                    // Catch programmatic updates: option list changes, and direct
+                    // value / selectedIndex assignment (e.g. resetting to the placeholder).
+                    new MutationObserver(rebuild).observe(sel, { childList: true });
+                    sel.addEventListener('change', sync);
+                    const proto = HTMLSelectElement.prototype;
+                    ['value', 'selectedIndex'].forEach(prop => {
+                        const desc = Object.getOwnPropertyDescriptor(proto, prop);
+                        if (!desc) return;
+                        Object.defineProperty(sel, prop, {
+                            configurable: true,
+                            get() { return desc.get.call(sel); },
+                            set(v) { desc.set.call(sel, v); sync(); }
+                        });
+                    });
+
+                    rebuild();
+                }
+
+                document.querySelectorAll('select.add-items-modal-select').forEach(themeSelect);
+            })();
         });
     </script>
 
@@ -10339,15 +10733,18 @@
                 });
             });
         }
-        // Refill the worksheet Subject dropdown from the courses currently on the board.
+        // Refill the Subject dropdowns (worksheet + all-in-one) from the courses
+        // currently on the board.
         function syncSubjectOptions() {
-            const dd = document.getElementById('wsSubject');
-            if (!dd) return;
-            const cur = dd.value;
             const opts = [{ v: '', label: 'General' }].concat(courseSubjects().map(s => ({ v: s, label: s })));
-            const list = dd.querySelector('.st-dd-list');
-            if (list) list.innerHTML = opts.map(o => '<button type="button" class="st-dd-opt" data-val="' + esc(o.v) + '">' + esc(o.label) + '</button>').join('');
-            dd.value = opts.some(o => o.v === cur) ? cur : '';
+            ['wsSubject', 'aioSubject'].forEach(id => {
+                const dd = document.getElementById(id);
+                if (!dd) return;
+                const cur = dd.value;
+                const list = dd.querySelector('.st-dd-list');
+                if (list) list.innerHTML = opts.map(o => '<button type="button" class="st-dd-opt" data-val="' + esc(o.v) + '">' + esc(o.label) + '</button>').join('');
+                dd.value = opts.some(o => o.v === cur) ? cur : '';
+            });
         }
         const wait = ms => new Promise(r => setTimeout(r, ms));
         const hasKey = () => !!(localStorage.getItem(ST_KEY_STORE) || '').trim();
@@ -10373,8 +10770,10 @@
             prev: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
             next: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
             trash: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+            pencil: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
             warn: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-            spark: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>'
+            spark: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>',
+            all: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'
         };
         const sectionIco = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
 
@@ -10589,10 +10988,19 @@
             ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
             dz.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
             function addYt() {
-                const v = (ytInput.value || '').trim();
-                if (!v) return;
-                if (!isYouTube(v)) { toast('That doesn’t look like a YouTube link.', 'err'); return; }
-                state.yt.push(ytNormalize(v)); ytInput.value = ''; render();
+                const raw = (ytInput.value || '').trim();
+                if (!raw) return;
+                // Accept several links at once, comma-separated (mirrors the course-card
+                // "Paste link here…" field) so multiple videos can be attached in one go.
+                const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+                let added = 0, bad = 0;
+                parts.forEach(v => {
+                    if (!isYouTube(v)) { bad++; return; }
+                    const url = ytNormalize(v);
+                    if (state.yt.indexOf(url) === -1) { state.yt.push(url); added++; }
+                });
+                if (added) { ytInput.value = ''; render(); }
+                if (bad) toast(bad === parts.length ? 'That doesn’t look like a YouTube link.' : 'Added ' + added + ' link' + (added === 1 ? '' : 's') + '; skipped ' + bad + ' that weren’t YouTube links.', 'err');
             }
             ytAdd.addEventListener('click', addYt);
             ytInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addYt(); } });
@@ -10676,12 +11084,12 @@
                 '<p><strong>Click to upload</strong> or drag &amp; drop</p>' +
                 '<div class="st-dz-types">PDF · Word · PowerPoint · Markdown · TXT · MP3 · Images</div>' +
                 '<input type="file" data-file multiple style="display:none" accept=".pdf,.docx,.pptx,.txt,.md,.markdown,.csv,.json,.mp3,.wav,.m4a,.png,.jpg,.jpeg,.webp,.gif"></div>' +
-                '<div class="st-yt-row"><input type="text" class="st-input" data-yt placeholder="Paste a YouTube link…"><button type="button" class="st-btn st-btn-ghost" data-ytadd>Add</button></div>' +
+                '<div class="st-yt-row"><input type="text" class="st-input" data-yt placeholder="Paste a YouTube link… (separate multiple with commas)"><button type="button" class="st-btn st-btn-ghost" data-ytadd>Add</button></div>' +
                 '<div class="st-source-list" data-srclist></div></div>';
         }
-        function toolHeadHTML(ico, title, sub) {
+        function toolHeadHTML(ico, title) {
             return '<div class="st-toolhead"><button class="st-back" data-back>' + I.back + '</button>' +
-                '<div class="st-th-ico">' + ico + '</div><div><h2>' + title + '</h2><div class="st-sub">' + sub + '</div></div></div>';
+                '<div class="st-th-ico">' + ico + '</div><div><h2>' + title + '</h2></div></div>';
         }
         function genStageHTML(title, sub) {
             return '<div class="st-stage" data-stage="gen"><div class="st-gen">' +
@@ -10701,11 +11109,12 @@
             hubCard('worksheet', I.sheet, 'Worksheet Generator', 'Build a print-ready A4 worksheet with a matching answer key from a topic or your materials.') +
             hubCard('guide', I.guide, 'Study Guide Generator', 'Turn notes, slides, PDFs, audio or YouTube into a structured, readable study guide.') +
             hubCard('flashcards', I.cards, 'Flashcard Generator', 'Create a flippable term/definition deck that’s saved on this device for later review.') +
+            hubCard('allinone', I.all, 'All-in-One Generator', 'Generate a worksheet, study guide and flashcard deck together from one topic — ideal for a deeper revision session.') +
             '</div></div>' +
 
             // WORKSHEET
             '<div class="st-screen" data-screen="worksheet">' +
-            toolHeadHTML(I.sheet, 'Worksheet Generator', 'Topic + options → A4 worksheet & answer key') +
+            toolHeadHTML(I.sheet, 'Worksheet Generator') +
             '<div class="st-stage active" data-stage="setup">' +
             '<div class="st-panel"><div class="st-panel-title">What should the worksheet cover?</div><div class="st-panel-hint">Describe a topic, or add source materials below (or both).</div>' +
             '<div class="st-field"><label>Topic / prompt</label><textarea class="st-textarea" id="wsTopic" placeholder="e.g. The dot product and vector operations for grade 12 Calculus &amp; Vectors"></textarea></div>' +
@@ -10716,7 +11125,7 @@
             '</div>' +
             '<div class="st-field"><label>Question types</label><div class="st-chips" id="wsTypes">' +
             wsChip('mc', 'Multiple Choice', true) + wsChip('short', 'Short Answer', true) + wsChip('work', 'Show Work', true) + wsChip('tf', 'True / False', false) + wsChip('fill', 'Fill the Blank', false) +
-            '</div></div>' + sourceBlockHTML(true) + latexToggleHTML('wsLatex') +
+            '</div></div>' + latexToggleHTML('wsLatex') + sourceBlockHTML(true) +
             '<div class="st-actions"><button class="st-btn" id="wsGen">' + I.spark + ' Generate worksheet</button></div>' +
             '</div><div class="st-saved-list" data-saved="ws"></div></div>' +
             genStageHTML('Generating your worksheet…', 'Gemini is writing questions and the answer key.') +
@@ -10725,7 +11134,7 @@
 
             // GUIDE
             '<div class="st-screen" data-screen="guide">' +
-            toolHeadHTML(I.guide, 'Study Guide Generator', 'Materials → structured guide on the page') +
+            toolHeadHTML(I.guide, 'Study Guide Generator') +
             '<div class="st-stage active" data-stage="setup">' +
             '<div class="st-panel"><div class="st-panel-title">Add your materials</div><div class="st-panel-hint">Upload files or paste YouTube links, then optionally narrow the focus.</div>' +
             sourceBlockHTML(false) +
@@ -10739,7 +11148,7 @@
 
             // FLASHCARDS
             '<div class="st-screen" data-screen="flashcards">' +
-            toolHeadHTML(I.cards, 'Flashcard Generator', 'Materials → flippable deck, saved on this device') +
+            toolHeadHTML(I.cards, 'Flashcard Generator') +
             '<div class="st-stage active" data-stage="setup">' +
             '<div class="st-panel"><div class="st-panel-title">Add your materials</div><div class="st-panel-hint">Upload files or paste YouTube links and choose how many cards.</div>' +
             sourceBlockHTML(false) +
@@ -10753,6 +11162,29 @@
             '<div class="st-saved-list" data-saved="deck"></div></div>' +
             genStageHTML('Creating your flashcards…', 'Gemini is pulling out key terms and definitions.') +
             '<div class="st-stage" data-stage="result" id="fResult"></div>' +
+            '</div>' +
+
+            // ALL-IN-ONE
+            '<div class="st-screen" data-screen="allinone">' +
+            toolHeadHTML(I.all, 'All-in-One Generator') +
+            '<div class="st-stage active" data-stage="setup">' +
+            '<div class="st-panel"><div class="st-panel-title">Revise everything at once</div><div class="st-panel-hint">Builds a worksheet, a study guide and a flashcard deck from the same topic and materials.</div>' +
+            '<div class="st-field"><label>Topic / prompt</label><textarea class="st-textarea" id="aioTopic" placeholder="e.g. The dot product and vector operations for grade 12 Calculus &amp; Vectors"></textarea></div>' +
+            '<div class="st-grid2">' +
+            '<div class="st-field"><label>Subject</label>' + ddHTML('aioSubject', [{ v: '', label: 'General' }].concat(courseSubjects().map(s => ({ v: s, label: s }))), '') + '</div>' +
+            '<div class="st-field"><label>Grade / level</label>' + ddHTML('aioLevel', ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'University / College'], 'Grade 12') + '</div>' +
+            '<div class="st-field"><label>Worksheet questions</label>' + ddHTML('aioCount', ['5', '8', '10', '12', '15', '20'], '8') + '</div>' +
+            '<div class="st-field"><label>Number of cards</label>' + ddHTML('aioCards', ['10', '15', '20', '25', '30'], '15') + '</div>' +
+            '</div>' +
+            '<div class="st-field"><label>Question types</label><div class="st-chips" id="aioTypes">' +
+            wsChip('mc', 'Multiple Choice', true) + wsChip('short', 'Short Answer', true) + wsChip('work', 'Show Work', true) + wsChip('tf', 'True / False', false) + wsChip('fill', 'Fill the Blank', false) +
+            '</div></div>' + latexToggleHTML('aioLatex') +
+            '<div class="st-field"><label>Focus <span style="color:#9097a6;font-weight:400">(optional)</span></label><input class="st-input" id="aioFocus" placeholder="e.g. only the section on photosynthesis"></div>' +
+            sourceBlockHTML(true) +
+            '<div class="st-actions"><button class="st-btn" id="aioGen">' + I.spark + ' Generate all three</button></div>' +
+            '</div>' +
+            genStageHTML('Generating your study set…', 'Gemini is building a worksheet, study guide and flashcards.') +
+            '<div class="st-stage" data-stage="result" id="aioResult"></div>' +
             '</div>' +
 
             '</div>';
@@ -10777,25 +11209,30 @@
             const scr = screenEl(t);
             // Start each generator fresh — don't carry over files/YouTube links from a previous run.
             if (scr._resetSrc) scr._resetSrc();
-            if (t === 'worksheet') syncSubjectOptions(); // reflect any courses added/removed since load
+            if (t === 'worksheet' || t === 'allinone') syncSubjectOptions(); // reflect any courses added/removed since load
             setStage(scr, 'setup'); setScreen(t);
         }));
         root.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => setScreen('hub')));
         initDD(root);
 
-        // question-type chips
-        root.querySelector('#wsTypes').addEventListener('click', e => {
-            const c = e.target.closest('.st-chip'); if (c) c.classList.toggle('on');
+        // question-type chips (worksheet + all-in-one)
+        ['#wsTypes', '#aioTypes'].forEach(sel => {
+            const el = root.querySelector(sel);
+            if (el) el.addEventListener('click', e => {
+                const c = e.target.closest('.st-chip'); if (c) c.classList.toggle('on');
+            });
         });
 
         // LaTeX / math-formatting toggle
+        // Math formatting is OFF by default — it's only wanted for math/science
+        // topics, and was tedious to switch off for everything else.
         function latexToggleHTML(id) {
             return '<div class="st-field"><label>Math formatting</label>' +
-                '<button type="button" class="st-toggle-pill on" id="' + id + '" data-latex>' +
+                '<button type="button" class="st-toggle-pill" id="' + id + '" data-latex>' +
                 '<span class="st-tp-ico">fx</span>' +
                 '<span class="st-tp-label">Render math &amp; numbers as LaTeX</span>' +
-                '<span class="st-tp-state">On</span></button>' +
-                '<div class="st-panel-hint" style="margin-top:8px">Recommended for math/science or anything with equations/numbers. Turn off for text-only subjects.</div></div>';
+                '<span class="st-tp-state">Off</span></button>' +
+                '<div class="st-panel-hint" style="margin-top:8px">Off by default. Turn on for math/science or anything with equations/numbers.</div></div>';
         }
         const latexOn = id => { const el = document.getElementById(id); return !el || el.classList.contains('on'); };
         const LATEX_ON = ' IMPORTANT — math formatting rules: Render EVERY mathematical expression, symbol, variable, fraction, exponent, unit and numeric formula as valid LaTeX. Wrap inline math in \\( ... \\) and keep it on the SAME line as the surrounding words — never put a line break before, after, or inside an inline expression, and never start a new line just for a single symbol or variable. Use $$ ... $$ only for a full standalone equation, never for a lone variable. Write every variable and vector in plain italic — do NOT bold them with \\mathbf, \\boldsymbol, \\pmb or similar. Write strictly valid LaTeX: every \\left must have a matching \\right; if you are not certain a pair is balanced, use plain ( ) [ ] | instead of \\left/\\right. Never write math, fractions or exponents as plain text.';
@@ -10804,7 +11241,7 @@
         }));
 
         // init source managers
-        ['worksheet', 'guide', 'flashcards'].forEach(n => initSource(screenEl(n)));
+        ['worksheet', 'guide', 'flashcards', 'allinone'].forEach(n => initSource(screenEl(n)));
 
         /* ---------- generating animation ---------- */
         function animateSteps(container, steps) {
@@ -10940,6 +11377,7 @@
                 '<div class="st-ws-bar"><div class="st-ws-opts">' +
                 '<div class="st-ws-toggle">' +
                 '<button data-wsmode="sheet" class="on">Worksheet</button><button data-wsmode="key">Answer Key</button></div>' +
+                '<div class="st-ws-opt"><span>Subject</span><input type="text" class="st-input st-ws-subject" data-wssubject placeholder="Subject" value="' + esc(d.subject || '') + '"></div>' +
                 '<div class="st-ws-opt"><span>Lines</span><div class="st-ws-toggle sm">' +
                 '<button data-wslines="off"' + cl(!WS_LINES) + '>Hide</button><button data-wslines="on"' + cl(WS_LINES) + '>Show</button></div></div>' +
                 '<div class="st-ws-opt"><span>Spacing</span><div class="st-ws-toggle sm">' +
@@ -10972,6 +11410,13 @@
             };
             draw();
             syncToggles();
+            // Edit the worksheet subject after generation (updates the header live + the printed PDF).
+            const subjInput = res.querySelector('[data-wssubject]');
+            if (subjInput) subjInput.addEventListener('input', e => {
+                d.subject = e.target.value;
+                const span = sheetWrap.querySelector('.st-a4-meta span:first-child');
+                if (span) span.textContent = d.subject; else draw();
+            });
             res.querySelectorAll('[data-wsmode]').forEach(b => b.addEventListener('click', () => {
                 mode = b.getAttribute('data-wsmode');
                 res.querySelectorAll('[data-wsmode]').forEach(x => x.classList.toggle('on', x === b));
@@ -11131,6 +11576,88 @@
             res.querySelector('[data-dots]').innerHTML = FC.cards.map((_, i) => '<span class="' + (i === FC.idx ? 'on' : '') + '"></span>').join('');
             renderMath(res.querySelector('[data-flip]'));
         }
+
+        /* =========================================================
+           ALL-IN-ONE  (worksheet + study guide + flashcards together)
+           Reuses the three generators' prompts/schemas and render functions;
+           the source files/links are read once and shared across all 3 calls.
+           ========================================================= */
+        let AIO = null;
+        document.getElementById('aioGen').addEventListener('click', () => {
+            const scr = screenEl('allinone');
+            const topic = document.getElementById('aioTopic').value.trim();
+            const types = Array.prototype.slice.call(root.querySelectorAll('#aioTypes .st-chip.on')).map(c => c.getAttribute('data-type'));
+            if (!topic && srcCount(scr) === 0) { toast('Enter a topic or add source materials.', 'err'); return; }
+            if (types.length === 0) { toast('Pick at least one question type.', 'err'); return; }
+            const subject = document.getElementById('aioSubject').value.trim();
+            const level = document.getElementById('aioLevel').value;
+            const count = document.getElementById('aioCount').value;
+            const cards = document.getElementById('aioCards').value;
+            const focus = document.getElementById('aioFocus').value.trim();
+            const mathRules = latexOn('aioLatex') ? LATEX_ON : '';
+            runTool('allinone', ['Reading your inputs', 'Writing the worksheet', 'Building the study guide', 'Creating flashcards'], async () => {
+                const parts = await sourceParts(scr); // read files/links once, reuse for all three calls
+                const hasSrc = parts.length > 0;
+                const basis = topic ? ('the topic "' + topic + '"') : 'the attached materials';
+
+                const wsPrompt =
+                    'You are an expert teacher creating a printable classroom worksheet.\n' +
+                    'Topic: ' + (topic || '(derive from the attached materials)') + '\n' +
+                    'Subject: ' + (subject || 'General') + '\nGrade / Level: ' + level + '\n' +
+                    'Create exactly ' + count + ' questions. Use ONLY these question types: ' + types.join(', ') + '.\n' +
+                    'Type meanings — mc: multiple choice, supply 4 entries in "opts" and put the correct option letter + a brief reason in "answer". ' +
+                    'short: short answer. work: a show-your-work problem with a full step-by-step solution in "answer". tf: true/false. fill: fill-in-the-blank (use ____ in the question).\n' +
+                    'Vary the difficulty. Every question MUST include a correct, complete "answer". ' +
+                    'Also provide a descriptive "title", the "subject", a "unit" label, and a short student "instructions" line.' +
+                    mathRules + (hasSrc ? '\nBase the questions on the attached source materials.' : '');
+                const wsData = await gemini([{ text: wsPrompt }].concat(parts), WS_SCHEMA);
+                wsData.subject = subject || wsData.subject || '';
+                wsData.level = level || '';
+
+                const gPrompt =
+                    'You are an expert tutor. Using ' + basis + (focus ? ' (focus on: ' + focus + ')' : '') +
+                    ' and any attached materials, produce a clear, well-structured study guide. Include: a concise title; the course/unit if identifiable; an estimated read time; ' +
+                    'a plain-language overview (1–2 paragraphs); key concepts as term + explanation; important formulas if any; ' +
+                    'one fully worked example with ordered steps; key takeaways; and a few short self-check quiz questions.' + mathRules;
+                const guide = await gemini([{ text: gPrompt }].concat(parts), GUIDE_SCHEMA);
+
+                const fPrompt =
+                    'You are an expert tutor. From ' + basis + ' and any attached materials, create a focused flashcard deck of about ' + cards + ' cards. ' +
+                    'Each card has a concise "front" (a term or question) and a clear "back" (the definition or answer).' +
+                    (mathRules || ' ') +
+                    'Give the deck a short descriptive "deckTitle".';
+                const deck = await gemini([{ text: fPrompt }].concat(parts), DECK_SCHEMA);
+
+                AIO = { ws: wsData, guide: guide, deck: deck };
+                renderAIO();
+            });
+        });
+        function aioItem(k, ico, label, title, sub) {
+            return '<div class="st-saved-row" data-aioopen="' + k + '">' +
+                '<div class="st-sr-ico">' + ico + '</div>' +
+                '<div class="st-sr-meta"><div class="st-sr-title">' + esc(title || label) + '</div>' +
+                '<div class="st-sr-sub">' + esc(label) + ' · ' + esc(sub) + '</div></div>' +
+                '<span class="st-go" style="white-space:nowrap">Open ' + I.arrow + '</span></div>';
+        }
+        function renderAIO() {
+            const res = document.getElementById('aioResult');
+            const ws = AIO.ws || {}, g = AIO.guide || {}, d = AIO.deck || {};
+            res.innerHTML =
+                '<div class="st-guide-head"><h2>Your study set is ready</h2>' +
+                '<div class="st-guide-meta"><span>Open each one below to review, tweak and save it.</span></div></div>' +
+                '<div class="st-aio-grid">' +
+                aioItem('ws', I.sheet, 'Worksheet', ws.title, ((ws.questions || []).length) + ' questions') +
+                aioItem('guide', I.guide, 'Study Guide', g.title, g.readTime || (((g.concepts || []).length) + ' concepts')) +
+                aioItem('deck', I.cards, 'Flashcards', d.deckTitle, ((d.cards || []).length) + ' cards') +
+                '</div>';
+            res.querySelectorAll('[data-aioopen]').forEach(b => b.addEventListener('click', () => {
+                const k = b.getAttribute('data-aioopen');
+                if (k === 'ws') { setScreen('worksheet'); setStage(screenEl('worksheet'), 'result'); renderWorksheet(AIO.ws); }
+                else if (k === 'guide') { setScreen('guide'); setStage(screenEl('guide'), 'result'); renderGuide(AIO.guide); }
+                else { setScreen('flashcards'); setStage(screenEl('flashcards'), 'result'); showDeck(AIO.deck); }
+            }));
+        }
+
         /* =========================================================
            GENERIC SAVED-CONTENT SYSTEM (worksheets / guides / decks)
            ========================================================= */
@@ -11151,6 +11678,7 @@
                     '<div class="st-sr-ico">' + SAVE_ICO[kind] + '</div>' +
                     '<div class="st-sr-meta"><div class="st-sr-title">' + esc(m.title) + '</div>' +
                     '<div class="st-sr-sub">' + esc(m.sub) + ' · ' + new Date(it.createdAt).toLocaleDateString() + '</div></div>' +
+                    '<button class="st-sr-ren" data-srename data-skind="' + kind + '" data-sid="' + it.id + '" title="Rename">' + I.pencil + '</button>' +
                     '<button class="st-sr-del" data-sdel data-skind="' + kind + '" data-sid="' + it.id + '" title="Delete">' + I.trash + '</button></div>';
             }).join('');
             const block = '<h4>' + SAVE_HEAD[kind] + '</h4>' + rows;
@@ -11166,6 +11694,20 @@
             localStorage.setItem(SAVE_KEYS[kind], JSON.stringify(readJSON(SAVE_KEYS[kind]).filter(x => x.id !== id)));
             renderSaved(kind);
         }
+        const SAVE_NOUN = { ws: 'worksheet', guide: 'study guide', deck: 'deck' };
+        function renameItem(kind, id) {
+            const arr = readJSON(SAVE_KEYS[kind]);
+            const it = arr.find(x => x.id === id);
+            if (!it) return;
+            const cur = kind === 'deck' ? (it.deckTitle || '') : ((it.data && it.data.title) || '');
+            const next = (window.prompt('Rename this ' + (SAVE_NOUN[kind] || 'item') + ':', cur) || '').trim();
+            if (!next || next === cur) return;
+            if (kind === 'deck') it.deckTitle = next;
+            else { it.data = it.data || {}; it.data.title = next; }
+            localStorage.setItem(SAVE_KEYS[kind], JSON.stringify(arr));
+            renderSaved(kind);
+            toast('Renamed.', 'ok');
+        }
         function loadSaved(kind, id) {
             const it = readJSON(SAVE_KEYS[kind]).find(x => x.id === id);
             if (!it) return;
@@ -11174,6 +11716,12 @@
             else { setScreen('guide'); setStage(screenEl('guide'), 'result'); renderGuide(it.data, true); }
         }
         root.addEventListener('click', e => {
+            const ren = e.target.closest('[data-srename]');
+            if (ren) {
+                e.stopPropagation();
+                renameItem(ren.getAttribute('data-skind'), ren.getAttribute('data-sid'));
+                return;
+            }
             const del = e.target.closest('[data-sdel]');
             if (del) {
                 e.stopPropagation();
