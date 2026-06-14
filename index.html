@@ -3294,11 +3294,12 @@
         }
         body.dark-mode .footer-tracker-toggle { background-color: #242c38; }
 
-        /* Course-card / tracker headings + generic dark text → light */
-        body.dark-mode .course-card h3,
-        body.dark-mode .tracker-card-title,
-        body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, body.dark-mode h4 { color: #e8ebf2; }
-        body.dark-mode .course-card h3 { color: #e8ebf2; }
+        /* Modal headings/inputs that hard-code light-on-light colours.
+           Note: course/tracker card headings stay accent-coloured (still legible
+           on dark), and the printable A4 worksheet sheet is intentionally left
+           light — so there is deliberately NO blanket heading override here. */
+        body.dark-mode .link-modal h2 { color: #e8ebf2; }
+        body.dark-mode .link-modal-input { background-color: #28313f; color: #e4e8f0; border-color: var(--clay-border); }
 
         /* Fields keep light text; fix the focus-to-white flash → dark surface */
         body.dark-mode .task-list textarea:focus,
