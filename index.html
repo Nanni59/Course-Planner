@@ -1446,40 +1446,6 @@
             cursor: default;
         }
 
-        /* **NEW:** Version Tooltip Styling */
-        .main-footer .footer-title:hover::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            bottom: 120%;
-            /* Position above the text */
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #333;
-            color: #fff;
-            padding: 5px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 500;
-            white-space: nowrap;
-            opacity: 0;
-            animation: fadeIn 0.2s forwards;
-            pointer-events: none;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            z-index: 100;
-        }
-
-        @keyframes fadeIn {
-            to {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
-            }
-
-            from {
-                opacity: 0;
-                transform: translateX(-50%) translateY(5px);
-            }
-        }
-
         /* Clean, subtle footer buttons (Claude Design mockup style) */
         .main-footer button {
             font-family: 'Century Gothic', 'Futura', 'Montserrat', sans-serif;
@@ -2895,12 +2861,31 @@
         .st-field { margin-bottom:18px; }
         .st-field > label { display:block; font-size:13px; font-weight:600; color:#475067; margin-bottom:8px; }
         .st-input, .st-select, .st-textarea { width:100%; font-family:inherit; font-size:14px; color:#2c3340; box-sizing:border-box;
-            background: var(--clay-field-bg); border:1px solid transparent; border-radius:12px; padding:12px 14px;
+            background-color: var(--clay-field-bg); border:1px solid transparent; border-radius:12px; padding:12px 14px;
             box-shadow: var(--clay-shadow-field-inset); transition: box-shadow .15s ease, background .15s ease, border-color .15s ease; }
         .st-textarea { resize:vertical; min-height:90px; line-height:1.6; }
-        .st-input:focus, .st-select:focus, .st-textarea:focus { outline:none; background:#fff; border-color: var(--active-color);
+        .st-input:focus, .st-select:focus, .st-textarea:focus { outline:none; background-color:#fff; border-color: var(--active-color);
             box-shadow: 0 0 0 3px rgba(88,166,92,0.16); }
         .st-grid2 { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:18px; }
+        /* Custom themed dropdown (drop-in replacement for native <select> in Study Tools) */
+        .st-dd { position:relative; width:100%; }
+        .st-dd-head { width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;
+            font-family:inherit; font-size:14px; font-weight:500; color:#2c3340; text-align:left; cursor:pointer;
+            background-color: var(--clay-field-bg); border:1px solid transparent; border-radius:12px; padding:12px 14px;
+            box-shadow: var(--clay-shadow-field-inset); transition: box-shadow .15s ease, background .15s ease, border-color .15s ease; }
+        .st-dd-val { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .st-dd-chev { display:flex; flex:none; color:#748098; transition: transform .2s ease; }
+        .st-dd.open .st-dd-head { background-color:#fff; border-color: var(--active-color); box-shadow: 0 0 0 3px rgba(88,166,92,0.16); }
+        .st-dd.open .st-dd-chev { transform: rotate(180deg); }
+        .st-dd-list { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:50; background:#fff;
+            border-radius:12px; padding:6px; box-shadow: var(--clay-shadow-card), 0 14px 32px rgba(80,100,140,0.20);
+            max-height:244px; overflow-y:auto; opacity:0; transform: translateY(-6px); pointer-events:none;
+            transition: opacity .15s ease, transform .15s ease; }
+        .st-dd.open .st-dd-list { opacity:1; transform:none; pointer-events:auto; }
+        .st-dd-opt { display:block; width:100%; text-align:left; font-family:inherit; font-size:13.5px; color:#3a4252;
+            background:transparent; border:none; border-radius:8px; padding:10px 12px; cursor:pointer; transition: background .12s ease; }
+        .st-dd-opt:hover { background: var(--clay-field-bg); }
+        .st-dd-opt.on { background: var(--color-study); color:#fff; font-weight:600; }
 
         /* Selectable chips (question types) */
         .st-chips { display:flex; flex-wrap:wrap; gap:10px; }
@@ -2965,6 +2950,15 @@
         .st-gen .st-spinner { width:58px; height:58px; margin:0 auto 24px; border-radius:50%;
             border:5px solid #e6e9f5; border-top-color: var(--color-study); animation: stSpin .9s linear infinite; }
         @keyframes stSpin { to { transform: rotate(360deg); } }
+        /* Spinning ring with an animated percentage counter centered inside
+           (mirrors the Lesson/Assignment Tracker progress donut). */
+        .st-gen-ring { position:relative; width:120px; height:120px; margin:0 auto 26px; }
+        .st-gen-ring::before { content:''; position:absolute; inset:0; border-radius:50%; border:8px solid #e6e9f5; }
+        .st-gen-ring::after { content:''; position:absolute; inset:0; border-radius:50%; border:8px solid transparent;
+            border-top-color: var(--color-study); animation: stSpin .9s linear infinite; }
+        .st-gen-num { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+            font-size:30px; font-weight:700; color:#2c3340; letter-spacing:-.5px; }
+        .st-gen-num span { font-variant-numeric: tabular-nums; }
         .st-gen h3 { font-size:18px; font-weight:700; color:#2c3340; margin:0 0 6px; }
         .st-gen .st-gen-sub { font-size:13.5px; color:#6b7280; margin:0 0 26px; }
         .st-gensteps { display:inline-flex; flex-direction:column; gap:12px; text-align:left; }
@@ -2984,12 +2978,11 @@
         .st-a4-scroll { overflow-x:auto; padding:6px; }
         .st-a4 { width:794px; min-height:1123px; margin:0 auto; background:#fff; color:#1f2430; box-sizing:border-box;
             padding:64px 68px; border-radius:6px; box-shadow: 0 18px 40px rgba(80,100,140,0.22); font-size:13.5px; line-height:1.7; }
-        .st-a4-head { text-align:center; border-bottom:2px solid #1f2430; padding-bottom:16px; margin-bottom:8px; }
+        .st-a4-head { text-align:center; border-bottom:2px solid #1f2430; padding-bottom:9px; margin-bottom:8px; }
         .st-a4-head .st-a4-sub { font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#6b7280; }
-        .st-a4-head h1 { display:block; font-size:24px; font-weight:700; color:#1f2430; margin:6px 0 4px; }
-        .st-a4-meta { display:flex; justify-content:space-between; font-size:12px; color:#444; margin:14px 0 4px; }
-        .st-a4-name { display:flex; gap:30px; font-size:12.5px; margin:18px 0 22px; }
-        .st-a4-name span { border-bottom:1px solid #1f2430; flex:1; padding-bottom:2px; }
+        .st-a4-head .st-a4-meta { display:flex; justify-content:space-between; align-items:baseline; gap:14px; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#6b7280; font-weight:600; }
+        .st-a4-head .st-a4-meta span:last-child { text-align:right; }
+        .st-a4-head h1 { display:block; font-size:24px; font-weight:700; color:#1f2430; margin:6px 0 0; }
         .st-a4-instr { font-style:italic; color:#444; font-size:12.5px; margin-bottom:24px; }
         .st-q { margin-bottom:22px; page-break-inside:avoid; }
         .st-q .st-q-head { display:flex; gap:10px; }
@@ -3000,7 +2993,16 @@
         .st-q .st-opts li { margin:6px 0; }
         .st-q .st-opts li::before { content: attr(data-l) ")"; font-weight:600; margin-right:8px; color:#444; }
         .st-q .st-worklines { margin-top:10px; }
-        .st-q .st-worklines div { border-bottom:1px solid #d7dce5; height:26px; }
+        .st-q .st-worklines div { height:26px; }
+        /* Answer-section view options (toggled per worksheet) */
+        .st-a4.ws-lines .st-q .st-worklines div { border-bottom:1px solid #d7dce5; }
+        .st-a4.ws-nospace .st-q .st-worklines { display:none; }
+        .st-ws-opts { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+        .st-ws-opt { display:flex; align-items:center; gap:8px; }
+        .st-ws-opt > span { font-size:12px; font-weight:600; color:#6b7280; }
+        .st-ws-toggle.sm button { font-size:12px; padding:7px 13px; }
+        .st-ws-toggle.dim { opacity:.4; }
+        .st-ws-toggle.dim button { cursor:not-allowed; }
         .st-q .st-answer { margin-top:9px; padding:10px 13px; border-radius:8px; background:#eef7f0; border-left:3px solid #3fbf6a; font-size:12.5px; color:#1f3a26; }
         .st-q .st-answer b { color:#1f3a26; }
         .st-a4.is-key .st-q .st-worklines { display:none; }
@@ -3088,11 +3090,14 @@
 
         /* ---------- Print: only the worksheet sheet ---------- */
         @media print {
-            @page { size: A4 portrait; margin: 0; }
+            /* Page margins (not block padding) so EVERY printed page — including
+               continuation pages — keeps the same top/bottom & side spacing around
+               the header and footer content. */
+            @page { size: A4 portrait; margin: 16mm 15mm; }
             body * { visibility: hidden !important; }
             #stPrintArea, #stPrintArea * { visibility: visible !important; }
             #stPrintArea { position:absolute; left:0; top:0; width:100%; display:block !important; }
-            #stPrintArea .st-a4 { width:100%; min-height:auto; margin:0; border-radius:0; box-shadow:none; padding:18mm 16mm; page-break-after:always; }
+            #stPrintArea .st-a4 { width:100%; min-height:auto; margin:0; border-radius:0; box-shadow:none; padding:0; page-break-after:always; }
             #stPrintArea .st-a4:last-child { page-break-after:auto; }
         }
         #stPrintArea { display:none; }
@@ -3623,7 +3628,7 @@
 
     <footer class="main-footer">
         <div class="footer-left">
-            <h1 class="footer-title" data-tooltip="Version 4.2">Course Planner</h1>
+            <h1 class="footer-title">Course Planner</h1>
         </div>
         <div class="footer-actions">
             <!-- Tracker Toggle (segmented pill) -->
@@ -10271,8 +10276,79 @@
         const geminiUrl = () => 'https://generativelanguage.googleapis.com/v1beta/models/' + getModel() + ':generateContent';
 
         /* ---------- tiny helpers ---------- */
-        const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        // Keep every math variable in ONE face: the model bolds vectors with \mathbf{…} /
+        // \boldsymbol{…}, which renders in MathJax_Main-Bold — a visibly different font face from
+        // the plain italic (MathJax_Math-Italic) used for ordinary variables. Stripping just the
+        // command leaves the braces, so the content renders in the same italic face everywhere.
+        const deBold = s => s.replace(/\\(?:mathbf|boldsymbol|pmb|bm|mathbfit|textbf|bf)\b\s*/g, '');
+        const esc = s => deBold(String(s == null ? '' : s)).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
         const escNL = s => esc(s).replace(/\n/g, '<br>');
+        // Like escNL but treats a single newline as a soft wrap (space) so the model can't
+        // fragment a flowing paragraph — and inline math — onto separate lines. Blank lines
+        // still start a new paragraph. Used for prose-heavy study-guide fields.
+        const escFlow = s => esc(s).replace(/\n{2,}/g, '<br><br>').replace(/\n/g, ' ');
+
+        /* ---------- Subjects from the planner's course cards + custom themed dropdown ----------
+           Native <select> popups can't be themed, so Study Tools uses a small custom dropdown.
+           Each .st-dd exposes a `.value` getter/setter, so existing getElementById(...).value
+           reads keep working exactly like a real <select>. */
+        function courseSubjects() {
+            const seen = new Set(), out = [];
+            document.querySelectorAll('.course-card[data-course-name]').forEach(c => {
+                const n = (c.getAttribute('data-course-name') || '').trim();
+                if (n && !seen.has(n)) { seen.add(n); out.push(n); }
+            });
+            return out;
+        }
+        function ddHTML(id, options, selected) {
+            const opts = options.map(o => typeof o === 'string' ? { v: o, label: o } : o);
+            const sel = opts.find(o => o.v === selected) || opts[0] || { v: '', label: '' };
+            return '<div class="st-dd" id="' + id + '" data-value="' + esc(sel.v) + '">' +
+                '<button type="button" class="st-dd-head"><span class="st-dd-val">' + esc(sel.label) + '</span>' +
+                '<span class="st-dd-chev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>' +
+                '<div class="st-dd-list">' +
+                opts.map(o => '<button type="button" class="st-dd-opt' + (o.v === sel.v ? ' on' : '') + '" data-val="' + esc(o.v) + '">' + esc(o.label) + '</button>').join('') +
+                '</div></div>';
+        }
+        function closeAllDD() { document.querySelectorAll('.st-dd.open').forEach(d => d.classList.remove('open')); }
+        document.addEventListener('click', closeAllDD);
+        function initDD(scope) {
+            (scope || document).querySelectorAll('.st-dd:not([data-ddinit])').forEach(dd => {
+                dd.setAttribute('data-ddinit', '1');
+                const valEl = dd.querySelector('.st-dd-val');
+                const apply = (v, fire) => {
+                    let match = null;
+                    dd.querySelectorAll('.st-dd-opt').forEach(o => {
+                        const on = o.getAttribute('data-val') === v;
+                        o.classList.toggle('on', on); if (on) match = o;
+                    });
+                    dd.setAttribute('data-value', match ? v : '');
+                    if (valEl) valEl.textContent = match ? match.textContent : '';
+                    if (fire) dd.dispatchEvent(new Event('change'));
+                };
+                Object.defineProperty(dd, 'value', {
+                    configurable: true,
+                    get() { return dd.getAttribute('data-value') || ''; },
+                    set(v) { apply(v, false); }
+                });
+                dd.addEventListener('click', e => {
+                    const opt = e.target.closest('.st-dd-opt');
+                    if (opt) { e.stopPropagation(); apply(opt.getAttribute('data-val'), true); dd.classList.remove('open'); return; }
+                    const head = e.target.closest('.st-dd-head');
+                    if (head) { e.stopPropagation(); const wasOpen = dd.classList.contains('open'); closeAllDD(); dd.classList.toggle('open', !wasOpen); }
+                });
+            });
+        }
+        // Refill the worksheet Subject dropdown from the courses currently on the board.
+        function syncSubjectOptions() {
+            const dd = document.getElementById('wsSubject');
+            if (!dd) return;
+            const cur = dd.value;
+            const opts = [{ v: '', label: 'General' }].concat(courseSubjects().map(s => ({ v: s, label: s })));
+            const list = dd.querySelector('.st-dd-list');
+            if (list) list.innerHTML = opts.map(o => '<button type="button" class="st-dd-opt" data-val="' + esc(o.v) + '">' + esc(o.label) + '</button>').join('');
+            dd.value = opts.some(o => o.v === cur) ? cur : '';
+        }
         const wait = ms => new Promise(r => setTimeout(r, ms));
         const hasKey = () => !!(localStorage.getItem(ST_KEY_STORE) || '').trim();
 
@@ -10325,23 +10401,41 @@
         async function gemini(parts, schema) {
             const key = (localStorage.getItem(ST_KEY_STORE) || '').trim();
             if (!key) throw new Error('NO_KEY');
-            const res = await fetch(geminiUrl(), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-                body: JSON.stringify({
-                    contents: [{ parts }],
-                    generationConfig: schema ? { responseMimeType: 'application/json', responseSchema: schema } : {}
-                })
-            });
-            if (!res.ok) {
-                const body = await res.text().catch(() => '');
-                throw new Error('GEMINI_' + res.status + ': ' + body.slice(0, 300));
+            // Schema calls occasionally come back as truncated/fenced JSON (more common with
+            // YouTube-only sources), so retry a couple of times before surfacing a parse error.
+            const tries = schema ? 3 : 1;
+            let lastErr;
+            for (let attempt = 1; attempt <= tries; attempt++) {
+                const res = await fetch(geminiUrl(), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+                    body: JSON.stringify({
+                        contents: [{ parts }],
+                        generationConfig: schema ? { responseMimeType: 'application/json', responseSchema: schema } : {}
+                    })
+                });
+                if (!res.ok) {
+                    const body = await res.text().catch(() => '');
+                    throw new Error('GEMINI_' + res.status + ': ' + body.slice(0, 300));
+                }
+                const data = await res.json();
+                const text = (((data.candidates || [])[0] || {}).content || {}).parts;
+                const out = text && text[0] && text[0].text ? text[0].text : '';
+                if (!out) { lastErr = new Error('Empty response from Gemini.'); continue; }
+                if (!schema) return out;
+                try {
+                    return JSON.parse(stripJSON(out));
+                } catch (e) {
+                    lastErr = e; // malformed JSON — re-request before giving up
+                }
             }
-            const data = await res.json();
-            const text = (((data.candidates || [])[0] || {}).content || {}).parts;
-            const out = text && text[0] && text[0].text ? text[0].text : '';
-            if (!out) throw new Error('Empty response from Gemini.');
-            return schema ? JSON.parse(out) : out;
+            throw lastErr || new Error('Could not parse the AI response.');
+        }
+        // Gemini sometimes wraps JSON in ``` fences or leading prose; peel those off before parsing.
+        function stripJSON(s) {
+            let t = (s || '').trim();
+            if (t.indexOf('```') === 0) t = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+            return t;
         }
         function geminiErr(e) {
             const m = (e && e.message) || '';
@@ -10454,6 +10548,14 @@
             return { inlineData: { mimeType: file.type || guessMime(ext), data: await fileToB64(file) } };
         }
         const isYouTube = u => /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/i.test(u.trim());
+        // Links copied from the browser's address bar carry extra tracking params
+        // (&pp=, &list=, &t=, ?si=, &ab_channel=…) that make Gemini reject the
+        // fileUri. Reduce any YouTube link to a clean canonical watch URL.
+        function ytNormalize(u) {
+            u = (u || '').trim();
+            const m = u.match(/(?:youtube\.com\/(?:watch\?v=|v\/|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+            return m ? 'https://www.youtube.com/watch?v=' + m[1] : u;
+        }
 
         // Source manager bound to a screen element
         function initSource(scr) {
@@ -10490,7 +10592,7 @@
                 const v = (ytInput.value || '').trim();
                 if (!v) return;
                 if (!isYouTube(v)) { toast('That doesn’t look like a YouTube link.', 'err'); return; }
-                state.yt.push(v); ytInput.value = ''; render();
+                state.yt.push(ytNormalize(v)); ytInput.value = ''; render();
             }
             ytAdd.addEventListener('click', addYt);
             ytInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addYt(); } });
@@ -10501,6 +10603,8 @@
                 else state.yt.splice(+id.slice(1), 1);
                 render();
             });
+            // Clear all added files/links and the YouTube input box.
+            scr._resetSrc = () => { state.files = []; state.yt = []; if (ytInput) ytInput.value = ''; render(); };
         }
         function fmtSize(b) {
             if (b < 1024) return b + ' B';
@@ -10513,37 +10617,52 @@
             for (const f of st.files) parts.push(await fileToPart(f));
             // YouTube links are passed straight to Gemini, which reads the video natively
             // (no backend transcript service — this app is hosted as a static site).
-            for (const u of st.yt) parts.push({ fileData: { fileUri: u } });
+            for (const u of st.yt) parts.push({ fileData: { fileUri: ytNormalize(u) } });
             return parts;
         }
         const srcCount = scr => { const s = scr._src || { files: [], yt: [] }; return s.files.length + s.yt.length; };
 
-        /* ---------- LaTeX (KaTeX, lazy-loaded) ---------- */
-        let katexP;
-        function ensureKatex() {
-            if (katexP) return katexP;
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
-            document.head.appendChild(link);
-            katexP = loadScript('https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js')
-                .then(() => loadScript('https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js'));
-            return katexP;
+        /* ---------- LaTeX (MathJax 3, lazy-loaded) ----------
+           Same loading mechanism as the Formulae app: configure window.MathJax
+           before the script loads, then typeset elements with typesetPromise(). */
+        let mathjaxP;
+        function ensureMath() {
+            if (mathjaxP) return mathjaxP;
+            window.MathJax = {
+                tex: {
+                    // Inline uses ONLY \( \) — single-$ is left off on purpose so stray/currency
+                    // dollar signs in prose (common in study guides) aren't swallowed into math.
+                    inlineMath: [['\\(', '\\)']],
+                    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                    processEscapes: true,
+                    // On malformed LaTeX (e.g. unbalanced \left/\right) degrade to the raw source
+                    // text instead of MathJax's red error blob, which otherwise overlaps the prose.
+                    formatError: function (jax, err) {
+                        try {
+                            var f = jax.parseOptions.nodeFactory;
+                            return f.create('node', 'mtext', [f.create('text', jax.latex || '')], {});
+                        } catch (e) {
+                            return jax.formatError(err);
+                        }
+                    }
+                },
+                options: {
+                    skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'input', 'select']
+                }
+            };
+            mathjaxP = loadScript('https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js')
+                .then(() => (window.MathJax && window.MathJax.startup) ? window.MathJax.startup.promise : null);
+            return mathjaxP;
         }
         function renderMath(el) {
             if (!el) return;
-            ensureKatex().then(() => {
-                if (!window.renderMathInElement) return;
+            ensureMath().then(() => {
+                if (!window.MathJax || !window.MathJax.typesetPromise) return;
                 try {
-                    window.renderMathInElement(el, {
-                        delimiters: [
-                            { left: '$$', right: '$$', display: true },
-                            { left: '\\[', right: '\\]', display: true },
-                            { left: '\\(', right: '\\)', display: false }
-                        ],
-                        throwOnError: false,
-                        ignoredTags: ['script', 'style', 'textarea', 'pre', 'code', 'input', 'select']
-                    });
+                    if (window.MathJax.typesetClear) {
+                        try { window.MathJax.typesetClear([el]); } catch (e) { }
+                    }
+                    window.MathJax.typesetPromise([el]).catch(() => { });
                 } catch (e) { }
             }).catch(() => { });
         }
@@ -10565,7 +10684,8 @@
                 '<div class="st-th-ico">' + ico + '</div><div><h2>' + title + '</h2><div class="st-sub">' + sub + '</div></div></div>';
         }
         function genStageHTML(title, sub) {
-            return '<div class="st-stage" data-stage="gen"><div class="st-gen"><div class="st-spinner"></div>' +
+            return '<div class="st-stage" data-stage="gen"><div class="st-gen">' +
+                '<div class="st-gen-ring"><div class="st-gen-num"><span data-count>0</span>%</div></div>' +
                 '<h3>' + title + '</h3><div class="st-gen-sub">' + sub + '</div><div class="st-gensteps"></div></div></div>';
         }
 
@@ -10590,9 +10710,9 @@
             '<div class="st-panel"><div class="st-panel-title">What should the worksheet cover?</div><div class="st-panel-hint">Describe a topic, or add source materials below (or both).</div>' +
             '<div class="st-field"><label>Topic / prompt</label><textarea class="st-textarea" id="wsTopic" placeholder="e.g. The dot product and vector operations for grade 12 Calculus &amp; Vectors"></textarea></div>' +
             '<div class="st-grid2">' +
-            '<div class="st-field"><label>Subject</label><input class="st-input" id="wsSubject" placeholder="e.g. Calculus &amp; Vectors"></div>' +
-            '<div class="st-field"><label>Grade / level</label><select class="st-select" id="wsLevel"><option>Grade 9</option><option>Grade 10</option><option>Grade 11</option><option selected>Grade 12</option><option>University / College</option></select></div>' +
-            '<div class="st-field"><label>Number of questions</label><select class="st-select" id="wsCount"><option>5</option><option selected>8</option><option>10</option><option>12</option><option>15</option><option>20</option></select></div>' +
+            '<div class="st-field"><label>Subject</label>' + ddHTML('wsSubject', [{ v: '', label: 'General' }].concat(courseSubjects().map(s => ({ v: s, label: s }))), '') + '</div>' +
+            '<div class="st-field"><label>Grade / level</label>' + ddHTML('wsLevel', ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'University / College'], 'Grade 12') + '</div>' +
+            '<div class="st-field"><label>Number of questions</label>' + ddHTML('wsCount', ['5', '8', '10', '12', '15', '20'], '8') + '</div>' +
             '</div>' +
             '<div class="st-field"><label>Question types</label><div class="st-chips" id="wsTypes">' +
             wsChip('mc', 'Multiple Choice', true) + wsChip('short', 'Short Answer', true) + wsChip('work', 'Show Work', true) + wsChip('tf', 'True / False', false) + wsChip('fill', 'Fill the Blank', false) +
@@ -10625,7 +10745,7 @@
             sourceBlockHTML(false) +
             '<div class="st-grid2">' +
             '<div class="st-field"><label>Deck title <span style="color:#9097a6;font-weight:400">(optional)</span></label><input class="st-input" id="fTitle" placeholder="Auto-named if left blank"></div>' +
-            '<div class="st-field"><label>Number of cards</label><select class="st-select" id="fCount"><option>10</option><option selected>15</option><option>20</option><option>25</option><option>30</option></select></div>' +
+            '<div class="st-field"><label>Number of cards</label>' + ddHTML('fCount', ['10', '15', '20', '25', '30'], '15') + '</div>' +
             '</div>' +
             latexToggleHTML('fLatex') +
             '<div class="st-actions"><button class="st-btn" id="fGen">' + I.spark + ' Generate flashcards</button></div>' +
@@ -10654,9 +10774,14 @@
         }
         root.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
             const t = b.getAttribute('data-open');
-            const scr = screenEl(t); setStage(scr, 'setup'); setScreen(t);
+            const scr = screenEl(t);
+            // Start each generator fresh — don't carry over files/YouTube links from a previous run.
+            if (scr._resetSrc) scr._resetSrc();
+            if (t === 'worksheet') syncSubjectOptions(); // reflect any courses added/removed since load
+            setStage(scr, 'setup'); setScreen(t);
         }));
         root.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => setScreen('hub')));
+        initDD(root);
 
         // question-type chips
         root.querySelector('#wsTypes').addEventListener('click', e => {
@@ -10673,7 +10798,7 @@
                 '<div class="st-panel-hint" style="margin-top:8px">Recommended for math/science or anything with equations/numbers. Turn off for text-only subjects.</div></div>';
         }
         const latexOn = id => { const el = document.getElementById(id); return !el || el.classList.contains('on'); };
-        const LATEX_ON = ' IMPORTANT: Render EVERY mathematical expression, equation, symbol, variable, fraction, exponent, unit and numeric formula as valid LaTeX — wrap inline math in \\( ... \\) and display equations in $$ ... $$. Never write math, fractions or exponents as plain text.';
+        const LATEX_ON = ' IMPORTANT — math formatting rules: Render EVERY mathematical expression, symbol, variable, fraction, exponent, unit and numeric formula as valid LaTeX. Wrap inline math in \\( ... \\) and keep it on the SAME line as the surrounding words — never put a line break before, after, or inside an inline expression, and never start a new line just for a single symbol or variable. Use $$ ... $$ only for a full standalone equation, never for a lone variable. Write every variable and vector in plain italic — do NOT bold them with \\mathbf, \\boldsymbol, \\pmb or similar. Write strictly valid LaTeX: every \\left must have a matching \\right; if you are not certain a pair is balanced, use plain ( ) [ ] | instead of \\left/\\right. Never write math, fractions or exponents as plain text.';
         root.querySelectorAll('[data-latex]').forEach(b => b.addEventListener('click', () => {
             b.querySelector('.st-tp-state').textContent = b.classList.toggle('on') ? 'On' : 'Off';
         }));
@@ -10697,18 +10822,47 @@
                 stop() { stopped = true; clearInterval(iv); }
             };
         }
+        // Animated percentage counter for the loading ring: crawls toward 95% while
+        // we wait on Gemini, then snaps to 100% once the result is ready.
+        function animateCount(el) {
+            if (!el) return { finish() { }, stop() { } };
+            el.textContent = '0';
+            let raf = null, stopped = false, finished = false, cur = 0;
+            const start = performance.now();
+            const tick = (now) => {
+                raf = null;
+                if (stopped) return;
+                const t = (now - start) / 1000;
+                const target = finished ? 100 : 95 * (1 - Math.exp(-t / 5));
+                cur += (target - cur) * (finished ? 0.25 : 0.12);
+                if (finished && cur > 99.3) cur = 100;
+                el.textContent = Math.min(100, Math.round(cur));
+                if (finished && cur >= 100) return;
+                raf = requestAnimationFrame(tick);
+            };
+            raf = requestAnimationFrame(tick);
+            return {
+                finish() { finished = true; if (raf === null && !stopped) raf = requestAnimationFrame(tick); },
+                stop() { stopped = true; if (raf) cancelAnimationFrame(raf); raf = null; }
+            };
+        }
         async function runTool(name, steps, task) {
             if (!hasKey()) { openApiModal(); return; }
             const scr = screenEl(name);
             setStage(scr, 'gen');
-            const ctrl = animateSteps(scr.querySelector('[data-stage="gen"] .st-gensteps'), steps);
+            const genEl = scr.querySelector('[data-stage="gen"]');
+            const ctrl = animateSteps(genEl.querySelector('.st-gensteps'), steps);
+            const cnt = animateCount(genEl.querySelector('[data-count]'));
             try {
                 await task();
                 ctrl.finishAll();
-                await wait(400);
+                cnt.finish();
+                await wait(600);
+                cnt.stop();
                 setStage(scr, 'result');
             } catch (e) {
                 ctrl.stop();
+                cnt.stop();
                 console.error('[Study Tools]', e);
                 setStage(scr, 'setup');
                 toast(geminiErr(e), 'err');
@@ -10719,6 +10873,8 @@
            WORKSHEET
            ========================================================= */
         let WS_DATA = null;
+        // Answer-section view options (persist for the session). Defaults: spacing removed, lines hidden.
+        let WS_LINES = false, WS_SPACE = false;
         document.getElementById('wsGen').addEventListener('click', () => {
             const topic = document.getElementById('wsTopic').value.trim();
             const scr = screenEl('worksheet');
@@ -10742,12 +10898,14 @@
                     (srcCount(scr) ? '\nBase the questions on the attached source materials.' : '');
                 const parts = [{ text: prompt }].concat(await sourceParts(scr));
                 WS_DATA = await gemini(parts, WS_SCHEMA);
+                // Header uses what the user typed: subject (top-left), grade/level (top-right).
+                WS_DATA.subject = subject || WS_DATA.subject || '';
+                WS_DATA.level = level || '';
                 renderWorksheet(WS_DATA);
             });
         });
 
         function questionHTML(q, idx, isKey) {
-            const badge = WS_TYPE_LABEL[q.type] || q.type;
             let body = '';
             if (q.type === 'mc' && q.opts && q.opts.length) {
                 body = '<ul class="st-opts">' + q.opts.map((o, i) => '<li data-l="' + ('abcdefgh'[i] || '•') + '">' + esc(o) + '</li>').join('') + '</ul>';
@@ -10760,26 +10918,34 @@
             }
             const ans = isKey ? '<div class="st-answer"><b>Answer:</b> ' + escNL(q.answer) + '</div>' : '';
             return '<div class="st-q"><div class="st-q-head"><span class="st-q-num">' + (idx + 1) + '.</span>' +
-                '<div class="st-q-text">' + escNL(q.q) + '</div><span class="st-q-badge">' + esc(badge) + '</span></div>' + body + ans + '</div>';
+                '<div class="st-q-text">' + escNL(q.q) + '</div></div>' + body + ans + '</div>';
         }
         function sheetHTML(d, isKey) {
-            const sub = [d.subject, d.unit].filter(Boolean).map(esc).join(' · ');
-            return '<div class="st-a4' + (isKey ? ' is-key' : '') + '">' +
-                '<div class="st-a4-head">' + (sub ? '<div class="st-a4-sub">' + sub + '</div>' : '') +
+            const cls = 'st-a4' + (isKey ? ' is-key' : '') + (WS_LINES ? ' ws-lines' : '') + (WS_SPACE ? '' : ' ws-nospace');
+            const subj = (d.subject || '').trim(), lvl = (d.level || '').trim();
+            const meta = (subj || lvl)
+                ? '<div class="st-a4-meta"><span>' + esc(subj) + '</span><span>' + esc(lvl) + '</span></div>'
+                : '';
+            return '<div class="' + cls + '">' +
+                '<div class="st-a4-head">' + meta +
                 '<h1>' + esc(d.title || 'Worksheet') + (isKey ? ' — Answer Key' : '') + '</h1></div>' +
-                (isKey ? '' : '<div class="st-a4-name"><span>Name:</span><span>Date:</span></div>') +
-                (d.instructions ? '<div class="st-a4-instr">' + esc(d.instructions) + '</div>' : '') +
                 (d.questions || []).map((q, i) => questionHTML(q, i, isKey)).join('') +
                 '</div>';
         }
         function renderWorksheet(d) {
             WS_DATA = d;
             const res = document.getElementById('wsResult');
+            const cl = on => on ? ' class="on"' : '';
             res.innerHTML =
-                '<div class="st-ws-bar"><div class="st-ws-toggle">' +
+                '<div class="st-ws-bar"><div class="st-ws-opts">' +
+                '<div class="st-ws-toggle">' +
                 '<button data-wsmode="sheet" class="on">Worksheet</button><button data-wsmode="key">Answer Key</button></div>' +
+                '<div class="st-ws-opt"><span>Lines</span><div class="st-ws-toggle sm">' +
+                '<button data-wslines="off"' + cl(!WS_LINES) + '>Hide</button><button data-wslines="on"' + cl(WS_LINES) + '>Show</button></div></div>' +
+                '<div class="st-ws-opt"><span>Spacing</span><div class="st-ws-toggle sm">' +
+                '<button data-wsspace="on"' + cl(WS_SPACE) + '>Keep</button><button data-wsspace="off"' + cl(!WS_SPACE) + '>Remove</button></div></div>' +
+                '</div>' +
                 '<div class="st-actions">' +
-                '<button class="st-btn st-btn-ghost" data-wsnew>New</button>' +
                 '<button class="st-btn st-btn-ghost" data-wssave>' + I.save + ' Save</button>' +
                 '<button class="st-btn st-btn-ghost" data-wsprint="key">' + I.dl + ' Answer Key PDF</button>' +
                 '<button class="st-btn" data-wsprint="sheet">' + I.dl + ' Download PDF</button>' +
@@ -10787,13 +10953,40 @@
             const sheetWrap = res.querySelector('[data-wssheet]');
             let mode = 'sheet';
             const draw = () => { sheetWrap.innerHTML = sheetHTML(d, mode === 'key'); renderMath(sheetWrap); };
+            const linesGrp = res.querySelector('[data-wslines]').parentElement;
+            const spaceGrp = res.querySelector('[data-wsspace]').parentElement;
+            // Reflect each toggle group's active button and enabled/disabled state.
+            const setGrp = (grp, attr, on, dis) => {
+                grp.classList.toggle('dim', dis);
+                grp.querySelectorAll('button').forEach(b => {
+                    b.disabled = dis;
+                    b.classList.toggle('on', (b.getAttribute(attr) === 'on') === on);
+                });
+            };
+            const syncToggles = () => {
+                const keyMode = mode === 'key';
+                // Spacing is meaningless on the answer key, so disable it there.
+                setGrp(spaceGrp, 'data-wsspace', WS_SPACE, keyMode);
+                // Lines have nowhere to go once spacing is removed (or on the answer key) → disable + hide.
+                setGrp(linesGrp, 'data-wslines', WS_LINES, keyMode || !WS_SPACE);
+            };
             draw();
+            syncToggles();
             res.querySelectorAll('[data-wsmode]').forEach(b => b.addEventListener('click', () => {
                 mode = b.getAttribute('data-wsmode');
                 res.querySelectorAll('[data-wsmode]').forEach(x => x.classList.toggle('on', x === b));
-                draw();
+                draw(); syncToggles();
             }));
-            res.querySelector('[data-wsnew]').addEventListener('click', () => setStage(screenEl('worksheet'), 'setup'));
+            // Answer-section option toggles (affect both the preview and the printed PDF)
+            res.querySelectorAll('[data-wslines]').forEach(b => b.addEventListener('click', () => {
+                WS_LINES = b.getAttribute('data-wslines') === 'on';
+                draw(); syncToggles();
+            }));
+            res.querySelectorAll('[data-wsspace]').forEach(b => b.addEventListener('click', () => {
+                WS_SPACE = b.getAttribute('data-wsspace') === 'on';
+                if (!WS_SPACE) WS_LINES = false; // no spacing → no answer areas → force lines hidden
+                draw(); syncToggles();
+            }));
             res.querySelector('[data-wssave]').addEventListener('click', e => {
                 saveItem('ws', { id: 'w' + Date.now(), createdAt: Date.now(), data: d });
                 e.currentTarget.disabled = true; e.currentTarget.innerHTML = I.check + ' Saved';
@@ -10804,8 +10997,13 @@
         function printWorksheet(which) {
             if (!WS_DATA) return;
             printArea.innerHTML = sheetHTML(WS_DATA, which === 'key');
-            renderMath(printArea);
-            ensureKatex().then(() => setTimeout(() => window.print(), 220)).catch(() => window.print());
+            // Typeset the math first, then print so the PDF captures rendered equations.
+            ensureMath().then(() => {
+                if (window.MathJax && window.MathJax.typesetPromise) {
+                    if (window.MathJax.typesetClear) { try { window.MathJax.typesetClear([printArea]); } catch (e) { } }
+                    return window.MathJax.typesetPromise([printArea]);
+                }
+            }).catch(() => { }).then(() => setTimeout(() => window.print(), 150));
         }
 
         /* =========================================================
@@ -10833,23 +11031,21 @@
         function renderGuide(g, alreadySaved) {
             let html =
                 '<div class="st-actions" style="margin-bottom:18px">' +
-                '<button class="st-btn st-btn-ghost" data-gnew>' + I.back + ' New guide</button>' +
                 (alreadySaved
                     ? '<button class="st-btn st-btn-ghost" disabled>' + I.check + ' Saved</button>'
                     : '<button class="st-btn" data-gsave>' + I.save + ' Save guide</button>') + '</div>' +
                 '<div class="st-guide-head"><h2>' + esc(g.title || 'Study Guide') + '</h2><div class="st-guide-meta">' +
                 (g.course ? '<span>' + I.book + ' ' + esc(g.course) + '</span>' : '') +
                 (g.readTime ? '<span>' + I.clock + ' ' + esc(g.readTime) + '</span>' : '') + '</div></div>';
-            if (g.overview) html += gSection('Overview', '<p>' + escNL(g.overview) + '</p>');
-            if (g.concepts && g.concepts.length) html += gSection('Key Concepts', g.concepts.map(c => '<div class="st-concept"><div class="st-c-term">' + esc(c.term) + '</div><div class="st-c-body">' + escNL(c.body) + '</div></div>').join(''));
+            if (g.overview) html += gSection('Overview', '<p>' + escFlow(g.overview) + '</p>');
+            if (g.concepts && g.concepts.length) html += gSection('Key Concepts', g.concepts.map(c => '<div class="st-concept"><div class="st-c-term">' + esc(c.term) + '</div><div class="st-c-body">' + escFlow(c.body) + '</div></div>').join(''));
             if (g.formulas && g.formulas.length) html += gSection('Formulas', g.formulas.map(f => '<div class="st-formula">' + esc(f) + '</div>').join(''));
-            if (g.example && (g.example.prompt || (g.example.steps || []).length)) html += gSection('Worked Example', (g.example.prompt ? '<p><strong>' + escNL(g.example.prompt) + '</strong></p>' : '') + '<ol class="st-steps">' + (g.example.steps || []).map(s => '<li>' + escNL(s) + '</li>').join('') + '</ol>');
-            if (g.takeaways && g.takeaways.length) html += gSection('Key Takeaways', g.takeaways.map(t => '<div class="st-take"><span class="st-take-ck">' + I.check + '</span><span>' + escNL(t) + '</span></div>').join(''));
-            if (g.quiz && g.quiz.length) html += gSection('Self-Check', '<div class="st-quiz">' + g.quiz.map(q => '<div class="st-quiz-item">' + escNL(q) + '</div>').join('') + '</div>');
+            if (g.example && (g.example.prompt || (g.example.steps || []).length)) html += gSection('Worked Example', (g.example.prompt ? '<p><strong>' + escFlow(g.example.prompt) + '</strong></p>' : '') + '<ol class="st-steps">' + (g.example.steps || []).map(s => '<li>' + escFlow(s) + '</li>').join('') + '</ol>');
+            if (g.takeaways && g.takeaways.length) html += gSection('Key Takeaways', g.takeaways.map(t => '<div class="st-take"><span class="st-take-ck">' + I.check + '</span><span>' + escFlow(t) + '</span></div>').join(''));
+            if (g.quiz && g.quiz.length) html += gSection('Self-Check', '<div class="st-quiz">' + g.quiz.map(q => '<div class="st-quiz-item">' + escFlow(q) + '</div>').join('') + '</div>');
             const res = document.getElementById('gResult');
             res.innerHTML = html;
             renderMath(res);
-            res.querySelector('[data-gnew]').addEventListener('click', () => setStage(screenEl('guide'), 'setup'));
             const gsave = res.querySelector('[data-gsave]');
             if (gsave) gsave.addEventListener('click', e => {
                 saveItem('guide', { id: 'g' + Date.now(), createdAt: Date.now(), data: g });
@@ -10876,20 +11072,21 @@
                 const parts = [{ text: prompt }].concat(await sourceParts(scr));
                 const deck = await gemini(parts, DECK_SCHEMA);
                 if (title) deck.deckTitle = title;
-                saveDeck(deck);
                 showDeck(deck);
             });
         });
         function saveDeck(deck) {
             saveItem('deck', { id: 'd' + Date.now(), deckTitle: deck.deckTitle, cards: deck.cards, createdAt: Date.now() });
         }
-        function showDeck(deck) {
+        function showDeck(deck, alreadySaved) {
             FC.cards = deck.cards || []; FC.idx = 0; FC.flipped = false; FC.title = deck.deckTitle || 'Deck';
             const res = document.getElementById('fResult');
             res.innerHTML =
                 '<div class="st-actions" style="margin-bottom:18px">' +
-                '<button class="st-btn st-btn-ghost" data-fnew>' + I.back + ' New deck</button>' +
-                '<button class="st-btn st-btn-ghost" data-fshuffle>' + I.shuffle + ' Shuffle</button></div>' +
+                '<button class="st-btn st-btn-ghost" data-fshuffle>' + I.shuffle + ' Shuffle</button>' +
+                (alreadySaved
+                    ? '<button class="st-btn st-btn-ghost" disabled>' + I.check + ' Saved</button>'
+                    : '<button class="st-btn" data-fsave>' + I.save + ' Save deck</button>') + '</div>' +
                 '<div class="st-deck-top"><div class="st-deck-title" data-decktitle></div><div class="st-deck-counter" data-deckcount></div></div>' +
                 '<div class="st-flip" data-flip><div class="st-flip-inner">' +
                 '<div class="st-flip-face st-flip-front"><span class="st-face-tag">Term</span><div class="st-face-text" data-front></div><div class="st-flip-hint">Click to flip</div></div>' +
@@ -10902,7 +11099,12 @@
             res.querySelector('[data-flipbtn]').addEventListener('click', toggleFlip);
             res.querySelector('[data-prev]').addEventListener('click', () => move(-1));
             res.querySelector('[data-next]').addEventListener('click', () => move(1));
-            res.querySelector('[data-fnew]').addEventListener('click', () => setStage(screenEl('flashcards'), 'setup'));
+            const fsave = res.querySelector('[data-fsave]');
+            if (fsave) fsave.addEventListener('click', e => {
+                saveDeck(deck);
+                e.currentTarget.disabled = true; e.currentTarget.innerHTML = I.check + ' Saved';
+                toast('Flashcard deck saved on this device.', 'ok');
+            });
             res.querySelector('[data-fshuffle]').addEventListener('click', () => {
                 for (let i = FC.cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[FC.cards[i], FC.cards[j]] = [FC.cards[j], FC.cards[i]]; }
                 FC.idx = 0; FC.flipped = false; updateDeck();
@@ -10967,7 +11169,7 @@
         function loadSaved(kind, id) {
             const it = readJSON(SAVE_KEYS[kind]).find(x => x.id === id);
             if (!it) return;
-            if (kind === 'deck') { setScreen('flashcards'); setStage(screenEl('flashcards'), 'result'); showDeck(it); }
+            if (kind === 'deck') { setScreen('flashcards'); setStage(screenEl('flashcards'), 'result'); showDeck(it, true); }
             else if (kind === 'ws') { setScreen('worksheet'); setStage(screenEl('worksheet'), 'result'); renderWorksheet(it.data); }
             else { setScreen('guide'); setStage(screenEl('guide'), 'result'); renderGuide(it.data, true); }
         }
@@ -10994,8 +11196,8 @@
             '<p>The study tools call Google Gemini directly from your browser. Get a free key from ' +
             '<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a> and paste it below.</p>' +
             '<div class="st-field"><label>API key</label><input class="st-input" id="stKeyInput" type="password" placeholder="AIza…" autocomplete="off"></div>' +
-            '<div class="st-field"><label>AI model</label><select class="st-select" id="stModelInput">' +
-            ST_MODELS.map(m => '<option value="' + m.id + '">' + esc(m.label) + '</option>').join('') + '</select>' +
+            '<div class="st-field"><label>AI model</label>' +
+            ddHTML('stModelInput', ST_MODELS.map(m => ({ v: m.id, label: m.label })), getModel()) +
             '<div class="st-panel-hint" style="margin-top:8px">Use <strong>2.5 Pro</strong> for the most accurate results and YouTube transcription; <strong>Flash</strong> is faster and cheaper for everyday use.</div></div>' +
             '<div class="st-actions"><button class="st-btn" id="stKeySave">Save settings</button>' +
             '<button class="st-btn st-btn-ghost" id="stKeyClear">Clear key</button>' +
@@ -11003,6 +11205,7 @@
             '<div class="st-modal-note">' + I.warn + '<span>Stored only in this browser’s localStorage. Anyone with access to this device can read it — fine for personal use, but don’t use a shared/public machine.</span></div>' +
             '</div>';
         document.body.appendChild(modal);
+        initDD(modal);
         const keyInput = modal.querySelector('#stKeyInput');
         const modelInput = modal.querySelector('#stModelInput');
         function openApiModal() {
