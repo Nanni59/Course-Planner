@@ -838,6 +838,31 @@
             color: #9aa3b2;
         }
 
+        /* "View N more" toggle on tracker cards (styled via class so dark mode can theme it). */
+        .tracker-view-more-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 14px auto 4px;
+            padding: 8px 18px;
+            border: none;
+            border-radius: 20px;
+            background: #ffffff;
+            color: #5b6473;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            box-shadow: 3px 3px 7px rgba(80, 100, 140, 0.10), -3px -3px 7px rgba(255, 255, 255, 0.95);
+            transition: all 0.18s ease;
+        }
+
+        .tracker-view-more-btn:hover,
+        .tracker-view-more-btn.expanded {
+            color: #2c3340;
+            box-shadow: inset 2px 2px 5px rgba(80, 100, 140, 0.14), inset -2px -2px 5px rgba(255, 255, 255, 0.95);
+        }
+
         /* Canvas Import & Multi-Assignment CSS */
         .canvas-tree-item {
             margin-left: 20px;
@@ -3226,7 +3251,10 @@
         .st-dots span { width:8px; height:8px; border-radius:50%; background:#d4d9e6; transition: all .2s ease; }
         .st-dots span.on { background: var(--color-study); transform: scale(1.35); }
         /* All-in-one result list (reuses .st-saved-row styling for each item) */
-        .st-aio-grid { margin-top:4px; }
+        /* All-in-one: tab switcher + panes holding the three full result views. */
+        .st-aio-tabs { display:flex; margin:0 0 22px; }
+        .st-aio-tabs button { flex:1; }
+        .st-aio-pane > .st-actions:first-child { margin-top:0; }
         .st-saved-list { margin-top:30px; }
         .st-saved-list h4 { font-size:13px; font-weight:700; color:#475067; text-transform:uppercase; letter-spacing:1px; margin:0 0 14px; }
         .st-saved-row { display:flex; align-items:center; gap:12px; padding:13px 16px; border-radius:13px; background:#fff; border:1px solid var(--clay-border); box-shadow: var(--clay-shadow-card); margin-bottom:10px; cursor:pointer; transition: transform .15s ease; }
@@ -3428,10 +3456,30 @@
             box-shadow: 0 0 18px rgba(0, 0, 0, 0.45);
         }
 
-        /* ---- Lesson / Assignment trackers ---- */
-        /* Card titles: dark navy → white (paused stays purple, handled below). */
+        /* ---- Day A/B + Lesson/Assignment cards ---- */
+        /* Card titles → white in dark mode (the accent colour reads as too dark on
+           the dark card surface). The coloured underline accent (::after) is kept,
+           so the Day A/B colour cue remains. Paused cards stay purple. */
+        body.dark-mode .course-card h3,
         body.dark-mode .tracker-course-card h3 { color: #e8ebf2; }
+        body.dark-mode .course-card.paused h3,
         body.dark-mode .tracker-course-card.paused h3 { color: var(--color-pause-purple); }
+        /* The "X of Y finished (Z%)" summary line under each tracker title. */
+        body.dark-mode .tracker-summary { color: #aab2c2; }
+
+        /* "View N more" toggle: drop the bright top-left neumorphic highlight for an
+           even, flat dark surface. */
+        body.dark-mode .tracker-view-more-btn {
+            background: #242c38;
+            color: #c2c9d6;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+        }
+        body.dark-mode .tracker-view-more-btn:hover,
+        body.dark-mode .tracker-view-more-btn.expanded {
+            background: #2b3442;
+            color: #e8ebf2;
+            box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.5);
+        }
         /* Progress bar: dark track + white label/count text for contrast
            (the green fill stays as the progress indicator). */
         body.dark-mode .progress-bar-outer { background-color: #11151d; }
@@ -4292,6 +4340,10 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+
+            // Apply the saved dark/light theme BEFORE anything renders, so the
+            // canvas-drawn tracker donuts pick up the right colours on first paint.
+            try { if (localStorage.getItem('cp_theme') === 'dark') document.body.classList.add('dark-mode'); } catch (e) { }
 
             // II. Data Persistence & Structure
             const LS_LESSONS_KEY = 'tracker_lessons';
@@ -7049,7 +7101,12 @@
                 const startAngle = -Math.PI / 2; // 12 o'clock
 
                 const GREEN = '#58A65C';
-                const TRACK = '#e7ecf3';
+                // Theme-aware colours (the chart is drawn on a <canvas>, so it can't be
+                // styled with CSS — read the theme at draw time instead).
+                const isDark = document.body.classList.contains('dark-mode');
+                const TRACK = isDark ? '#323c4d' : '#e7ecf3';
+                const CENTER = isDark ? '#f0f3f8' : '#2c3340';
+                const SUBTLE = isDark ? '#aab2c2' : '#9aa3b2';
 
                 // Cancel any in-flight animation on this canvas before drawing again
                 if (canvas._pieAnim) {
@@ -7065,7 +7122,7 @@
                     // Background track ring
                     ctx.lineWidth = ringWidth;
                     ctx.lineCap = 'round';
-                    ctx.strokeStyle = paused ? '#dfe3ea' : TRACK;
+                    ctx.strokeStyle = paused ? (isDark ? '#3a4456' : '#dfe3ea') : TRACK;
                     ctx.beginPath();
                     ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
                     ctx.stroke();
@@ -7096,14 +7153,14 @@
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     if (paused) {
-                        ctx.fillStyle = '#9aa3b2';
+                        ctx.fillStyle = SUBTLE;
                         ctx.font = "600 14px 'Century Gothic', 'Futura', 'Montserrat', sans-serif";
                         ctx.fillText('Paused', cx, cy);
                     } else {
-                        ctx.fillStyle = '#2c3340';
+                        ctx.fillStyle = CENTER;
                         ctx.font = "700 27px 'Century Gothic', 'Futura', 'Montserrat', sans-serif";
                         ctx.fillText(`${Math.round(progress * 100)}%`, cx, cy - 6);
-                        ctx.fillStyle = '#9aa3b2';
+                        ctx.fillStyle = SUBTLE;
                         ctx.font = "600 12px 'Century Gothic', 'Futura', 'Montserrat', sans-serif";
                         ctx.fillText(`${Math.round(progress * total)}/${total}`, cx, cy + 16);
                     }
@@ -7335,27 +7392,16 @@
                         toggleBtn.type = 'button';
                         const hiddenCount = allRows.length - VISIBLE_LIMIT;
                         toggleBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg> View ${hiddenCount} more`;
-                        toggleBtn.style.cssText = 'display:flex; align-items:center; gap:6px; margin:14px auto 4px; padding:8px 18px; border:none; border-radius:20px; background:#ffffff; color:#5b6473; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; box-shadow:3px 3px 7px rgba(80,100,140,0.10), -3px -3px 7px rgba(255,255,255,0.95); transition:all 0.18s ease;';
-
-                        const flatShadow = '3px 3px 7px rgba(80,100,140,0.10), -3px -3px 7px rgba(255,255,255,0.95)';
-                        const pressedShadow = 'inset 2px 2px 5px rgba(80,100,140,0.14), inset -2px -2px 5px rgba(255,255,255,0.95)';
-
                         let expanded = false;
-                        toggleBtn.addEventListener('mouseenter', () => { toggleBtn.style.boxShadow = pressedShadow; toggleBtn.style.color = '#2c3340'; });
-                        toggleBtn.addEventListener('mouseleave', () => { toggleBtn.style.boxShadow = expanded ? pressedShadow : flatShadow; toggleBtn.style.color = '#5b6473'; });
-
                         toggleBtn.addEventListener('click', () => {
                             expanded = !expanded;
+                            toggleBtn.classList.toggle('expanded', expanded);
                             hiddenRows.forEach(row => {
                                 row.style.display = expanded ? '' : 'none';
                             });
-                            if (expanded) {
-                                toggleBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg> View less`;
-                                toggleBtn.style.boxShadow = pressedShadow;
-                            } else {
-                                toggleBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg> View ${hiddenCount} more`;
-                                toggleBtn.style.boxShadow = flatShadow;
-                            }
+                            toggleBtn.innerHTML = expanded
+                                ? `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg> View less`
+                                : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg> View ${hiddenCount} more`;
                         });
 
                         // Insert the toggle after the <ul>
@@ -10618,6 +10664,13 @@
                     const dark = !document.body.classList.contains('dark-mode');
                     localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
                     apply(dark);
+                    // Redraw the canvas tracker donuts so their colours follow the theme
+                    // if the user toggles while a tracker tab is open.
+                    const at = document.querySelector('.tab-content.active') && document.querySelector('.tab-content.active').id;
+                    if (typeof renderTracker === 'function') {
+                        if (at === 'lessonTracker') renderTracker('lesson');
+                        else if (at === 'assignmentTracker') renderTracker('assignment');
+                    }
                 });
             })();
 
@@ -11445,9 +11498,9 @@
                 (d.questions || []).map((q, i) => questionHTML(q, i, isKey)).join('') +
                 '</div>';
         }
-        function renderWorksheet(d) {
+        function renderWorksheet(d, targetEl) {
             WS_DATA = d;
-            const res = document.getElementById('wsResult');
+            const res = targetEl || document.getElementById('wsResult');
             const cl = on => on ? ' class="on"' : '';
             res.innerHTML =
                 '<div class="st-ws-bar"><div class="st-ws-opts">' +
@@ -11550,7 +11603,7 @@
         function gSection(title, inner) {
             return '<div class="st-gsec"><h3><span class="st-gsec-ico">' + sectionIco + '</span>' + esc(title) + '</h3>' + inner + '</div>';
         }
-        function renderGuide(g, alreadySaved) {
+        function renderGuide(g, alreadySaved, targetEl) {
             let html =
                 '<div class="st-actions" style="margin-bottom:18px">' +
                 (alreadySaved
@@ -11565,7 +11618,7 @@
             if (g.example && (g.example.prompt || (g.example.steps || []).length)) html += gSection('Worked Example', (g.example.prompt ? '<p><strong>' + escFlow(g.example.prompt) + '</strong></p>' : '') + '<ol class="st-steps">' + (g.example.steps || []).map(s => '<li>' + escFlow(s) + '</li>').join('') + '</ol>');
             if (g.takeaways && g.takeaways.length) html += gSection('Key Takeaways', g.takeaways.map(t => '<div class="st-take"><span class="st-take-ck">' + I.check + '</span><span>' + escFlow(t) + '</span></div>').join(''));
             if (g.quiz && g.quiz.length) html += gSection('Self-Check', '<div class="st-quiz">' + g.quiz.map(q => '<div class="st-quiz-item">' + escFlow(q) + '</div>').join('') + '</div>');
-            const res = document.getElementById('gResult');
+            const res = targetEl || document.getElementById('gResult');
             res.innerHTML = html;
             renderMath(res);
             const gsave = res.querySelector('[data-gsave]');
@@ -11601,9 +11654,9 @@
         function saveDeck(deck) {
             saveItem('deck', { id: 'd' + Date.now(), deckTitle: deck.deckTitle, cards: deck.cards, createdAt: Date.now() });
         }
-        function showDeck(deck, alreadySaved) {
+        function showDeck(deck, alreadySaved, targetEl) {
             FC.cards = deck.cards || []; FC.idx = 0; FC.flipped = false; FC.title = deck.deckTitle || 'Deck';
-            const res = document.getElementById('fResult');
+            const res = FC.res = targetEl || document.getElementById('fResult');
             res.innerHTML =
                 '<div class="st-actions" style="margin-bottom:18px">' +
                 '<button class="st-btn st-btn-ghost" data-fshuffle>' + I.shuffle + ' Shuffle</button>' +
@@ -11642,7 +11695,7 @@
             FC.idx = n; FC.flipped = false; updateDeck();
         }
         function updateDeck() {
-            const res = document.getElementById('fResult');
+            const res = FC.res || document.getElementById('fResult');
             const cur = FC.cards[FC.idx] || { front: '', back: '' };
             res.querySelector('[data-decktitle]').textContent = FC.title;
             res.querySelector('[data-deckcount]').textContent = (FC.idx + 1) + ' / ' + FC.cards.length;
@@ -11711,29 +11764,33 @@
                 renderAIO();
             });
         });
-        function aioItem(k, ico, label, title, sub) {
-            return '<div class="st-saved-row" data-aioopen="' + k + '">' +
-                '<div class="st-sr-ico">' + ico + '</div>' +
-                '<div class="st-sr-meta"><div class="st-sr-title">' + esc(title || label) + '</div>' +
-                '<div class="st-sr-sub">' + esc(label) + ' · ' + esc(sub) + '</div></div>' +
-                '<span class="st-go" style="white-space:nowrap">Open ' + I.arrow + '</span></div>';
-        }
+        // The three results are rendered inline into their own panes and shown via a
+        // tab switcher — no navigating away, so the set is never lost and each view
+        // keeps its full toolbar (incl. its own Save button). Each pane is rendered
+        // once and only toggled visible, so save state / position persist on tab switch.
         function renderAIO() {
             const res = document.getElementById('aioResult');
-            const ws = AIO.ws || {}, g = AIO.guide || {}, d = AIO.deck || {};
             res.innerHTML =
                 '<div class="st-guide-head"><h2>Your study set is ready</h2>' +
-                '<div class="st-guide-meta"><span>Open each one below to review, tweak and save it.</span></div></div>' +
-                '<div class="st-aio-grid">' +
-                aioItem('ws', I.sheet, 'Worksheet', ws.title, ((ws.questions || []).length) + ' questions') +
-                aioItem('guide', I.guide, 'Study Guide', g.title, g.readTime || (((g.concepts || []).length) + ' concepts')) +
-                aioItem('deck', I.cards, 'Flashcards', d.deckTitle, ((d.cards || []).length) + ' cards') +
-                '</div>';
-            res.querySelectorAll('[data-aioopen]').forEach(b => b.addEventListener('click', () => {
-                const k = b.getAttribute('data-aioopen');
-                if (k === 'ws') { setScreen('worksheet'); setStage(screenEl('worksheet'), 'result'); renderWorksheet(AIO.ws); }
-                else if (k === 'guide') { setScreen('guide'); setStage(screenEl('guide'), 'result'); renderGuide(AIO.guide); }
-                else { setScreen('flashcards'); setStage(screenEl('flashcards'), 'result'); showDeck(AIO.deck); }
+                '<div class="st-guide-meta"><span>Switch between the three below — each can be reviewed, tweaked and saved.</span></div></div>' +
+                '<div class="st-ws-toggle st-aio-tabs">' +
+                '<button data-aiotab="ws" class="on">Worksheet</button>' +
+                '<button data-aiotab="guide">Study Guide</button>' +
+                '<button data-aiotab="deck">Flashcards</button>' +
+                '</div>' +
+                '<div class="st-aio-pane" data-aiopane="ws"></div>' +
+                '<div class="st-aio-pane" data-aiopane="guide" style="display:none"></div>' +
+                '<div class="st-aio-pane" data-aiopane="deck" style="display:none"></div>';
+            renderWorksheet(AIO.ws, res.querySelector('[data-aiopane="ws"]'));
+            renderGuide(AIO.guide, false, res.querySelector('[data-aiopane="guide"]'));
+            showDeck(AIO.deck, false, res.querySelector('[data-aiopane="deck"]'));
+            const tabs = res.querySelectorAll('[data-aiotab]');
+            tabs.forEach(t => t.addEventListener('click', () => {
+                const k = t.getAttribute('data-aiotab');
+                tabs.forEach(x => x.classList.toggle('on', x === t));
+                res.querySelectorAll('[data-aiopane]').forEach(p => {
+                    p.style.display = p.getAttribute('data-aiopane') === k ? '' : 'none';
+                });
             }));
         }
 
