@@ -59,12 +59,23 @@ def _next_key_index():
         i = _key_idx
         _key_idx = (_key_idx + 1) % len(KEYS)
         return i
-# gemini-3-flash-preview writes the best free-tier video-lesson animations (richer, better-laid-out
-# scenes) while staying free and using the same generateContent API, so the existing two-pass +
-# repair pipeline is unchanged. Override with the GEMINI_MODEL env var (e.g. back to
-# "gemini-2.5-flash", the most reliable free fallback) if a model regresses.
+# gemini-3-flash-preview writes the best free-tier video-lesson animations (richer,
+# better-laid-out scenes) while staying free and using the same generateContent API. Preview
+# models can still hit capacity spikes, so the renderer automatically falls back to stable free
+# models on overload. Override with GEMINI_MODEL and GEMINI_FALLBACK_MODELS in the Space env.
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")  # free tier
+FALLBACK_MODELS = [m.strip() for m in os.environ.get(
+    "GEMINI_FALLBACK_MODELS", "gemini-2.5-flash,gemini-2.5-flash-lite"
+).split(",") if m.strip()]
+MODELS = list(dict.fromkeys([MODEL] + FALLBACK_MODELS))
+_model_blocked_until = {}
+_model_lock = threading.Lock()
 MAX_REPAIRS = 3
+MAX_ACTIVE_JOBS = int(os.environ.get("MAX_ACTIVE_JOBS", "1"))
+RENDER_TIMEOUT = int(os.environ.get("RENDER_TIMEOUT", "600"))
+MAX_PROMPT_CHARS = int(os.environ.get("MAX_PROMPT_CHARS", "20000"))
+MAX_QUESTION_CHARS = int(os.environ.get("MAX_QUESTION_CHARS", "4000"))
+MAX_SUBJECT_CHARS = int(os.environ.get("MAX_SUBJECT_CHARS", "120"))
 
 # In-memory job store for non-blocking renders. POST /generate starts a background
 # thread and returns a job_id; the site polls GET /status/{job_id} for live progress.
@@ -101,6 +112,22 @@ def _cleanup_jobs():
             pass
 
 
+def _active_job_count():
+    active = {"pending", "planning", "rendering", "captioning"}
+    with _jobs_lock:
+        return sum(1 for j in jobs.values() if j.get("status") in active)
+
+
+def _render_env():
+    """Run generated Manim scenes without deployment/API secrets in their environment."""
+    env = os.environ.copy()
+    for name in list(env):
+        upper = name.upper()
+        if any(marker in upper for marker in ("GEMINI", "API_KEY", "TOKEN", "SECRET", "PASSWORD")):
+            env.pop(name, None)
+    return env
+
+
 app = FastAPI(title="Course Planner Manim Renderer")
 
 # The static site (GitHub Pages) calls this server cross-origin. The endpoint only
@@ -132,10 +159,28 @@ GEMINI_MAX_ATTEMPTS = 4       # transient retries (incl. key rotations) before g
 GEMINI_DEADLINE = 420         # seconds: stop retrying a single gemini() call after this
 
 
+def _available_models():
+    now = time.time()
+    with _model_lock:
+        models = [m for m in MODELS if _model_blocked_until.get(m, 0) <= now]
+    return models or MODELS[:]
+
+
+def _temporarily_block_model(model, seconds=900):
+    with _model_lock:
+        _model_blocked_until[model] = time.time() + seconds
+
+
+def _fallback_models_after(model):
+    now = time.time()
+    with _model_lock:
+        models = [m for m in MODELS if m != model and _model_blocked_until.get(m, 0) <= now]
+    return models or [m for m in MODELS if m != model] or [model]
+
+
 def gemini(prompt, as_json=False, temperature=0.4):
     if not KEYS:
         raise RuntimeError("No Gemini API key is set on the Space.")
-    url = "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent".format(MODEL)
     body = {"contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": temperature}}
     if as_json:
@@ -145,10 +190,13 @@ def gemini(prompt, as_json=False, temperature=0.4):
     backoff = 3
     started = time.time()
     idx = _next_key_index()   # round-robin: this call starts on the next key in rotation
+    models = _available_models()
     for attempt in range(GEMINI_MAX_ATTEMPTS):
         if time.time() - started > GEMINI_DEADLINE:
             break
         key = KEYS[idx]
+        model = models[0]
+        url = "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent".format(model)
         try:
             r = requests.post(url, headers={"x-goog-api-key": key, "Content-Type": "application/json"},
                               json=body, timeout=GEMINI_TIMEOUT)
@@ -162,6 +210,7 @@ def gemini(prompt, as_json=False, temperature=0.4):
             backoff = min(backoff * 2, 30)
             continue
 
+        low_body = r.text.lower()
         if r.status_code == 429:
             last_err = "Gemini API error 429 (rate limited): {}".format(r.text[:200])
             idx = (idx + 1) % len(KEYS)
@@ -170,8 +219,23 @@ def gemini(prompt, as_json=False, temperature=0.4):
                 time.sleep(backoff)
                 backoff = min(backoff * 2, 30)
             continue
+        if r.status_code == 404 and len(MODELS) > 1:
+            last_err = "Gemini API model {} was not found: {}".format(model, r.text[:200])
+            _temporarily_block_model(model, seconds=3600)
+            models = _fallback_models_after(model)
+            backoff = 3
+            print("[gemini] {} — falling back to {}.".format(last_err, models[0]), flush=True)
+            continue
         if r.status_code in (500, 502, 503, 504):
             last_err = "Gemini API error {} (server): {}".format(r.status_code, r.text[:200])
+            if r.status_code == 503 and len(MODELS) > 1 and (
+                    "high demand" in low_body or "overloaded" in low_body or "capacity" in low_body):
+                _temporarily_block_model(model, seconds=900)
+                models = _fallback_models_after(model)
+                backoff = 3
+                print("[gemini] {} — falling back to {} for this call.".format(
+                    last_err, models[0]), flush=True)
+                continue
             print("[gemini] {} — attempt {}/{}, retrying.".format(
                 last_err, attempt + 1, GEMINI_MAX_ATTEMPTS), flush=True)
             time.sleep(backoff)
@@ -217,6 +281,7 @@ These keep the render + auto-repair pipeline working — violating any one fails
 - All code lives inside `MainScene.construct(self)`. No top-level execution, no `if __name__` block.
 - NEVER call `self.add()` — every mobject must enter the scene through `self.play(...)` so nothing is static.
 - Use only standard Manim CE mobjects/animations. No external assets, no file/network/image loading, no SVGs, no downloaded fonts.
+- SECURITY: Never import or reference `os`, `sys`, `subprocess`, `socket`, `requests`, `urllib`, `pathlib`, `shutil`, `tempfile`, `importlib`, `builtins`, `inspect`, `ctypes`, `pickle`, or any file/network/process/environment APIs. Never call `open`, `eval`, `exec`, `compile`, `__import__`, `globals`, `locals`, or `vars`.
 - Target runtime 50–70 seconds. Render quality is `-qh` (1080p).
 - PIPELINE NARRATION MANDATE: At every scene phase and major animation block, call `self.add_subcaption("...")` with the spoken narrative for that beat — this single string IS both the audio the website speaks and the on-screen closed caption, so narration and visuals stay locked together. Write it the way a presenter would SAY it: words, not symbols ("x squared", not "x^2"). If a formula genuinely belongs in the caption, wrap ONLY that formula in inline-LaTeX `\( ... \)` delimiters, e.g. `self.add_subcaption(r"This gives the area \(\pi r^2\).")` — the site typesets the `\(...\)` and still reads the whole line aloud. Use a raw string `r"..."` for any subcaption containing a backslash. On-screen Text/Tex captions in the bottom zone do NOT replace this.
 
@@ -899,6 +964,55 @@ def _strip_code_fences(txt):
     return t.strip()
 
 
+_BANNED_IMPORT_ROOTS = {
+    "os", "sys", "subprocess", "socket", "requests", "urllib", "http", "pathlib", "shutil",
+    "tempfile", "importlib", "builtins", "inspect", "ctypes", "multiprocessing", "threading",
+    "asyncio", "pickle", "marshal", "base64",
+}
+_BANNED_CALLS = {"eval", "exec", "compile", "open", "__import__", "input", "globals", "locals", "vars"}
+_BANNED_NAMES = {"__builtins__", "__loader__", "__spec__", "__package__", "__file__", "__cached__"}
+
+
+def validate_scene_code(code):
+    """Static guardrail for model-authored Manim code before Manim executes it.
+
+    This is defense-in-depth, not a full Python sandbox. The Manim subprocess also receives a
+    scrubbed environment so even a missed trick cannot read Gemini/HF secrets from env vars.
+    """
+    errors = []
+    try:
+        tree = ast.parse(code or "")
+    except SyntaxError as e:
+        return ["Scene code does not parse: {}".format(e)]
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            errors.append("Only `from manim import *` is allowed; plain import statements are blocked.")
+            continue
+        if isinstance(node, ast.ImportFrom):
+            mod = (node.module or "").split(".")[0]
+            if node.module != "manim" or not any(alias.name == "*" for alias in node.names):
+                errors.append("Blocked import from `{}`; only `from manim import *` is allowed.".format(node.module or ""))
+            if mod in _BANNED_IMPORT_ROOTS:
+                errors.append("Blocked dangerous import root `{}`.".format(mod))
+        if isinstance(node, ast.Call):
+            fn = node.func
+            if isinstance(fn, ast.Name) and fn.id in _BANNED_CALLS:
+                errors.append("Blocked call to `{}`.".format(fn.id))
+            elif isinstance(fn, ast.Attribute) and fn.attr in _BANNED_CALLS:
+                errors.append("Blocked call to attribute `{}`.".format(fn.attr))
+        if isinstance(node, ast.Name) and node.id in _BANNED_NAMES:
+            errors.append("Blocked access to `{}`.".format(node.id))
+        if isinstance(node, ast.Attribute):
+            if node.attr.startswith("__"):
+                errors.append("Blocked dunder attribute access `{}`.".format(node.attr))
+            root = node.value
+            if isinstance(root, ast.Name) and root.id in _BANNED_IMPORT_ROOTS:
+                errors.append("Blocked access to dangerous module/object `{}`.".format(root.id))
+
+    return sorted(set(errors))
+
+
 SPEC_SYSTEM_PROMPT = r'''You are a pedagogical engineer planning a 3Blue1Brown-style Manim animation BEFORE any code is written. Design a clear, faithful Specification for an educational animation of: {topic} (subject: {subject}){question_line}.
 
 Output the Specification as Markdown with EXACTLY these sections, in this order. No code, no preamble, no closing remarks.
@@ -1116,7 +1230,13 @@ def render(scene_path, workdir, quality="-qh", on_progress=None, n_anim=1):
         watcher.start()
     try:
         p = subprocess.run(["manim", quality, "--fps", "30", scene_path, "MainScene"],
-                           cwd=workdir, capture_output=True, text=True)
+                           cwd=workdir, capture_output=True, text=True,
+                           timeout=RENDER_TIMEOUT, env=_render_env())
+    except subprocess.TimeoutExpired as e:
+        stop.set()
+        log = ((e.stdout or "") if isinstance(e.stdout, str) else "") + "\n" + \
+              ((e.stderr or "") if isinstance(e.stderr, str) else "")
+        return False, "Render timed out after {} seconds.\n{}".format(RENDER_TIMEOUT, log), None
     finally:
         stop.set()
         if watcher:
@@ -1285,7 +1405,7 @@ def build_captions(workdir, content, prompt, subject):
 # ------------------------------------------------------------------- endpoints
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "model": MODEL, "model_candidates": _available_models()}
 
 
 def _run_job(job_id, prompt, subject, question):
@@ -1318,6 +1438,19 @@ def _run_job(job_id, prompt, subject, question):
         last_log = ""
         mp4 = None
         for attempt in range(MAX_REPAIRS + 1):  # 1 initial + up to 3 repairs
+            validation_errors = validate_scene_code(code)
+            if validation_errors:
+                last_log = "Security validation blocked the generated scene:\n" + "\n".join(validation_errors[:12])
+                print("[security] " + last_log.replace("\n", " | "), flush=True)
+                if attempt == MAX_REPAIRS:
+                    break
+                try:
+                    code = generate_manim_code(prompt, subject, question=question,
+                                               broken=code, error=last_log, spec=spec)
+                except Exception as e:
+                    _set(job_id, status="error", error="Repair call failed: {}".format(e))
+                    return
+                continue
             with open(scene_path, "w", encoding="utf-8") as fh:
                 fh.write(_harden_scene(code))
             _set(job_id, status="rendering", progress=30)  # render started
@@ -1379,10 +1512,20 @@ def generate(req: GenReq):
     if not KEYS:
         return JSONResponse(status_code=500,
                             content={"error": "No Gemini API key is configured on the Space."})
-    if not (req.prompt or "").strip():
+    req.prompt = (req.prompt or "").strip()
+    req.subject = (req.subject or "General").strip()[:MAX_SUBJECT_CHARS] or "General"
+    req.question = (req.question or "").strip()
+    if not req.prompt:
         return JSONResponse(status_code=400, content={"error": "A 'prompt' is required."})
+    if len(req.prompt) > MAX_PROMPT_CHARS:
+        return JSONResponse(status_code=413, content={"error": "Prompt is too large."})
+    if len(req.question) > MAX_QUESTION_CHARS:
+        return JSONResponse(status_code=413, content={"error": "Question/focus text is too large."})
 
     _cleanup_jobs()
+    if _active_job_count() >= MAX_ACTIVE_JOBS:
+        return JSONResponse(status_code=429,
+                            content={"error": "Renderer is busy. Please wait for the current render to finish."})
     job_id = uuid.uuid4().hex
     with _jobs_lock:
         jobs[job_id] = {"status": "pending", "progress": 5, "result": None,

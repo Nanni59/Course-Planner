@@ -3295,7 +3295,9 @@
             background: linear-gradient(145deg,#e9f6ea,#dcefdd); color:var(--color-study); box-shadow:4px 4px 10px rgba(80,100,140,0.14), -4px -4px 10px rgba(255,255,255,0.9); }
         /* Amber warning disc for the "leave without saving" confirmation. */
         #stLeaveModal .st-m-ico { background: linear-gradient(145deg,#fdf3e0,#f8e8cc); color:#d98a1e; }
+        #cpConfirmModal .st-m-ico { background: linear-gradient(145deg,#fdf3e0,#f8e8cc); color:#d98a1e; }
         body.dark-mode #stLeaveModal .st-m-ico { background:#2e2718; box-shadow:0 0 14px rgba(217,138,30,0.22); }
+        body.dark-mode #cpConfirmModal .st-m-ico { background:#2e2718; box-shadow:0 0 14px rgba(217,138,30,0.22); }
         .st-modal h3 { font-size:20px; font-weight:700; color:#2c3340; margin:0 0 8px; }
         .st-modal p { font-size:13.5px; color:#6b7280; line-height:1.65; margin:0 0 18px; }
         .st-modal p a { color: var(--color-study); font-weight:600; text-decoration:none; }
@@ -3654,8 +3656,16 @@
            crisp and perfectly centred in the round button at any zoom. */
         .vid-cc-txt { font-size:12px; font-weight:600; letter-spacing:.4px; line-height:1; }
         .vid-time { font-size:12.5px; font-weight:600; color:#6b7280; min-width:52px; text-align:right; font-variant-numeric:tabular-nums; }
-        /* Draggable/clickable seek bar (fills the row). accent-color themes the fill + thumb. */
-        .vid-seek { flex:1 1 120px; min-width:80px; height:5px; margin:0 2px; cursor:pointer; accent-color:var(--color-study); }
+        /* Draggable/clickable seek bar (fills the row). Flat track/thumb, no gradient fill. */
+        .vid-seek { flex:1 1 120px; min-width:80px; height:6px; margin:0 2px; cursor:pointer; appearance:none; -webkit-appearance:none;
+            background:#dfe4ee; border-radius:999px; outline:none; }
+        .vid-seek::-webkit-slider-runnable-track { height:6px; background:#dfe4ee; border-radius:999px; }
+        .vid-seek::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; margin-top:-5px; border-radius:50%;
+            background:var(--color-study); border:2px solid #fff; box-shadow:0 2px 7px rgba(20,30,60,.22); }
+        .vid-seek::-moz-range-track { height:6px; background:#dfe4ee; border-radius:999px; }
+        .vid-seek::-moz-range-progress { height:6px; background:var(--color-study); border-radius:999px; }
+        .vid-seek::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:var(--color-study);
+            border:2px solid #fff; box-shadow:0 2px 7px rgba(20,30,60,.22); }
 
         .vid-imp-empty { padding:18px; text-align:center; color:#9097a6; font-size:13.5px; }
 
@@ -3664,13 +3674,12 @@
             background:#191919; box-shadow:0 24px 60px rgba(20,30,60,0.28); }
         .sd-frame { position:absolute; inset:0; width:100%; height:100%; border:0; display:block; background:#191919; }
         .sd-cc { min-height:1.5em; text-align:center; font-size:clamp(13px,1.8vw,17px); line-height:1.5; color:#6b7280; padding:2px 8px; }
-        .vid-stage .sd-cc { position:absolute; left:50%; right:auto; bottom:clamp(18px, 6%, 54px); transform:translateX(-50%);
-            width:min(88%, 980px); min-height:0; padding:0; color:#fff; font-family:'Century Gothic','Futura','Montserrat',sans-serif;
-            font-size:clamp(16px, 2.2vw, 30px);
-            line-height:1.35; font-weight:600; text-align:center; text-shadow:0 2px 4px rgba(0,0,0,.75);
-            pointer-events:none; z-index:2; }
-        .vid-caption-line { display:inline; padding:.08em .32em .14em; background:rgba(0,0,0,.72);
+        .vid-player:not(.sd-player) > .sd-cc { min-height:1.5em; padding:0 12px; color:#3a4250;
+            font-family:'Century Gothic','Futura','Montserrat',sans-serif; font-size:clamp(13px, 1.35vw, 17px);
+            line-height:1.45; font-weight:600; text-align:center; pointer-events:none; }
+        .vid-caption-line { display:inline; padding:.08em .32em .14em;
             box-decoration-break:clone; -webkit-box-decoration-break:clone; border-radius:2px; }
+        .vid-player:not(:fullscreen):not(.vid-fs):not(.sd-player) > .sd-cc .vid-caption-line { background:transparent; }
         .vid-player.cc-off .sd-cc { display:none; }
 
         /* Full-screen player: hide the title bar, keep YouTube-like controls + captions over the video. */
@@ -3680,19 +3689,26 @@
         .vid-player:fullscreen .vid-stage, .vid-player.vid-fs .vid-stage { flex:1 1 auto; width:100%; height:100%;
             aspect-ratio:auto; border-radius:0; box-shadow:none; }
         .vid-player:fullscreen .vid-mp4, .vid-player.vid-fs .vid-mp4 { cursor:pointer; }
-        .vid-player:fullscreen .vid-stage .sd-cc, .vid-player.vid-fs .vid-stage .sd-cc { bottom:clamp(92px, 12vh, 150px);
-            font-size:clamp(18px, 2.3vw, 34px); }
+        .vid-player:fullscreen > .sd-cc, .vid-player.vid-fs > .sd-cc { position:absolute; left:50%; right:auto; bottom:clamp(84px, 11vh, 132px);
+            transform:translateX(-50%); width:min(82%, 900px); min-height:0; padding:0; color:#fff; font-size:clamp(14px, 1.65vw, 24px);
+            line-height:1.3; text-shadow:0 2px 4px rgba(0,0,0,.75); z-index:2; }
+        .vid-player:fullscreen > .sd-cc .vid-caption-line, .vid-player.vid-fs > .sd-cc .vid-caption-line { background:rgba(0,0,0,.72); }
         .vid-player:fullscreen .vid-controls, .vid-player.vid-fs .vid-controls { position:absolute; left:50%; bottom:24px;
             transform:translateX(-50%); width:min(980px, calc(100vw - 40px)); z-index:3; flex-wrap:nowrap;
             font-family:'Century Gothic','Futura','Montserrat',sans-serif;
-            background:linear-gradient(180deg, rgba(20,20,20,.78), rgba(0,0,0,.86)); border:1px solid rgba(255,255,255,.16);
+            background:rgba(12,14,18,.88); border:1px solid rgba(255,255,255,.16);
             box-shadow:0 18px 55px rgba(0,0,0,.45); backdrop-filter:blur(12px); }
         .vid-player:fullscreen .vid-cbtn, .vid-player.vid-fs .vid-cbtn,
         .vid-player:fullscreen .vid-time, .vid-player.vid-fs .vid-time { color:#fff; }
         .vid-player:fullscreen .vid-cbtn:hover, .vid-player.vid-fs .vid-cbtn:hover,
         .vid-player:fullscreen .vid-cbtn.on, .vid-player.vid-fs .vid-cbtn.on { background:rgba(255,255,255,.14); color:#fff; }
         .vid-player:fullscreen .vid-cbtn.vid-cplay, .vid-player.vid-fs .vid-cbtn.vid-cplay { background:#fff; color:#111827; }
-        .vid-player:fullscreen .vid-seek, .vid-player.vid-fs .vid-seek { accent-color:#fff; }
+        .vid-player:fullscreen .vid-seek, .vid-player.vid-fs .vid-seek { background:rgba(255,255,255,.34); }
+        .vid-player:fullscreen .vid-seek::-webkit-slider-runnable-track, .vid-player.vid-fs .vid-seek::-webkit-slider-runnable-track { background:rgba(255,255,255,.34); }
+        .vid-player:fullscreen .vid-seek::-webkit-slider-thumb, .vid-player.vid-fs .vid-seek::-webkit-slider-thumb { background:#fff; border-color:rgba(0,0,0,.18); }
+        .vid-player:fullscreen .vid-seek::-moz-range-track, .vid-player.vid-fs .vid-seek::-moz-range-track { background:rgba(255,255,255,.34); }
+        .vid-player:fullscreen .vid-seek::-moz-range-progress, .vid-player.vid-fs .vid-seek::-moz-range-progress { background:#fff; }
+        .vid-player:fullscreen .vid-seek::-moz-range-thumb, .vid-player.vid-fs .vid-seek::-moz-range-thumb { background:#fff; border-color:rgba(0,0,0,.18); }
 
         /* Player head actions + saved state */
         .vid-head-actions { display:flex; gap:8px; flex-wrap:wrap; }
@@ -4589,6 +4605,56 @@
 
             // **NEW:** State to track unsaved changes
             let hasUnsavedChanges = false;
+            let cpConfirmModal = null;
+            let cpConfirmAction = null;
+
+            function ensureAppConfirmModal() {
+                if (cpConfirmModal) return cpConfirmModal;
+                cpConfirmModal = document.createElement('div');
+                cpConfirmModal.className = 'st-modal-ov';
+                cpConfirmModal.id = 'cpConfirmModal';
+                cpConfirmModal.innerHTML =
+                    '<div class="st-modal"><div class="st-m-ico">' +
+                    '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>' +
+                    '<h3 data-cp-confirm-title>Are you sure?</h3>' +
+                    '<p data-cp-confirm-message></p>' +
+                    '<div class="st-actions"><button class="st-btn st-btn-ghost" data-cp-cancel>Cancel</button>' +
+                    '<button class="st-btn" data-cp-confirm>Continue</button></div></div>';
+                document.body.appendChild(cpConfirmModal);
+                cpConfirmModal.addEventListener('click', e => {
+                    if (e.target === cpConfirmModal || e.target.closest('[data-cp-cancel]')) {
+                        hideAppConfirmModal();
+                        return;
+                    }
+                    if (e.target.closest('[data-cp-confirm]')) {
+                        const action = cpConfirmAction;
+                        hideAppConfirmModal();
+                        if (action) action();
+                    }
+                });
+                document.addEventListener('keydown', e => {
+                    if (e.key === 'Escape' && cpConfirmModal && cpConfirmModal.classList.contains('open')) {
+                        hideAppConfirmModal();
+                    }
+                });
+                return cpConfirmModal;
+            }
+
+            function showAppConfirm(message, onConfirm, options = {}) {
+                const modal = ensureAppConfirmModal();
+                modal.querySelector('[data-cp-confirm-title]').textContent = options.title || 'Are you sure?';
+                modal.querySelector('[data-cp-confirm-message]').textContent = message;
+                modal.querySelector('[data-cp-confirm]').textContent = options.confirmText || 'Continue';
+                modal.querySelector('[data-cp-cancel]').textContent = options.cancelText || 'Cancel';
+                cpConfirmAction = onConfirm;
+                modal.classList.add('open');
+                setTimeout(() => modal.querySelector('[data-cp-cancel]').focus(), 50);
+            }
+
+            function hideAppConfirmModal() {
+                cpConfirmAction = null;
+                if (cpConfirmModal) cpConfirmModal.classList.remove('open');
+            }
 
             // **NEW FUNCTIONS:** Custom Link Management
             function getCustomLinks() {
@@ -6686,7 +6752,7 @@
                     ? dayId.charAt(0).toUpperCase() + dayId.slice(1).replace('y', 'y ')
                     : 'the current tracker';
 
-                if (confirm(`Are you sure you want to reset all fields for ${formattedDay}? (Custom links will be preserved)`)) {
+                showAppConfirm(`Are you sure you want to reset all fields for ${formattedDay}? Custom links will be preserved.`, () => {
 
                     if (dayId.startsWith(TAB_PREFIX)) {
                         // **NEW:** Revert moved courses related to this day before clearing
@@ -6764,7 +6830,7 @@
 
                     // **NEW:** Update autofill button visibility after reset
                     updateAutofillButtonVisibility();
-                }
+                }, { title: 'Reset this section?', confirmText: 'Reset' });
             });
 
             // --- Function to apply theme color to a field (MODIFIED for pause override) ---
@@ -7048,66 +7114,62 @@
 
             // Delete Item functionality (New Function - individual task)
             function deleteTrackerItem(itemId, type) {
-                if (!confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) {
-                    return;
-                }
+                showAppConfirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`, () => {
+                    const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
+                    let data = JSON.parse(localStorage.getItem(storageKey)) || [];
 
-                const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
-                let data = JSON.parse(localStorage.getItem(storageKey)) || [];
+                    // Find the item before deleting (to get course and name for split assignment cleanup)
+                    const itemToDelete = data.find(item => item.id == itemId);
 
-                // Find the item before deleting (to get course and name for split assignment cleanup)
-                const itemToDelete = data.find(item => item.id == itemId);
+                    // **NEW:** If this is an assignment, also delete any split assignment data
+                    if (type === 'assignment' && itemToDelete) {
+                        deleteSplitAssignment(itemToDelete.course, itemToDelete.name);
+                    }
 
-                // **NEW:** If this is an assignment, also delete any split assignment data
-                if (type === 'assignment' && itemToDelete) {
-                    deleteSplitAssignment(itemToDelete.course, itemToDelete.name);
-                }
+                    // Filter out the item with the matching id
+                    data = data.filter(item => item.id != itemId);
 
-                // Filter out the item with the matching id
-                data = data.filter(item => item.id != itemId);
+                    localStorage.setItem(storageKey, JSON.stringify(data));
+                    renderTracker(type); // Re-render the UI
+                    calculateAndRenderOverallProgress(type); // NEW: Update progress bar
 
-                localStorage.setItem(storageKey, JSON.stringify(data));
-                renderTracker(type); // Re-render the UI
-                calculateAndRenderOverallProgress(type); // NEW: Update progress bar
-
-                // **NEW:** Sync deletion to day cards (uncheck/reset status)
-                if (itemToDelete) {
-                    syncTrackerInputToDayCards(itemToDelete.course, type, itemToDelete.name, false);
-                }
+                    // **NEW:** Sync deletion to day cards (uncheck/reset status)
+                    if (itemToDelete) {
+                        syncTrackerInputToDayCards(itemToDelete.course, type, itemToDelete.name, false);
+                    }
+                }, { title: 'Delete this item?', confirmText: 'Delete' });
             }
 
             // **NEW FUNCTION:** Delete an entire course from the tracker
             function deleteTrackerCourse(courseName, type) {
-                if (!confirm(`Are you sure you want to delete ALL tasks for "${courseName}" from the ${type} tracker? This action cannot be undone.`)) {
-                    return;
-                }
+                showAppConfirm(`Are you sure you want to delete ALL tasks for "${courseName}" from the ${type} tracker? This action cannot be undone.`, () => {
+                    const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
+                    let data = JSON.parse(localStorage.getItem(storageKey)) || [];
 
-                const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
-                let data = JSON.parse(localStorage.getItem(storageKey)) || [];
+                    // **NEW:** If deleting assignment tracker course, also delete split assignments for all assignments
+                    if (type === 'assignment') {
+                        data.filter(item => item.course === courseName).forEach(item => {
+                            deleteSplitAssignment(courseName, item.name);
+                        });
+                    }
 
-                // **NEW:** If deleting assignment tracker course, also delete split assignments for all assignments
-                if (type === 'assignment') {
-                    data.filter(item => item.course === courseName).forEach(item => {
-                        deleteSplitAssignment(courseName, item.name);
-                    });
-                }
+                    // Filter out all items belonging to the specified course
+                    data = data.filter(item => item.course !== courseName);
 
-                // Filter out all items belonging to the specified course
-                data = data.filter(item => item.course !== courseName);
+                    // Also remove from paused state if it was paused
+                    let pausedCourses = getPausedCourses();
+                    pausedCourses[type] = (pausedCourses[type] || []).filter(c => c !== courseName);
 
-                // Also remove from paused state if it was paused
-                let pausedCourses = getPausedCourses();
-                pausedCourses[type] = (pausedCourses[type] || []).filter(c => c !== courseName);
+                    // Ensure the other tracker is also updated in case of synchronization
+                    const otherType = type === 'lesson' ? 'assignment' : 'lesson';
+                    pausedCourses[otherType] = (pausedCourses[otherType] || []).filter(c => c !== courseName);
 
-                // Ensure the other tracker is also updated in case of synchronization
-                const otherType = type === 'lesson' ? 'assignment' : 'lesson';
-                pausedCourses[otherType] = (pausedCourses[otherType] || []).filter(c => c !== courseName);
+                    localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(pausedCourses));
 
-                localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(pausedCourses));
-
-                localStorage.setItem(storageKey, JSON.stringify(data));
-                renderTracker(type); // Re-render the UI
-                calculateAndRenderOverallProgress(type); // NEW: Update progress bar
+                    localStorage.setItem(storageKey, JSON.stringify(data));
+                    renderTracker(type); // Re-render the UI
+                    calculateAndRenderOverallProgress(type); // NEW: Update progress bar
+                }, { title: 'Delete course tasks?', confirmText: 'Delete' });
             }
 
             // --- **NEW:** Backup & Restore Functionality ---
@@ -7162,7 +7224,7 @@
                             throw new Error('Invalid backup file format.');
                         }
 
-                        if (confirm('Importing this file will overwrite all your current data. Are you sure you want to proceed?')) {
+                        showAppConfirm('Importing this file will overwrite all your current data. Are you sure you want to proceed?', () => {
                             // 1. Clear ALL current localStorage to avoid residue
                             localStorage.clear();
 
@@ -7178,7 +7240,7 @@
 
                             alert('Data imported successfully. The page will now reload to apply changes.');
                             window.location.reload();
-                        }
+                        }, { title: 'Import backup?', confirmText: 'Import' });
                     } catch (error) {
                         alert('Error importing data: ' + error.message);
                     }
@@ -7234,9 +7296,9 @@
                     const dayId = target.getAttribute('data-day');
                     const courseCard = target.closest('.course-card');
 
-                    if (confirm(`Are you sure you want to clear the tasks for "${courseName}" on ${dayId.replace('day', 'Day ')}?`)) {
+                    showAppConfirm(`Are you sure you want to clear the tasks for "${courseName}" on ${dayId.replace('day', 'Day ')}?`, () => {
                         deleteDayTaskCard(courseCard);
-                    }
+                    }, { title: 'Clear this card?', confirmText: 'Clear' });
                     return;
                 }
 
@@ -7759,11 +7821,11 @@
             // Handle Remove Link
             removeLinkBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (confirm(`Remove link from "${dayCardContextMenuCourseName}"?`)) {
+                showAppConfirm(`Remove link from "${dayCardContextMenuCourseName}"?`, () => {
                     deleteCustomLink(dayCardContextMenuCourseName);
                     updateCourseH3Href(dayCardContextMenuCourseName);
                     if (typeof updateInlineExpandButtons === 'function') updateInlineExpandButtons();
-                }
+                }, { title: 'Remove link?', confirmText: 'Remove' });
                 dayCardContextMenu.style.display = 'none';
             });
 
@@ -9304,7 +9366,7 @@
             document.getElementById('deleteFolderBtn').addEventListener('click', () => {
                 expandFolderContextMenu.style.display = 'none';
                 const { folderName, courseName, dayId } = expandFolderContextData;
-                if (confirm(`Are you sure you want to delete the folder "${folderName}" and all its links?`)) {
+                showAppConfirm(`Are you sure you want to delete the folder "${folderName}" and all its links?`, () => {
                     let folders = {};
                     try { folders = JSON.parse(localStorage.getItem('expandFolders_' + courseName)) || {}; } catch(e){}
                     if (folders[folderName]) {
@@ -9312,7 +9374,7 @@
                         localStorage.setItem('expandFolders_' + courseName, JSON.stringify(folders));
                         openExpandCard(courseName, dayId);
                     }
-                }
+                }, { title: 'Delete folder?', confirmText: 'Delete' });
             });
 
             // Hide menu on any click outside
@@ -9920,9 +9982,12 @@
                 contextMenu.style.display = 'none';
             });
 
-            // **NEW FEATURE:** Ctrl+S / Cmd+S Shortcut
+            // Ctrl/Cmd shortcuts belong only to the planner and tracker tabs.
             document.addEventListener('keydown', (event) => {
-                // Robust Check for Ctrl/Cmd + S
+                const activeTab = document.querySelector('.tab-content.active');
+                const allowedTabs = ['dayA', 'dayB', 'lessonTracker', 'assignmentTracker'];
+                if (!activeTab || !allowedTabs.includes(activeTab.id)) return;
+
                 const isS = event.key === 's' || event.key === 'S' || event.code === 'KeyS';
                 if ((event.ctrlKey || event.metaKey) && isS) {
                     event.preventDefault();
@@ -9930,7 +9995,6 @@
                     if (saveBtn) saveBtn.click();
                 }
 
-                // Robust Check for Ctrl/Cmd + E for Reset
                 const isE = event.key === 'e' || event.key === 'E' || event.code === 'KeyE';
                 if ((event.ctrlKey || event.metaKey) && isE) {
                     event.preventDefault();
@@ -11778,6 +11842,22 @@
         function setStage(scr, name) {
             scr.querySelectorAll('.st-stage').forEach(s => s.classList.toggle('active', s.getAttribute('data-stage') === name));
         }
+        function visibleSaveButton(container) {
+            const saveButtons = Array.prototype.slice.call(container.querySelectorAll('[data-wssave], [data-gsave], [data-fsave], [data-sdsave], [data-vidsave]'));
+            return saveButtons.find(btn => !btn.disabled && btn.getClientRects().length > 0);
+        }
+        root.addEventListener('keydown', e => {
+            const isS = e.key === 's' || e.key === 'S' || e.code === 'KeyS';
+            if (!(e.ctrlKey || e.metaKey) || !isS) return;
+            if (!root.classList.contains('active')) return;
+            const scr = root.querySelector('.st-screen.active');
+            const result = scr && scr.querySelector('.st-stage[data-stage="result"].active');
+            if (!result) return;
+            const btn = visibleSaveButton(result);
+            if (!btn) return;
+            e.preventDefault();
+            btn.click();
+        });
         root.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
             const t = b.getAttribute('data-open');
             const scr = screenEl(t);
@@ -12801,8 +12881,8 @@
                 '<button class="st-btn st-btn-ghost" data-vidnew>' + I.spark + ' New lesson</button></div></div>' +
                 '<div class="vid-stage">' +
                 '<video class="vid-mp4" playsinline muted preload="auto" src="' + url + '"></video>' +
-                '<div class="sd-cc" data-vidcctext></div>' +
                 '</div>' +
+                '<div class="sd-cc" data-vidcctext></div>' +
                 '<div class="vid-controls">' +
                 '<button class="vid-cbtn vid-cplay" data-vidplay title="Play">' + vIco.play + '</button>' +
                 '<button class="vid-cbtn" data-vidrestart title="Restart">' + vIco.replay + '</button>' +
@@ -13045,37 +13125,8 @@
                 document.addEventListener('webkitfullscreenchange', _vidFsSync);
             }
 
-            // Jump the playhead by `delta` seconds (clamped), re-cueing captions/narration to the new
-            // spot and keeping playback going — used by the arrow keys.
-            function seekBy(delta) {
-                const d = dur();
-                if (!d) return;
-                const t = Math.min(Math.max(0, (video.currentTime || 0) + delta), Math.max(0, d - 0.1));
-                try { video.currentTime = t; } catch (e) { }
-                if (timed && cues.length) resyncToTime();
-                setPos();
-                if (st.playing && video.paused && !video.ended) { try { video.play(); } catch (e) { } }
-                if (st.playing) startRaf();
-            }
-            // YouTube-style keyboard shortcuts (Space = play/pause, ← / → = jump 10s). Only act when
-            // this video result is the active, on-screen view and the user isn't typing in a field, so
-            // they never hijack the page or the setup form. Re-registered per build (deduped).
             if (_vidKeyHandler) document.removeEventListener('keydown', _vidKeyHandler);
-            _vidKeyHandler = (e) => {
-                if (!st.alive || e.altKey || e.ctrlKey || e.metaKey) return;
-                const tg = e.target;
-                if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;
-                if (!root.classList.contains('active')) return;          // not on Study Tools
-                const vscr = screenEl('video');
-                if (!vscr || !vscr.classList.contains('active')) return;  // not on the video screen
-                const res = vscr.querySelector('.st-stage[data-stage="result"]');
-                if (!res || !res.classList.contains('active')) return;    // not viewing a player
-                if (e.key === ' ' || e.code === 'Space' || e.key === 'k') { e.preventDefault(); st.playing ? pause() : play(); }
-                else if (e.key === 'ArrowRight') { e.preventDefault(); seekBy(10); }
-                else if (e.key === 'ArrowLeft') { e.preventDefault(); seekBy(-10); }
-                else if (e.key === 'f') { e.preventDefault(); if (fullBtn) fullBtn.click(); }
-            };
-            document.addEventListener('keydown', _vidKeyHandler);
+            _vidKeyHandler = null;
 
             // If the metadata is already in (e.g. a cached file or an object URL), `loadedmetadata`
             // may have fired before our listener — resolve the duration now. Otherwise the listener
