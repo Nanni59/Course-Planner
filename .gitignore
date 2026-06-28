@@ -1,0 +1,13 @@
+# Local Claude Code config (not part of the website)
+.claude/
+
+# Local dev-server / scratch files (the site is static — no server needed)
+server.js
+server.bat
+start-server.ps1
+*.vbs
+*.lnk
+*.log
+server_log.txt
+cloud-handoff.jsonl
+tiny.js
