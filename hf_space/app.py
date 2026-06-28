@@ -76,6 +76,7 @@ RENDER_TIMEOUT = int(os.environ.get("RENDER_TIMEOUT", "600"))
 MAX_PROMPT_CHARS = int(os.environ.get("MAX_PROMPT_CHARS", "20000"))
 MAX_QUESTION_CHARS = int(os.environ.get("MAX_QUESTION_CHARS", "4000"))
 MAX_SUBJECT_CHARS = int(os.environ.get("MAX_SUBJECT_CHARS", "120"))
+FALLBACK_RENDER_ON_FAILURE = os.environ.get("FALLBACK_RENDER_ON_FAILURE", "1").lower() not in ("0", "false", "no")
 
 # In-memory job store for non-blocking renders. POST /generate starts a background
 # thread and returns a job_id; the site polls GET /status/{job_id} for live progress.
@@ -281,6 +282,7 @@ These keep the render + auto-repair pipeline working — violating any one fails
 - All code lives inside `MainScene.construct(self)`. No top-level execution, no `if __name__` block.
 - NEVER call `self.add()` — every mobject must enter the scene through `self.play(...)` so nothing is static.
 - Use only standard Manim CE mobjects/animations. No external assets, no file/network/image loading, no SVGs, no downloaded fonts.
+- If the topic includes notes from attached source materials or images, treat them as FACTS ONLY. The renderer cannot access those attachments. Do NOT recreate, import, load, trace, or reference the original picture/file; redraw only the underlying idea with simple Manim primitives such as lines, dots, arrows, axes, polygons, labels, and formulas.
 - SECURITY: Never import or reference `os`, `sys`, `subprocess`, `socket`, `requests`, `urllib`, `pathlib`, `shutil`, `tempfile`, `importlib`, `builtins`, `inspect`, `ctypes`, `pickle`, or any file/network/process/environment APIs. Never call `open`, `eval`, `exec`, `compile`, `__import__`, `globals`, `locals`, or `vars`.
 - Target runtime 50–70 seconds. Render quality is `-qh` (1080p).
 - PIPELINE NARRATION MANDATE: At every scene phase and major animation block, call `self.add_subcaption("...")` with the spoken narrative for that beat — this single string IS both the audio the website speaks and the on-screen closed caption, so narration and visuals stay locked together. Write it the way a presenter would SAY it: words, not symbols ("x squared", not "x^2"). If a formula genuinely belongs in the caption, wrap ONLY that formula in inline-LaTeX `\( ... \)` delimiters, e.g. `self.add_subcaption(r"This gives the area \(\pi r^2\).")` — the site typesets the `\(...\)` and still reads the whole line aloud. Use a raw string `r"..."` for any subcaption containing a backslash. On-screen Text/Tex captions in the bottom zone do NOT replace this.
@@ -971,6 +973,7 @@ _BANNED_IMPORT_ROOTS = {
 }
 _BANNED_CALLS = {"eval", "exec", "compile", "open", "__import__", "input", "globals", "locals", "vars"}
 _BANNED_NAMES = {"__builtins__", "__loader__", "__spec__", "__package__", "__file__", "__cached__"}
+_BANNED_ASSET_MOBJECTS = {"ImageMobject", "SVGMobject", "VMobjectFromSVGPath"}
 
 
 def validate_scene_code(code):
@@ -999,6 +1002,8 @@ def validate_scene_code(code):
             fn = node.func
             if isinstance(fn, ast.Name) and fn.id in _BANNED_CALLS:
                 errors.append("Blocked call to `{}`.".format(fn.id))
+            elif isinstance(fn, ast.Name) and fn.id in _BANNED_ASSET_MOBJECTS:
+                errors.append("External asset mobject `{}` is not available; redraw the idea with Manim primitives.".format(fn.id))
             elif isinstance(fn, ast.Attribute) and fn.attr in _BANNED_CALLS:
                 errors.append("Blocked call to attribute `{}`.".format(fn.attr))
         if isinstance(node, ast.Name) and node.id in _BANNED_NAMES:
@@ -1035,6 +1040,7 @@ A Markdown table `| Area | Content | Notes |` — one row per screen region, nam
 **Assets & Dependencies**
 - Colors: choose from Manim core constants (BLUE, GREEN, RED, YELLOW, ORANGE, PURPLE, PINK, TEAL, MAROON, WHITE, GREY); for any custom colour give a hex string like "#FFD700". State each colour's role (e.g. CURVE = BLUE).
 - Manim: ManimCE, 2D `Scene`.
+- External assets: none. If the source notes describe an attached image or photo, convert only its educational content into simple Manim primitives; never require image files, SVGs, URLs, or `ImageMobject`.
 
 **Notes**
 3-6 concrete implementation hints: which Manim mobjects/animations to use, what to drive with a `ValueTracker`, what should keep moving continuously, and any alignment cautions.
@@ -1171,6 +1177,22 @@ try:
             _cp_kwarg_filter(_CP_CS, _cp_m)
         except Exception:
             pass
+except Exception:
+    pass
+
+# A second common model slip: using familiar color names that this Manim build does not expose
+# as bare constants. Give those names safe hex equivalents so a good scene does not fail only
+# because it wrote CYAN or GOLD once.
+try:
+    _cp_color_aliases = {
+        "CYAN": "#00FFFF",
+        "MAGENTA": "#FF00FF",
+        "GOLD": "#FFD700",
+        "LIME": "#00FF66",
+        "NAVY": "#1E3A8A",
+    }
+    for _cp_name, _cp_value in _cp_color_aliases.items():
+        globals().setdefault(_cp_name, _cp_value)
 except Exception:
     pass
 '''
@@ -1402,6 +1424,120 @@ def build_captions(workdir, content, prompt, subject):
     return [{"text": t, "start": None} for t in sentences if t]
 
 
+def _clean_fallback_text(value, max_len=120):
+    """Short plain text for the deterministic fallback scene."""
+    text = str(value or "")
+    text = re.sub(r"---\s*Source material brief\s*---", " ", text, flags=re.I)
+    text = re.sub(r"```[\s\S]*?```", " ", text)
+    text = re.sub(r"\\[()[\]]|\$+", " ", text)
+    text = re.sub(r"[#*_`>|]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) > max_len:
+        text = text[:max_len].rsplit(" ", 1)[0].strip() + "..."
+    return text or "STEM lesson"
+
+
+def _fallback_points(prompt, question):
+    """Extract a few safe teaching points from the prompt without asking Gemini again."""
+    text = str(prompt or "")
+    text = re.sub(r"---\s*Source material brief\s*---", ". ", text, flags=re.I)
+    chunks = re.split(r"(?:\n+|[.;!?]\s+|-\s+|\u2022\s+)", text)
+    points = []
+    if (question or "").strip():
+        points.append("Answer the focus question: " + _clean_fallback_text(question, 95))
+    for chunk in chunks:
+        t = _clean_fallback_text(chunk, 105)
+        low = t.lower()
+        if len(t) < 18:
+            continue
+        if "file:" in low or "source material" in low or "attached image" in low:
+            continue
+        if t not in points:
+            points.append(t)
+        if len(points) >= 5:
+            break
+    defaults = [
+        "Identify the main quantities and how they relate.",
+        "Represent the idea with simple shapes, arrows, and labels.",
+        "Move from intuition to the key formula or rule.",
+        "Apply the rule to the focus question step by step.",
+        "End with the core takeaway in one sentence.",
+    ]
+    while len(points) < 5:
+        points.append(defaults[len(points) % len(defaults)])
+    return points[:5]
+
+
+def fallback_scene_code(prompt, subject, question="", reason=""):
+    """A deterministic, low-risk Manim lesson used only after generated scenes fail."""
+    title = _clean_fallback_text(str(prompt or "").splitlines()[0], 54)
+    subtitle = _clean_fallback_text(subject or "General", 42)
+    points = _fallback_points(prompt, question)
+    spoken_title = _clean_fallback_text(title, 90)
+    return """
+from manim import *
+
+
+class MainScene(Scene):
+    def construct(self):
+        self.camera.background_color = "#111827"
+        title = Text(%s, font="DejaVu Sans", font_size=40, color=WHITE).to_edge(UP, buff=0.55)
+        subtitle = Text(%s, font="DejaVu Sans", font_size=24, color="#A7F3D0").next_to(title, DOWN, buff=0.18)
+
+        self.add_subcaption(%s)
+        self.play(Write(title), FadeIn(subtitle, shift=UP * 0.15), run_time=2.4)
+
+        frame = RoundedRectangle(width=10.8, height=4.25, corner_radius=0.25, stroke_color="#38BDF8", stroke_width=2)
+        left = Circle(radius=0.55, color="#60A5FA").shift(LEFT * 3.1 + UP * 0.45)
+        mid = Circle(radius=0.55, color="#FBBF24").shift(UP * 0.45)
+        right = Circle(radius=0.55, color="#34D399").shift(RIGHT * 3.1 + UP * 0.45)
+        arrows = VGroup(
+            Arrow(left.get_right(), mid.get_left(), buff=0.12, color=WHITE),
+            Arrow(mid.get_right(), right.get_left(), buff=0.12, color=WHITE),
+        )
+        labels = VGroup(
+            Text("Given", font="DejaVu Sans", font_size=25, color=WHITE).next_to(left, DOWN, buff=0.25),
+            Text("Reason", font="DejaVu Sans", font_size=25, color=WHITE).next_to(mid, DOWN, buff=0.25),
+            Text("Result", font="DejaVu Sans", font_size=25, color=WHITE).next_to(right, DOWN, buff=0.25),
+        )
+        diagram = VGroup(frame, left, mid, right, arrows, labels).move_to(ORIGIN)
+        self.add_subcaption("First, organize the lesson into what is given, the reasoning step, and the result.")
+        self.play(Create(frame), LaggedStart(FadeIn(left), FadeIn(mid), FadeIn(right), Create(arrows), FadeIn(labels), lag_ratio=0.18), run_time=4.2)
+
+        points = %s
+        rows = VGroup()
+        for i, line in enumerate(points, start=1):
+            badge = Circle(radius=0.22, color="#34D399", fill_opacity=0.22)
+            num = Text(str(i), font="DejaVu Sans", font_size=18, color=WHITE).move_to(badge)
+            body = Text(line, font="DejaVu Sans", font_size=24, color=WHITE)
+            row = VGroup(VGroup(badge, num), body).arrange(RIGHT, buff=0.25, aligned_edge=UP)
+            if row.width > 10.6:
+                row.scale_to_fit_width(10.6)
+            rows.add(row)
+        rows.arrange(DOWN, aligned_edge=LEFT, buff=0.27).move_to(ORIGIN).shift(DOWN * 0.15)
+
+        self.add_subcaption("Now turn the source material into a clean sequence of ideas.")
+        self.play(FadeOut(diagram), run_time=0.9)
+        for i, row in enumerate(rows):
+            self.add_subcaption("Point " + str(i + 1) + ": " + points[i])
+            self.play(FadeIn(row, shift=RIGHT * 0.2), run_time=2.4)
+
+        box = SurroundingRectangle(rows, color="#FBBF24", buff=0.22, stroke_width=2)
+        takeaway = Text("Core takeaway", font="DejaVu Sans", font_size=30, color="#FBBF24").next_to(rows, DOWN, buff=0.35)
+        if takeaway.get_bottom()[1] < -3.45:
+            takeaway.to_edge(DOWN, buff=0.35)
+        self.add_subcaption("The takeaway is to connect each known fact to the next step, then check that the result answers the question.")
+        self.play(Create(box), FadeIn(takeaway, shift=UP * 0.15), run_time=2.8)
+        self.play(Indicate(box, color="#FBBF24"), run_time=1.6)
+        self.wait(0.5)
+""" % (
+        json.dumps(title),
+        json.dumps(subtitle),
+        json.dumps("Let's build a reliable visual summary for " + spoken_title + "."),
+        json.dumps(points),
+    )
+
+
 # ------------------------------------------------------------------- endpoints
 @app.get("/health")
 def health():
@@ -1472,6 +1608,33 @@ def _run_job(job_id, prompt, subject, question):
             except Exception as e:
                 _set(job_id, status="error", error="Repair call failed: {}".format(e))
                 return
+
+        if not mp4 and FALLBACK_RENDER_ON_FAILURE:
+            print("[render] generated scene failed after repairs; trying deterministic fallback.",
+                  flush=True)
+            try:
+                fallback_code = fallback_scene_code(prompt, subject, question=question,
+                                                    reason=last_log[-800:])
+                validation_errors = validate_scene_code(fallback_code)
+                if validation_errors:
+                    last_log += "\nFallback validation failed:\n" + "\n".join(validation_errors[:8])
+                else:
+                    code = fallback_code
+                    with open(scene_path, "w", encoding="utf-8") as fh:
+                        fh.write(_harden_scene(code))
+                    _set(job_id, status="rendering", progress=45)
+                    ok, log, m = render(
+                        scene_path, workdir,
+                        on_progress=lambda f: _set(job_id, progress=int(45 + f * 25)),
+                        n_anim=_count_segments(code))
+                    last_log = log
+                    if ok:
+                        mp4 = m
+                        print("[render] deterministic fallback succeeded.", flush=True)
+                    else:
+                        print("[render] deterministic fallback failed.", flush=True)
+            except Exception as e:
+                last_log += "\nFallback render exception: {}".format(e)
 
         if not mp4:
             _set(job_id, status="error",

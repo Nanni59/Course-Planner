@@ -11580,6 +11580,27 @@
             return parts;
         }
         const srcCount = scr => { const s = scr._src || { files: [], yt: [] }; return s.files.length + s.yt.length; };
+        function clipForRenderer(s, max) {
+            s = String(s || '').replace(/\s+/g, ' ').trim();
+            if (s.length <= max) return s;
+            return s.slice(0, max).replace(/\s+\S*$/, '') + '...';
+        }
+        function videoSourceBriefPrompt(topic, question) {
+            return [
+                'You are preparing source notes for a short STEM explainer video rendered by Manim.',
+                'Topic: ' + (topic || '(derive the topic from the source materials)'),
+                question ? 'Question(s) to address: ' + question : '',
+                '',
+                'Read the attached materials and write an animation-ready factual brief.',
+                'Important constraints:',
+                '- The render server will NOT receive the original attachments, images, screenshots, files, or URLs.',
+                '- If an attachment is an image or screenshot, extract only the educational content: labels, values, formulas, relationships, diagram structure, and the question being asked.',
+                '- Do NOT ask the renderer to show, copy, import, trace, load, or reproduce the original picture/file.',
+                '- Convert visual information into simple 2D primitives Manim can draw: axes, dots, arrows, lines, polygons, labels, formulas, and step-by-step transformations.',
+                '- Omit decorative visual details, page layout, filenames, UI chrome, and anything not needed for the lesson.',
+                '- Keep the brief under 900 words. Plain text only.'
+            ].filter(Boolean).join('\n');
+        }
 
         /* ---------- LaTeX (MathJax 3, lazy-loaded) ----------
            Same loading mechanism as the Formulae app: configure window.MathJax
@@ -13195,8 +13216,8 @@
                     const srcParts = await sourceParts(scr);
                     if (srcParts.length) {
                         setSub('Reading your source materials…');
-                        const brief = await gemini([{ text: 'You are preparing source notes for a short STEM explainer video.\nTopic: ' + topic + (question ? '\nQuestion(s) to address: ' + question : '') + '\nRead the attached materials and write a concise, factual brief the video should be based on — key definitions, formulas, worked steps, and any specific values or data. Plain text only, no preamble or headings.' }, ...srcParts]);
-                        if (brief && brief.trim()) promptText = topic + '\n\n--- Source material brief ---\n' + brief.trim();
+                        const brief = await gemini([{ text: videoSourceBriefPrompt(topic, question) }, ...srcParts]);
+                        if (brief && brief.trim()) promptText = topic + '\n\n--- Source material brief ---\n' + clipForRenderer(brief, 6500);
                         setSub('Generating lesson content…');
                     }
                 } catch (e) {
