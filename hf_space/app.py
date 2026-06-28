@@ -145,6 +145,7 @@ class GenReq(BaseModel):
     prompt: str
     subject: str = "General"
     question: str = ""  # optional "focus especially on answering this" hint
+    mode: str = "topic"  # "topic" = concept lesson, "question" = worked solution
 
 
 # --------------------------------------------------------------------------- Gemini
@@ -271,7 +272,8 @@ def gemini(prompt, as_json=False, temperature=0.4):
 # scratch per topic, guided by the system prompt below (Manim best practices + strict
 # rules). The existing render -> repair loop re-prompts Gemini with the render-error tail
 # until the script compiles or we give up. Inspired by github.com/Yusuke710/manim-skill.
-MANIM_SYSTEM_PROMPT = r'''You are an expert mathematical animator and pedagogical engineer specializing in the Manim (Community Edition) library. Your mission is to convert educational concepts into visually flawless, cinematic, clear 3Blue1Brown-style animations. The concept to animate is: {topic} (subject: {subject}){question_line}.
+MANIM_SYSTEM_PROMPT = r'''You are an expert mathematical animator and pedagogical engineer specializing in the Manim (Community Edition) library. Your mission is to convert educational concepts into visually flawless, cinematic, clear 3Blue1Brown-style animations. The content to animate is: {topic} (subject: {subject}){question_line}.
+{mode_instructions}
 
 Output ONLY executable Python code inside a single ```python markdown block. No introductory text, explanations, or conclusions outside the code block.
 {spec_block}
@@ -1019,6 +1021,7 @@ def validate_scene_code(code):
 
 
 SPEC_SYSTEM_PROMPT = r'''You are a pedagogical engineer planning a 3Blue1Brown-style Manim animation BEFORE any code is written. Design a clear, faithful Specification for an educational animation of: {topic} (subject: {subject}){question_line}.
+{mode_instructions}
 
 Output the Specification as Markdown with EXACTLY these sections, in this order. No code, no preamble, no closing remarks.
 
@@ -1048,7 +1051,31 @@ A Markdown table `| Area | Content | Notes |` — one row per screen region, nam
 Keep it tight and concrete — a coder will reproduce this Specification faithfully, so every phase needs a duration and every region needs named content.'''
 
 
-def generate_spec(topic, subject, question=""):
+def _render_mode(mode):
+    return "question" if str(mode or "").strip().lower() == "question" else "topic"
+
+
+def _mode_instructions(mode, question=""):
+    if _render_mode(mode) != "question":
+        return ("MODE: TOPIC LESSON. Teach the named topic/concept clearly. If a question or "
+                "source brief is present, use it only to focus the lesson, not as the whole "
+                "structure unless it explicitly asks for a worked solution.")
+    q = (question or "").strip()
+    extra = ("\nRequired question and optional parts to solve:\n" + q[:5000]) if q else ""
+    return ("""MODE: QUESTION SOLUTION. The primary goal is to ANSWER the provided question, including every part/subpart, not to summarize or generally introduce the topic.
+- Treat the first line `Question: ...` as the required problem. The `Parts:` section, if present, is optional additional subparts/details. Never display prompt labels such as "Question:", "Parts:", "Full question to solve", "Topic/context", or "Question/source solution brief".
+- Do NOT put the full problem statement on screen. Display only the short question/part name, the active givens, the current formula, and the current result.
+- The animation must solve, not summarize: no outline slides, no bullet-list overview, no "visual summary", no restating the prompt as content. Show the actual calculations/reasoning and final answer.
+- The animation must show the full worked solution path: parse givens, name each part, choose the method, compute or reason step by step, and display final answers with units/conditions where applicable.
+- If there are multiple parts, give each part its own phase or clearly labeled beat. Do not collapse them into a vague overview.
+- If the question came from an image/source brief, use the transcribed values and relationships from that brief; never ask for the original image or use external assets.
+- Use progressive reveal: at most TWO equations or algebra lines and ONE diagram/graph are visible at once. Fade or transform old work before introducing new work. Never create a long static worksheet/list on the left side.
+- Captions are mandatory and must be explanatory. Each `add_subcaption(...)` should say WHY the step is done, not merely name the step. Use at least 8 clear narration beats for a multi-part question.
+- Prefer concrete formulas, substitutions, diagrams, and final answer boxes over general conceptual bullets."""
+            + extra)
+
+
+def generate_spec(topic, subject, question="", mode="topic"):
     """First pass of the two-pass pipeline: Gemini DESIGNS the lesson as a Markdown Specification
     (description, a phased timeline with per-phase durations, layout, area table, assets, notes)
     before any code exists. The spec is then handed to generate_manim_code() to implement, which
@@ -1056,22 +1083,23 @@ def generate_spec(topic, subject, question=""):
     (the code pass then runs spec-free)."""
     question_line = ""
     if (question or "").strip():
-        question_line = ", focusing especially on answering: " + question.strip()
+        question_line = ", in worked-solution mode" if _render_mode(mode) == "question" else ", focusing especially on answering: " + question.strip()
     prompt = (SPEC_SYSTEM_PROMPT
               .replace("{topic}", topic or "")
               .replace("{subject}", subject or "General")
-              .replace("{question_line}", question_line))
+              .replace("{question_line}", question_line)
+              .replace("{mode_instructions}", _mode_instructions(mode, question)))
     return (gemini(prompt, temperature=0.5) or "").strip()
 
 
-def generate_manim_code(topic, subject, question="", broken=None, error=None, spec=None):
+def generate_manim_code(topic, subject, question="", broken=None, error=None, spec=None, mode="topic"):
     """Second pass: one Gemini call -> a complete Manim script (class MainScene) that implements
     the approved `spec` (when provided). On a repair pass the previous (broken) script and the
     render-error tail are appended so Gemini fixes to the same rules and the same spec. Returns
     raw Python source with any markdown fences stripped."""
     question_line = ""
     if (question or "").strip():
-        question_line = ", focusing especially on answering: " + question.strip()
+        question_line = ", in worked-solution mode" if _render_mode(mode) == "question" else ", focusing especially on answering: " + question.strip()
     spec_block = ""
     if (spec or "").strip():
         spec_block = ("\n### APPROVED SPECIFICATION (implement this EXACTLY)\n"
@@ -1083,7 +1111,8 @@ def generate_manim_code(topic, subject, question="", broken=None, error=None, sp
               .replace("{spec_block}", spec_block)
               .replace("{topic}", topic or "")
               .replace("{subject}", subject or "General")
-              .replace("{question_line}", question_line))
+              .replace("{question_line}", question_line)
+              .replace("{mode_instructions}", _mode_instructions(mode, question)))
     if broken is not None and error:
         prompt += ("\n\nThe PREVIOUS SCRIPT below failed to render. Return a corrected, "
                    "COMPLETE script that still follows every rule above, fixing the actual "
@@ -1428,6 +1457,8 @@ def _clean_fallback_text(value, max_len=120):
     """Short plain text for the deterministic fallback scene."""
     text = str(value or "")
     text = re.sub(r"---\s*Source material brief\s*---", " ", text, flags=re.I)
+    text = re.sub(r"---\s*Question/source solution brief\s*---", " ", text, flags=re.I)
+    text = re.sub(r"---\s*Topic/source context\s*---", " ", text, flags=re.I)
     text = re.sub(r"```[\s\S]*?```", " ", text)
     text = re.sub(r"\\[()[\]]|\$+", " ", text)
     text = re.sub(r"[#*_`>|]", " ", text)
@@ -1437,20 +1468,32 @@ def _clean_fallback_text(value, max_len=120):
     return text or "STEM lesson"
 
 
+def _question_name_from_prompt(prompt):
+    m = re.search(r"(?im)^\s*Question:\s*(.+?)\s*$", str(prompt or ""))
+    if m:
+        name = _clean_fallback_text(m.group(1), 54)
+        if name and name.lower() not in ("question solution", "question"):
+            return name
+    return "Question solution"
+
+
 def _fallback_points(prompt, question):
     """Extract a few safe teaching points from the prompt without asking Gemini again."""
     text = str(prompt or "")
     text = re.sub(r"---\s*Source material brief\s*---", ". ", text, flags=re.I)
+    text = re.sub(r"(?im)^\s*(Question|Parts|Question name|Full question to solve|Question to solve|Topic/context|Question solution request):.*$", " ", text)
     chunks = re.split(r"(?:\n+|[.;!?]\s+|-\s+|\u2022\s+)", text)
     points = []
     if (question or "").strip():
-        points.append("Answer the focus question: " + _clean_fallback_text(question, 95))
+        points.append("Work through the requested part step by step.")
     for chunk in chunks:
         t = _clean_fallback_text(chunk, 105)
         low = t.lower()
         if len(t) < 18:
             continue
-        if "file:" in low or "source material" in low or "attached image" in low:
+        if ("file:" in low or "source material" in low or "attached image" in low or
+                "question solution request" in low or "topic/context" in low or
+                "full question to solve" in low):
             continue
         if t not in points:
             points.append(t)
@@ -1468,9 +1511,9 @@ def _fallback_points(prompt, question):
     return points[:5]
 
 
-def fallback_scene_code(prompt, subject, question="", reason=""):
+def fallback_scene_code(prompt, subject, question="", reason="", mode="topic"):
     """A deterministic, low-risk Manim lesson used only after generated scenes fail."""
-    title = _clean_fallback_text(str(prompt or "").splitlines()[0], 54)
+    title = _question_name_from_prompt(prompt) if _render_mode(mode) == "question" else _clean_fallback_text(str(prompt or "").splitlines()[0], 54)
     subtitle = _clean_fallback_text(subject or "General", 42)
     points = _fallback_points(prompt, question)
     spoken_title = _clean_fallback_text(title, 90)
@@ -1544,7 +1587,7 @@ def health():
     return {"status": "ok", "model": MODEL, "model_candidates": _available_models()}
 
 
-def _run_job(job_id, prompt, subject, question):
+def _run_job(job_id, prompt, subject, question, mode="topic"):
     """Background worker: the full render pipeline, writing live progress into jobs[job_id].
     Progress: created 5 -> plan 10 -> code 20 -> render started 30 -> render done 70 ->
     captions 85 -> published 95 -> done 100. Two-pass generation: first design a Specification
@@ -1558,14 +1601,14 @@ def _run_job(job_id, prompt, subject, question):
         spec = ""
         try:
             _set(job_id, status="planning", progress=10)
-            spec = generate_spec(prompt, subject, question=question)
+            spec = generate_spec(prompt, subject, question=question, mode=mode)
         except Exception as e:
             print("[spec] generation failed, continuing without a spec: " + repr(e), flush=True)
             spec = ""
 
         # Pass 2 — write the MainScene that implements the Specification.
         try:
-            code = generate_manim_code(prompt, subject, question=question, spec=spec)
+            code = generate_manim_code(prompt, subject, question=question, spec=spec, mode=mode)
         except Exception as e:
             _set(job_id, status="error", error="Gemini call failed: {}".format(e))
             return
@@ -1582,7 +1625,7 @@ def _run_job(job_id, prompt, subject, question):
                     break
                 try:
                     code = generate_manim_code(prompt, subject, question=question,
-                                               broken=code, error=last_log, spec=spec)
+                                               broken=code, error=last_log, spec=spec, mode=mode)
                 except Exception as e:
                     _set(job_id, status="error", error="Repair call failed: {}".format(e))
                     return
@@ -1604,17 +1647,17 @@ def _run_job(job_id, prompt, subject, question):
                 break
             try:
                 code = generate_manim_code(prompt, subject, question=question,
-                                           broken=code, error=log, spec=spec)
+                                           broken=code, error=log, spec=spec, mode=mode)
             except Exception as e:
                 _set(job_id, status="error", error="Repair call failed: {}".format(e))
                 return
 
-        if not mp4 and FALLBACK_RENDER_ON_FAILURE:
+        if not mp4 and FALLBACK_RENDER_ON_FAILURE and _render_mode(mode) != "question":
             print("[render] generated scene failed after repairs; trying deterministic fallback.",
                   flush=True)
             try:
                 fallback_code = fallback_scene_code(prompt, subject, question=question,
-                                                    reason=last_log[-800:])
+                                                    reason=last_log[-800:], mode=mode)
                 validation_errors = validate_scene_code(fallback_code)
                 if validation_errors:
                     last_log += "\nFallback validation failed:\n" + "\n".join(validation_errors[:8])
@@ -1678,6 +1721,7 @@ def generate(req: GenReq):
     req.prompt = (req.prompt or "").strip()
     req.subject = (req.subject or "General").strip()[:MAX_SUBJECT_CHARS] or "General"
     req.question = (req.question or "").strip()
+    req.mode = _render_mode(req.mode)
     if not req.prompt:
         return JSONResponse(status_code=400, content={"error": "A 'prompt' is required."})
     if len(req.prompt) > MAX_PROMPT_CHARS:
@@ -1695,7 +1739,7 @@ def generate(req: GenReq):
                         "error": None, "created": time.time()}
     # Non-blocking: render on a background thread and return the id immediately so the
     # site can poll /status/{job_id} for live progress instead of holding the request open.
-    threading.Thread(target=_run_job, args=(job_id, req.prompt, req.subject, req.question),
+    threading.Thread(target=_run_job, args=(job_id, req.prompt, req.subject, req.question, req.mode),
                      daemon=True).start()
     return JSONResponse(content={"job_id": job_id})
 

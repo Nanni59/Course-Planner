@@ -3087,6 +3087,16 @@
         .st-chip.on { background: var(--color-study); color:#fff; border-color: var(--color-study);
             box-shadow: 0 4px 12px rgba(88,166,92,0.30); }
 
+        .vid-mode-tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:6px; margin:0 0 18px;
+            background: var(--clay-field-bg); border-radius:15px; box-shadow: var(--clay-shadow-field-inset); }
+        .vid-mode-btn { font-family:inherit; font-size:13.5px; font-weight:700; color:#5b6473; border:0; border-radius:11px;
+            background:transparent; padding:11px 12px; cursor:pointer; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
+        .vid-mode-btn:hover { color:#2c3340; background:rgba(255,255,255,.55); }
+        .vid-mode-btn.on { color:#fff; background:var(--color-study); box-shadow:0 6px 16px rgba(88,166,92,.28); }
+        .vid-mode-pane { display:none; }
+        .vid-mode-pane.active { display:block; }
+        .vid-part-actions { display:flex; justify-content:flex-end; margin-top:8px; }
+
         /* Toggle pill (LaTeX / math formatting) */
         .st-toggle-pill { display:flex; align-items:center; gap:12px; width:100%; font-family:inherit; font-size:13.5px; font-weight:600;
             color:#475067; cursor:pointer; text-align:left; padding:11px 13px; border-radius:13px;
@@ -3438,13 +3448,17 @@
         body.dark-mode .st-field > label,
         body.dark-mode .st-toggle-pill,
         body.dark-mode .st-chip,
+        body.dark-mode .vid-mode-btn,
         body.dark-mode .st-ws-toggle button,
         body.dark-mode .st-saved-list h4,
         body.dark-mode .st-dropzone p { color: #c2c9d6; }
         body.dark-mode .st-dd-opt { color: #cdd4e1; }
         body.dark-mode .st-dd-opt:hover,
         body.dark-mode .st-chip:hover,
+        body.dark-mode .vid-mode-btn:hover,
         body.dark-mode .st-toggle-pill:hover { background: #2f3a4a; }
+        body.dark-mode .vid-mode-tabs { background:#1b212b; }
+        body.dark-mode .vid-mode-btn.on { background:var(--color-study); color:#fff; }
         body.dark-mode .st-api-btn,
         body.dark-mode .st-back,
         body.dark-mode .st-btn-ghost,
@@ -11123,7 +11137,7 @@
         const HF_SPACE_URL = "https://nanni59-manim-renderer.hf.space";
         const hfReady = () => /^https:\/\/\S+/.test(HF_SPACE_URL) && HF_SPACE_URL.indexOf('YOUR-SPACE') === -1;
         const getModel = () => localStorage.getItem(ST_MODEL_STORE) || DEFAULT_MODEL;
-        const geminiUrl = () => 'https://generativelanguage.googleapis.com/v1beta/models/' + getModel() + ':generateContent';
+        const geminiUrl = model => 'https://generativelanguage.googleapis.com/v1beta/models/' + (model || getModel()) + ':generateContent';
 
         /* ---------- tiny helpers ---------- */
         // Keep every math variable in ONE face: the model bolds vectors with \mathbf{…} /
@@ -11322,20 +11336,36 @@
             if (!key) throw new Error('NO_KEY');
             // Schema calls occasionally come back as truncated/fenced JSON (more common with
             // YouTube-only sources), so retry a couple of times before surfacing a parse error.
-            const tries = schema ? 3 : 1;
+            // Plain text / vision calls used for video source extraction can also hit brief Gemini
+            // 5xx/429 hiccups. Try the selected model first, then reliable free fallbacks.
+            const models = Array.from(new Set([getModel(), DEFAULT_MODEL, 'gemini-2.5-flash-lite'].filter(Boolean)));
+            const tries = schema ? 3 : Math.max(3, models.length);
             let lastErr;
             for (let attempt = 1; attempt <= tries; attempt++) {
-                const res = await fetch(geminiUrl(), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-                    body: JSON.stringify({
-                        contents: [{ parts }],
-                        generationConfig: schema ? { responseMimeType: 'application/json', responseSchema: schema } : {}
-                    })
-                });
+                const model = models[(attempt - 1) % models.length];
+                let res;
+                try {
+                    res = await fetch(geminiUrl(model), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+                        body: JSON.stringify({
+                            contents: [{ parts }],
+                            generationConfig: schema ? { responseMimeType: 'application/json', responseSchema: schema } : {}
+                        })
+                    });
+                } catch (e) {
+                    lastErr = e;
+                    if (attempt < tries) { await wait(800 * attempt); continue; }
+                    throw e;
+                }
                 if (!res.ok) {
                     const body = await res.text().catch(() => '');
-                    throw new Error('GEMINI_' + res.status + ': ' + body.slice(0, 300));
+                    lastErr = new Error('GEMINI_' + res.status + ': ' + body.slice(0, 300));
+                    if ((res.status === 429 || res.status >= 500) && attempt < tries) {
+                        await wait(900 * attempt);
+                        continue;
+                    }
+                    throw lastErr;
                 }
                 const data = await res.json();
                 const text = (((data.candidates || [])[0] || {}).content || {}).parts;
@@ -11571,7 +11601,7 @@
             return (b / 1048576).toFixed(1) + ' MB';
         }
         async function sourceParts(scr) {
-            const st = scr._src || { files: [], yt: [] };
+            const st = (scr && scr._src) || { files: [], yt: [] };
             const parts = [];
             for (const f of st.files) parts.push(await fileToPart(f));
             // YouTube links are passed straight to Gemini, which reads the video natively
@@ -11579,7 +11609,7 @@
             for (const u of st.yt) parts.push({ fileData: { fileUri: ytNormalize(u) } });
             return parts;
         }
-        const srcCount = scr => { const s = scr._src || { files: [], yt: [] }; return s.files.length + s.yt.length; };
+        const srcCount = scr => { const s = (scr && scr._src) || { files: [], yt: [] }; return s.files.length + s.yt.length; };
         function clipForRenderer(s, max) {
             s = String(s || '').replace(/\s+/g, ' ').trim();
             if (s.length <= max) return s;
@@ -11599,6 +11629,23 @@
                 '- Convert visual information into simple 2D primitives Manim can draw: axes, dots, arrows, lines, polygons, labels, formulas, and step-by-step transformations.',
                 '- Omit decorative visual details, page layout, filenames, UI chrome, and anything not needed for the lesson.',
                 '- Keep the brief under 900 words. Plain text only.'
+            ].filter(Boolean).join('\n');
+        }
+        function videoQuestionBriefPrompt(questionPrompt, partsText) {
+            return [
+                'You are preparing a worked-solution brief for a short STEM video rendered by Manim.',
+                'Question: ' + questionPrompt,
+                partsText ? 'Optional parts/details: ' + partsText : '',
+                '',
+                'Read the attached question/source materials and return a solution-focused brief.',
+                'Important constraints:',
+                '- Begin with one short line: Display title: <short question label only>.',
+                '- The video must directly answer the question, including every visible or typed part, not summarize the general topic or restate the prompt.',
+                '- If an attachment is an image or screenshot, transcribe the full problem statement and all labels, values, diagrams, formulas, and part letters.',
+                '- Solve the problem step by step. Include final answers, units, exact values, and any assumptions needed.',
+                '- Convert diagrams into simple Manim-drawable relationships: axes, points, arrows, lines, regions, labels, and formulas.',
+                '- Do NOT ask the renderer to show, copy, import, trace, load, or reproduce the original picture/file.',
+                '- Keep the brief under 1200 words. Plain text only.'
             ].filter(Boolean).join('\n');
         }
 
@@ -11813,14 +11860,23 @@
             '<div class="st-screen" data-screen="video">' +
             toolHeadHTML(I.vid, 'STEM Video Generator') +
             '<div class="st-stage active" data-stage="setup">' +
-            '<div class="st-panel"><div class="st-panel-title">What should the video cover?</div><div class="st-panel-hint">Describe a math or physics topic — it’s rendered into a video with Manim.</div>' +
+            '<div class="st-panel"><div class="st-panel-title">What should the video cover?</div><div class="st-panel-hint">Choose whether Manim should teach a concept or solve a specific question step by step.</div>' +
+            '<div class="vid-mode-tabs" role="tablist" aria-label="Video type">' +
+            '<button type="button" class="vid-mode-btn on" data-vidmode="topic">Topic</button>' +
+            '<button type="button" class="vid-mode-btn" data-vidmode="question">Question</button></div>' +
+            '<div class="vid-mode-pane active" data-vidpane="topic">' +
             '<div class="st-field"><label>Topic</label><textarea class="st-textarea" id="vidTopic" placeholder="Describe a math or physics topic to animate…"></textarea></div>' +
-            // Questions + attached source materials share ONE section: both refine what the lesson
-            // should cover (questions in words, materials as files).
-            '<div class="st-field"><label>Question(s) <span style="color:#9097a6;font-weight:400">(optional)</span></label>' +
-            '<input class="st-input" id="vidQuestion" style="margin-bottom:11px">' +
+            '<div class="st-field" id="vidTopicSrc"><label>Topic source materials <span style="color:#9097a6;font-weight:400">(optional)</span></label>' +
             dropzoneHTML() +
-            '<div class="st-source-list" data-srclist></div></div>' +
+            '<div class="st-source-list" data-srclist></div></div></div>' +
+            '<div class="vid-mode-pane" data-vidpane="question">' +
+            '<div class="st-field"><label>Question</label><input class="st-input" id="vidQuestionName" placeholder="e.g. Question 2: Find the tangent line"></div>' +
+            '<div class="st-field"><label>Parts <span style="color:#9097a6;font-weight:400">(optional)</span></label>' +
+            '<textarea class="st-textarea" id="vidQuestion" placeholder="Add Part A, Part B, or extra details here."></textarea>' +
+            '<div class="vid-part-actions"><button type="button" class="st-btn st-btn-ghost" data-vidaddpart>Add part</button></div></div>' +
+            '<div class="st-field" id="vidQuestionSrc"><label>Question source materials <span style="color:#9097a6;font-weight:400">(optional)</span></label>' +
+            dropzoneHTML() +
+            '<div class="st-source-list" data-srclist></div></div></div>' +
             '<div class="st-actions"><button class="st-btn" id="vidGen">' + I.spark + ' Generate video</button></div>' +
             '<div class="vid-estimate">' + I.clock + ' Rendered with Manim on a server — the first run wakes the renderer (~30s), then rendering takes about 2–5 minutes. Keep this tab open.</div>' +
             '</div><div class="st-saved-list" data-saved="video"></div></div>' +
@@ -11981,7 +12037,38 @@
         });
 
         // init source managers
-        ['worksheet', 'guide', 'flashcards', 'allinone', 'slides', 'video'].forEach(n => initSource(screenEl(n)));
+        ['worksheet', 'guide', 'flashcards', 'allinone', 'slides'].forEach(n => initSource(screenEl(n)));
+        const vidTopicSrc = document.getElementById('vidTopicSrc');
+        const vidQuestionSrc = document.getElementById('vidQuestionSrc');
+        if (vidTopicSrc) initSource(vidTopicSrc);
+        if (vidQuestionSrc) initSource(vidQuestionSrc);
+        const vidScreen = screenEl('video');
+        if (vidScreen) {
+            vidScreen._resetSrc = () => {
+                if (vidTopicSrc && vidTopicSrc._resetSrc) vidTopicSrc._resetSrc();
+                if (vidQuestionSrc && vidQuestionSrc._resetSrc) vidQuestionSrc._resetSrc();
+                setVidMode('topic');
+            };
+            vidScreen._flushSrc = () => {
+                if (vidTopicSrc && vidTopicSrc._flushSrc) vidTopicSrc._flushSrc();
+                if (vidQuestionSrc && vidQuestionSrc._flushSrc) vidQuestionSrc._flushSrc();
+            };
+        }
+        function setVidMode(mode) {
+            mode = mode === 'question' ? 'question' : 'topic';
+            root.querySelectorAll('[data-vidmode]').forEach(btn => btn.classList.toggle('on', btn.getAttribute('data-vidmode') === mode));
+            root.querySelectorAll('[data-vidpane]').forEach(pane => pane.classList.toggle('active', pane.getAttribute('data-vidpane') === mode));
+        }
+        root.querySelectorAll('[data-vidmode]').forEach(btn => btn.addEventListener('click', () => setVidMode(btn.getAttribute('data-vidmode'))));
+        const vidAddPartBtn = root.querySelector('[data-vidaddpart]');
+        if (vidAddPartBtn) vidAddPartBtn.addEventListener('click', () => {
+            const q = document.getElementById('vidQuestion');
+            if (!q) return;
+            const existing = (q.value.match(/\bPart\s+[A-Z]/gi) || []).length;
+            const label = String.fromCharCode(65 + Math.min(existing, 25));
+            q.value = (q.value.trim() ? q.value.trim() + '\n\n' : '') + 'Part ' + label + ': ';
+            q.focus();
+        });
 
         /* ---------- generating animation ---------- */
         function animateSteps(container, steps) {
@@ -13157,11 +13244,19 @@
         }
         // The (now only) video path: render a Manim MP4 on the Hugging Face Space and play it.
         // No silent fallback — on any failure we show a specific, actionable error.
-        async function vidGenerateManim(topic, subjType, question) {
+        async function vidGenerateManim(opts) {
+            opts = opts || {};
+            const mode = opts.mode === 'question' ? 'question' : 'topic';
+            const topic = (opts.topic || '').trim();
+            const partsText = (opts.partsText || '').trim();
+            const questionPrompt = (opts.questionPrompt || '').trim();
+            const topicSrc = opts.topicSrc || null;
+            const questionSrc = opts.questionSrc || null;
+            const videoTitle = mode === 'question' ? (clipForRenderer(questionPrompt, 80) || 'Question solution') : (topic || 'Video lesson');
             const scr = screenEl('video');
             const resultEl = document.getElementById('vidResult');
-            resultEl._subjType = subjType;
-            const subjectText = VID_SUBJECT_LABEL[subjType] || 'General';
+            resultEl._subjType = opts.subjType || 'stem';
+            const subjectText = VID_SUBJECT_LABEL[opts.subjType || 'stem'] || 'General';
             setStage(scr, 'gen');
             const genEl = scr.querySelector('[data-stage="gen"]');
             const sub = genEl ? genEl.querySelector('.st-gen-sub') : null;
@@ -13209,17 +13304,35 @@
                 if (!(await hfWait(90000, setSub))) { showErr('The renderer didn’t respond — it may still be starting up. Try again in about 30 seconds.'); return; }
                 setSub('Generating lesson content…');
                 // If the user attached source materials, read them in the browser with Gemini
-                // (PDFs, slides, images, audio) and fold a concise brief into the prompt — the
-                // server-side renderer only accepts text, so extraction happens here.
-                let promptText = topic;
+                // (PDFs, slides, images, audio) and fold a concise brief into the prompt. The
+                // server-side renderer only accepts text, so extraction happens here. Topic and
+                // question modes stay separate so problem-solving requests are not diluted into a
+                // generic "teach this topic" lesson.
+                let promptText = '';
+                let questionTextForBackend = '';
                 try {
-                    const srcParts = await sourceParts(scr);
-                    if (srcParts.length) {
-                        setSub('Reading your source materials…');
-                        const brief = await gemini([{ text: videoSourceBriefPrompt(topic, question) }, ...srcParts]);
-                        if (brief && brief.trim()) promptText = topic + '\n\n--- Source material brief ---\n' + clipForRenderer(brief, 6500);
-                        setSub('Generating lesson content…');
+                    if (mode === 'question') {
+                        const qParts = await sourceParts(questionSrc);
+                        let qBrief = '';
+                        if (qParts.length) {
+                            setSub('Reading your question materials…');
+                            qBrief = await gemini([{ text: videoQuestionBriefPrompt(questionPrompt, partsText) }, ...qParts]);
+                        }
+                        const qBody = [questionPrompt, partsText].filter(Boolean).join('\n\n');
+                        questionTextForBackend = clipForRenderer([qBody, qBrief].filter(Boolean).join('\n\n'), 3800);
+                        promptText = 'Question: ' + clipForRenderer(questionPrompt, 1200) +
+                            (partsText ? '\n\nParts:\n' + clipForRenderer(partsText, 3500) : '') +
+                            (qBrief ? '\n\n--- Question/source solution brief ---\n' + clipForRenderer(qBrief, 6500) : '');
+                    } else {
+                        const srcParts = await sourceParts(topicSrc);
+                        promptText = topic || 'STEM topic from attached source materials';
+                        if (srcParts.length) {
+                            setSub('Reading your source materials…');
+                            const brief = await gemini([{ text: videoSourceBriefPrompt(topic, '') }, ...srcParts]);
+                            if (brief && brief.trim()) promptText = (topic || 'STEM topic') + '\n\n--- Source material brief ---\n' + clipForRenderer(brief, 6500);
+                        }
                     }
+                    setSub('Generating lesson content…');
                 } catch (e) {
                     console.error('[video] source extraction failed', e);
                     showErr(geminiErr(e));
@@ -13230,7 +13343,7 @@
                 try {
                     res = await fetch(HF_SPACE_URL + '/generate', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: promptText, subject: subjectText, question: question || '' })
+                        body: JSON.stringify({ prompt: promptText, subject: subjectText, question: questionTextForBackend || questionPrompt || '', mode: mode })
                     });
                 } catch (e) { showErr('Couldn’t reach the renderer. Check your connection and that the Space is running, then try again.'); return; }
                 if (!res.ok) {
@@ -13284,7 +13397,7 @@
                         setSub('Done!');
                         await wait(700);
                         console.log('[video] render done — captions:', captions.length, '| source:', blob ? 'local blob' : 'stream');
-                        vidBuildMp4(playUrl, topic, resultEl, captions, { blob: blob });
+                        vidBuildMp4(playUrl, videoTitle, resultEl, captions, { blob: blob });
                         setStage(scr, 'result');
                         markDirty();
                         return;
@@ -13300,16 +13413,34 @@
         /* ---------- video: generate ---------- */
         const vidGenBtn = document.getElementById('vidGen');
         if (vidGenBtn) vidGenBtn.addEventListener('click', () => {
+            const activeModeBtn = root.querySelector('[data-vidmode].on');
+            const mode = activeModeBtn ? activeModeBtn.getAttribute('data-vidmode') : 'topic';
             const topic = document.getElementById('vidTopic').value.trim();
-            if (!topic) { toast('Enter a topic for the video.', 'err'); return; }
             if (!hfReady()) { toast('The Manim renderer isn’t set up yet — paste your Space URL into HF_SPACE_URL.', 'err'); return; }
-            const scr = screenEl('video');
+            const qNameEl = document.getElementById('vidQuestionName');
+            const qEl = document.getElementById('vidQuestion');
+            const questionPrompt = qNameEl ? (qNameEl.value || '').trim() : '';
+            const partsText = qEl ? (qEl.value || '').trim() : '';
+            const topicSourceCount = srcCount(vidTopicSrc);
+            const questionSourceCount = srcCount(vidQuestionSrc);
+            if (mode === 'question') {
+                if (!questionPrompt) { toast('Enter the question first.', 'err'); return; }
+            } else if (!topic && topicSourceCount === 0) {
+                toast('Enter a topic or add topic source materials.', 'err'); return;
+            }
             // Source materials are read in the browser by Gemini before the topic is sent to the
             // renderer, so a key is required only when materials are attached.
-            if (srcCount(scr) > 0 && !hasKey()) { openApiModal(); return; }
-            const qEl = document.getElementById('vidQuestion');
-            const question = qEl ? (qEl.value || '').trim() : '';
-            vidGenerateManim(topic, 'stem', question);
+            const activeSourceCount = mode === 'question' ? questionSourceCount : topicSourceCount;
+            if (activeSourceCount > 0 && !hasKey()) { openApiModal(); return; }
+            vidGenerateManim({
+                mode: mode,
+                topic: mode === 'question' ? questionPrompt : topic,
+                questionPrompt: questionPrompt,
+                partsText: partsText,
+                topicSrc: vidTopicSrc,
+                questionSrc: vidQuestionSrc,
+                subjType: 'stem'
+            });
         });
 
         // Stop narration and any in-flight progress polling when leaving the video screen.
