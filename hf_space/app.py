@@ -1057,9 +1057,12 @@ def _render_mode(mode):
 
 def _mode_instructions(mode, question=""):
     if _render_mode(mode) != "question":
-        return ("MODE: TOPIC LESSON. Teach the named topic/concept clearly. If a question or "
-                "source brief is present, use it only to focus the lesson, not as the whole "
-                "structure unless it explicitly asks for a worked solution.")
+        return ("""MODE: TOPIC LESSON. Teach the named topic/concept through animation, not through a summary.
+- The primary goal is to ANIMATE the concept. Do not make an outline slide, bullet-list overview, static checklist, or "visual summary" screen.
+- Every phase must contain visible mathematical motion: draw, transform, sweep, move, rotate, highlight, trace, substitute, or morph objects on screen.
+- Prefer diagrams, axes, arrows, geometric objects, formulas, tracked points, highlighted intersections, and step-by-step transformations over text paragraphs.
+- Use on-screen words only as short labels. Never show more than three short labels at once, and never build a numbered list of teaching points.
+- If a question or source brief is present, use it only to focus the lesson, not as the whole structure unless it explicitly asks for a worked solution.""")
     q = (question or "").strip()
     extra = ("\nRequired question and optional parts to solve:\n" + q[:5000]) if q else ""
     return ("""MODE: QUESTION SOLUTION. The primary goal is to ANSWER the provided question, including every part/subpart, not to summarize or generally introduce the topic.
@@ -1515,7 +1518,6 @@ def fallback_scene_code(prompt, subject, question="", reason="", mode="topic"):
     """A deterministic, low-risk Manim lesson used only after generated scenes fail."""
     title = _question_name_from_prompt(prompt) if _render_mode(mode) == "question" else _clean_fallback_text(str(prompt or "").splitlines()[0], 54)
     subtitle = _clean_fallback_text(subject or "General", 42)
-    points = _fallback_points(prompt, question)
     spoken_title = _clean_fallback_text(title, 90)
     return """
 from manim import *
@@ -1524,60 +1526,74 @@ from manim import *
 class MainScene(Scene):
     def construct(self):
         self.camera.background_color = "#111827"
-        title = Text(%s, font="DejaVu Sans", font_size=40, color=WHITE).to_edge(UP, buff=0.55)
+        title = Text(%s, font="DejaVu Sans", font_size=34, color=WHITE).to_edge(UP, buff=0.55)
         subtitle = Text(%s, font="DejaVu Sans", font_size=24, color="#A7F3D0").next_to(title, DOWN, buff=0.18)
 
         self.add_subcaption(%s)
         self.play(Write(title), FadeIn(subtitle, shift=UP * 0.15), run_time=2.4)
 
-        frame = RoundedRectangle(width=10.8, height=4.25, corner_radius=0.25, stroke_color="#38BDF8", stroke_width=2)
-        left = Circle(radius=0.55, color="#60A5FA").shift(LEFT * 3.1 + UP * 0.45)
-        mid = Circle(radius=0.55, color="#FBBF24").shift(UP * 0.45)
-        right = Circle(radius=0.55, color="#34D399").shift(RIGHT * 3.1 + UP * 0.45)
-        arrows = VGroup(
-            Arrow(left.get_right(), mid.get_left(), buff=0.12, color=WHITE),
-            Arrow(mid.get_right(), right.get_left(), buff=0.12, color=WHITE),
-        )
-        labels = VGroup(
-            Text("Given", font="DejaVu Sans", font_size=25, color=WHITE).next_to(left, DOWN, buff=0.25),
-            Text("Reason", font="DejaVu Sans", font_size=25, color=WHITE).next_to(mid, DOWN, buff=0.25),
-            Text("Result", font="DejaVu Sans", font_size=25, color=WHITE).next_to(right, DOWN, buff=0.25),
-        )
-        diagram = VGroup(frame, left, mid, right, arrows, labels).move_to(ORIGIN)
-        self.add_subcaption("First, organize the lesson into what is given, the reasoning step, and the result.")
-        self.play(Create(frame), LaggedStart(FadeIn(left), FadeIn(mid), FadeIn(right), Create(arrows), FadeIn(labels), lag_ratio=0.18), run_time=4.2)
+        axes = Axes(
+            x_range=[-4, 4, 1],
+            y_range=[-3, 3, 1],
+            x_length=7.4,
+            y_length=4.7,
+            tips=True,
+            axis_config={"color": GREY}
+        ).shift(DOWN * 0.25)
+        plane_label = Text("visual model", font="DejaVu Sans", font_size=24, color="#A7F3D0").next_to(axes, UP, buff=0.25)
 
-        points = %s
-        rows = VGroup()
-        for i, line in enumerate(points, start=1):
-            badge = Circle(radius=0.22, color="#34D399", fill_opacity=0.22)
-            num = Text(str(i), font="DejaVu Sans", font_size=18, color=WHITE).move_to(badge)
-            body = Text(line, font="DejaVu Sans", font_size=24, color=WHITE)
-            row = VGroup(VGroup(badge, num), body).arrange(RIGHT, buff=0.25, aligned_edge=UP)
-            if row.width > 10.6:
-                row.scale_to_fit_width(10.6)
-            rows.add(row)
-        rows.arrange(DOWN, aligned_edge=LEFT, buff=0.27).move_to(ORIGIN).shift(DOWN * 0.15)
+        self.add_subcaption("Start by turning the topic into a visual model instead of a written outline.")
+        self.play(Create(axes), FadeIn(plane_label, shift=UP * 0.15), run_time=3.6)
 
-        self.add_subcaption("Now turn the source material into a clean sequence of ideas.")
-        self.play(FadeOut(diagram), run_time=0.9)
-        for i, row in enumerate(rows):
-            self.add_subcaption("Point " + str(i + 1) + ": " + points[i])
-            self.play(FadeIn(row, shift=RIGHT * 0.2), run_time=2.4)
+        tracker = ValueTracker(-2.6)
+        path = axes.plot(lambda x: 0.45 * x + 0.6, x_range=[-2.8, 2.8], color=BLUE)
+        moving_dot = always_redraw(lambda: Dot(
+            axes.c2p(tracker.get_value(), 0.45 * tracker.get_value() + 0.6),
+            color=YELLOW
+        ))
+        vector = always_redraw(lambda: Arrow(
+            axes.c2p(0, 0),
+            moving_dot.get_center(),
+            buff=0,
+            color=GREEN
+        ))
+        x_proj = always_redraw(lambda: DashedLine(
+            axes.c2p(tracker.get_value(), 0),
+            moving_dot.get_center(),
+            color=GREY
+        ))
+        y_proj = always_redraw(lambda: DashedLine(
+            axes.c2p(0, 0.45 * tracker.get_value() + 0.6),
+            moving_dot.get_center(),
+            color=GREY
+        ))
+        formula = MathTex(r"\\text{quantity} \\rightarrow \\text{relationship}", color=WHITE, font_size=36).to_edge(UP, buff=1.35)
 
-        box = SurroundingRectangle(rows, color="#FBBF24", buff=0.22, stroke_width=2)
-        takeaway = Text("Core takeaway", font="DejaVu Sans", font_size=30, color="#FBBF24").next_to(rows, DOWN, buff=0.35)
-        if takeaway.get_bottom()[1] < -3.45:
-            takeaway.to_edge(DOWN, buff=0.35)
-        self.add_subcaption("The takeaway is to connect each known fact to the next step, then check that the result answers the question.")
-        self.play(Create(box), FadeIn(takeaway, shift=UP * 0.15), run_time=2.8)
-        self.play(Indicate(box, color="#FBBF24"), run_time=1.6)
+        self.add_subcaption("A moving point and arrow show how one changing quantity controls another.")
+        self.play(Create(path), GrowArrow(vector), FadeIn(moving_dot), FadeIn(x_proj), FadeIn(y_proj), Write(formula), run_time=4.8)
+        self.play(tracker.animate.set_value(2.6), run_time=6.5, rate_func=linear)
+
+        highlight = Circle(radius=0.22, color="#FFD700").move_to(moving_dot)
+        result_formula = MathTex(r"\\text{model} \\rightarrow \\text{rule} \\rightarrow \\text{prediction}", color=WHITE, font_size=34).to_edge(UP, buff=1.35)
+        self.add_subcaption("The key step is to connect the picture to the rule that explains the pattern.")
+        self.play(Create(highlight), TransformMatchingTex(formula, result_formula), run_time=3.4)
+        self.play(Indicate(path, color="#FFD700"), tracker.animate.set_value(-1.8), run_time=4.5)
+
+        start_label = Text("start", font="DejaVu Sans", font_size=22, color=WHITE).next_to(axes.c2p(-1.8, 0.45 * -1.8 + 0.6), DOWN, buff=0.25)
+        end_label = Text("change", font="DejaVu Sans", font_size=22, color=WHITE).next_to(moving_dot, RIGHT, buff=0.22)
+        self.add_subcaption("Labels mark only the important objects, while the animation carries the explanation.")
+        self.play(FadeIn(start_label), FadeIn(end_label), tracker.animate.set_value(1.9), run_time=5.4)
+
+        box = SurroundingRectangle(VGroup(axes, path, vector, moving_dot), color="#34D399", buff=0.28, stroke_width=2)
+        takeaway = Text("picture -> relationship -> result", font="DejaVu Sans", font_size=28, color="#FBBF24").to_edge(DOWN, buff=0.55)
+        self.add_subcaption("The takeaway is to read the visual relationship first, then use the rule to reason forward.")
+        self.play(Create(box), FadeIn(takeaway, shift=UP * 0.15), run_time=3.2)
+        self.play(Indicate(box, color="#FBBF24"), run_time=1.4)
         self.wait(0.5)
 """ % (
         json.dumps(title),
         json.dumps(subtitle),
-        json.dumps("Let's build a reliable visual summary for " + spoken_title + "."),
-        json.dumps(points),
+        json.dumps("Let's build a visual explanation for " + spoken_title + "."),
     )
 
 

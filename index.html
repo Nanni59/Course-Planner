@@ -3727,6 +3727,9 @@
         .sd-compare-card ul { margin:0; padding-left:18px; color:#34445c; line-height:1.55; font-size:13px; }
         .sd-network-visual { width:min(520px,100%); min-height:250px; position:relative; }
         .sd-network-svg { width:100%; height:250px; display:block; }
+        .sd-concept-svg { width:min(560px,100%); height:270px; display:block; }
+        .sd-svg-label { font-family:'Century Gothic','Futura','Montserrat',sans-serif; font-size:14px; font-weight:800; fill:#244d31; }
+        .sd-svg-note { font-family:'Century Gothic','Futura','Montserrat',sans-serif; font-size:12px; font-weight:700; fill:#566071; }
         .sd-node-label { font-family:'Century Gothic','Futura','Montserrat',sans-serif; font-size:12px; font-weight:700; fill:#244d31; }
         .sd-icon-visual { width:min(540px,100%); display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; }
         .sd-icon-card { min-height:98px; border-radius:15px; background:#fff; border:1px solid #dbe9dd; box-shadow:0 6px 16px rgba(42,80,48,.06);
@@ -3876,6 +3879,8 @@
         body.dark-mode .sd-bar-label,
         body.dark-mode .sd-compare-card h4,
         body.dark-mode .sd-icon-card span { color:#dfeee1; }
+        body.dark-mode .sd-svg-label { fill:#dfeee1; }
+        body.dark-mode .sd-svg-note { fill:#b9c4d5; }
         body.dark-mode .sd-node-label { fill:#dfeee1; }
         body.dark-mode .sd-mermaid { color:#dfeee1; }
         body.dark-mode .sd-mermaid .node rect,
@@ -11257,6 +11262,7 @@
         const ST_GUIDES = 'cp_study_guides';
         const ST_WORKSHEETS = 'cp_study_worksheets';
         const ST_SLIDES = 'cp_study_slides';
+        const ST_SETS = 'cp_study_sets';
         const ST_VIDEOS = 'cp_study_videos';  // metadata index only; the mp4 blobs live in IndexedDB
         const MAX_INLINE = 18 * 1024 * 1024; // 18 MB per binary file
 
@@ -11597,13 +11603,14 @@
             properties: {
                 title: { type: 'string' }, course: { type: 'string' }, readTime: { type: 'string' }, overview: { type: 'string' },
                 concepts: { type: 'array', items: { type: 'object', properties: { term: { type: 'string' }, body: { type: 'string' } }, required: ['term', 'body'], propertyOrdering: ['term', 'body'] } },
+                realLifeExamples: { type: 'array', items: { type: 'object', properties: { concept: { type: 'string' }, example: { type: 'string' } }, required: ['concept', 'example'], propertyOrdering: ['concept', 'example'] } },
                 formulas: { type: 'array', items: { type: 'string' } },
                 example: { type: 'object', properties: { prompt: { type: 'string' }, steps: { type: 'array', items: { type: 'string' } } }, propertyOrdering: ['prompt', 'steps'] },
                 takeaways: { type: 'array', items: { type: 'string' } },
                 quiz: { type: 'array', items: { type: 'string' } }
             },
             required: ['title', 'overview', 'concepts', 'takeaways'],
-            propertyOrdering: ['title', 'course', 'readTime', 'overview', 'concepts', 'formulas', 'example', 'takeaways', 'quiz']
+            propertyOrdering: ['title', 'course', 'readTime', 'overview', 'concepts', 'realLifeExamples', 'formulas', 'example', 'takeaways', 'quiz']
         };
         const DECK_SCHEMA = {
             type: 'object',
@@ -11613,6 +11620,20 @@
             },
             required: ['deckTitle', 'cards'], propertyOrdering: ['deckTitle', 'cards']
         };
+        function nonStemExampleRules(subject, topic) {
+            const label = ((subject || '') + ' ' + (topic || '')).toLowerCase();
+            const stemLike = /\b(math|mathematics|algebra|geometry|calculus|statistics|physics|chemistry|biology|engineering|coding|programming|computer science|stem)\b/.test(label);
+            if (stemLike) return '';
+            return [
+                '',
+                'NON-STEM REAL-LIFE EXAMPLES:',
+                '- Because this appears to be a non-STEM topic, include concrete real-life examples that make abstract concepts practical.',
+                '- For business, economics, management, leadership, marketing, finance, law, social science, humanities, or similar subjects, explain each major concept with a realistic workplace, market, organization, policy, consumer, or everyday scenario.',
+                '- If source materials do not provide examples, add accurate, common real-world examples from general knowledge without claiming they came from the source.',
+                '- Keep examples self-contained and specific: name the situation, show how the concept appears, and explain why it matters.',
+                '- Avoid saying "from the source", "from the document", "from the slide", or "from the image" when giving examples.'
+            ].join('\n');
+        }
 
         /* =========================================================
            Source inputs (files + YouTube) → Gemini parts
@@ -12134,7 +12155,7 @@
             scr.querySelectorAll('.st-stage').forEach(s => s.classList.toggle('active', s.getAttribute('data-stage') === name));
         }
         function visibleSaveButton(container) {
-            const saveButtons = Array.prototype.slice.call(container.querySelectorAll('[data-wssave], [data-gsave], [data-fsave], [data-sdsave], [data-vidsave]'));
+            const saveButtons = Array.prototype.slice.call(container.querySelectorAll('[data-aiosave], [data-wssave], [data-gsave], [data-fsave], [data-sdsave], [data-vidsave]'));
             return saveButtons.find(btn => !btn.disabled && btn.getClientRects().length > 0);
         }
         function activeStudySaveButton() {
@@ -12155,6 +12176,7 @@
         root.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
             const t = b.getAttribute('data-open');
             const scr = screenEl(t);
+            stBackTarget = 'hub';
             // Start each generator fresh — don't carry over files/YouTube links from a previous run.
             if (scr._resetSrc) scr._resetSrc();
             syncSubjectOptions(); // reflect any courses added/removed since load (all four Subject dropdowns)
@@ -12205,9 +12227,19 @@
             if (stDirty) { e.preventDefault(); e.returnValue = ''; return ''; }
         });
 
-        // Back arrow returns to the hub, abandoning the current result.
+        let stBackTarget = 'hub';
+        function stGoBack() {
+            const target = stBackTarget || 'hub';
+            stBackTarget = 'hub';
+            window.cpStudyConfirmLeave(() => {
+                sdStop();
+                setScreen(target);
+                if (target === 'generated') renderGeneratedAll();
+            });
+        }
+        // Back arrow returns to the hub by default, or to Generated Items after opening a saved item from there.
         root.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => {
-            window.cpStudyConfirmLeave(() => setScreen('hub'));
+            stGoBack();
         }));
         initDD(root);
 
@@ -12566,7 +12598,9 @@
                     (parts.length ? ' and any attached materials' : '') + ', ' +
                     'produce a clear, well-structured study guide. Include: a concise title; the course/unit if identifiable; an estimated read time; ' +
                     'a plain-language overview (1–2 paragraphs); key concepts as term + explanation; important formulas if any; ' +
-                    'one fully worked example with ordered steps; key takeaways; and a few short self-check quiz questions.' +
+                    'one fully worked example with ordered steps; key takeaways; and a few short self-check quiz questions. ' +
+                    'For non-STEM topics, fill realLifeExamples with one practical, concrete example for each major concept or term.' +
+                    nonStemExampleRules(subject, topic) +
                     (latexOn('gLatex') ? LATEX_ON : '');
                 const g = await gemini([{ text: prompt }].concat(parts), GUIDE_SCHEMA);
                 renderGuide(g);
@@ -12588,6 +12622,7 @@
                 (g.readTime ? '<span>' + I.clock + ' ' + esc(g.readTime) + '</span>' : '') + '</div></div>';
             if (g.overview) html += gSection('Overview', '<p>' + escFlow(g.overview) + '</p>');
             if (g.concepts && g.concepts.length) html += gSection('Key Concepts', g.concepts.map(c => '<div class="st-concept"><div class="st-c-term">' + esc(c.term) + '</div><div class="st-c-body">' + escFlow(c.body) + '</div></div>').join(''));
+            if (g.realLifeExamples && g.realLifeExamples.length) html += gSection('Real-Life Examples', g.realLifeExamples.map(ex => '<div class="st-concept"><div class="st-c-term">' + esc(ex.concept || 'Example') + '</div><div class="st-c-body">' + escFlow(ex.example || '') + '</div></div>').join(''));
             if (g.formulas && g.formulas.length) html += gSection('Formulas', g.formulas.map(f => '<div class="st-formula">' + esc(f) + '</div>').join(''));
             if (g.example && (g.example.prompt || (g.example.steps || []).length)) html += gSection('Worked Example', (g.example.prompt ? '<p><strong>' + escFlow(g.example.prompt) + '</strong></p>' : '') + '<ol class="st-steps">' + (g.example.steps || []).map(s => '<li>' + escFlow(s) + '</li>').join('') + '</ol>');
             if (g.takeaways && g.takeaways.length) html += gSection('Key Takeaways', g.takeaways.map(t => '<div class="st-take"><span class="st-take-ck">' + I.check + '</span><span>' + escFlow(t) + '</span></div>').join(''));
@@ -12751,7 +12786,9 @@
                     'You are an expert tutor. Using ' + basis + (focus ? ' (focus on: ' + focus + ')' : '') +
                     ' and any attached materials, produce a clear, well-structured study guide. Include: a concise title; the course/unit if identifiable; an estimated read time; ' +
                     'a plain-language overview (1–2 paragraphs); key concepts as term + explanation; important formulas if any; ' +
-                    'one fully worked example with ordered steps; key takeaways; and a few short self-check quiz questions.' + mathRules;
+                    'one fully worked example with ordered steps; key takeaways; and a few short self-check quiz questions. ' +
+                    'For non-STEM topics, fill realLifeExamples with one practical, concrete example for each major concept or term.' +
+                    nonStemExampleRules(subject, topic) + mathRules;
                 const guide = await gemini([{ text: gPrompt }].concat(parts), GUIDE_SCHEMA);
 
                 const fPrompt =
@@ -12785,8 +12822,8 @@
                 deck.deckTitle = sharedTitle;
                 slideDeck.title = sharedTitle;
 
-                AIO = { ws: wsData, guide: guide, deck: deck, slides: slideDeck };
-                renderAIO();
+                AIO = { title: sharedTitle, subject: subject || '', ws: wsData, guide: guide, deck: deck, slides: slideDeck };
+                renderAIO(false);
                 markDirty();
             });
         });
@@ -12794,11 +12831,13 @@
         // tab switcher — no navigating away, so the set is never lost and each view
         // keeps its full toolbar (incl. its own Save button). Each pane is rendered
         // once and only toggled visible, so save state / position persist on tab switch.
-        function renderAIO() {
+        function renderAIO(alreadySaved) {
             const res = document.getElementById('aioResult');
+            const title = (AIO && (AIO.title || (AIO.ws && AIO.ws.title) || (AIO.guide && AIO.guide.title) || (AIO.slides && AIO.slides.title) || (AIO.deck && AIO.deck.deckTitle))) || 'Study set';
             res.innerHTML =
                 '<div class="st-guide-head"><h2>Your study set is ready</h2>' +
                 '<div class="st-guide-meta"><span>Switch between the four below — each can be reviewed, tweaked and saved.</span></div></div>' +
+                '<div class="st-actions" style="justify-content:flex-end;margin:0 0 12px"><button class="st-btn" data-aiosave>' + I.save + ' Save study set</button></div>' +
                 '<div class="st-ws-toggle st-aio-tabs">' +
                 '<button data-aiotab="ws" class="on">Worksheet</button>' +
                 '<button data-aiotab="guide">Study Guide</button>' +
@@ -12812,6 +12851,7 @@
             renderWorksheet(AIO.ws, res.querySelector('[data-aiopane="ws"]'));
             renderGuide(AIO.guide, false, res.querySelector('[data-aiopane="guide"]'));
             showDeck(AIO.deck, false, res.querySelector('[data-aiopane="deck"]'));
+            res.querySelectorAll('[data-wssave], [data-gsave], [data-fsave]').forEach(btn => btn.remove());
             const slidesPane = res.querySelector('[data-aiopane="slides"]');
             slidesPane._subj = (AIO.slides && AIO.slides.subject) || '';
             // The slides pane is a live Reveal.js iframe that lays out to its container
@@ -12821,14 +12861,21 @@
             const tabs = res.querySelectorAll('[data-aiotab]');
             tabs.forEach(t => t.addEventListener('click', () => {
                 const k = t.getAttribute('data-aiotab');
-                sdStop(); // halt any slide narration when switching tabs
+                if (k !== 'slides') {
+                    sdStop(); // halt any slide narration when switching away from the slide deck
+                    slidesBuilt = false;
+                }
                 tabs.forEach(x => x.classList.toggle('on', x === t));
                 res.querySelectorAll('[data-aiopane]').forEach(p => {
                     const show = p.getAttribute('data-aiopane') === k;
                     p.style.display = show ? '' : 'none';
                     if (!show) return;
                     if (k === 'slides') {
-                        if (!slidesBuilt) { slidesBuilt = true; buildSlidePlayer(AIO.slides, slidesPane); }
+                        if (!slidesBuilt) {
+                            slidesBuilt = true;
+                            buildSlidePlayer(AIO.slides, slidesPane, alreadySaved, { embedded: true });
+                            slidesPane.querySelectorAll('[data-sdsave], [data-sdnew]').forEach(btn => btn.remove());
+                        }
                     } else {
                         // Re-lay out the now-visible pane: it was typeset while hidden
                         // (width 0), so wrap/scale couldn't measure until shown.
@@ -12836,15 +12883,40 @@
                     }
                 });
             }));
+            const saveBtn = res.querySelector('[data-aiosave]');
+            function markSetSaved() {
+                if (saveBtn) {
+                    saveBtn.innerHTML = I.check + ' Saved';
+                    saveBtn.disabled = true;
+                    saveBtn.classList.add('is-saved');
+                }
+            }
+            if (alreadySaved) markSetSaved();
+            if (saveBtn) saveBtn.addEventListener('click', () => {
+                saveItem('set', {
+                    id: 'set' + Date.now(),
+                    createdAt: Date.now(),
+                    title: title,
+                    subject: AIO.subject || '',
+                    data: AIO
+                });
+                clearDirty();
+                markSetSaved();
+                toast('Study set saved.', 'ok');
+            });
         }
 
         /* =========================================================
            GENERIC SAVED-CONTENT SYSTEM (worksheets / guides / decks)
            ========================================================= */
-        const SAVE_KEYS = { ws: ST_WORKSHEETS, guide: ST_GUIDES, deck: ST_DECKS, slides: ST_SLIDES, video: ST_VIDEOS };
-        const SAVE_ICO = { ws: I.sheet, guide: I.guide, deck: I.cards, slides: I.slides, video: I.vid };
-        const SAVE_HEAD = { ws: 'Saved worksheets', guide: 'Saved guides', deck: 'Saved decks', slides: 'Saved slide decks', video: 'Saved videos' };
+        const SAVE_KEYS = { set: ST_SETS, ws: ST_WORKSHEETS, guide: ST_GUIDES, deck: ST_DECKS, slides: ST_SLIDES, video: ST_VIDEOS };
+        const SAVE_ICO = { set: I.generated, ws: I.sheet, guide: I.guide, deck: I.cards, slides: I.slides, video: I.vid };
+        const SAVE_HEAD = { set: 'Saved study sets', ws: 'Saved worksheets', guide: 'Saved guides', deck: 'Saved decks', slides: 'Saved slide decks', video: 'Saved videos' };
         function savedMeta(kind, it) {
+            if (kind === 'set') {
+                const d = it.data || {};
+                return { title: it.title || d.title || 'Study set', sub: 'Worksheet, guide, flashcards and slides' };
+            }
             if (kind === 'deck') return { title: it.deckTitle || 'Deck', sub: (it.cards ? it.cards.length : 0) + ' cards' };
             if (kind === 'video') return { title: it.topic || 'Video lesson', sub: 'Manim video' };
             const d = it.data || {};
@@ -12862,7 +12934,7 @@
                 '<button class="st-sr-del" data-sdel data-skind="' + kind + '" data-sid="' + it.id + '" title="Delete">' + I.trash + '</button></div>';
         }
         function renderGeneratedAll() {
-            const items = ['ws', 'guide', 'deck', 'slides', 'video'].flatMap(kind =>
+            const items = ['set', 'ws', 'guide', 'deck', 'slides', 'video'].flatMap(kind =>
                 readJSON(SAVE_KEYS[kind]).map(it => ({ kind, it }))
             ).sort((a, b) => (b.it.createdAt || 0) - (a.it.createdAt || 0));
             const rows = items.map(x => savedRowHTML(x.kind, x.it)).join('');
@@ -12896,26 +12968,36 @@
             localStorage.setItem(SAVE_KEYS[kind], JSON.stringify(readJSON(SAVE_KEYS[kind]).filter(x => x.id !== id)));
             renderSaved(kind);
         }
-        const SAVE_NOUN = { ws: 'worksheet', guide: 'study guide', deck: 'deck', slides: 'slide deck', video: 'video' };
+        const SAVE_NOUN = { set: 'study set', ws: 'worksheet', guide: 'study guide', deck: 'deck', slides: 'slide deck', video: 'video' };
         function renameItem(kind, id) {
             const arr = readJSON(SAVE_KEYS[kind]);
             const it = arr.find(x => x.id === id);
             if (!it) return;
-            const cur = kind === 'deck' ? (it.deckTitle || '') : kind === 'video' ? (it.topic || '') : ((it.data && it.data.title) || '');
+            const cur = kind === 'set' ? (it.title || (it.data && it.data.title) || '') : kind === 'deck' ? (it.deckTitle || '') : kind === 'video' ? (it.topic || '') : ((it.data && it.data.title) || '');
             const next = (window.prompt('Rename this ' + (SAVE_NOUN[kind] || 'item') + ':', cur) || '').trim();
             if (!next || next === cur) return;
-            if (kind === 'deck') it.deckTitle = next;
+            if (kind === 'set') { it.title = next; if (it.data) it.data.title = next; }
+            else if (kind === 'deck') it.deckTitle = next;
             else if (kind === 'video') it.topic = next;
             else { it.data = it.data || {}; it.data.title = next; }
             localStorage.setItem(SAVE_KEYS[kind], JSON.stringify(arr));
             renderSaved(kind);
             toast('Renamed.', 'ok');
         }
-        function loadSaved(kind, id) {
+        function loadSaved(kind, id, fromGenerated) {
             const it = readJSON(SAVE_KEYS[kind]).find(x => x.id === id);
             if (!it) return;
+            stBackTarget = fromGenerated ? 'generated' : 'hub';
             clearDirty(); // viewing an already-saved item — nothing unsaved on screen
 
+            if (kind === 'set') {
+                AIO = it.data || {};
+                AIO.title = it.title || AIO.title || 'Study set';
+                setScreen('allinone');
+                setStage(screenEl('allinone'), 'result');
+                renderAIO(true);
+                return;
+            }
             if (kind === 'video') {
                 // The mp4 bytes are in IndexedDB — load them into an object URL and replay with the
                 // same in-browser narration. Marked `saved` so the player shows "Saved", not "Save".
@@ -12948,7 +13030,7 @@
                 return;
             }
             const row = e.target.closest('[data-srow]');
-            if (row) loadSaved(row.getAttribute('data-skind'), row.getAttribute('data-sid'));
+            if (row) loadSaved(row.getAttribute('data-skind'), row.getAttribute('data-sid'), !!row.closest('[data-generated-all]'));
         });
 
         /* =========================================================
@@ -13229,7 +13311,6 @@
                 '<div class="vid-stage">' +
                 '<video class="vid-mp4" playsinline muted preload="auto" src="' + url + '"></video>' +
                 '</div>' +
-                '<div class="sd-cc" data-vidcctext></div>' +
                 '<div class="vid-controls">' +
                 '<button class="vid-cbtn vid-cplay" data-vidplay title="Play">' + vIco.play + '</button>' +
                 '<button class="vid-cbtn" data-vidrestart title="Restart">' + vIco.replay + '</button>' +
@@ -13239,6 +13320,7 @@
                 (TTS_OK ? ddHTML('vidSpeed', speeds, '1') : '') +
                 '<button class="vid-cbtn" data-vidfull title="Full screen" aria-label="Full screen">' + vIco.full + '</button>' +
                 '</div>' +
+                '<div class="sd-cc" data-vidcctext></div>' +
                 '</div>';
 
             const video = mount.querySelector('video');
@@ -13969,6 +14051,62 @@
                 '<div class="sd-icon-card">' + icons[idx % icons.length] + '<span>' + escMath(label) + '</span></div>'
             ).join('') + '</div>';
         }
+        function sdCleanLabel(text, fallback) {
+            text = String(text || '').replace(/^[A-Z][a-z]+:\s*/, '').replace(/\s+/g, ' ').trim();
+            if (text.length > 30) text = text.slice(0, 28).replace(/\s+\S*$/, '') + '...';
+            return esc(text || fallback || 'Idea');
+        }
+        function sdSiloHTML(s) {
+            const labels = sdArr(s.bullets).slice(0, 3);
+            return '<svg class="sd-concept-svg" viewBox="0 0 560 260" role="img" aria-label="Department silo diagram">' +
+                '<defs><marker id="sdArrowSilo" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2f7a3a"/></marker></defs>' +
+                '<rect x="64" y="44" width="112" height="164" rx="16" fill="#ffffff" stroke="#dbe9dd"/>' +
+                '<rect x="224" y="44" width="112" height="164" rx="16" fill="#ffffff" stroke="#dbe9dd"/>' +
+                '<rect x="384" y="44" width="112" height="164" rx="16" fill="#ffffff" stroke="#dbe9dd"/>' +
+                '<text x="120" y="78" text-anchor="middle" class="sd-svg-label">' + sdCleanLabel(labels[0], 'Function A') + '</text>' +
+                '<text x="280" y="78" text-anchor="middle" class="sd-svg-label">' + sdCleanLabel(labels[1], 'Function B') + '</text>' +
+                '<text x="440" y="78" text-anchor="middle" class="sd-svg-label">' + sdCleanLabel(labels[2], 'Function C') + '</text>' +
+                '<path d="M120 102v74M280 102v74M440 102v74" stroke="#4f9e54" stroke-width="5" stroke-linecap="round"/>' +
+                '<path d="M176 128 C202 116 210 116 224 128" stroke="#8ca296" stroke-width="3" stroke-dasharray="7 7" fill="none" marker-end="url(#sdArrowSilo)"/>' +
+                '<path d="M336 128 C362 116 370 116 384 128" stroke="#8ca296" stroke-width="3" stroke-dasharray="7 7" fill="none" marker-end="url(#sdArrowSilo)"/>' +
+                '<g stroke="#c85757" stroke-width="4" stroke-linecap="round"><path d="M194 114l22 28"/><path d="M216 114l-22 28"/><path d="M354 114l22 28"/><path d="M376 114l-22 28"/></g>' +
+                '<text x="280" y="230" text-anchor="middle" class="sd-svg-note">Coordination breaks down between separate functions</text>' +
+                '</svg>';
+        }
+        function sdMatrixHTML(s) {
+            return '<svg class="sd-concept-svg" viewBox="0 0 560 260" role="img" aria-label="Matrix structure diagram">' +
+                '<rect x="88" y="44" width="384" height="168" rx="16" fill="#ffffff" stroke="#dbe9dd"/>' +
+                '<path d="M88 90h384M88 130h384M88 170h384M184 44v168M280 44v168M376 44v168" stroke="#dbe9dd" stroke-width="2"/>' +
+                '<rect x="88" y="44" width="384" height="46" rx="16" fill="#e9f6ea"/>' +
+                '<text x="136" y="73" text-anchor="middle" class="sd-svg-label">Projects</text>' +
+                '<text x="232" y="73" text-anchor="middle" class="sd-svg-label">Sales</text>' +
+                '<text x="328" y="73" text-anchor="middle" class="sd-svg-label">Ops</text>' +
+                '<text x="424" y="73" text-anchor="middle" class="sd-svg-label">Finance</text>' +
+                '<text x="136" y="118" text-anchor="middle" class="sd-svg-note">Project A</text>' +
+                '<text x="136" y="158" text-anchor="middle" class="sd-svg-note">Project B</text>' +
+                '<text x="136" y="198" text-anchor="middle" class="sd-svg-note">Project C</text>' +
+                '<circle cx="232" cy="118" r="9" fill="#4f9e54"/><circle cx="328" cy="158" r="9" fill="#4f9e54"/><circle cx="424" cy="198" r="9" fill="#4f9e54"/>' +
+                '<path d="M232 118L328 158L424 198" stroke="#2f7a3a" stroke-width="3" fill="none"/>' +
+                '<text x="280" y="236" text-anchor="middle" class="sd-svg-note">People report across both functions and projects</text>' +
+                '</svg>';
+        }
+        function sdIsVisualPlaceholder(text) {
+            text = String(text || '').trim().toLowerCase();
+            return /^(a|an)\s+(graphic|diagram|chart|flowchart|layout|illustration|visual)\b/.test(text) ||
+                /\b(showing|depicting|representing|where columns|where rows)\b/.test(text);
+        }
+        function sdSmartVisualHTML(s) {
+            const hay = [
+                s.visualType, s.visual, s.title, s.eyebrow, s.narration,
+                sdArr(s.bullets).join(' ')
+            ].join(' ').toLowerCase();
+            if (/chimney|silo|vertical|blocked|department/.test(hay)) return sdSiloHTML(s);
+            if (/matrix|hybrid|grid|columns|rows|project-based/.test(hay)) return sdMatrixHTML(s);
+            if (/network|team|hub|contractor|partner|external|node|outsourc/.test(hay)) return sdNetworkHTML(s);
+            if (/compare|comparison|versus|\bvs\b|formal|informal|side a|side b/.test(hay)) return sdCompareHTML(s);
+            if (/process|flow|arrow|sequence|cycle|step|path/.test(hay)) return sdProcessHTML(s);
+            return sdIconHTML(s);
+        }
         function sdMermaidFallbackHTML(code) {
             code = String(code || '');
             if (/graph|flowchart|-->|---|-\.-|==>/.test(code)) return sdNetworkHTML({ bullets: (code.match(/\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\}/g) || []).map(x => x.replace(/^[\[\(\{]+|[\]\)\}]+$/g, '')).slice(0, 5) });
@@ -13992,13 +14130,19 @@
         function sdVisualHTML(s) {
             const vt = String(s.visualType || '').toLowerCase();
             const visualText = String(s.visual || '').toLowerCase();
-            if (s.mermaid) return sdMermaidHTML(s);
+            const placeholderVisual = sdIsVisualPlaceholder(s.visual);
+            if (s.mermaid) {
+                const mermaid = sdMermaidHTML(s);
+                return mermaid || sdSmartVisualHTML(s);
+            }
+            if (vt === 'mermaid') return sdSmartVisualHTML(s);
             if (s.chart && s.chart.labels && s.chart.values && s.chart.labels.length && s.chart.values.length) return sdChartHTML(s);
             if (vt === 'process' || vt === 'timeline' || vt === 'cycle') return sdProcessHTML(s);
             if (vt === 'comparison' || vt === 'compare') return sdCompareHTML(s);
             if (vt === 'network' || /network diagram|nodes?|linked|reporting arrows?|communication lines?/.test(visualText)) return sdNetworkHTML(s);
             if (vt === 'icons' || /icons? representing|globe|shopping bag|product|customer/.test(visualText)) return sdIconHTML(s);
             if (s.equation) return '<div class="sd-eq">\\[' + esc(s.equation) + '\\]</div>';
+            if (placeholderVisual || !String(s.visual || '').trim()) return sdSmartVisualHTML(s);
             return '<div class="sd-visual-text">' + escMath(s.visual || s.note || s.narration || 'Focus on the key idea, then test yourself on the next slide.') + '</div>';
         }
         function sdLearnHTML(s, i, total, slides) {
@@ -14065,6 +14209,7 @@
                 '',
                 'Read the attached materials and produce a concise learning brief.',
                 'Include: major sections, key concepts, definitions, examples, formulas or frameworks, likely confusion points, and good active-recall checks.',
+                nonStemExampleRules(subject, topic),
                 'Group the content into teachable mini-sections. For each mini-section, name what must be explained before a learner should be tested.',
                 'If the source is a slide deck or lecture, do not copy slide-by-slide. Compress it into learnable sections.',
                 'Write the brief as source-neutral teaching notes. Do not mention "the source", "the document", "the slides", "the lecture", page numbers, screenshots, or file names.',
@@ -14085,6 +14230,7 @@
                 '- Do not use phrases like "according to the source", "as shown in the lecture", "from the provided material", "the document explains", or "this slide deck says".',
                 '- Avoid artifact-style phrasing such as "what you see on paper", "the material", "the document", or "the slide". Use self-contained course language such as "the officially documented structure", "the concept", or "the framework".',
                 '- If the source contains a definition, example, diagram, or framework, restate it as normal lesson content without citing the source.',
+                nonStemExampleRules(subject, topic),
                 '',
                 autoLen ? 'Choose the right number of study slides for the material: 6-8 for a small topic, 10-14 for a normal lesson, 16-22 for a long lecture or dense source. Do not exceed 24 slides.' : 'Create exactly ' + targetSlides + ' study slides.',
                 'The deck must alternate between learning and testing:',
@@ -14092,6 +14238,10 @@
                 '- Start with a learning runway: at least 2 explanation slides before the first recall/check for short or normal decks, and 3 explanation slides before the first recall/check for dense source material or decks of 12+ slides.',
                 '- For each major concept, use 1 to 3 explanation slides before a test slide. Longer or harder concepts need more explanation slides before recall.',
                 '- Use "explanation" slides to teach one focused concept with narration, concise bullets, and a useful visual whenever possible.',
+                '- For non-STEM decks, include real-life examples inside explanation slides before testing: one realistic business, economics, organization, consumer, policy, or everyday scenario for each major concept where appropriate.',
+                '- For non-STEM concepts that are mostly definitions, make the narration explain both the definition and a concrete example of how it appears in real life.',
+                '- When a non-STEM real-life example involves a process, reporting structure, cause/effect chain, market flow, decision path, stakeholder relationship, or comparison, pair the example with a Mermaid chart instead of plain text alone.',
+                '- Mermaid charts for examples should make the scenario concrete: show the people, departments, customers, firms, incentives, steps, or relationships in the example.',
                 '- After a complete mini-section, use "recall", "quiz", or "matching" slides that test only the material just taught.',
                 '- Use "matching" for vocabulary, people, events, frameworks, causes/effects, or term-definition pairs.',
                 '- Use "quiz" for multiple choice checks. Mark exactly one choice with correct=true.',
@@ -14100,10 +14250,12 @@
                 '',
                 'Visual fields for explanation/summary slides:',
                 '- Prefer Mermaid for diagrams. Set visualType="mermaid" and put ONLY valid Mermaid code in "mermaid" when showing a flowchart, org structure, network, process, decision tree, timeline, pie chart, or simple xychart.',
+                '- For non-STEM real-life examples, prefer Mermaid when the example can be shown as a process, org chart, stakeholder map, supply/demand relationship, decision tree, value chain, or cause/effect flow.',
                 '- Mermaid flowcharts must start with graph TD, graph LR, flowchart TD, or flowchart LR only. Never use graph ND or any other direction.',
                 '- Keep Mermaid node ids simple: A, B, C, Hub. Put readable labels inside brackets, e.g. A[IT Contractor].',
                 '- Mermaid examples: flowchart TD; A[Central idea] --> B[Subtopic]. pie title Mix; "A" : 40. timeline; title Evolution; 2020 : Event.',
                 '- Never write a sentence like "A diagram showing..." as the visual. Either provide Mermaid code, chart data, or a short concept visual.',
+                '- Never use placeholder visual text such as "a graphic showing..." or "a diagram of..."; create the diagram data/code instead.',
                 '- Use visualType="bar" with chart={type:"bar", title, labels, values, unit} when comparing amounts, priorities, stages, scores, causes, or categories.',
                 '- Use visualType="process", "timeline", or "cycle" when the concept is a sequence; put the steps in bullets.',
                 '- Use visualType="comparison" when contrasting two sides; put short comparison points in bullets.',
@@ -14341,9 +14493,7 @@
                 return ans === txt || ans === letter || ans === String(idx + 1);
             }
             function advanceAfterNarration() {
-                if (sdIsAssessment(slides[st.i])) { finish(); return; }
-                if (st.i < total - 1) go(st.i + 1);
-                else finish();
+                finish();
             }
             function speakCurrent() {
                 if (!st.alive || !st.playing) return;
@@ -14508,7 +14658,7 @@
 
         /* ---------- init ---------- */
         updateApiBtn();
-        ['ws', 'guide', 'deck', 'slides', 'video'].forEach(renderSaved);
+        ['set', 'ws', 'guide', 'deck', 'slides', 'video'].forEach(renderSaved);
     })();
     </script>
 </body>
