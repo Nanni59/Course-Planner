@@ -59,12 +59,12 @@ def _next_key_index():
         i = _key_idx
         _key_idx = (_key_idx + 1) % len(KEYS)
         return i
-# Gemini 3.5 Flash supersedes Gemini 3 Flash Preview for this API family and is much better at
-# writing coherent Manim code. Keep the model configurable, but default to the newer coding-capable
-# model and avoid Flash-Lite as a default fallback because it tends to produce oversimplified scenes.
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+# Keep this configurable, but default to the model that has been producing the strongest Manim
+# lessons in this project. Some newer/pro models are not available on every key/tier and can
+# trigger misleading "busy" errors, so they should be explicit opt-ins via Space environment vars.
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
 FALLBACK_MODELS = [m.strip() for m in os.environ.get(
-    "GEMINI_FALLBACK_MODELS", "gemini-2.5-pro,gemini-2.5-flash"
+    "GEMINI_FALLBACK_MODELS", "gemini-2.5-flash"
 ).split(",") if m.strip()]
 MODELS = list(dict.fromkeys([MODEL] + FALLBACK_MODELS))
 _model_blocked_until = {}
@@ -194,7 +194,8 @@ def gemini(prompt, as_json=False, temperature=0.4):
     started = time.time()
     idx = _next_key_index()   # round-robin: this call starts on the next key in rotation
     models = _available_models()
-    for attempt in range(GEMINI_MAX_ATTEMPTS):
+    total_attempts = max(GEMINI_MAX_ATTEMPTS, len(MODELS) * max(1, len(KEYS)))
+    for attempt in range(total_attempts):
         if time.time() - started > GEMINI_DEADLINE:
             break
         key = KEYS[idx]
@@ -207,7 +208,7 @@ def gemini(prompt, as_json=False, temperature=0.4):
             # Read timeout / connection reset / DNS blip — transient. Rotate key and back off.
             last_err = "Gemini request failed (network/timeout): {}".format(str(e)[:200])
             print("[gemini] {} — attempt {}/{}, retrying.".format(
-                last_err, attempt + 1, GEMINI_MAX_ATTEMPTS), flush=True)
+                last_err, attempt + 1, total_attempts), flush=True)
             idx = (idx + 1) % len(KEYS)
             time.sleep(backoff)
             backoff = min(backoff * 2, 30)
@@ -240,7 +241,7 @@ def gemini(prompt, as_json=False, temperature=0.4):
                     last_err, models[0]), flush=True)
                 continue
             print("[gemini] {} — attempt {}/{}, retrying.".format(
-                last_err, attempt + 1, GEMINI_MAX_ATTEMPTS), flush=True)
+                last_err, attempt + 1, total_attempts), flush=True)
             time.sleep(backoff)
             backoff = min(backoff * 2, 30)
             continue

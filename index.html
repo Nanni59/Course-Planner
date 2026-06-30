@@ -11562,6 +11562,10 @@
             if (!m) return 'The renderer hit an unknown error. Please try again.';
             if (/timed out|timeout|read timed out/.test(low))
                 return 'The AI model took too long to respond — this is usually a brief hiccup. Please try again in a moment.';
+            if (/404|model .*not found|models\/|was not found|not found for api version|not supported/.test(low))
+                return 'The renderer is using a Gemini model that is not available on this API key. Check the Space model setting, then restart the renderer.';
+            if (/400|403|permission|api key|billing|generative language api|forbidden|unauthorized/.test(low))
+                return 'The renderer could not use the Gemini API with the current server key. Check the Space API key, model access, billing/API status, then try again.';
             if (/429|rate.?limit|quota|exhausted|resource_exhausted/.test(low))
                 return 'The AI model is busy or rate-limited right now. Wait a minute, then try again.';
             if (/no gemini api key|no api key/.test(low))
