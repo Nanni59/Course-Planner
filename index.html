@@ -3872,6 +3872,9 @@
         body.dark-mode .vid-error h3 { color:#e8ebf2; }
         body.dark-mode .vid-error p { color:#aab3c5; }
         body.dark-mode .vid-controls { background:#1b212b; box-shadow:0 6px 18px rgba(0,0,0,.4); }
+        body.dark-mode .vid-player:not(:fullscreen):not(.vid-fs):not(.vid-fs-fallback) .vid-controls {
+            background:#1b212b !important; background-image:none !important; box-shadow:none !important;
+        }
         body.dark-mode .vid-cbtn { color:#cfd6e4; }
         body.dark-mode .vid-cbtn:hover { background:#232c3a; color:#bfe6c3; }
         body.dark-mode .vid-cbtn.on { background:#232c3a; color:#bfe6c3; }
@@ -11339,7 +11342,27 @@
                 || /^\d+(?:\.\d+)?$/.test(t)
                 || /^[A-Za-z](?:\d+)?(?:\s*,\s*[A-Za-z](?:\d+)?)*$/.test(t);
         }
+        function normalizeLatexBackslashes(s) {
+            return String(s == null ? '' : s)
+                .replace(/\\\\(?=(?:[()[\]]|[A-Za-z]+(?:\b|_|\{)))/g, '\\');
+        }
+        function wrapBareLatexCommands(s) {
+            const source = String(s == null ? '' : s);
+            const wrapPlain = chunk => chunk.replace(
+                /(^|[\s([{])((?:\\(?:frac|dfrac|tfrac|sqrt|sum|prod|int|lim|left|right|begin|end|pi|theta|alpha|beta|gamma|delta|epsilon|lambda|mu|sigma|omega|Delta|Omega|cdot|times|div|leq|geq|neq|approx|infty|vec|overline|hat|bar|text|mathrm|sin|cos|tan|sec|csc|cot|log|ln)\b)[^,.;!?<>\n]*)/g,
+                (m, lead, expr) => lead + '\\(' + expr.trim() + '\\)'
+            );
+            let out = '', last = 0;
+            const mathSpan = /\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$/g;
+            source.replace(mathSpan, (m, offset) => {
+                out += wrapPlain(source.slice(last, offset)) + m;
+                last = offset + m.length;
+                return m;
+            });
+            return out + wrapPlain(source.slice(last));
+        }
         function normalizeMathDelimiters(s) {
+            s = normalizeLatexBackslashes(s);
             s = String(s == null ? '' : s);
             let out = '', i = 0;
             while (i < s.length) {
@@ -11376,7 +11399,7 @@
                 }
                 i = j + 1;
             }
-            return out;
+            return wrapBareLatexCommands(out);
         }
         // Like escNL, but first normalizes model-style single-$ math to \(...\) and collapses
         // newlines inside LaTeX spans. Otherwise <br> can split delimiters and leave raw LaTeX.
@@ -11384,6 +11407,11 @@
             .replace(/\\\([\s\S]*?\\\)/g, m => m.replace(/\s*\n\s*/g, ' '))
             .replace(/\\\[[\s\S]*?\\\]/g, m => m.replace(/\s*\n\s*/g, ' '))
             .replace(/\$\$[\s\S]*?\$\$/g, m => m.replace(/\s*\n\s*/g, ' ')));
+        const escMathFlow = s => esc(normalizeMathDelimiters(s)
+            .replace(/\\\([\s\S]*?\\\)/g, m => m.replace(/\s*\n\s*/g, ' '))
+            .replace(/\\\[[\s\S]*?\\\]/g, m => m.replace(/\s*\n\s*/g, ' '))
+            .replace(/\$\$[\s\S]*?\$\$/g, m => m.replace(/\s*\n\s*/g, ' ')))
+            .replace(/\n{2,}/g, '<br><br>').replace(/\n/g, ' ');
 
         /* ---------- Subjects from the planner's course cards + custom themed dropdown ----------
            Native <select> popups can't be themed, so Study Tools uses a small custom dropdown.
@@ -12643,13 +12671,13 @@
                 '<div class="st-guide-head"><h2>' + esc(g.title || 'Study Guide') + '</h2><div class="st-guide-meta">' +
                 (g.course ? '<span>' + I.book + ' ' + esc(g.course) + '</span>' : '') +
                 (g.readTime ? '<span>' + I.clock + ' ' + esc(g.readTime) + '</span>' : '') + '</div></div>';
-            if (g.overview) html += gSection('Overview', '<p>' + escFlow(g.overview) + '</p>');
-            if (g.concepts && g.concepts.length) html += gSection('Key Concepts', g.concepts.map(c => '<div class="st-concept"><div class="st-c-term">' + esc(c.term) + '</div><div class="st-c-body">' + escFlow(c.body) + '</div></div>').join(''));
-            if (g.realLifeExamples && g.realLifeExamples.length) html += gSection('Real-Life Examples', g.realLifeExamples.map(ex => '<div class="st-concept"><div class="st-c-term">' + esc(ex.concept || 'Example') + '</div><div class="st-c-body">' + escFlow(ex.example || '') + '</div></div>').join(''));
-            if (g.formulas && g.formulas.length) html += gSection('Formulas', g.formulas.map(f => '<div class="st-formula">' + esc(f) + '</div>').join(''));
-            if (g.example && (g.example.prompt || (g.example.steps || []).length)) html += gSection('Worked Example', (g.example.prompt ? '<p><strong>' + escFlow(g.example.prompt) + '</strong></p>' : '') + '<ol class="st-steps">' + (g.example.steps || []).map(s => '<li>' + escFlow(s) + '</li>').join('') + '</ol>');
-            if (g.takeaways && g.takeaways.length) html += gSection('Key Takeaways', g.takeaways.map(t => '<div class="st-take"><span class="st-take-ck">' + I.check + '</span><span>' + escFlow(t) + '</span></div>').join(''));
-            if (g.quiz && g.quiz.length) html += gSection('Self-Check', '<div class="st-quiz">' + g.quiz.map(q => '<div class="st-quiz-item">' + escFlow(q) + '</div>').join('') + '</div>');
+            if (g.overview) html += gSection('Overview', '<p>' + escMathFlow(g.overview) + '</p>');
+            if (g.concepts && g.concepts.length) html += gSection('Key Concepts', g.concepts.map(c => '<div class="st-concept"><div class="st-c-term">' + escMath(c.term) + '</div><div class="st-c-body">' + escMathFlow(c.body) + '</div></div>').join(''));
+            if (g.realLifeExamples && g.realLifeExamples.length) html += gSection('Real-Life Examples', g.realLifeExamples.map(ex => '<div class="st-concept"><div class="st-c-term">' + escMath(ex.concept || 'Example') + '</div><div class="st-c-body">' + escMathFlow(ex.example || '') + '</div></div>').join(''));
+            if (g.formulas && g.formulas.length) html += gSection('Formulas', g.formulas.map(f => '<div class="st-formula">' + escMath(f) + '</div>').join(''));
+            if (g.example && (g.example.prompt || (g.example.steps || []).length)) html += gSection('Worked Example', (g.example.prompt ? '<p><strong>' + escMathFlow(g.example.prompt) + '</strong></p>' : '') + '<ol class="st-steps">' + (g.example.steps || []).map(s => '<li>' + escMathFlow(s) + '</li>').join('') + '</ol>');
+            if (g.takeaways && g.takeaways.length) html += gSection('Key Takeaways', g.takeaways.map(t => '<div class="st-take"><span class="st-take-ck">' + I.check + '</span><span>' + escMathFlow(t) + '</span></div>').join(''));
+            if (g.quiz && g.quiz.length) html += gSection('Self-Check', '<div class="st-quiz">' + g.quiz.map(q => '<div class="st-quiz-item">' + escMathFlow(q) + '</div>').join('') + '</div>');
             const res = targetEl || document.getElementById('gResult');
             res.innerHTML = html;
             renderMath(res);
