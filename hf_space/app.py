@@ -64,7 +64,7 @@ def _next_key_index():
 # trigger misleading "busy" errors, so they should be explicit opt-ins via Space environment vars.
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
 FALLBACK_MODELS = [m.strip() for m in os.environ.get(
-    "GEMINI_FALLBACK_MODELS", "gemini-2.5-flash"
+    "GEMINI_FALLBACK_MODELS", "gemini-3.5-flash,gemini-2.5-flash"
 ).split(",") if m.strip()]
 MODELS = list(dict.fromkeys([MODEL] + FALLBACK_MODELS))
 _model_blocked_until = {}
@@ -162,23 +162,60 @@ GEMINI_MAX_ATTEMPTS = 4       # transient retries (incl. key rotations) before g
 GEMINI_DEADLINE = 420         # seconds: stop retrying a single gemini() call after this
 
 
-def _available_models():
+def _model_block_key(model, key_idx=None):
+    return ("*", model) if key_idx is None else (key_idx, model)
+
+
+def _model_is_blocked(model, key_idx=None):
     now = time.time()
     with _model_lock:
-        models = [m for m in MODELS if _model_blocked_until.get(m, 0) <= now]
+        if _model_blocked_until.get(_model_block_key(model, None), 0) > now:
+            return True
+        if key_idx is not None and _model_blocked_until.get(_model_block_key(model, key_idx), 0) > now:
+            return True
+    return False
+
+
+def _available_models(key_idx=None):
+    models = [m for m in MODELS if not _model_is_blocked(m, key_idx)]
     return models or MODELS[:]
 
 
-def _temporarily_block_model(model, seconds=900):
+def _temporarily_block_model(model, seconds=900, key_idx=None):
     with _model_lock:
-        _model_blocked_until[model] = time.time() + seconds
+        _model_blocked_until[_model_block_key(model, key_idx)] = time.time() + seconds
 
 
-def _fallback_models_after(model):
-    now = time.time()
-    with _model_lock:
-        models = [m for m in MODELS if m != model and _model_blocked_until.get(m, 0) <= now]
+def _fallback_models_after(model, key_idx=None):
+    models = [m for m in MODELS if m != model and not _model_is_blocked(m, key_idx)]
     return models or [m for m in MODELS if m != model] or [model]
+
+
+def _probe_model_access():
+    """Check model visibility per configured key slot without exposing secrets."""
+    out = []
+    for key_idx, key in enumerate(KEYS):
+        row = {"key_slot": key_idx + 1, "models": []}
+        for model in MODELS:
+            url = "https://generativelanguage.googleapis.com/v1beta/models/{}".format(model)
+            try:
+                r = requests.get(url, headers={"x-goog-api-key": key}, timeout=(8, 20))
+                row["models"].append({
+                    "model": model,
+                    "ok": r.status_code == 200,
+                    "status": r.status_code,
+                    "blocked_temporarily": _model_is_blocked(model, key_idx),
+                })
+            except requests.exceptions.RequestException as e:
+                row["models"].append({
+                    "model": model,
+                    "ok": False,
+                    "status": "network",
+                    "error": str(e)[:120],
+                    "blocked_temporarily": _model_is_blocked(model, key_idx),
+                })
+        out.append(row)
+    return out
 
 
 def gemini(prompt, as_json=False, temperature=0.4):
@@ -193,12 +230,13 @@ def gemini(prompt, as_json=False, temperature=0.4):
     backoff = 3
     started = time.time()
     idx = _next_key_index()   # round-robin: this call starts on the next key in rotation
-    models = _available_models()
+    models = _available_models(idx)
     total_attempts = max(GEMINI_MAX_ATTEMPTS, len(MODELS) * max(1, len(KEYS)))
     for attempt in range(total_attempts):
         if time.time() - started > GEMINI_DEADLINE:
             break
         key = KEYS[idx]
+        models = _available_models(idx)
         model = models[0]
         url = "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent".format(model)
         try:
@@ -224,6 +262,21 @@ def gemini(prompt, as_json=False, temperature=0.4):
                 backoff = min(backoff * 2, 30)
             continue
         if r.status_code == 404 and len(MODELS) > 1:
+            last_err = "Gemini API model {} was not found for key slot {}: {}".format(model, idx + 1, r.text[:200])
+            _temporarily_block_model(model, seconds=3600, key_idx=idx)
+            idx = (idx + 1) % len(KEYS)
+            models = _available_models(idx)
+            backoff = 3
+            print("[gemini] {} - trying key slot {} with {}.".format(last_err, idx + 1, models[0]), flush=True)
+            continue
+        if r.status_code in (400, 403) and len(KEYS) > 1:
+            last_err = "Gemini API error {} for model {} on key slot {}: {}".format(r.status_code, model, idx + 1, r.text[:200])
+            _temporarily_block_model(model, seconds=1800, key_idx=idx)
+            idx = (idx + 1) % len(KEYS)
+            models = _available_models(idx)
+            print("[gemini] {} - trying key slot {} with {}.".format(last_err, idx + 1, models[0]), flush=True)
+            continue
+        if False and r.status_code == 404 and len(MODELS) > 1:
             last_err = "Gemini API model {} was not found: {}".format(model, r.text[:200])
             _temporarily_block_model(model, seconds=3600)
             models = _fallback_models_after(model)
@@ -234,8 +287,8 @@ def gemini(prompt, as_json=False, temperature=0.4):
             last_err = "Gemini API error {} (server): {}".format(r.status_code, r.text[:200])
             if r.status_code == 503 and len(MODELS) > 1 and (
                     "high demand" in low_body or "overloaded" in low_body or "capacity" in low_body):
-                _temporarily_block_model(model, seconds=900)
-                models = _fallback_models_after(model)
+                _temporarily_block_model(model, seconds=900, key_idx=None)
+                models = _fallback_models_after(model, idx)
                 backoff = 3
                 print("[gemini] {} — falling back to {} for this call.".format(
                     last_err, models[0]), flush=True)
@@ -1629,9 +1682,25 @@ def health():
         "status": "ok",
         "model": MODEL,
         "model_candidates": _available_models(),
+        "key_count": len(KEYS),
         "last_success_model": last_model,
         "fallback_render_on_failure": FALLBACK_RENDER_ON_FAILURE,
         "max_repairs": MAX_REPAIRS,
+    }
+
+
+@app.get("/diagnostics")
+def diagnostics():
+    with _last_success_model_lock:
+        last_model = _last_success_model
+    return {
+        "status": "ok",
+        "configured_model_order": MODELS,
+        "key_count": len(KEYS),
+        "last_success_model": last_model,
+        "fallback_render_on_failure": FALLBACK_RENDER_ON_FAILURE,
+        "max_repairs": MAX_REPAIRS,
+        "model_access_by_key_slot": _probe_model_access(),
     }
 
 
