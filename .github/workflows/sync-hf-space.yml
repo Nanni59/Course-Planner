@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - 'hf_space/**'
+      - 'hf_space_tikz/**'
+      - '.github/workflows/sync-hf-space.yml'
 
 jobs:
-  sync:
+  sync-manim:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +25,27 @@ jobs:
           git config --global user.name "GitHub Action"
           git clone https://Nanni59:$HF_TOKEN@huggingface.co/spaces/Nanni59/manim-renderer hf_repo
           cp -r hf_space/. hf_repo/
+          cd hf_repo
+          git add -A
+          git diff --staged --quiet || git commit -m "Sync from GitHub (${{ github.sha }})"
+          git push
+
+  sync-tikz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push hf_space_tikz/ to HF Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+          git clone https://Nanni59:$HF_TOKEN@huggingface.co/spaces/Nanni59/tikz-renderer hf_repo
+          cp -r hf_space_tikz/. hf_repo/
           cd hf_repo
           git add -A
           git diff --staged --quiet || git commit -m "Sync from GitHub (${{ github.sha }})"
