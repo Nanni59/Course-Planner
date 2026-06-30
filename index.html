@@ -3218,6 +3218,8 @@
         .st-q .st-opts { list-style:none; margin:10px 0 0; padding:0 0 0 26px; }
         .st-q .st-opts li { margin:6px 0; }
         .st-q .st-opts li::before { content: attr(data-l) ")"; font-weight:600; margin-right:8px; color:#444; }
+        .st-q-tikz { margin:10px 0 2px 34px; max-width:560px; }
+        .st-q-tikz svg { display:block; max-width:100%; height:auto; max-height:220px; }
         .st-q .st-worklines { margin-top:10px; }
         .st-q .st-worklines div { height:26px; }
         /* Answer-section view options (toggled per worksheet) */
@@ -3250,6 +3252,10 @@
         .st-concept .st-c-body { font-size:13.5px; color:#3f4654; line-height:1.7; }
         .st-formula { font-family: 'Cambria Math','Georgia',serif; font-size:15px; color:#1f2430; background: var(--clay-field-bg);
             border-radius:10px; padding:12px 16px; margin:8px 0; box-shadow: var(--clay-shadow-field-inset); }
+        .st-guide-visual { display:grid; gap:8px; justify-items:center; margin:12px 0; }
+        .st-guide-visual-title { font-size:13.5px; font-weight:700; color:var(--color-study); }
+        .st-guide-visual-caption { font-size:12.5px; color:#5f6878; text-align:center; line-height:1.55; }
+        .st-guide-visual svg { display:block; max-width:min(620px,100%); height:auto; max-height:280px; }
         .st-steps { margin:0; padding-left:22px; }
         .st-steps li { font-size:13.5px; color:#3f4654; line-height:1.7; margin:6px 0; }
         .st-take { display:flex; gap:11px; align-items:flex-start; font-size:13.5px; color:#3f4654; line-height:1.6; margin:9px 0; }
@@ -3270,6 +3276,8 @@
             border-radius: var(--clay-radius); background: var(--clay-surface); box-shadow: var(--clay-shadow-tracker); }
         .st-flip-face .st-face-tag { position:absolute; top:18px; left:22px; font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#9097a6; }
         .st-flip-face .st-face-text { font-size:21px; font-weight:600; color:#2c3340; line-height:1.5; max-width:100%; }
+        .st-card-visual { margin-top:14px; width:min(460px,100%); display:flex; justify-content:center; }
+        .st-card-visual svg { display:block; max-width:100%; height:auto; max-height:180px; }
         .st-flip-back { transform: rotateY(180deg); background: linear-gradient(150deg, #eef8ef, #e9f6ea); }
         .st-flip-back .st-face-text { font-size:17px; font-weight:500; color:#2c3340; }
         .st-flip-hint { position:absolute; bottom:16px; left:0; right:0; text-align:center; font-size:11.5px; color:#aab0c0; }
@@ -3724,6 +3732,8 @@
         .sd-visual::before { content:''; position:absolute; inset:18px; border-radius:12px; background:linear-gradient(180deg,#fbfdfb,#edf7ee); }
         .sd-visual > * { position:relative; z-index:1; }
         .sd-visual-text { max-width:520px; text-align:center; font-size:18px; line-height:1.55; color:#314058; }
+        .sd-tikz-svg { width:min(620px,100%); max-height:300px; display:flex; align-items:center; justify-content:center; }
+        .sd-tikz-svg svg { width:100%; height:auto; max-height:300px; display:block; }
         .sd-bars { width:min(520px,100%); display:flex; flex-direction:column; gap:12px; }
         .sd-bar-row { display:grid; grid-template-columns:minmax(82px, .7fr) minmax(0, 1.4fr) 44px; gap:10px; align-items:center; }
         .sd-bar-label { font-size:12.5px; font-weight:700; color:#3d4c40; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -11310,7 +11320,9 @@
         // While it stays the placeholder below, the site is 100% browser-only and the
         // "Manim video" option stays hidden. Setup steps: hf_space/README.md.
         const HF_SPACE_URL = "https://nanni59-manim-renderer.hf.space";
+        const TIKZ_SPACE_URL = "https://nanni59-tikz-renderer.hf.space";
         const hfReady = () => /^https:\/\/\S+/.test(HF_SPACE_URL) && HF_SPACE_URL.indexOf('YOUR-SPACE') === -1;
+        const tikzReady = () => /^https:\/\/\S+/.test(TIKZ_SPACE_URL) && TIKZ_SPACE_URL.indexOf('YOUR-SPACE') === -1;
         const getModel = () => localStorage.getItem(ST_MODEL_STORE) || DEFAULT_MODEL;
         const geminiUrl = model => 'https://generativelanguage.googleapis.com/v1beta/models/' + (model || getModel()) + ':generateContent';
 
@@ -11640,9 +11652,11 @@
                             type: { type: 'string', enum: ['mc', 'short', 'work', 'tf', 'fill'] },
                             q: { type: 'string' },
                             opts: { type: 'array', items: { type: 'string' } },
-                            answer: { type: 'string' }
+                            answer: { type: 'string' },
+                            tikz: { type: 'string' },
+                            tikzSvg: { type: 'string' }
                         },
-                        required: ['type', 'q', 'answer'], propertyOrdering: ['type', 'q', 'opts', 'answer']
+                        required: ['type', 'q', 'answer'], propertyOrdering: ['type', 'q', 'opts', 'answer', 'tikz', 'tikzSvg']
                     }
                 }
             },
@@ -11656,18 +11670,19 @@
                 concepts: { type: 'array', items: { type: 'object', properties: { term: { type: 'string' }, body: { type: 'string' } }, required: ['term', 'body'], propertyOrdering: ['term', 'body'] } },
                 realLifeExamples: { type: 'array', items: { type: 'object', properties: { concept: { type: 'string' }, example: { type: 'string' } }, required: ['concept', 'example'], propertyOrdering: ['concept', 'example'] } },
                 formulas: { type: 'array', items: { type: 'string' } },
+                visuals: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, caption: { type: 'string' }, tikz: { type: 'string' }, tikzSvg: { type: 'string' } }, propertyOrdering: ['title', 'caption', 'tikz', 'tikzSvg'] } },
                 example: { type: 'object', properties: { prompt: { type: 'string' }, steps: { type: 'array', items: { type: 'string' } } }, propertyOrdering: ['prompt', 'steps'] },
                 takeaways: { type: 'array', items: { type: 'string' } },
                 quiz: { type: 'array', items: { type: 'string' } }
             },
             required: ['title', 'overview', 'concepts', 'takeaways'],
-            propertyOrdering: ['title', 'course', 'readTime', 'overview', 'concepts', 'realLifeExamples', 'formulas', 'example', 'takeaways', 'quiz']
+            propertyOrdering: ['title', 'course', 'readTime', 'overview', 'concepts', 'realLifeExamples', 'formulas', 'visuals', 'example', 'takeaways', 'quiz']
         };
         const DECK_SCHEMA = {
             type: 'object',
             properties: {
                 deckTitle: { type: 'string' },
-                cards: { type: 'array', items: { type: 'object', properties: { front: { type: 'string' }, back: { type: 'string' } }, required: ['front', 'back'], propertyOrdering: ['front', 'back'] } }
+                cards: { type: 'array', items: { type: 'object', properties: { front: { type: 'string' }, back: { type: 'string' }, tikz: { type: 'string' }, tikzSvg: { type: 'string' } }, required: ['front', 'back'], propertyOrdering: ['front', 'back', 'tikz', 'tikzSvg'] } }
             },
             required: ['deckTitle', 'cards'], propertyOrdering: ['deckTitle', 'cards']
         };
@@ -12075,7 +12090,8 @@
             wsChip('mc', 'Multiple Choice', true) + wsChip('short', 'Short Answer', true) + wsChip('work', 'Show Work', true) + wsChip('tf', 'True / False', false) + wsChip('fill', 'Fill the Blank', false) +
             '</div></div>' +
             '<div class="st-field"><label>Topic</label><textarea class="st-textarea" id="wsTopic"></textarea></div>' +
-            sourceBlockHTML(true) + latexToggleHTML('wsLatex') +
+            sourceBlockHTML(true) +
+            '<div class="st-grid2">' + latexToggleHTML('wsLatex') + visualToggleHTML('wsVisuals') + '</div>' +
             '<div class="st-actions"><button class="st-btn" id="wsGen">' + I.spark + ' Generate worksheet</button></div>' +
             '</div><div class="st-saved-list" data-saved="ws"></div></div>' +
             genStageHTML('Generating your worksheet…', 'Gemini is writing questions and the answer key.') +
@@ -12091,7 +12107,7 @@
             '<div class="st-field"><label>Topic</label><textarea class="st-textarea" id="gTopic"></textarea></div>' +
             '<div class="st-field"><label>Focus <span style="color:#9097a6;font-weight:400">(optional)</span></label><input class="st-input" id="gFocus"></div>' +
             sourceBlockHTML(true) +
-            latexToggleHTML('gLatex') +
+            '<div class="st-grid2">' + latexToggleHTML('gLatex') + visualToggleHTML('gVisuals') + '</div>' +
             '<div class="st-actions"><button class="st-btn" id="gGen">' + I.spark + ' Generate study guide</button></div>' +
             '</div><div class="st-saved-list" data-saved="guide"></div></div>' +
             genStageHTML('Building your study guide…', 'Gemini is reading your materials and organising the guide.') +
@@ -12110,7 +12126,7 @@
             '<div class="st-field"><label>Topic</label><textarea class="st-textarea" id="fTopic"></textarea></div>' +
             '<div class="st-field"><label>Deck title <span style="color:#9097a6;font-weight:400">(optional)</span></label><input class="st-input" id="fTitle" placeholder="Auto-named if left blank"></div>' +
             sourceBlockHTML(true) +
-            latexToggleHTML('fLatex') +
+            '<div class="st-grid2">' + latexToggleHTML('fLatex') + visualToggleHTML('fVisuals') + '</div>' +
             '<div class="st-actions"><button class="st-btn" id="fGen">' + I.spark + ' Generate flashcards</button></div>' +
             '</div>' +
             '<div class="st-saved-list" data-saved="deck"></div></div>' +
@@ -12135,7 +12151,8 @@
             '</div></div>' +
             '<div class="st-field"><label>Topic</label><textarea class="st-textarea" id="aioTopic"></textarea></div>' +
             '<div class="st-field"><label>Focus <span style="color:#9097a6;font-weight:400">(optional)</span></label><input class="st-input" id="aioFocus"></div>' +
-            sourceBlockHTML(true) + latexToggleHTML('aioLatex') +
+            sourceBlockHTML(true) +
+            '<div class="st-grid2">' + latexToggleHTML('aioLatex') + visualToggleHTML('aioVisuals') + '</div>' +
             '<div class="st-actions"><button class="st-btn" id="aioGen">' + I.spark + ' Generate all four</button></div>' +
             '</div></div>' +
             genStageHTML('Generating your study set…', 'Gemini is building a worksheet, study guide, flashcards and slides.') +
@@ -12181,6 +12198,7 @@
             '</div>' +
             '<div class="st-field"><label>Topic</label><textarea class="st-textarea" id="sdTopic"></textarea></div>' +
             sourceBlockHTML(true) +
+            '<div class="st-grid2">' + latexToggleHTML('sdLatex') + visualToggleHTML('sdVisuals') + '</div>' +
             '<div class="st-actions"><button class="st-btn" id="sdGen">' + I.spark + ' Generate slides</button></div>' +
             '<div class="vid-estimate">' + I.clock + ' Generation takes about 20–40 seconds. The deck plays in your browser; press Narrate to have it read aloud and advance automatically.</div>' +
             '</div>' +
@@ -12312,9 +12330,17 @@
                 '<span class="st-tp-label">Render math &amp; numbers as LaTeX</span>' +
                 '<span class="st-tp-state">Off</span></button></div>';
         }
+        function visualToggleHTML(id) {
+            return '<div class="st-field"><label>Textbook visuals</label>' +
+                '<button type="button" class="st-toggle-pill" id="' + id + '" data-visuals>' +
+                '<span class="st-tp-ico">Tk</span>' +
+                '<span class="st-tp-label">Generate static TikZ diagrams</span>' +
+                '<span class="st-tp-state">Off</span></button></div>';
+        }
         const latexOn = id => { const el = document.getElementById(id); return !el || el.classList.contains('on'); };
+        const visualOn = id => { const el = document.getElementById(id); return !!(el && el.classList.contains('on')); };
         const LATEX_ON = ' IMPORTANT — math formatting rules: Render EVERY mathematical expression, symbol, variable, fraction, exponent, unit and numeric formula as valid LaTeX. Wrap inline math in \\( ... \\) and keep it on the SAME line as the surrounding words — never put a line break before, after, or inside an inline expression, and never start a new line just for a single symbol or variable. Use $$ ... $$ only for a full standalone equation, never for a lone variable. Write every variable and vector in plain italic — do NOT bold them with \\mathbf, \\boldsymbol, \\pmb or similar. Write strictly valid LaTeX: every \\left must have a matching \\right; if you are not certain a pair is balanced, use plain ( ) [ ] | instead of \\left/\\right. Never write math, fractions or exponents as plain text.';
-        root.querySelectorAll('[data-latex]').forEach(b => b.addEventListener('click', () => {
+        root.querySelectorAll('[data-latex], [data-visuals]').forEach(b => b.addEventListener('click', () => {
             b.querySelector('.st-tp-state').textContent = b.classList.toggle('on') ? 'On' : 'Off';
         }));
 
@@ -12328,11 +12354,37 @@
             const state = el.querySelector('.st-tp-state');
             if (state) state.textContent = on ? 'On' : 'Off';
         }
-        [['wsSubject', 'wsLatex'], ['aioSubject', 'aioLatex'], ['gSubject', 'gLatex'], ['fSubject', 'fLatex']].forEach(([subId, latexId]) => {
+        function setVisualOn(id, on) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.toggle('on', on);
+            const state = el.querySelector('.st-tp-state');
+            if (state) state.textContent = on ? 'On' : 'Off';
+        }
+        function tikzPrompt(kind) {
+            const target = kind || 'content';
+            return '\nTextbook visuals are enabled. For math, physics, chemistry, engineering, statistics, graphing, geometry, vectors, calculus, or other STEM ' + target + ' where a real diagram helps, add a concise TikZ snippet in the appropriate "tikz" field. Use TikZ only for diagrams with drawing primitives such as axes, curves, regions, points, arrows, geometric shapes, number lines, vectors, force diagrams, probability trees, or labeled relationships. Do NOT use TikZ for standalone formulas or equation text; put formulas in the normal text/equation fields instead. Use either a full \\begin{tikzpicture}...\\end{tikzpicture} block or only commands that belong inside tikzpicture. Do not include \\documentclass, \\usepackage, \\begin{document}, markdown fences, external images, file inputs, or shell commands. Keep labels short and readable. Use the built-in styles cp axis, cp line, cp dashed, cp fill, cp point, cp label when useful. Leave tikzSvg empty.';
+        }
+        [['wsSubject', 'wsLatex'], ['aioSubject', 'aioLatex'], ['gSubject', 'gLatex'], ['fSubject', 'fLatex'], ['sdSubject', 'sdLatex']].forEach(([subId, latexId]) => {
             const dd = document.getElementById(subId);
             if (!dd) return;
             dd.addEventListener('change', () => {
                 if (dd.value === 'Calculus & Vectors') setLatexOn(latexId, true);
+            });
+        });
+        const sdSubjectDD = document.getElementById('sdSubject');
+        if (sdSubjectDD) sdSubjectDD.addEventListener('change', () => {
+            if (sdSubjectDD.value === 'Calculus & Vectors') setVisualOn('sdVisuals', true);
+        });
+        const wsSubjectDD = document.getElementById('wsSubject');
+        if (wsSubjectDD) wsSubjectDD.addEventListener('change', () => {
+            if (wsSubjectDD.value === 'Calculus & Vectors') setVisualOn('wsVisuals', true);
+        });
+        [['gSubject', 'gVisuals'], ['fSubject', 'fVisuals'], ['aioSubject', 'aioVisuals']].forEach(([subId, visualId]) => {
+            const dd = document.getElementById(subId);
+            if (!dd) return;
+            dd.addEventListener('change', () => {
+                if (dd.value === 'Calculus & Vectors') setVisualOn(visualId, true);
             });
         });
 
@@ -12386,8 +12438,8 @@
                 stop() { stopped = true; clearInterval(iv); }
             };
         }
-        // Animated percentage counter for the loading ring: crawls toward 95% while
-        // we wait on Gemini, then snaps to 100% once the result is ready.
+        // Animated percentage counter for the loading ring. Keep the artificial
+        // progress conservative so long Gemini/TikZ work does not sit at 95% for ages.
         function animateCount(el) {
             if (!el) return { finish() { }, stop() { } };
             el.textContent = '0';
@@ -12397,7 +12449,7 @@
                 raf = null;
                 if (stopped) return;
                 const t = (now - start) / 1000;
-                const target = finished ? 100 : 95 * (1 - Math.exp(-t / 5));
+                const target = finished ? 100 : 88 * (1 - Math.exp(-t / 18));
                 cur += (target - cur) * (finished ? 0.25 : 0.12);
                 if (finished && cur > 99.3) cur = 100;
                 el.textContent = Math.min(100, Math.round(cur));
@@ -12476,6 +12528,48 @@
         let WS_DATA = null;
         // Answer-section view options (persist for the session). Defaults: spacing removed, lines hidden.
         let WS_LINES = false, WS_SPACE = false;
+        function cleanEmbeddedSvg(svg) {
+            return String(svg || '')
+                .replace(/<\?xml[\s\S]*?\?>/i, '')
+                .replace(/<!DOCTYPE[\s\S]*?>/i, '')
+                .trim();
+        }
+        async function renderTikzCode(code, target) {
+            const res = await fetch(TIKZ_SPACE_URL + '/render', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: sdCleanTikz(code), format: 'svg', theme: 'green', target: target || 'generic' })
+            });
+            const out = await res.json().catch(() => null);
+            if (res.ok && out && out.ok && out.svg) return out.svg;
+            throw new Error(out && (out.error || out.log) || ('TikZ render failed: ' + res.status));
+        }
+        async function generateTikzVisual(payload) {
+            const res = await fetch(TIKZ_SPACE_URL + '/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const out = await res.json().catch(() => null);
+            if (res.ok && out && out.ok && out.svg) return out;
+            throw new Error(out && (out.error || out.log) || ('TikZ generation failed: ' + res.status));
+        }
+        function worksheetTikzHTML(q) {
+            const svg = cleanEmbeddedSvg(q && q.tikzSvg);
+            return svg && /^<svg[\s>]/i.test(svg) ? '<div class="st-q-tikz">' + svg + '</div>' : '';
+        }
+        async function renderTikzWorksheet(data) {
+            if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
+            const candidates = data.questions.filter(q => q && sdCleanTikz(q.tikz) && !String(q.tikzSvg || '').trim()).slice(0, 10);
+            await Promise.all(candidates.map(async q => {
+                try {
+                    q.tikzSvg = await renderTikzCode(q.tikz, 'worksheet');
+                } catch (e) {
+                    console.warn('[worksheet] TikZ renderer unavailable', e);
+                }
+            }));
+            return data;
+        }
         document.getElementById('wsGen').addEventListener('click', () => {
             const topic = document.getElementById('wsTopic').value.trim();
             const scr = screenEl('worksheet');
@@ -12486,7 +12580,11 @@
             const subject = document.getElementById('wsSubject').value.trim();
             const level = document.getElementById('wsLevel').value;
             const count = document.getElementById('wsCount').value;
-            runTool('worksheet', ['Reading your inputs', 'Designing questions', 'Writing the answer key', 'Formatting the worksheet'], async () => {
+            const visualsEnabled = visualOn('wsVisuals');
+            if (visualsEnabled && !tikzReady()) { toast('The TikZ renderer is not set up yet.', 'err'); return; }
+            runTool('worksheet', visualsEnabled
+                ? ['Reading your inputs', 'Designing questions', 'Writing the answer key', 'Rendering TikZ visuals', 'Formatting the worksheet']
+                : ['Reading your inputs', 'Designing questions', 'Writing the answer key', 'Formatting the worksheet'], async () => {
                 const prompt =
                     'You are an expert teacher creating a printable classroom worksheet.\n' +
                     'Topic: ' + (topic || '(derive from the attached materials)') + '\n' +
@@ -12496,10 +12594,12 @@
                     'short: short answer. work: a show-your-work problem with a full step-by-step solution in "answer". tf: true/false. fill: fill-in-the-blank (use ____ in the question).\n' +
                     'Vary the difficulty. Every question MUST include a correct, complete "answer". ' +
                     'Also provide a descriptive "title", the "subject", a "unit" label, and a short student "instructions" line.' +
+                    (visualsEnabled ? tikzPrompt('worksheet questions') : '') +
                     (latexOn('wsLatex') ? LATEX_ON : '') +
                     (srcCount(scr) ? '\nBase the questions on the attached source materials.' : '');
                 const parts = [{ text: prompt }].concat(await sourceParts(scr));
                 WS_DATA = await gemini(parts, WS_SCHEMA);
+                if (visualsEnabled) await renderTikzWorksheet(WS_DATA);
                 // Header uses what the user typed: subject (top-left), grade/level (top-right).
                 WS_DATA.subject = subject || WS_DATA.subject || '';
                 WS_DATA.level = level || '';
@@ -12521,7 +12621,7 @@
             }
             const ans = isKey ? '<div class="st-answer"><b>Answer:</b> ' + escMath(q.answer) + '</div>' : '';
             return '<div class="st-q"><div class="st-q-head"><span class="st-q-num">' + (idx + 1) + '.</span>' +
-                '<div class="st-q-text">' + escMath(q.q) + '</div></div>' + body + ans + '</div>';
+                '<div class="st-q-text">' + escMath(q.q) + '</div></div>' + worksheetTikzHTML(q) + body + ans + '</div>';
         }
         function sheetHTML(d, isKey) {
             const cls = 'st-a4' + (isKey ? ' is-key' : '') + (WS_LINES ? ' ws-lines' : '') + (WS_SPACE ? '' : ' ws-nospace');
@@ -12634,6 +12734,41 @@
         /* =========================================================
            STUDY GUIDE
            ========================================================= */
+        function guideVisualHTML(v) {
+            const svg = cleanEmbeddedSvg(v && v.tikzSvg);
+            if (!svg || !/^<svg[\s>]/i.test(svg)) return '';
+            return '<div class="st-guide-visual">' +
+                (v.title ? '<div class="st-guide-visual-title">' + escMath(v.title) + '</div>' : '') +
+                '<div>' + svg + '</div>' +
+                (v.caption ? '<div class="st-guide-visual-caption">' + escMathFlow(v.caption) + '</div>' : '') +
+                '</div>';
+        }
+        async function renderTikzGuide(g) {
+            if (!g || !Array.isArray(g.visuals) || !tikzReady()) return g;
+            const candidates = g.visuals.filter(v => v && !String(v.tikzSvg || '').trim()).slice(0, 4);
+            await Promise.all(candidates.map(async v => {
+                try {
+                    if (sdCleanTikz(v.tikz) && !sdTikzIsProbablyFormulaOnly(v.tikz)) {
+                        v.tikzSvg = await renderTikzCode(v.tikz, 'guide');
+                    } else {
+                        const out = await generateTikzVisual({
+                            title: v.title || 'Study guide visual',
+                            brief: [v.caption, v.title].filter(Boolean).join('. '),
+                            subject: g.course || g.title || 'General',
+                            format: 'svg',
+                            theme: 'green',
+                            target: 'guide'
+                        });
+                        v.tikz = out.tikz || v.tikz || '';
+                        v.tikzSvg = out.svg;
+                        if (out.caption && !v.caption) v.caption = out.caption;
+                    }
+                } catch (e) {
+                    console.warn('[guide] TikZ renderer unavailable', e);
+                }
+            }));
+            return g;
+        }
         document.getElementById('gGen').addEventListener('click', () => {
             const scr = screenEl('guide');
             if (scr._flushSrc) scr._flushSrc();
@@ -12641,7 +12776,11 @@
             if (!topic && srcCount(scr) === 0) { toast('Enter a topic or add source materials.', 'err'); return; }
             const subject = document.getElementById('gSubject').value.trim();
             const focus = document.getElementById('gFocus').value.trim();
-            runTool('guide', ['Reading your materials', 'Extracting key concepts', 'Structuring the guide', 'Polishing the layout'], async () => {
+            const visualsEnabled = visualOn('gVisuals');
+            if (visualsEnabled && !tikzReady()) { toast('The TikZ renderer is not set up yet.', 'err'); return; }
+            runTool('guide', visualsEnabled
+                ? ['Reading your materials', 'Extracting key concepts', 'Structuring the guide', 'Rendering TikZ visuals', 'Polishing the layout']
+                : ['Reading your materials', 'Extracting key concepts', 'Structuring the guide', 'Polishing the layout'], async () => {
                 const parts = await sourceParts(scr);
                 const basis = topic ? ('the topic "' + topic + '"') : 'the attached materials';
                 const prompt =
@@ -12651,9 +12790,11 @@
                     'a plain-language overview (1–2 paragraphs); key concepts as term + explanation; important formulas if any; ' +
                     'one fully worked example with ordered steps; key takeaways; and a few short self-check quiz questions. ' +
                     'For non-STEM topics, fill realLifeExamples with one practical, concrete example for each major concept or term.' +
+                    (visualsEnabled ? '\nAlso include a "visuals" array with up to 4 useful textbook-style visuals. Each item should include title, caption, and tikz.' + tikzPrompt('study-guide concepts, formulas, or worked examples') : '') +
                     nonStemExampleRules(subject, topic) +
                     (latexOn('gLatex') ? LATEX_ON : '');
                 const g = await gemini([{ text: prompt }].concat(parts), GUIDE_SCHEMA);
+                if (visualsEnabled) await renderTikzGuide(g);
                 renderGuide(g);
                 markDirty();
             });
@@ -12675,6 +12816,7 @@
             if (g.concepts && g.concepts.length) html += gSection('Key Concepts', g.concepts.map(c => '<div class="st-concept"><div class="st-c-term">' + escMath(c.term) + '</div><div class="st-c-body">' + escMathFlow(c.body) + '</div></div>').join(''));
             if (g.realLifeExamples && g.realLifeExamples.length) html += gSection('Real-Life Examples', g.realLifeExamples.map(ex => '<div class="st-concept"><div class="st-c-term">' + escMath(ex.concept || 'Example') + '</div><div class="st-c-body">' + escMathFlow(ex.example || '') + '</div></div>').join(''));
             if (g.formulas && g.formulas.length) html += gSection('Formulas', g.formulas.map(f => '<div class="st-formula">' + escMath(f) + '</div>').join(''));
+            if (g.visuals && g.visuals.length) { const visuals = g.visuals.map(guideVisualHTML).filter(Boolean).join(''); if (visuals) html += gSection('Textbook Visuals', visuals); }
             if (g.example && (g.example.prompt || (g.example.steps || []).length)) html += gSection('Worked Example', (g.example.prompt ? '<p><strong>' + escMathFlow(g.example.prompt) + '</strong></p>' : '') + '<ol class="st-steps">' + (g.example.steps || []).map(s => '<li>' + escMathFlow(s) + '</li>').join('') + '</ol>');
             if (g.takeaways && g.takeaways.length) html += gSection('Key Takeaways', g.takeaways.map(t => '<div class="st-take"><span class="st-take-ck">' + I.check + '</span><span>' + escMathFlow(t) + '</span></div>').join(''));
             if (g.quiz && g.quiz.length) html += gSection('Self-Check', '<div class="st-quiz">' + g.quiz.map(q => '<div class="st-quiz-item">' + escMathFlow(q) + '</div>').join('') + '</div>');
@@ -12701,6 +12843,22 @@
            FLASHCARDS
            ========================================================= */
         const FC = { cards: [], idx: 0, flipped: false, title: '' };
+        function cardVisualHTML(card) {
+            const svg = cleanEmbeddedSvg(card && card.tikzSvg);
+            return svg && /^<svg[\s>]/i.test(svg) ? '<div class="st-card-visual">' + svg + '</div>' : '';
+        }
+        async function renderTikzDeckCards(deck) {
+            if (!deck || !Array.isArray(deck.cards) || !tikzReady()) return deck;
+            const candidates = deck.cards.filter(c => c && sdCleanTikz(c.tikz) && !String(c.tikzSvg || '').trim()).slice(0, 10);
+            await Promise.all(candidates.map(async card => {
+                try {
+                    card.tikzSvg = await renderTikzCode(card.tikz, 'guide');
+                } catch (e) {
+                    console.warn('[flashcards] TikZ renderer unavailable', e);
+                }
+            }));
+            return deck;
+        }
         document.getElementById('fGen').addEventListener('click', () => {
             const scr = screenEl('flashcards');
             if (scr._flushSrc) scr._flushSrc();
@@ -12709,7 +12867,11 @@
             const subject = document.getElementById('fSubject').value.trim();
             const title = document.getElementById('fTitle').value.trim();
             const count = document.getElementById('fCount').value;
-            runTool('flashcards', ['Reading your materials', 'Identifying key terms', 'Writing definitions', 'Building the deck'], async () => {
+            const visualsEnabled = visualOn('fVisuals');
+            if (visualsEnabled && !tikzReady()) { toast('The TikZ renderer is not set up yet.', 'err'); return; }
+            runTool('flashcards', visualsEnabled
+                ? ['Reading your materials', 'Identifying key terms', 'Writing definitions', 'Rendering TikZ visuals', 'Building the deck']
+                : ['Reading your materials', 'Identifying key terms', 'Writing definitions', 'Building the deck'], async () => {
                 const parts = await sourceParts(scr);
                 const basis = topic ? ('the topic "' + topic + '"') : 'the provided materials';
                 const prompt =
@@ -12717,9 +12879,11 @@
                     (parts.length ? ' and any attached materials' : '') +
                     ', create a focused flashcard deck of about ' + count + ' cards. ' +
                     'Each card has a concise "front" (a term or question) and a clear "back" (the definition or answer).' +
+                    (visualsEnabled ? '\nFor STEM cards where a small diagram helps the answer, add a concise TikZ snippet in the card field "tikz". Keep the front text concise; the rendered visual appears with the back/definition.' + tikzPrompt('flashcard answers') : '') +
                     (latexOn('fLatex') ? LATEX_ON : ' ') +
                     'Give the deck a short descriptive "deckTitle".' + (title ? ' Prefer this deck title: "' + title + '".' : '');
                 const deck = await gemini([{ text: prompt }].concat(parts), DECK_SCHEMA);
+                if (visualsEnabled) await renderTikzDeckCards(deck);
                 if (title) deck.deckTitle = title;
                 showDeck(deck);
                 markDirty();
@@ -12784,7 +12948,7 @@
             res.querySelector('[data-decktitle]').textContent = FC.title;
             res.querySelector('[data-deckcount]').textContent = (FC.idx + 1) + ' / ' + FC.cards.length;
             res.querySelector('[data-front]').innerHTML = escMath(cur.front);
-            res.querySelector('[data-back]').innerHTML = escMath(cur.back);
+            res.querySelector('[data-back]').innerHTML = escMath(cur.back) + cardVisualHTML(cur);
             res.querySelector('[data-flip]').classList.toggle('flipped', FC.flipped);
             res.querySelector('[data-prev]').disabled = FC.idx === 0;
             res.querySelector('[data-next]').disabled = FC.idx === FC.cards.length - 1;
@@ -12814,7 +12978,11 @@
             const slideCount = slideChoice === 'auto' ? 'auto' : (parseInt(slideChoice, 10) || 10);
             const focus = document.getElementById('aioFocus').value.trim();
             const mathRules = latexOn('aioLatex') ? LATEX_ON : '';
-            runTool('allinone', ['Reading your inputs', 'Writing the worksheet', 'Building the study guide', 'Creating flashcards', 'Designing the slide deck'], async () => {
+            const visualsEnabled = visualOn('aioVisuals');
+            if (visualsEnabled && !tikzReady()) { toast('The TikZ renderer is not set up yet.', 'err'); return; }
+            runTool('allinone', visualsEnabled
+                ? ['Reading your inputs', 'Writing the worksheet', 'Building the study guide', 'Creating flashcards', 'Designing the slide deck', 'Rendering TikZ visuals']
+                : ['Reading your inputs', 'Writing the worksheet', 'Building the study guide', 'Creating flashcards', 'Designing the slide deck'], async () => {
                 const parts = await sourceParts(scr); // read files/links once, reuse for all four calls
                 const hasSrc = parts.length > 0;
                 const basis = topic ? ('the topic "' + topic + '"') : 'the attached materials';
@@ -12828,8 +12996,10 @@
                     'short: short answer. work: a show-your-work problem with a full step-by-step solution in "answer". tf: true/false. fill: fill-in-the-blank (use ____ in the question).\n' +
                     'Vary the difficulty. Every question MUST include a correct, complete "answer". ' +
                     'Also provide a descriptive "title", the "subject", a "unit" label, and a short student "instructions" line.' +
+                    (visualsEnabled ? tikzPrompt('worksheet questions') : '') +
                     mathRules + (hasSrc ? '\nBase the questions on the attached source materials.' : '');
                 const wsData = await gemini([{ text: wsPrompt }].concat(parts), WS_SCHEMA);
+                if (visualsEnabled) await renderTikzWorksheet(wsData);
                 wsData.subject = subject || wsData.subject || '';
                 wsData.level = level || '';
 
@@ -12839,17 +13009,21 @@
                     'a plain-language overview (1–2 paragraphs); key concepts as term + explanation; important formulas if any; ' +
                     'one fully worked example with ordered steps; key takeaways; and a few short self-check quiz questions. ' +
                     'For non-STEM topics, fill realLifeExamples with one practical, concrete example for each major concept or term.' +
+                    (visualsEnabled ? '\nAlso include a "visuals" array with up to 4 useful textbook-style visuals. Each item should include title, caption, and tikz.' + tikzPrompt('study-guide concepts, formulas, or worked examples') : '') +
                     nonStemExampleRules(subject, topic) + mathRules;
                 const guide = await gemini([{ text: gPrompt }].concat(parts), GUIDE_SCHEMA);
+                if (visualsEnabled) await renderTikzGuide(guide);
 
                 const fPrompt =
                     'You are an expert tutor. From ' + basis + ' and any attached materials, create a focused flashcard deck of about ' + cards + ' cards. ' +
                     'Each card has a concise "front" (a term or question) and a clear "back" (the definition or answer).' +
+                    (visualsEnabled ? '\nFor STEM cards where a small diagram helps the answer, add a concise TikZ snippet in the card field "tikz". Keep the front text concise; the rendered visual appears with the back/definition.' + tikzPrompt('flashcard answers') : '') +
                     (mathRules || ' ') +
                     'Give the deck a short descriptive "deckTitle".';
                 const deck = await gemini([{ text: fPrompt }].concat(parts), DECK_SCHEMA);
+                if (visualsEnabled) await renderTikzDeckCards(deck);
 
-                const sdPrompt = studyDeckPrompt(topic, subject, slideCount, '', hasSrc);
+                const sdPrompt = studyDeckPrompt(topic, subject, slideCount, '', hasSrc, !!mathRules, visualsEnabled);
                 /* old passive deck prompt removed
                     'You are an expert teacher creating a clear, engaging presentation slide deck.\n' +
                     'Topic: ' + (topic || '(derive the topic from the attached materials)') + '\n' +
@@ -12863,6 +13037,7 @@
                     ' Also return an overall "title" and the "subject".';
                 */
                 const slideDeck = await gemini([{ text: sdPrompt }].concat(parts), SD_SCHEMA);
+                if (visualsEnabled) await renderTikzDeck(slideDeck, 'slide');
 
                 // Keep the title consistent across all four outputs so the set reads as
                 // one study pack (and saves under one name). Prefer the worksheet's concise
@@ -13928,6 +14103,8 @@
                             equation: { type: 'string' },
                             visualType: { type: 'string' },
                             visual: { type: 'string' },
+                            tikz: { type: 'string' },
+                            tikzSvg: { type: 'string' },
                             mermaid: { type: 'string' },
                             chart: {
                                 type: 'object',
@@ -13984,7 +14161,7 @@
                             }
                         },
                         required: ['type', 'title', 'narration'],
-                        propertyOrdering: ['type', 'title', 'eyebrow', 'bullets', 'narration', 'equation', 'visualType', 'visual', 'mermaid', 'chart', 'question', 'prompt', 'choices', 'pairs', 'questions', 'answer', 'feedback', 'note']
+                        propertyOrdering: ['type', 'title', 'eyebrow', 'bullets', 'narration', 'equation', 'visualType', 'visual', 'tikz', 'tikzSvg', 'mermaid', 'chart', 'question', 'prompt', 'choices', 'pairs', 'questions', 'answer', 'feedback', 'note']
                     }
                 }
             },
@@ -14092,6 +14269,8 @@
                     equation: String(s.equation || '').trim(),
                     visualType: String(s.visualType || '').trim(),
                     visual: sdSelfContainedText(s.visual || ''),
+                    tikz: String(s.tikz || '').trim(),
+                    tikzSvg: String(s.tikzSvg || '').trim(),
                     mermaid: sdSelfContainedMermaid(s.mermaid || '').trim(),
                     chart: s.chart && typeof s.chart === 'object' ? {
                         type: String(s.chart.type || 'bar').trim(),
@@ -14185,6 +14364,26 @@
                 '<div class="sd-icon-card">' + icons[idx % icons.length] + '<span>' + escMath(label) + '</span></div>'
             ).join('') + '</div>';
         }
+        function sdLooksStem(s) {
+            const hay = [
+                s.subject, s.visualType, s.visual, s.title, s.eyebrow, s.narration, s.equation,
+                sdArr(s.bullets).join(' ')
+            ].join(' ').toLowerCase();
+            return /\b(math|calculus|derivative|integral|function|slope|tangent|secant|curve|graph|axis|coordinate|geometry|vector|physics|force|velocity|acceleration|chemistry|equation|formula|polynomial|probability|statistics)\b/.test(hay);
+        }
+        function sdMathFallbackHTML(s) {
+            if (s.equation) return '<div class="sd-eq">\\[' + esc(s.equation) + '\\]</div>';
+            return '<svg class="sd-concept-svg" viewBox="0 0 560 260" role="img" aria-label="Math concept diagram">' +
+                '<defs><marker id="sdMathArrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#3f8f46"/></marker></defs>' +
+                '<path d="M80 208H488" stroke="#8ca296" stroke-width="2" marker-end="url(#sdMathArrow)"/>' +
+                '<path d="M132 220V42" stroke="#8ca296" stroke-width="2" marker-end="url(#sdMathArrow)"/>' +
+                '<path d="M92 192 C160 178 204 128 252 118 C314 104 360 152 454 66" fill="none" stroke="#4f9e54" stroke-width="4"/>' +
+                '<path d="M204 166 L392 72" stroke="#2f5fd1" stroke-width="3"/>' +
+                '<circle cx="294" cy="112" r="7" fill="#3f8f46"/>' +
+                '<text x="304" y="104" class="sd-svg-label">point on curve</text>' +
+                '<text x="280" y="238" text-anchor="middle" class="sd-svg-note">' + sdCleanLabel(s.title || 'Math relationship', 'Math relationship') + '</text>' +
+                '</svg>';
+        }
         function sdCleanLabel(text, fallback) {
             text = String(text || '').replace(/^[A-Z][a-z]+:\s*/, '').replace(/\s+/g, ' ').trim();
             if (text.length > 30) text = text.slice(0, 28).replace(/\s+\S*$/, '') + '...';
@@ -14234,6 +14433,7 @@
                 s.visualType, s.visual, s.title, s.eyebrow, s.narration,
                 sdArr(s.bullets).join(' ')
             ].join(' ').toLowerCase();
+            if (sdLooksStem(s)) return sdMathFallbackHTML(s);
             if (/chimney|silo|vertical|blocked|department/.test(hay)) return sdSiloHTML(s);
             if (/matrix|hybrid|grid|columns|rows|project-based/.test(hay)) return sdMatrixHTML(s);
             if (/network|team|hub|contractor|partner|external|node|outsourc/.test(hay)) return sdNetworkHTML(s);
@@ -14261,10 +14461,65 @@
             const code = sdRepairMermaid(s.mermaid || '');
             return code ? '<pre class="sd-mermaid" data-sdmermaid>' + esc(code) + '</pre>' : '';
         }
+        function sdCleanTikz(code) {
+            return String(code || '')
+                .replace(/^```(?:tex|latex|tikz)?\s*/i, '')
+                .replace(/\s*```$/i, '')
+                .trim();
+        }
+        function sdTikzIsProbablyFormulaOnly(code) {
+            const raw = sdCleanTikz(code);
+            if (!raw) return false;
+            const drawingCommands = (raw.match(/\\(?:draw|fill|filldraw|path|node|coordinate|addplot)\b/g) || []).length;
+            const plotCommands = (raw.match(/\\(?:axis|plot|circle|rectangle|arc|grid)\b/g) || []).length;
+            const mathOnlyNodes = (raw.match(/\\node\b/g) || []).length > 0 && !/\\(?:draw|fill|filldraw|addplot)\b/.test(raw);
+            return mathOnlyNodes || (drawingCommands <= 1 && plotCommands === 0 && raw.length < 900 && /\\(?:int|frac|sum|lim|sqrt)|[=^_]/.test(raw));
+        }
+        function sdTikzHTML(s) {
+            if (sdTikzIsProbablyFormulaOnly(s.tikz || '')) return '';
+            const svg = String(s.tikzSvg || '')
+                .replace(/<\?xml[\s\S]*?\?>/i, '')
+                .replace(/<!DOCTYPE[\s\S]*?>/i, '')
+                .trim();
+            if (svg && /^<svg[\s>]/i.test(svg)) return '<div class="sd-tikz-svg">' + svg + '</div>';
+            return '';
+        }
+        async function renderTikzDeck(data, target) {
+            if (!data || !Array.isArray(data.slides) || !tikzReady()) return data;
+            const candidates = data.slides.filter(s => s && !String(s.tikzSvg || '').trim() && sdLooksStem(s)).slice(0, 8);
+            if (!candidates.length) return data;
+            await Promise.all(candidates.map(async slide => {
+                try {
+                    if (sdCleanTikz(slide.tikz) && !sdTikzIsProbablyFormulaOnly(slide.tikz)) {
+                        slide.tikzSvg = await renderTikzCode(slide.tikz, target || 'slide');
+                        slide.visualType = 'tikz';
+                    } else {
+                        const out = await generateTikzVisual({
+                            title: slide.title || 'Slide visual',
+                            brief: [slide.visual, slide.narration, sdArr(slide.bullets).join('; ')].filter(Boolean).join('. '),
+                            subject: data.subject || data.title || 'General',
+                            equation: slide.equation || '',
+                            format: 'svg',
+                            theme: 'green',
+                            target: target || 'slide'
+                        });
+                        slide.tikz = out.tikz || slide.tikz || '';
+                        slide.tikzSvg = out.svg;
+                        slide.visualType = 'tikz';
+                    }
+                } catch (e) {
+                    console.warn('[slides] TikZ renderer unavailable', e);
+                }
+            }));
+            return data;
+        }
         function sdVisualHTML(s) {
             const vt = String(s.visualType || '').toLowerCase();
             const visualText = String(s.visual || '').toLowerCase();
             const placeholderVisual = sdIsVisualPlaceholder(s.visual);
+            const tikz = sdTikzHTML(s);
+            if (tikz) return tikz;
+            if (String(s.visualType || '').toLowerCase() === 'tikz' && sdLooksStem(s)) return sdMathFallbackHTML(s);
             if (s.mermaid) {
                 const mermaid = sdMermaidHTML(s);
                 return mermaid || sdSmartVisualHTML(s);
@@ -14350,7 +14605,7 @@
                 'Keep it under 1200 words. Plain text only.'
             ].join('\n');
         }
-        function studyDeckPrompt(topic, subject, targetSlides, sourceBrief, hasSrc) {
+        function studyDeckPrompt(topic, subject, targetSlides, sourceBrief, hasSrc, mathOn, visualsOn) {
             const autoLen = String(targetSlides || '').toLowerCase() === 'auto';
             return [
                 'You are an expert teacher creating an interactive study deck, not a passive presentation.',
@@ -14395,11 +14650,24 @@
                 '- Use visualType="comparison" when contrasting two sides; put short comparison points in bullets.',
                 '- Use visualType="concept" plus visual for a plain concept summary when no chart fits.',
                 '- Do not invent numeric chart values unless the source gives numbers. For qualitative comparisons, use rough 1-5 importance values only when that helps learning.',
+                visualsOn ? [
+                    '',
+                    'Textbook visuals are enabled for this deck.',
+                    '- For math, physics, chemistry, engineering, statistics, coding, graphing, geometry, vectors, calculus, or other STEM explanation slides, prefer visualType="tikz" and put ONLY a TikZ snippet in "tikz".',
+                    '- Use TikZ only for actual diagrams. Do NOT put a standalone formula, theorem statement, or large equation in TikZ; use the "equation" field for formulas instead.',
+                    '- The TikZ snippet may be either a full \\begin{tikzpicture}...\\end{tikzpicture} block or only commands that belong inside tikzpicture.',
+                    '- Do NOT include \\documentclass, \\usepackage, \\begin{document}, packages, external images, file inputs, shell commands, or markdown fences.',
+                    '- Use the built-in Course Planner styles when helpful: cp axis, cp line, cp dashed, cp fill, cp point, cp label.',
+                    '- Good TikZ visuals: coordinate graphs, number lines, vectors, geometry diagrams, force diagrams, circuit-like relationships, probability trees, regions under curves, transformations, and annotated formulas.',
+                    '- Keep each visual simple and readable: 1 focused diagram, short labels only, no dense walls of text, no oversized equation-only drawings.',
+                    '- Leave tikzSvg empty; the app renders TikZ after generation.'
+                ].join('\n') : '',
                 '',
                 'For every slide, provide type, title, narration, and any fields needed by that type.',
                 'Narration must be 2 to 4 natural spoken sentences in plain English. No markdown. Avoid reading symbols literally.',
                 'Bullets must be brief phrases, not paragraphs. Do not make every slide a bullet list.',
                 'For equations, put LaTeX in "equation" with no $ delimiters.',
+                mathOn ? 'Math formatting is enabled: in titles, bullets, questions, answers, and feedback, write mathematical expressions as valid LaTeX using \\( ... \\) for inline math. In the equation field only, write raw LaTeX with no delimiters. Keep inline math on the same line as surrounding words. Do not use \\mathbf, \\boldsymbol, \\pmb, or similar bold variable commands. Use balanced parentheses/brackets instead of risky unmatched \\left/\\right pairs.' : '',
                 'Return an overall title, subject, short overview, and the slides array.',
                 hasSrc ? 'Base the deck strictly on the provided source material and brief.' : 'Teach the topic accurately using standard course-level knowledge.'
             ].filter(Boolean).join('\n');
@@ -14746,7 +15014,12 @@
             const resultEl = document.getElementById('sdResult');
             resultEl._subj = subject;
             const hasSrc = srcCount(scr) > 0;
-            runTool('slides', ['Reading your inputs', 'Analyzing source material', 'Planning learn-and-test flow', 'Building the study deck'], async () => {
+            const mathEnabled = latexOn('sdLatex');
+            const visualsEnabled = visualOn('sdVisuals');
+            if (visualsEnabled && !tikzReady()) { toast('The TikZ renderer is not set up yet.', 'err'); return; }
+            runTool('slides', visualsEnabled
+                ? ['Reading your inputs', 'Analyzing source material', 'Planning learn-and-test flow', 'Building the study deck', 'Rendering TikZ visuals']
+                : ['Reading your inputs', 'Analyzing source material', 'Planning learn-and-test flow', 'Building the study deck'], async () => {
                 let sourceBrief = '';
                 let srcParts = [];
                 if (hasSrc) {
@@ -14757,7 +15030,7 @@
                         console.warn('[slides] Source brief failed; trying direct deck generation with source parts.', e);
                     }
                 }
-                const prompt = studyDeckPrompt(topic, subject, count, sourceBrief, hasSrc);
+                const prompt = studyDeckPrompt(topic, subject, count, sourceBrief, hasSrc, mathEnabled, visualsEnabled);
                 /* old passive deck prompt removed
                     'Produce exactly ' + count + ' content slides (a title slide is added automatically — do NOT include one).\n' +
                     'For EACH slide provide:\n' +
@@ -14772,6 +15045,7 @@
                 */
                 const parts = [{ text: prompt }].concat(sourceBrief ? [] : srcParts);
                 const data = await gemini(parts, SD_SCHEMA);
+                if (visualsEnabled) await renderTikzDeck(data, 'slide');
                 buildSlidePlayer(data, resultEl);
                 markDirty();
             });

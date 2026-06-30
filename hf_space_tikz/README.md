@@ -54,13 +54,52 @@ PNG requests return base64:
 }
 ```
 
+### `POST /generate`
+
+Uses a Gemini key stored in the Space secrets to generate a compact TikZ diagram
+from a plain-language visual brief, render it, and attempt one repair if LaTeX
+rejects the first draft.
+
+Request:
+
+```json
+{
+  "title": "Derivative as slope of a tangent",
+  "brief": "Show a curve, a point on the curve, and a tangent line at that point.",
+  "subject": "Calculus",
+  "equation": "f'(a)",
+  "format": "svg",
+  "theme": "green",
+  "target": "slide"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "format": "svg",
+  "mime": "image/svg+xml",
+  "svg": "<svg ...></svg>",
+  "tikz": "\\begin{tikzpicture}...",
+  "caption": "The tangent line gives the slope at one point."
+}
+```
+
 ## Hugging Face Setup
 
 1. Create a new Hugging Face Space.
 2. Choose Docker as the Space SDK.
 3. Upload this folder's files: `Dockerfile`, `app.py`, `requirements.txt`.
-4. Wait for the Space to build.
-5. Test `/health`.
+4. Add `GEMINI_API_KEY` as a Space secret if you want server-side visual
+   generation through `/generate`. Optional fallback secrets:
+   `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_API_KEY_4`.
+5. Optionally set `GEMINI_MODEL` and `GEMINI_FALLBACK_MODELS` as Space
+   variables. The default model order is `gemini-3-flash-preview`,
+   `gemini-3.5-flash`, then `gemini-2.5-flash`.
+6. Wait for the Space to build.
+7. Test `/health`.
 
 The frontend can then use:
 

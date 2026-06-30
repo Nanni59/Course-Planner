@@ -11,15 +11,19 @@ slides, worksheets, study guides, and all-in-one study sets.
 """
 
 import base64
+import json
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Literal
 
+import requests
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -39,6 +43,27 @@ app.add_middleware(
 MAX_CODE_CHARS = int(os.environ.get("MAX_CODE_CHARS", "12000"))
 RENDER_TIMEOUT = int(os.environ.get("RENDER_TIMEOUT", "25"))
 MAX_OUTPUT_BYTES = int(os.environ.get("MAX_OUTPUT_BYTES", "1500000"))
+GEMINI_TIMEOUT = (10, int(os.environ.get("GEMINI_READ_TIMEOUT", "90")))
+GEMINI_MAX_ATTEMPTS = int(os.environ.get("GEMINI_MAX_ATTEMPTS", "4"))
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
+GEMINI_FALLBACK_MODELS = [
+    m.strip()
+    for m in os.environ.get("GEMINI_FALLBACK_MODELS", "gemini-3.5-flash,gemini-2.5-flash").split(",")
+    if m.strip()
+]
+GEMINI_MODELS = list(dict.fromkeys([GEMINI_MODEL] + GEMINI_FALLBACK_MODELS))
+GEMINI_KEYS = [
+    k
+    for k in (
+        os.environ.get("GEMINI_API_KEY"),
+        os.environ.get("GEMINI_API_KEY_2"),
+        os.environ.get("GEMINI_API_KEY_3"),
+        os.environ.get("GEMINI_API_KEY_4"),
+    )
+    if k
+]
+_key_idx = 0
+_key_lock = threading.Lock()
 
 
 class RenderReq(BaseModel):
@@ -46,6 +71,26 @@ class RenderReq(BaseModel):
     format: Literal["svg", "png"] = "svg"
     theme: Literal["green", "mono"] = "green"
     target: Literal["slide", "worksheet", "guide", "generic"] = "generic"
+
+
+class GenerateReq(BaseModel):
+    title: str = ""
+    brief: str = Field(..., description="Plain-language description of the visual to create")
+    subject: str = "General"
+    equation: str = ""
+    format: Literal["svg", "png"] = "svg"
+    theme: Literal["green", "mono"] = "green"
+    target: Literal["slide", "worksheet", "guide", "generic"] = "generic"
+
+
+def _next_key_index() -> int:
+    global _key_idx
+    if not GEMINI_KEYS:
+        return 0
+    with _key_lock:
+        idx = _key_idx
+        _key_idx = (_key_idx + 1) % len(GEMINI_KEYS)
+        return idx
 
 
 DANGEROUS_PATTERNS = [
@@ -187,6 +232,96 @@ def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
     )
 
 
+def _strip_fence(text: str) -> str:
+    text = (text or "").strip()
+    text = re.sub(r"^```(?:json|tex|latex|tikz)?\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
+    return text.strip()
+
+
+def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
+    if not GEMINI_KEYS:
+        raise RuntimeError("No Gemini API key is set on the Space.")
+
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+        },
+    }
+    if as_json:
+        body["generationConfig"]["responseMimeType"] = "application/json"
+
+    last_err = "Gemini call failed."
+    key_idx = _next_key_index()
+    attempts = max(GEMINI_MAX_ATTEMPTS, len(GEMINI_KEYS) * len(GEMINI_MODELS))
+    for attempt in range(attempts):
+        key = GEMINI_KEYS[key_idx % len(GEMINI_KEYS)]
+        model = GEMINI_MODELS[(attempt // max(1, len(GEMINI_KEYS))) % len(GEMINI_MODELS)]
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        try:
+            res = requests.post(
+                url,
+                headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+                json=body,
+                timeout=GEMINI_TIMEOUT,
+            )
+        except requests.exceptions.RequestException as exc:
+            last_err = f"Gemini network error: {str(exc)[:180]}"
+            key_idx += 1
+            time.sleep(min(2 + attempt, 8))
+            continue
+
+        if res.status_code == 200:
+            try:
+                text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                if as_json:
+                    return json.loads(_strip_fence(text))
+                return text
+            except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                last_err = f"Gemini returned unusable output: {type(exc).__name__}"
+                time.sleep(min(2 + attempt, 8))
+                continue
+
+        last_err = f"Gemini API error {res.status_code}: {res.text[:220]}"
+        if res.status_code in (400, 403, 404) and len(GEMINI_MODELS) <= 1 and len(GEMINI_KEYS) <= 1:
+            break
+        if res.status_code in (429, 500, 502, 503, 504):
+            key_idx += 1
+            time.sleep(min(2 + attempt, 8))
+            continue
+        key_idx += 1
+
+    raise RuntimeError(last_err)
+
+
+def _visual_prompt(req: GenerateReq, repair_log: str = "", previous_code: str = "") -> str:
+    return f"""
+You create compact TikZ textbook diagrams for Course Planner.
+
+Return only JSON with:
+  "tikz": a TikZ snippet or full tikzpicture environment
+  "caption": one short sentence
+
+Rules:
+- Make a real diagram, not a formula poster. Use drawing primitives: axes, curves, arrows, shaded regions, points, vectors, trees, geometry, or relationships.
+- Do not use standalone equation text as the visual. If an equation matters, use it only as a tiny label.
+- Keep labels very short: 1 to 3 words, variables, or symbols. Avoid full sentences in nodes.
+- Use safe TikZ/PGFPlots only. No documentclass, packages, begin document, external files, markdown fences, shell commands, or custom macros.
+- Keep the drawing within a roughly 6 by 4 coordinate area so it fits slides and guides.
+- Prefer the built-in styles when useful: cp axis, cp line, cp dashed, cp fill, cp point, cp label.
+- If the request is not visual, return an empty tikz string and a brief caption.
+
+Subject: {req.subject[:160]}
+Title: {req.title[:240]}
+Equation, if any: {req.equation[:500]}
+Visual brief: {req.brief[:1800]}
+Target: {req.target}
+
+{("Previous TikZ failed. Fix it using this compile log: " + repair_log[:1200] + "\nPrevious TikZ:\n" + previous_code[:2500]) if repair_log else ""}
+""".strip()
+
+
 def _render(req: RenderReq) -> dict:
     reason = _reject_reason(req.code)
     if reason:
@@ -277,6 +412,8 @@ def health():
         "tools": tools,
         "max_code_chars": MAX_CODE_CHARS,
         "timeout": RENDER_TIMEOUT,
+        "gemini_configured": bool(GEMINI_KEYS),
+        "gemini_models": GEMINI_MODELS,
     }
 
 
@@ -285,3 +422,35 @@ def render(req: RenderReq):
     result = _render(req)
     status = 200 if result.get("ok") else 400
     return JSONResponse(result, status_code=status)
+
+
+@app.post("/generate")
+def generate(req: GenerateReq):
+    try:
+        spec = _gemini(_visual_prompt(req), as_json=True, temperature=0.25)
+        tikz = _strip_fence(str(spec.get("tikz", "")))
+        caption = str(spec.get("caption", "")).strip()
+        if not tikz:
+            return JSONResponse({"ok": False, "skipped": True, "error": "No diagram was appropriate.", "caption": caption}, status_code=400)
+
+        rendered = _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
+        if not rendered.get("ok"):
+            repaired = _gemini(
+                _visual_prompt(req, repair_log=rendered.get("log") or rendered.get("error") or "", previous_code=tikz),
+                as_json=True,
+                temperature=0.15,
+            )
+            tikz = _strip_fence(str(repaired.get("tikz", tikz)))
+            caption = str(repaired.get("caption", caption)).strip()
+            rendered = _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
+
+        if not rendered.get("ok"):
+            rendered["tikz"] = tikz
+            rendered["caption"] = caption
+            return JSONResponse(rendered, status_code=400)
+
+        rendered["tikz"] = tikz
+        rendered["caption"] = caption
+        return JSONResponse(rendered, status_code=200)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)[:500]}, status_code=500)
