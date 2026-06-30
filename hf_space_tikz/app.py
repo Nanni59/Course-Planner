@@ -296,6 +296,15 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
 
 
 def _visual_prompt(req: GenerateReq, repair_log: str = "", previous_code: str = "") -> str:
+    repair_block = ""
+    if repair_log:
+        repair_block = (
+            "Previous TikZ failed. Fix it using this compile log: "
+            + repair_log[:1200]
+            + "\nPrevious TikZ:\n"
+            + previous_code[:2500]
+        )
+
     return f"""
 You create compact TikZ textbook diagrams for Course Planner.
 
@@ -318,7 +327,7 @@ Equation, if any: {req.equation[:500]}
 Visual brief: {req.brief[:1800]}
 Target: {req.target}
 
-{("Previous TikZ failed. Fix it using this compile log: " + repair_log[:1200] + "\nPrevious TikZ:\n" + previous_code[:2500]) if repair_log else ""}
+{repair_block}
 """.strip()
 
 
