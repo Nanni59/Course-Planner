@@ -1,3 +1,12 @@
+---
+title: Course Planner TikZ Renderer
+colorFrom: green
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Course Planner TikZ Renderer
 
 TikZ is a separate Hugging Face Docker Space for static textbook-style visuals.
