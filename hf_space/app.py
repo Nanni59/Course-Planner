@@ -70,7 +70,7 @@ FALLBACK_MODELS = [m.strip() for m in os.environ.get(
 MODELS = list(dict.fromkeys([MODEL] + FALLBACK_MODELS))
 _model_blocked_until = {}
 _model_lock = threading.Lock()
-MAX_REPAIRS = 3
+MAX_REPAIRS = int(os.environ.get("MAX_REPAIRS", "4"))
 MAX_ACTIVE_JOBS = int(os.environ.get("MAX_ACTIVE_JOBS", "1"))
 RENDER_TIMEOUT = int(os.environ.get("RENDER_TIMEOUT", "600"))
 MAX_PROMPT_CHARS = int(os.environ.get("MAX_PROMPT_CHARS", "20000"))
@@ -290,7 +290,7 @@ These keep the render + auto-repair pipeline working — violating any one fails
 - PIPELINE NARRATION MANDATE: At every scene phase and major animation block, call `self.add_subcaption("...")` with the spoken narrative for that beat — this single string IS both the audio the website speaks and the on-screen closed caption, so narration and visuals stay locked together. Write it the way a presenter would SAY it: words, not symbols ("x squared", not "x^2"). If a formula genuinely belongs in the caption, wrap ONLY that formula in inline-LaTeX `\( ... \)` delimiters, e.g. `self.add_subcaption(r"This gives the area \(\pi r^2\).")` — the site typesets the `\(...\)` and still reads the whole line aloud. Use a raw string `r"..."` for any subcaption containing a backslash. On-screen Text/Tex captions in the bottom zone do NOT replace this.
 
 ### 1. CORE COMPOSITION & LAYOUT RULES
-- BACKGROUND: Keep the default deep dark background. Use high-contrast, modern palettes and avoid muddy or low-contrast combinations.
+- BACKGROUND: Use a pure black or near-black Manim background, preferably `self.camera.background_color = BLACK`. Do NOT use navy/blue presentation-card backgrounds for the scene. The video should feel like a mathematical animation canvas, not a slide summary.
 - CORE COLORS ONLY: Use only these standard Manim global color constants: BLUE, GREEN, RED, YELLOW, ORANGE, PURPLE, PINK, TEAL, MAROON, WHITE, BLACK, GREY.
 - HEX CODES FOR CUSTOM PALETTES: For any custom/neon color, never type it as a name constant (do NOT use CYAN, MAGENTA, GOLD, etc.). Always pass it as a raw hex string, e.g. color="#00FFFF" (cyan), color="#FF00FF" (magenta), color="#FFD700" (gold).
 - ALIGNMENT: Never guess absolute coordinates like `VGroup(a, b).shift(LEFT * 2.3)`. Use relationships: `.next_to(target, DIRECTION, buff=...)`, `.align_to(target, DIRECTION)`, `.arrange(DIRECTION, buff=...)`, and `.to_edge(...)` / `.move_to(...)` for anchoring.
@@ -299,6 +299,7 @@ These keep the render + auto-repair pipeline working — violating any one fails
 
 ### 2. VISUAL FOCAL GUIDANCE (THE EYE-TRACKING PRINCIPLE)
 Static, motionless scenes are forbidden. Every structural transition must guide the eye:
+- PRESENTATION-CARD BAN: Never render a static title card with a few bullet points as the main content. If a concept is abstract, invent a drawable model for it: axes, vectors, points, arrows, regions, transformations, moving labels, or formulas that change over time.
 - FORMULA TRANSFORMS: When an equation evolves into a new step, do not fade it out — morph it with `TransformMatchingShapes(old_eq, new_eq)`, `TransformMatchingTex(old_eq, new_eq)`, or `ReplacementTransform(old_eq, new_eq)`.
 - CALLOUT HIGHLIGHTS: To address a specific variable, term, or segment, wrap it with a temporary `SurroundingRectangle(target, color="#FFD700", stroke_width=2)`, animated on/off with `Create` then `FadeOut`.
 - EMPHASIS HOOKS: Use `self.play(Indicate(target))` or `self.play(Flash(point))` when a critical step or intersection occurs.
@@ -1525,7 +1526,7 @@ from manim import *
 
 class MainScene(Scene):
     def construct(self):
-        self.camera.background_color = "#111827"
+        self.camera.background_color = BLACK
         title = Text(%s, font="DejaVu Sans", font_size=34, color=WHITE).to_edge(UP, buff=0.55)
         subtitle = Text(%s, font="DejaVu Sans", font_size=24, color="#A7F3D0").next_to(title, DOWN, buff=0.18)
 
@@ -1540,13 +1541,15 @@ class MainScene(Scene):
             tips=True,
             axis_config={"color": GREY}
         ).shift(DOWN * 0.25)
-        plane_label = Text("visual model", font="DejaVu Sans", font_size=24, color="#A7F3D0").next_to(axes, UP, buff=0.25)
+        plane_label = Text("animated model", font="DejaVu Sans", font_size=24, color=GREEN).next_to(axes, UP, buff=0.25)
 
         self.add_subcaption("Start by turning the topic into a visual model instead of a written outline.")
         self.play(Create(axes), FadeIn(plane_label, shift=UP * 0.15), run_time=3.6)
 
         tracker = ValueTracker(-2.6)
-        path = axes.plot(lambda x: 0.45 * x + 0.6, x_range=[-2.8, 2.8], color=BLUE)
+        path = axes.plot(lambda x: 0.45 * x + 0.6, x_range=[-2.8, 2.8], color=GREEN)
+        second_path = axes.plot(lambda x: -0.35 * x + 0.25, x_range=[-2.8, 2.8], color=TEAL)
+        intersect = Dot(axes.c2p(-0.4375, 0.403), color=YELLOW)
         moving_dot = always_redraw(lambda: Dot(
             axes.c2p(tracker.get_value(), 0.45 * tracker.get_value() + 0.6),
             color=YELLOW
@@ -1567,24 +1570,25 @@ class MainScene(Scene):
             moving_dot.get_center(),
             color=GREY
         ))
-        formula = MathTex(r"\\text{quantity} \\rightarrow \\text{relationship}", color=WHITE, font_size=36).to_edge(UP, buff=1.35)
+        formula = MathTex(r"\\text{visual} \\rightarrow \\text{relationship}", color=WHITE, font_size=36).to_edge(UP, buff=1.35)
 
         self.add_subcaption("A moving point and arrow show how one changing quantity controls another.")
-        self.play(Create(path), GrowArrow(vector), FadeIn(moving_dot), FadeIn(x_proj), FadeIn(y_proj), Write(formula), run_time=4.8)
+        self.play(Create(path), Create(second_path), GrowArrow(vector), FadeIn(moving_dot), FadeIn(x_proj), FadeIn(y_proj), Write(formula), run_time=4.8)
         self.play(tracker.animate.set_value(2.6), run_time=6.5, rate_func=linear)
 
         highlight = Circle(radius=0.22, color="#FFD700").move_to(moving_dot)
         result_formula = MathTex(r"\\text{model} \\rightarrow \\text{rule} \\rightarrow \\text{prediction}", color=WHITE, font_size=34).to_edge(UP, buff=1.35)
         self.add_subcaption("The key step is to connect the picture to the rule that explains the pattern.")
-        self.play(Create(highlight), TransformMatchingTex(formula, result_formula), run_time=3.4)
-        self.play(Indicate(path, color="#FFD700"), tracker.animate.set_value(-1.8), run_time=4.5)
+        self.play(Create(highlight), FadeIn(intersect, scale=1.6), TransformMatchingTex(formula, result_formula), run_time=3.4)
+        self.play(Indicate(path, color="#FFD700"), Indicate(second_path, color="#FFD700"), tracker.animate.set_value(-1.8), run_time=4.5)
 
         start_label = Text("start", font="DejaVu Sans", font_size=22, color=WHITE).next_to(axes.c2p(-1.8, 0.45 * -1.8 + 0.6), DOWN, buff=0.25)
         end_label = Text("change", font="DejaVu Sans", font_size=22, color=WHITE).next_to(moving_dot, RIGHT, buff=0.22)
+        meet_label = Text("key point", font="DejaVu Sans", font_size=22, color=YELLOW).next_to(intersect, DOWN, buff=0.18)
         self.add_subcaption("Labels mark only the important objects, while the animation carries the explanation.")
-        self.play(FadeIn(start_label), FadeIn(end_label), tracker.animate.set_value(1.9), run_time=5.4)
+        self.play(FadeIn(start_label), FadeIn(end_label), FadeIn(meet_label), tracker.animate.set_value(1.9), run_time=5.4)
 
-        box = SurroundingRectangle(VGroup(axes, path, vector, moving_dot), color="#34D399", buff=0.28, stroke_width=2)
+        box = SurroundingRectangle(VGroup(axes, path, second_path, vector, moving_dot, intersect), color=GREEN, buff=0.28, stroke_width=2)
         takeaway = Text("picture -> relationship -> result", font="DejaVu Sans", font_size=28, color="#FBBF24").to_edge(DOWN, buff=0.55)
         self.add_subcaption("The takeaway is to read the visual relationship first, then use the rule to reason forward.")
         self.play(Create(box), FadeIn(takeaway, shift=UP * 0.15), run_time=3.2)
@@ -1632,7 +1636,7 @@ def _run_job(job_id, prompt, subject, question, mode="topic"):
 
         last_log = ""
         mp4 = None
-        for attempt in range(MAX_REPAIRS + 1):  # 1 initial + up to 3 repairs
+        for attempt in range(MAX_REPAIRS + 1):  # 1 initial + configurable repair attempts
             validation_errors = validate_scene_code(code)
             if validation_errors:
                 last_log = "Security validation blocked the generated scene:\n" + "\n".join(validation_errors[:12])
