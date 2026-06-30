@@ -59,24 +59,25 @@ def _next_key_index():
         i = _key_idx
         _key_idx = (_key_idx + 1) % len(KEYS)
         return i
-# gemini-3-flash-preview writes the best free-tier video-lesson animations (richer,
-# better-laid-out scenes) while staying free and using the same generateContent API. Preview
-# models can still hit capacity spikes, so the renderer automatically falls back to stable free
-# models on overload. Override with GEMINI_MODEL and GEMINI_FALLBACK_MODELS in the Space env.
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")  # free tier
+# Gemini 3.5 Flash supersedes Gemini 3 Flash Preview for this API family and is much better at
+# writing coherent Manim code. Keep the model configurable, but default to the newer coding-capable
+# model and avoid Flash-Lite as a default fallback because it tends to produce oversimplified scenes.
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 FALLBACK_MODELS = [m.strip() for m in os.environ.get(
-    "GEMINI_FALLBACK_MODELS", "gemini-2.5-flash,gemini-2.5-flash-lite"
+    "GEMINI_FALLBACK_MODELS", "gemini-2.5-pro,gemini-2.5-flash"
 ).split(",") if m.strip()]
 MODELS = list(dict.fromkeys([MODEL] + FALLBACK_MODELS))
 _model_blocked_until = {}
 _model_lock = threading.Lock()
+_last_success_model = None
+_last_success_model_lock = threading.Lock()
 MAX_REPAIRS = int(os.environ.get("MAX_REPAIRS", "4"))
 MAX_ACTIVE_JOBS = int(os.environ.get("MAX_ACTIVE_JOBS", "1"))
 RENDER_TIMEOUT = int(os.environ.get("RENDER_TIMEOUT", "600"))
 MAX_PROMPT_CHARS = int(os.environ.get("MAX_PROMPT_CHARS", "20000"))
 MAX_QUESTION_CHARS = int(os.environ.get("MAX_QUESTION_CHARS", "4000"))
 MAX_SUBJECT_CHARS = int(os.environ.get("MAX_SUBJECT_CHARS", "120"))
-FALLBACK_RENDER_ON_FAILURE = os.environ.get("FALLBACK_RENDER_ON_FAILURE", "1").lower() not in ("0", "false", "no")
+FALLBACK_RENDER_ON_FAILURE = os.environ.get("FALLBACK_RENDER_ON_FAILURE", "0").lower() not in ("0", "false", "no")
 
 # In-memory job store for non-blocking renders. POST /generate starts a background
 # thread and returns a job_id; the site polls GET /status/{job_id} for live progress.
@@ -258,6 +259,10 @@ def gemini(prompt, as_json=False, temperature=0.4):
             backoff = min(backoff * 2, 30)
             continue
 
+        global _last_success_model
+        with _last_success_model_lock:
+            _last_success_model = model
+        print("[gemini] success using model {}.".format(model), flush=True)
         if as_json:
             t = re.sub(r"^```(?:json)?", "", txt.strip()).strip()
             t = re.sub(r"```$", "", t).strip()
@@ -300,6 +305,7 @@ These keep the render + auto-repair pipeline working — violating any one fails
 ### 2. VISUAL FOCAL GUIDANCE (THE EYE-TRACKING PRINCIPLE)
 Static, motionless scenes are forbidden. Every structural transition must guide the eye:
 - PRESENTATION-CARD BAN: Never render a static title card with a few bullet points as the main content. If a concept is abstract, invent a drawable model for it: axes, vectors, points, arrows, regions, transformations, moving labels, or formulas that change over time.
+- TOPIC-LESSON SPECIFICITY: In topic mode, never use generic placeholder labels such as "visual", "relationship", "model", "rule", "prediction", "given", "reason", or "result" as the primary content. Replace them with topic-specific objects and formulas, e.g. vector components, plane normals, dot products, slopes, forces, areas, tangents, or coordinates.
 - FORMULA TRANSFORMS: When an equation evolves into a new step, do not fade it out — morph it with `TransformMatchingShapes(old_eq, new_eq)`, `TransformMatchingTex(old_eq, new_eq)`, or `ReplacementTransform(old_eq, new_eq)`.
 - CALLOUT HIGHLIGHTS: To address a specific variable, term, or segment, wrap it with a temporary `SurroundingRectangle(target, color="#FFD700", stroke_width=2)`, animated on/off with `Create` then `FadeOut`.
 - EMPHASIS HOOKS: Use `self.play(Indicate(target))` or `self.play(Flash(point))` when a critical step or intersection occurs.
@@ -1034,6 +1040,8 @@ A Markdown table with columns `| # | Phase Name | Duration | Description |`.
 - 4 or 5 phases, in chronological order.
 - Duration is whole seconds written like "8s"; the durations MUST sum to between 50 and 70 seconds.
 - Each Description says what ANIMATES (continuous motion, not static holds) and what is spoken in that phase.
+- For topic lessons, the phases must behave like a worked explanation: Concrete Example Setup -> Visual Intuition -> Rule/Formula/Relationship -> Apply to the Example -> Takeaway. Rename phases to fit the topic, but preserve that learning arc.
+- Every phase Description must name the actual Manim objects that move or transform. Avoid vague words like "concept map", "overview", "summary", "model", or "relationship" unless paired with concrete objects such as arrows, axes, dots, vectors, curves, formulas, or shapes.
 
 **Layout**
 A small ASCII sketch splitting the screen into a TOP zone (title / active formula), a CENTER zone (the main animation), and a BOTTOM zone (captions), showing roughly where the key elements sit.
@@ -1060,9 +1068,13 @@ def _mode_instructions(mode, question=""):
     if _render_mode(mode) != "question":
         return ("""MODE: TOPIC LESSON. Teach the named topic/concept through animation, not through a summary.
 - The primary goal is to ANIMATE the concept. Do not make an outline slide, bullet-list overview, static checklist, or "visual summary" screen.
+- Treat the topic like an implicit worked teaching question: "How does this concept work, and how can one concrete example make it obvious?"
+- The animation must follow a concrete worked-concept path: introduce one specific example or configuration, animate the intuition, derive the key rule/formula/relationship, apply it to the same example, and finish with the precise takeaway.
+- If the user asks for a broad topic, choose a representative example yourself. For vectors, use actual arrows/components/coordinates; for functions, use axes and moving points; for geometry, use shapes/angles/measurements; for physics, use forces/motion/fields; for calculus, use a curve/tangent/area/accumulation.
 - Every phase must contain visible mathematical motion: draw, transform, sweep, move, rotate, highlight, trace, substitute, or morph objects on screen.
 - Prefer diagrams, axes, arrows, geometric objects, formulas, tracked points, highlighted intersections, and step-by-step transformations over text paragraphs.
 - Use on-screen words only as short labels. Never show more than three short labels at once, and never build a numbered list of teaching points.
+- Captions must explain why each visual step matters, not merely name the object being drawn.
 - If a question or source brief is present, use it only to focus the lesson, not as the whole structure unless it explicitly asks for a worked solution.""")
     q = (question or "").strip()
     extra = ("\nRequired question and optional parts to solve:\n" + q[:5000]) if q else ""
@@ -1086,8 +1098,11 @@ def generate_spec(topic, subject, question="", mode="topic"):
     makes pacing deliberate and the structure consistent. Returns the spec text, or "" on failure
     (the code pass then runs spec-free)."""
     question_line = ""
-    if (question or "").strip():
-        question_line = ", in worked-solution mode" if _render_mode(mode) == "question" else ", focusing especially on answering: " + question.strip()
+    if _render_mode(mode) == "question" and (question or "").strip():
+        question_line = ", in worked-solution mode"
+    elif _render_mode(mode) != "question":
+        focus = (question or "").strip()
+        question_line = ", answering the conceptual teaching question: " + (focus or ("How does " + (topic or "this topic") + " work through a concrete animated example?"))
     prompt = (SPEC_SYSTEM_PROMPT
               .replace("{topic}", topic or "")
               .replace("{subject}", subject or "General")
@@ -1102,8 +1117,11 @@ def generate_manim_code(topic, subject, question="", broken=None, error=None, sp
     render-error tail are appended so Gemini fixes to the same rules and the same spec. Returns
     raw Python source with any markdown fences stripped."""
     question_line = ""
-    if (question or "").strip():
-        question_line = ", in worked-solution mode" if _render_mode(mode) == "question" else ", focusing especially on answering: " + question.strip()
+    if _render_mode(mode) == "question" and (question or "").strip():
+        question_line = ", in worked-solution mode"
+    elif _render_mode(mode) != "question":
+        focus = (question or "").strip()
+        question_line = ", answering the conceptual teaching question: " + (focus or ("How does " + (topic or "this topic") + " work through a concrete animated example?"))
     spec_block = ""
     if (spec or "").strip():
         spec_block = ("\n### APPROVED SPECIFICATION (implement this EXACTLY)\n"
@@ -1604,7 +1622,16 @@ class MainScene(Scene):
 # ------------------------------------------------------------------- endpoints
 @app.get("/health")
 def health():
-    return {"status": "ok", "model": MODEL, "model_candidates": _available_models()}
+    with _last_success_model_lock:
+        last_model = _last_success_model
+    return {
+        "status": "ok",
+        "model": MODEL,
+        "model_candidates": _available_models(),
+        "last_success_model": last_model,
+        "fallback_render_on_failure": FALLBACK_RENDER_ON_FAILURE,
+        "max_repairs": MAX_REPAIRS,
+    }
 
 
 def _run_job(job_id, prompt, subject, question, mode="topic"):
