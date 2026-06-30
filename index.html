@@ -1654,6 +1654,14 @@
             box-shadow: none;
         }
 
+        .main-footer,
+        .main-footer button,
+        .footer-tracker-toggle,
+        .footer-tracker-toggle .toggle-thumb,
+        .vid-controls {
+            background-image: none !important;
+        }
+
         /* Save: green filled primary action */
         #saveBtn {
             background-color: var(--color-button-green);
@@ -13525,6 +13533,17 @@
                 if (st.playing && video.paused && !video.ended) { try { video.play(); } catch (e) { } }
                 if (st.playing) startRaf();  // keep the smooth thumb animation going after a scrub
             }
+            function seekBy(delta) {
+                const d = dur();
+                const now = video.currentTime || 0;
+                const target = Math.max(0, d ? Math.min(d, now + delta) : now + delta);
+                cancelSpeak();
+                try { video.currentTime = target; } catch (e) { }
+                if (timed && cues.length) resyncToTime();
+                setPos();
+                if (st.playing && video.paused && !video.ended) { try { video.play(); } catch (e) { } }
+                if (st.playing) startRaf();
+            }
             const nb = mount.querySelector('[data-vidnew]');
             if (nb) nb.addEventListener('click', () => { vidStop(); setStage(screenEl('video'), 'setup'); });
             const sb = mount.querySelector('[data-vidsave]');
@@ -13559,7 +13578,22 @@
             }
 
             if (_vidKeyHandler) document.removeEventListener('keydown', _vidKeyHandler);
-            _vidKeyHandler = null;
+            _vidKeyHandler = e => {
+                const tag = (e.target && e.target.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable)) return;
+                if (!st.alive || !root.classList.contains('active') || !playerEl || !playerEl.getClientRects().length) return;
+                if (e.key === ' ' || e.code === 'Space' || e.key === 'k' || e.key === 'K') {
+                    e.preventDefault();
+                    st.playing ? pause() : play();
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    seekBy(-5);
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    seekBy(5);
+                }
+            };
+            document.addEventListener('keydown', _vidKeyHandler);
 
             // If the metadata is already in (e.g. a cached file or an object URL), `loadedmetadata`
             // may have fired before our listener — resolve the duration now. Otherwise the listener
