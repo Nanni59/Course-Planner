@@ -449,6 +449,16 @@ def _visual_prompt(req: GenerateReq, repair_log: str = "", previous_code: str = 
             + previous_code[:2500]
         )
 
+    target_rules = ""
+    if req.target == "worksheet":
+        target_rules = """
+Worksheet-specific rules:
+- Prefer compact landscape compositions about 5.5 units wide by 3 units tall.
+- Avoid tall compass-style diagrams unless the problem explicitly needs directions.
+- Keep vector diagrams close to the question: short arrows, clear arrowheads, labels just outside the strokes.
+- Do not leave large empty margins inside the drawing; center the math object tightly.
+""".strip()
+
     return f"""
 You create compact TikZ textbook diagrams for Course Planner.
 
@@ -472,6 +482,8 @@ Rules:
 - For vectors, use clear head-to-tail or parallelogram construction. Put arrowheads on every vector and avoid ambiguous floating labels.
 - For geometry and trigonometry, use named points, angle marks, and side labels. Avoid decorative shapes without mathematical meaning.
 - If the request is not visual, return an empty tikz string and a brief caption.
+
+{target_rules}
 
 Reference patterns:
 {TIKZ_EXAMPLE_LIBRARY}

@@ -3196,7 +3196,8 @@
         .st-a4-head .st-a4-meta span:last-child { text-align:right; }
         .st-a4-head h1 { display:block; font-size:24px; font-weight:700; color:#1f2430; margin:6px 0 0; }
         .st-a4-instr { font-style:italic; color:#444; font-size:12.5px; margin-bottom:24px; }
-        .st-q { margin-bottom:22px; page-break-inside:avoid; }
+        .st-q { margin-bottom:20px; page-break-inside:avoid; break-inside:avoid; }
+        .st-q.has-visual { margin-bottom:16px; }
         /* align-items:baseline keeps the question number sitting on the same
            baseline as the first line of the question text, so a tall inline
            LaTeX matrix no longer drags the number out of line with its label. */
@@ -3218,9 +3219,9 @@
         .st-q .st-opts { list-style:none; margin:10px 0 0; padding:0 0 0 26px; }
         .st-q .st-opts li { margin:6px 0; }
         .st-q .st-opts li::before { content: attr(data-l) ")"; font-weight:600; margin-right:8px; color:#444; }
-        .st-q-tikz { margin:10px 0 2px 34px; width:min(260px,100%); max-width:260px; overflow:visible; }
+        .st-q-tikz { margin:7px 0 1px 34px; width:min(230px,100%); max-width:230px; overflow:visible; break-inside:avoid; }
         .st-q-tikz svg,
-        .st-q-tikz img { display:block; width:100%; max-width:100%; height:auto; max-height:220px; object-fit:contain; overflow:visible; }
+        .st-q-tikz img { display:block; width:100%; max-width:100%; height:auto; max-height:158px; object-fit:contain; overflow:visible; }
         .st-q .st-worklines { margin-top:10px; }
         .st-q .st-worklines div { height:26px; }
         /* Answer-section view options (toggled per worksheet) */
@@ -3351,9 +3352,11 @@
             #stPrintArea, #stPrintArea * { visibility: visible !important; }
             #stPrintArea { position:absolute; left:0; top:0; width:100%; display:block !important; }
             #stPrintArea .st-a4 { width:100%; min-height:auto; margin:0; border-radius:0; box-shadow:none; padding:0; page-break-after:always; }
-            #stPrintArea .st-q-tikz { width:46mm; max-width:46mm; overflow:visible; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+            #stPrintArea .st-q { margin-bottom:4.6mm; break-inside:avoid; page-break-inside:avoid; }
+            #stPrintArea .st-q.has-visual { margin-bottom:3.6mm; }
+            #stPrintArea .st-q-tikz { width:43mm; max-width:43mm; margin-top:2mm; margin-bottom:0; overflow:visible; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
             #stPrintArea .st-q-tikz svg,
-            #stPrintArea .st-q-tikz img { width:100% !important; height:auto !important; max-height:42mm; object-fit:contain; overflow:visible; color:#111; }
+            #stPrintArea .st-q-tikz img { width:100% !important; height:auto !important; max-height:31mm; object-fit:contain; overflow:visible; color:#111; }
             #stPrintArea .st-q-tikz svg [stroke] { stroke:#111 !important; stroke-opacity:1 !important; stroke-width:0.7pt !important; vector-effect:non-scaling-stroke; }
             #stPrintArea .st-a4:last-child { page-break-after:auto; }
         }
@@ -12603,10 +12606,16 @@
             throw new Error(out && (out.error || out.log) || ('TikZ generation failed: ' + res.status));
         }
         function worksheetTikzHTML(q) {
+            const svg = cleanEmbeddedSvg(q && q.tikzSvg);
+            if (svg && /^<svg[\s>]/i.test(svg)) {
+                const fitted = svg
+                    .replace(/<svg\b/i, '<svg class="st-tikz-svg"')
+                    .replace(/<svg\b(?![^>]*\bpreserveAspectRatio=)/i, '<svg preserveAspectRatio="xMidYMid meet"');
+                return '<div class="st-q-tikz">' + fitted + '</div>';
+            }
             const png = String(q && q.tikzPng || '').trim();
             if (png) return '<div class="st-q-tikz"><img alt="" src="data:image/png;base64,' + esc(png) + '"></div>';
-            const svg = cleanEmbeddedSvg(q && q.tikzSvg);
-            return svg && /^<svg[\s>]/i.test(svg) ? '<div class="st-q-tikz">' + svg + '</div>' : '';
+            return '';
         }
         function worksheetNeedsVisual(q) {
             if (sdCleanTikz(q && q.tikz)) return true;
@@ -12615,19 +12624,21 @@
         }
         async function renderTikzWorksheet(data) {
             if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
-            const candidates = data.questions.filter(q => q && worksheetNeedsVisual(q) && !String(q.tikzSvg || '').trim() && !String(q.tikzPng || '').trim()).slice(0, 10);
+            const candidates = data.questions.filter(q => q && worksheetNeedsVisual(q) && !String(q.tikzSvg || '').trim()).slice(0, 10);
             await Promise.all(candidates.map(async q => {
                 try {
                     const out = await generateTikzVisual({
                         title: q.q || 'Worksheet visual',
                         brief: [
-                            'Create a small textbook diagram that helps answer this worksheet question.',
+                            'Create a small SVG-first textbook diagram that helps answer this worksheet question.',
+                            'Keep it compact and landscape-oriented so it fits beside late worksheet questions without creating large vertical gaps.',
+                            'Use black/gray lines, short labels, visible arrowheads, and no oversized empty compass circles unless the circle is mathematically essential.',
                             q.q ? 'Question: ' + q.q : '',
                             q.answer ? 'Answer/key idea: ' + q.answer : '',
                             sdCleanTikz(q.tikz) ? 'Existing rough TikZ idea may be ignored if weak: ' + sdCleanTikz(q.tikz).slice(0, 900) : ''
                         ].filter(Boolean).join('\n'),
                         subject: data.subject || data.unit || data.title || 'General',
-                        format: 'png',
+                        format: 'svg',
                         target: 'worksheet'
                     });
                     q.tikz = out.tikz || q.tikz || '';
@@ -12697,8 +12708,10 @@
                 body = '<div class="st-worklines">' + '<div></div>'.repeat(2) + '</div>';
             }
             const ans = isKey ? '<div class="st-answer"><b>Answer:</b> ' + escMath(q.answer) + '</div>' : '';
-            return '<div class="st-q"><div class="st-q-head"><span class="st-q-num">' + (idx + 1) + '.</span>' +
-                '<div class="st-q-text">' + escMath(q.q) + '</div></div>' + worksheetTikzHTML(q) + body + ans + '</div>';
+            const visual = worksheetTikzHTML(q);
+            const hasVisual = !!visual;
+            return '<div class="st-q' + (hasVisual ? ' has-visual' : '') + '"><div class="st-q-head"><span class="st-q-num">' + (idx + 1) + '.</span>' +
+                '<div class="st-q-text">' + escMath(q.q) + '</div></div>' + visual + body + ans + '</div>';
         }
         function sheetHTML(d, isKey) {
             const cls = 'st-a4' + (isKey ? ' is-key' : '') + (WS_LINES ? ' ws-lines' : '') + (WS_SPACE ? '' : ' ws-nospace');
