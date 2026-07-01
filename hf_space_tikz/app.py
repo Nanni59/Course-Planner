@@ -41,7 +41,7 @@ app.add_middleware(
 
 
 MAX_CODE_CHARS = int(os.environ.get("MAX_CODE_CHARS", "12000"))
-RENDER_TIMEOUT = int(os.environ.get("RENDER_TIMEOUT", "25"))
+RENDER_TIMEOUT = int(os.environ.get("RENDER_TIMEOUT", "60"))
 MAX_OUTPUT_BYTES = int(os.environ.get("MAX_OUTPUT_BYTES", "1500000"))
 GEMINI_TIMEOUT = (10, int(os.environ.get("GEMINI_READ_TIMEOUT", "90")))
 GEMINI_MAX_ATTEMPTS = int(os.environ.get("GEMINI_MAX_ATTEMPTS", "4"))
@@ -1125,3 +1125,23 @@ def generate(req: GenerateReq):
         return JSONResponse(rendered, status_code=200)
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)[:500]}, status_code=500)
+
+
+def _warm_latex_caches() -> None:
+    """Compile one tiny diagram at startup so pdflatex builds its font caches.
+
+    The first pdflatex run on a fresh replica can take minutes while TeX font
+    caches are generated. Without this warm-up, the first real render after a
+    redeploy exceeds RENDER_TIMEOUT, the deterministic-template path "fails",
+    /generate falls through to the much slower Gemini loop, and the frontend
+    gives up — worksheets ship with no visuals at all.
+    """
+    code = r"\begin{tikzpicture}\draw[cp line] (0,0)--(1,0);\node at (0.5,0.4) {$x^{2}\;\theta$};\end{tikzpicture}"
+    try:
+        out = _render(RenderReq(code=code, format="svg", theme="mono", target="generic"))
+        print(f"[warmup] LaTeX cache warm-up ok={out.get('ok')} err={str(out.get('error') or '')[:120]}", flush=True)
+    except Exception as exc:
+        print(f"[warmup] LaTeX cache warm-up failed: {exc}", flush=True)
+
+
+threading.Thread(target=_warm_latex_caches, daemon=True).start()

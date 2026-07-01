@@ -11360,6 +11360,7 @@
                 .replace(/\\(?:text|mathrm)\s*\{[^{}]*\}/g, '')
                 .replace(/\\[A-Za-z]+/g, '')
                 .replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|max|min)\b/g, '')
+                .replace(/\b[A-Z]{2,3}\b/g, '') // ABC / DEF style point & triangle labels are math, not prose
                 .replace(/\bd[xyztrsu]\b/g, '');
             if (/\b[A-Za-z]{3,}\b/.test(words)) return false;
             return /\\|[\^_=+\-*/{}()[\],<>]/.test(t)
@@ -11467,16 +11468,30 @@
             }
             return wrapBareLatexCommands(out);
         }
-        // Like escNL, but first normalizes model-style single-$ math to \(...\) and collapses
-        // newlines inside LaTeX spans. Otherwise <br> can split delimiters and leave raw LaTeX.
-        const escMath = s => escNL(normalizeMathDelimiters(s)
-            .replace(/\\\([\s\S]*?\\\)/g, m => m.replace(/\s*\n\s*/g, ' '))
-            .replace(/\\\[[\s\S]*?\\\]/g, m => m.replace(/\s*\n\s*/g, ' '))
-            .replace(/\$\$[\s\S]*?\$\$/g, m => m.replace(/\s*\n\s*/g, ' ')));
-        const escMathFlow = s => esc(normalizeMathDelimiters(s)
-            .replace(/\\\([\s\S]*?\\\)/g, m => m.replace(/\s*\n\s*/g, ' '))
-            .replace(/\\\[[\s\S]*?\\\]/g, m => m.replace(/\s*\n\s*/g, ' '))
-            .replace(/\$\$[\s\S]*?\$\$/g, m => m.replace(/\s*\n\s*/g, ' ')))
+        // Collapse newlines inside LaTeX spans, demote prose-sized display math to inline,
+        // and join line breaks butted against inline math. Without this a generated sentence
+        // arrives as stacked one-symbol lines: escNL turns each stray \n into <br>, and MathJax
+        // renders $$…$$/\[…\] as its own block even when it only wraps "\angle A = 40^\circ".
+        function smoothInlineMath(s) {
+            let t = String(s == null ? '' : s)
+                .replace(/\\\([\s\S]*?\\\)/g, m => m.replace(/\s*\n\s*/g, ' '))
+                .replace(/\\\[[\s\S]*?\\\]/g, m => m.replace(/\s*\n\s*/g, ' '))
+                .replace(/\$\$[\s\S]*?\$\$/g, m => m.replace(/\s*\n\s*/g, ' '));
+            // Short display spans with no matrix/row structure are really inline math.
+            const demote = (m, inner) => (/\\begin\s*\{|\\\\/.test(inner) ? m : '\\(' + inner.trim() + '\\)');
+            t = t.replace(/\$\$([^$]{1,80}?)\$\$/g, demote)
+                .replace(/\\\[([\s\S]{1,80}?)\\\]/g, demote);
+            // A break directly before \( …, or right after \) when the sentence clearly
+            // continues (lowercase or punctuation, not a new numbered step), becomes a space.
+            return t
+                .replace(/(\S)[ \t]*\n[ \t]*(\\\()/g, '$1 $2')
+                .replace(/(\\\))[ \t]*\n[ \t]*(?=[a-z,;:.!?)\]])/g, '$1 ')
+                .replace(/(\\\)) ([,;:.!?])/g, '$1$2');
+        }
+        // Like escNL, but first normalizes model-style single-$ math to \(...\) and smooths
+        // newlines around/inside LaTeX spans. Otherwise <br> can split delimiters and leave raw LaTeX.
+        const escMath = s => escNL(smoothInlineMath(normalizeMathDelimiters(s)));
+        const escMathFlow = s => esc(smoothInlineMath(normalizeMathDelimiters(s)))
             .replace(/\n{2,}/g, '<br><br>').replace(/\n/g, ' ');
         function repairParsedLatexEscapes(s) {
             return String(s == null ? '' : s)
@@ -11536,7 +11551,7 @@
                 last = offset + m.length;
                 return m;
             });
-            return flattenInlineMath(normalizeMathDelimiters(out + wrapPlain(t.slice(last)))).replace(/[ \t]{2,}/g, ' ').trim();
+            return smoothInlineMath(flattenInlineMath(normalizeMathDelimiters(out + wrapPlain(t.slice(last))))).replace(/[ \t]{2,}/g, ' ').trim();
         }
         function normalizeGeneratedContent(value, key) {
             if (typeof value === 'string') {
@@ -11726,7 +11741,7 @@
         }
         function protectLatexJsonEscapes(s) {
             return String(s || '').replace(
-                /(^|[^\\])\\(?=(?:angle|triangle|text|theta|times|frac|dfrac|tfrac|sqrt|left|right|circ|degree|vec|overline|hat|bar|sin|cos|tan|sec|csc|cot|log|ln|pi|alpha|beta|gamma|delta|lambda|mu|sigma|omega|Delta|Omega)\b)/g,
+                /(^|[^\\])\\(?=[()[\]]|(?:angle|triangle|text|theta|times|frac|dfrac|tfrac|sqrt|left|right|circ|degree|vec|overline|hat|bar|sin|cos|tan|sec|csc|cot|log|ln|pi|alpha|beta|gamma|delta|lambda|mu|sigma|omega|Delta|Omega)\b)/g,
                 '$1\\\\'
             );
         }
@@ -12702,7 +12717,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code: sdCleanTikz(code), format: 'svg', theme: 'mono', target: target || 'generic' })
-            }, 25000);
+            }, 60000);
             const out = await res.json().catch(() => null);
             if (res.ok && out && out.ok && out.svg) return out.svg;
             throw new Error(out && (out.error || out.log) || ('TikZ render failed: ' + res.status));
@@ -12713,7 +12728,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
-            }, 45000);
+            }, 180000);
             const out = await res.json().catch(() => null);
             if (res.ok && out && out.ok && (out.svg || out.base64)) return out;
             throw new Error(out && (out.error || out.log) || ('TikZ generation failed: ' + res.status));
@@ -12738,7 +12753,7 @@
                 && /\b(simplify|expression|identity|prove|equation|terms of|scalar|properties of vector addition)\b/.test(hay)
                 && !/\b(resultant|force|bearing|navigation|parallelogram|prism|3d|angle between|magnitude|geometry|diagram|draw|sketch|plot|graph)\b/.test(hay);
             if (abstractVectorAlgebra && !explicitlyVisual) return false;
-            return explicitlyVisual || /\b(resultant|triangle|trigonometry|law of sines|law of cosines|bearing|navigation|parallelogram|trapezium|trapezoid|diagonal|midpoint|force|velocity|angle between|perpendicular|parallel|coordinate|intercept|vertex|slope|tangent|secant|curve|area under|integral|derivative|geometry|circle|rectangle|cylinder|cone|sphere|prism|volume|surface area|line|ray|axis|axes|plane|3d|normal|projection|intersection|distance)\b/.test(hay);
+            return explicitlyVisual || /\b(resultant|triangle|trigonometry|law of sines|law of cosines|sine law|cosine law|angle of elevation|angle of depression|bearing|navigation|parallelogram|trapezium|trapezoid|diagonal|midpoint|force|velocity|angle between|perpendicular|parallel|coordinate|intercept|vertex|slope|tangent|secant|curve|area under|integral|derivative|geometry|circle|rectangle|cylinder|cone|sphere|prism|volume|surface area|line|ray|axis|axes|plane|3d|normal|projection|intersection|distance)\b/.test(hay);
         }
         async function renderTikzWorksheet(data, progress) {
             if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
@@ -12776,7 +12791,7 @@
                             console.warn('[worksheet] TikZ fallback render failed', fallbackErr);
                         }
                     }
-                    console.warn('[worksheet] TikZ renderer unavailable', e);
+                    console.warn('[worksheet] TikZ renderer unavailable for question ' + (data.questions.indexOf(q) + 1), e);
                 } finally {
                     completed++;
                     if (progress && aiCandidates.length) {
@@ -12843,7 +12858,7 @@
         function questionHTML(q, idx, isKey) {
             let body = '';
             if (q.type === 'mc' && q.opts && q.opts.length) {
-                body = '<ul class="st-opts">' + q.opts.map((o, i) => '<li data-l="' + ('abcdefgh'[i] || '•') + '">' + escMath(o) + '</li>').join('') + '</ul>';
+                body = '<ul class="st-opts">' + q.opts.map((o, i) => '<li data-l="' + ('abcdefgh'[i] || '•') + '">' + escMathFlow(o) + '</li>').join('') + '</ul>';
             } else if (q.type === 'tf') {
                 body = '<div style="margin-top:8px;color:#444">True&nbsp;&nbsp;/&nbsp;&nbsp;False</div>';
             } else if (q.type === 'work') {
@@ -12855,7 +12870,7 @@
             const visual = worksheetTikzHTML(q);
             const hasVisual = !!visual;
             return '<div class="st-q' + (hasVisual ? ' has-visual' : '') + '"><div class="st-q-head"><span class="st-q-num">' + (idx + 1) + '.</span>' +
-                '<div class="st-q-text">' + escMath(q.q) + '</div></div>' + visual + body + ans + '</div>';
+                '<div class="st-q-text">' + escMathFlow(q.q) + '</div></div>' + visual + body + ans + '</div>';
         }
         function sheetHTML(d, isKey) {
             const cls = 'st-a4' + (isKey ? ' is-key' : '') + (WS_LINES ? ' ws-lines' : '') + (WS_SPACE ? '' : ' ws-nospace');
