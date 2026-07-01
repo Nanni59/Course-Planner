@@ -3218,8 +3218,9 @@
         .st-q .st-opts { list-style:none; margin:10px 0 0; padding:0 0 0 26px; }
         .st-q .st-opts li { margin:6px 0; }
         .st-q .st-opts li::before { content: attr(data-l) ")"; font-weight:600; margin-right:8px; color:#444; }
-        .st-q-tikz { margin:10px 0 2px 34px; width:min(240px,100%); max-width:240px; overflow:hidden; }
-        .st-q-tikz svg { display:block; width:100%; max-width:100%; height:auto; max-height:220px; overflow:visible; }
+        .st-q-tikz { margin:10px 0 2px 34px; width:min(260px,100%); max-width:260px; overflow:visible; }
+        .st-q-tikz svg,
+        .st-q-tikz img { display:block; width:100%; max-width:100%; height:auto; max-height:220px; object-fit:contain; overflow:visible; }
         .st-q .st-worklines { margin-top:10px; }
         .st-q .st-worklines div { height:26px; }
         /* Answer-section view options (toggled per worksheet) */
@@ -3350,8 +3351,9 @@
             #stPrintArea, #stPrintArea * { visibility: visible !important; }
             #stPrintArea { position:absolute; left:0; top:0; width:100%; display:block !important; }
             #stPrintArea .st-a4 { width:100%; min-height:auto; margin:0; border-radius:0; box-shadow:none; padding:0; page-break-after:always; }
-            #stPrintArea .st-q-tikz { width:42mm; max-width:42mm; overflow:hidden; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-            #stPrintArea .st-q-tikz svg { width:100% !important; height:auto !important; max-height:38mm; overflow:visible; color:#111; }
+            #stPrintArea .st-q-tikz { width:46mm; max-width:46mm; overflow:visible; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+            #stPrintArea .st-q-tikz svg,
+            #stPrintArea .st-q-tikz img { width:100% !important; height:auto !important; max-height:42mm; object-fit:contain; overflow:visible; color:#111; }
             #stPrintArea .st-q-tikz svg [stroke] { stroke:#111 !important; stroke-opacity:1 !important; stroke-width:0.7pt !important; vector-effect:non-scaling-stroke; }
             #stPrintArea .st-a4:last-child { page-break-after:auto; }
         }
@@ -12597,10 +12599,12 @@
                 body: JSON.stringify(payload)
             });
             const out = await res.json().catch(() => null);
-            if (res.ok && out && out.ok && out.svg) return out;
+            if (res.ok && out && out.ok && (out.svg || out.base64)) return out;
             throw new Error(out && (out.error || out.log) || ('TikZ generation failed: ' + res.status));
         }
         function worksheetTikzHTML(q) {
+            const png = String(q && q.tikzPng || '').trim();
+            if (png) return '<div class="st-q-tikz"><img alt="" src="data:image/png;base64,' + esc(png) + '"></div>';
             const svg = cleanEmbeddedSvg(q && q.tikzSvg);
             return svg && /^<svg[\s>]/i.test(svg) ? '<div class="st-q-tikz">' + svg + '</div>' : '';
         }
@@ -12611,7 +12615,7 @@
         }
         async function renderTikzWorksheet(data) {
             if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
-            const candidates = data.questions.filter(q => q && worksheetNeedsVisual(q) && !String(q.tikzSvg || '').trim()).slice(0, 10);
+            const candidates = data.questions.filter(q => q && worksheetNeedsVisual(q) && !String(q.tikzSvg || '').trim() && !String(q.tikzPng || '').trim()).slice(0, 10);
             await Promise.all(candidates.map(async q => {
                 try {
                     const out = await generateTikzVisual({
@@ -12623,10 +12627,12 @@
                             sdCleanTikz(q.tikz) ? 'Existing rough TikZ idea may be ignored if weak: ' + sdCleanTikz(q.tikz).slice(0, 900) : ''
                         ].filter(Boolean).join('\n'),
                         subject: data.subject || data.unit || data.title || 'General',
+                        format: 'png',
                         target: 'worksheet'
                     });
                     q.tikz = out.tikz || q.tikz || '';
-                    q.tikzSvg = out.svg;
+                    q.tikzSvg = out.svg || '';
+                    q.tikzPng = out.base64 || '';
                 } catch (e) {
                     if (sdCleanTikz(q.tikz)) {
                         try {

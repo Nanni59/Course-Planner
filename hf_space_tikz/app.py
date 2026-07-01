@@ -396,6 +396,49 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
     raise RuntimeError(last_err)
 
 
+TIKZ_EXAMPLE_LIBRARY = r"""
+Use these compact patterns as quality targets. Adapt coordinates and labels to the user's problem.
+
+CALCULUS / GRAPHING:
+\begin{tikzpicture}
+\begin{axis}[xmin=-1,xmax=4,ymin=-1,ymax=6,axis lines=middle,xlabel={$x$},ylabel={$y$},
+  grid=both,grid style={draw=gray!20},width=7cm,height=4.5cm,clip=false]
+  \addplot[domain=-.5:3.4,samples=90,cp line] {0.45*(x-1)^2+1};
+  \addplot[domain=.1:3.1,cp dashed] {0.9*x};
+  \fill (axis cs:1,1) circle (1.6pt) node[below left] {$(a,f(a))$};
+  \node[anchor=west] at (axis cs:2.4,2.2) {tangent};
+\end{axis}
+\end{tikzpicture}
+
+VECTORS:
+\begin{tikzpicture}[scale=.8]
+  \coordinate (O) at (0,0); \coordinate (A) at (3,0); \coordinate (B) at (4.3,1.8);
+  \draw[cp line,-Stealth] (O)--(A) node[midway,below] {$\vec u$};
+  \draw[cp line,-Stealth] (A)--(B) node[midway,right] {$\vec v$};
+  \draw[cp dashed,-Stealth] (O)--(B) node[midway,above left] {$\vec u+\vec v$};
+  \fill (O) circle (1.4pt) (A) circle (1.4pt) (B) circle (1.4pt);
+\end{tikzpicture}
+
+GEOMETRY:
+\begin{tikzpicture}[scale=.9]
+  \coordinate (A) at (0,0); \coordinate (B) at (4,0); \coordinate (C) at (1.1,2.4);
+  \draw[cp line] (A)--(B)--(C)--cycle;
+  \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$}; \node[above] at (C) {$C$};
+  \pic[draw=black,angle radius=7mm,"$\theta$",angle eccentricity=1.35] {angle=B--A--C};
+\end{tikzpicture}
+
+TRIGONOMETRY:
+\begin{tikzpicture}[scale=1]
+  \draw[cp axis] (-1.3,0)--(1.5,0) node[right] {$x$};
+  \draw[cp axis] (0,-1.3)--(0,1.5) node[above] {$y$};
+  \draw[cp line] (0,0) circle (1);
+  \draw[cp dashed] (0,0)--(45:1) node[midway,above left] {$r$};
+  \draw[cp dashed] (45:1)--({sqrt(2)/2},0) node[below] {$\cos\theta$};
+  \node[right] at (45:1) {$(\cos\theta,\sin\theta)$};
+\end{tikzpicture}
+""".strip()
+
+
 def _visual_prompt(req: GenerateReq, repair_log: str = "", previous_code: str = "") -> str:
     repair_block = ""
     if repair_log:
@@ -426,7 +469,12 @@ Rules:
 - Place labels with small offsets so they do not overlap curves, axes, or points.
 - For tangent/secant/integral visuals, label the relevant point(s), interval endpoint(s), tangent/secant line, and shaded region where applicable.
 - Avoid abstract unlabeled curves for worksheet questions; students need coordinates and readable reference points.
+- For vectors, use clear head-to-tail or parallelogram construction. Put arrowheads on every vector and avoid ambiguous floating labels.
+- For geometry and trigonometry, use named points, angle marks, and side labels. Avoid decorative shapes without mathematical meaning.
 - If the request is not visual, return an empty tikz string and a brief caption.
+
+Reference patterns:
+{TIKZ_EXAMPLE_LIBRARY}
 
 Subject: {req.subject[:160]}
 Title: {req.title[:240]}
