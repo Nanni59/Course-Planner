@@ -12566,52 +12566,43 @@
             q.focus();
         });
 
-        /* ---------- generating animation ---------- */
-        function animateSteps(container, steps) {
-            container.innerHTML = steps.map(s => '<div class="st-genstep"><span class="st-gs-dot">' + I.check + '</span><span>' + esc(s) + '</span></div>').join('');
-            const nodes = Array.prototype.slice.call(container.children);
-            let i = 0, stopped = false;
-            if (nodes[0]) nodes[0].classList.add('active');
-            const iv = setInterval(() => {
-                if (stopped || i >= nodes.length) return;
-                nodes[i].classList.remove('active'); nodes[i].classList.add('done'); i++;
-                if (i < nodes.length) nodes[i].classList.add('active');
-            }, 1200);
+        /* ---------- generation progress ---------- */
+        function createProgress(genEl, steps) {
+            const container = genEl && genEl.querySelector('.st-gensteps');
+            const countEl = genEl && genEl.querySelector('[data-count]');
+            const subEl = genEl && genEl.querySelector('.st-gen-sub');
+            if (container) container.innerHTML = steps.map(s => '<div class="st-genstep"><span class="st-gs-dot">' + I.check + '</span><span>' + esc(s) + '</span></div>').join('');
+            const nodes = container ? Array.prototype.slice.call(container.children) : [];
+            const setPct = p => { if (countEl) countEl.textContent = String(Math.max(0, Math.min(100, Math.round(p || 0)))); };
+            const setActive = (idx, detail, pct) => {
+                nodes.forEach((n, i) => {
+                    n.classList.toggle('done', i < idx);
+                    n.classList.toggle('active', i === idx);
+                });
+                if (detail && subEl) subEl.textContent = detail;
+                setPct(pct != null ? pct : (steps.length ? (idx / steps.length) * 100 : 0));
+            };
+            const markDone = (idx, detail, pct) => {
+                nodes.forEach((n, i) => {
+                    n.classList.toggle('done', i <= idx);
+                    n.classList.toggle('active', i === idx + 1);
+                });
+                if (detail && subEl) subEl.textContent = detail;
+                setPct(pct != null ? pct : (steps.length ? ((idx + 1) / steps.length) * 100 : 100));
+            };
+            setActive(0, '', 0);
             return {
-                finishAll() { stopped = true; clearInterval(iv); nodes.forEach(n => { n.classList.remove('active'); n.classList.add('done'); }); },
-                stop() { stopped = true; clearInterval(iv); }
+                set: setActive,
+                done: markDone,
+                detail(text) { if (text && subEl) subEl.textContent = text; },
+                finishAll() { nodes.forEach(n => { n.classList.remove('active'); n.classList.add('done'); }); setPct(100); },
+                stop() { nodes.forEach(n => n.classList.remove('active')); }
             };
         }
-        // Animated percentage counter for the loading ring. Keep the artificial
-        // progress conservative so long Gemini/TikZ work does not sit at 95% for ages.
-        function animateCount(el) {
-            if (!el) return { finish() { }, stop() { } };
-            el.textContent = '0';
-            let raf = null, stopped = false, finished = false, cur = 0;
-            const start = performance.now();
-            const tick = (now) => {
-                raf = null;
-                if (stopped) return;
-                const t = (now - start) / 1000;
-                const target = finished ? 100 : 88 * (1 - Math.exp(-t / 18));
-                cur += (target - cur) * (finished ? 0.25 : 0.12);
-                if (finished && cur > 99.3) cur = 100;
-                el.textContent = Math.min(100, Math.round(cur));
-                if (finished && cur >= 100) return;
-                raf = requestAnimationFrame(tick);
-            };
-            raf = requestAnimationFrame(tick);
-            return {
-                finish() { finished = true; if (raf === null && !stopped) raf = requestAnimationFrame(tick); },
-                stop() { stopped = true; if (raf) cancelAnimationFrame(raf); raf = null; }
-            };
-        }
-        // Smooth percentage counter for the video render ring. Unlike animateCount (which
-        // crawls on a timer because the study tools have no real progress signal), the
-        // Manim render reports true progress via /status polling — so this version eases
+        // Smooth percentage counter for the video render ring. The Manim render reports
+        // true progress via /status polling, so this version eases
         // the displayed number toward whatever target the latest poll reported, gliding
-        // between real values over ~0.8s instead of jumping. Same per-frame exponential
-        // ease as animateCount, just with a settable target.
+        // between real values over ~0.8s instead of jumping.
         function vidAnimateCount(el) {
             if (!el) return { set() { }, stop() { } };
             el.textContent = '0';
@@ -12638,14 +12629,11 @@
             const scr = screenEl(name);
             setStage(scr, 'gen');
             const genEl = scr.querySelector('[data-stage="gen"]');
-            const ctrl = animateSteps(genEl.querySelector('.st-gensteps'), steps);
-            const cnt = animateCount(genEl.querySelector('[data-count]'));
+            const progress = createProgress(genEl, steps);
             try {
-                await task();
-                ctrl.finishAll();
-                cnt.finish();
+                await task(progress);
+                progress.finishAll();
                 await wait(600);
-                cnt.stop();
                 setStage(scr, 'result');
                 // The result was typeset while the gen stage was visible (so this
                 // result panel was display:none and widths read as 0, defeating
@@ -12658,8 +12646,7 @@
                     if (result) renderMath(result, { overflow: name === 'flashcards' ? 'scale' : 'linebreak', after: () => fitWideMath(result) });
                 }
             } catch (e) {
-                ctrl.stop();
-                cnt.stop();
+                progress.stop();
                 console.error('[Study Tools]', e);
                 setStage(scr, 'setup');
                 toast(geminiErr(e), 'err');
@@ -12746,94 +12733,19 @@
         function worksheetNeedsVisual(q) {
             if (sdCleanTikz(q && q.tikz)) return true;
             const hay = [q && q.q, q && q.answer].join(' ').toLowerCase();
-            return /\b(graph|diagram|sketch|plot|draw|visual|vector|resultant|triangle|trigonometry|law of sines|law of cosines|bearing|parallelogram|trapezium|trapezoid|diagonal|midpoint|force|velocity|angle|perpendicular|parallel|coordinate|intercept|vertex|slope|tangent|secant|curve|area under|integral|derivative|geometry|circle|rectangle|cylinder|cone|sphere|volume|surface area|line|ray|axis|axes|plane|3d|normal|projection|intersection|distance)\b/.test(hay);
+            const explicitlyVisual = /\b(graph|diagram|sketch|plot|draw|visual|illustrate)\b/.test(hay);
+            const abstractVectorAlgebra = /\b(vector|vectors|vec)\b/.test(hay)
+                && /\b(simplify|expression|identity|prove|equation|terms of|scalar|properties of vector addition)\b/.test(hay)
+                && !/\b(resultant|force|bearing|navigation|parallelogram|prism|3d|angle between|magnitude|geometry|diagram|draw|sketch|plot|graph)\b/.test(hay);
+            if (abstractVectorAlgebra && !explicitlyVisual) return false;
+            return explicitlyVisual || /\b(resultant|triangle|trigonometry|law of sines|law of cosines|bearing|navigation|parallelogram|trapezium|trapezoid|diagonal|midpoint|force|velocity|angle between|perpendicular|parallel|coordinate|intercept|vertex|slope|tangent|secant|curve|area under|integral|derivative|geometry|circle|rectangle|cylinder|cone|sphere|prism|volume|surface area|line|ray|axis|axes|plane|3d|normal|projection|intersection|distance)\b/.test(hay);
         }
-        function wsPlainText(q) {
-            return normalizeGeneratedString([q && q.q, q && q.answer].filter(Boolean).join(' '))
-                .replace(/\\\(([\s\S]*?)\\\)/g, ' $1 ')
-                .replace(/\$([\s\S]*?)\$/g, ' $1 ')
-                .replace(/\\text\s*\{([^{}]+)\}/g, ' $1 ')
-                .replace(/\\triangle/g, ' triangle ')
-                .replace(/\\angle/g, ' angle ')
-                .replace(/\\theta/g, ' theta')
-                .replace(/\\circ/g, ' degrees')
-                .replace(/\s+/g, ' ')
-                .trim();
-        }
-        function svgLabel(s) {
-            return esc(String(s || '').replace(/\\[A-Za-z]+/g, '').replace(/[{}$]/g, '').replace(/\s+/g, ' ').trim()).slice(0, 32);
-        }
-        function wsVertices(t) {
-            let m = t.match(/\btriangle\s+([A-Z])\s*([A-Z])\s*([A-Z])\b/i);
-            if (m) return [m[1], m[2], m[3]].map(x => x.toUpperCase());
-            m = t.match(/\bvertices\s+([A-Z])\s*,?\s+([A-Z])\s*,?\s*(?:and\s+)?([A-Z])\b/i);
-            if (m) return [m[1], m[2], m[3]].map(x => x.toUpperCase());
-            return ['A', 'B', 'C'];
-        }
-        function wsNumbers(t) {
-            const out = [];
-            const re = /\b(\d+(?:\.\d+)?)\s*(km\/h|m\/s|cm|mm|km|m|N|newtons?|units?)?\b/gi;
-            let m;
-            while ((m = re.exec(t)) && out.length < 5) out.push((m[1] || '') + (m[2] ? ' ' + m[2] : ''));
-            return out;
-        }
-        function wsAngleLabel(t) {
-            const m = t.match(/\b(?:angle\s+[A-Z]|theta_?[A-Z]?)\s*(?:=|is)?\s*(\d+(?:\.\d+)?)\s*(?:degrees?)?/i)
-                || t.match(/\b(\d+(?:\.\d+)?)\s*(?:degrees?)\b/i);
-            return m ? m[1] + '\u00b0' : '\u03b8';
-        }
-        function wsTriangleVisual(q) {
-            const t = wsPlainText(q), low = t.toLowerCase();
-            if (!/\b(triangle|law of sines|law of cosines|cosine law|sine law)\b/.test(low)) return null;
-            if (/\b(explain|scenario|when would|state the|define)\b/.test(low) && !/\d/.test(t)) return null;
-            const v = wsVertices(t), nums = wsNumbers(t), angle = wsAngleLabel(t);
-            const [a, b, c] = v;
-            const l1 = svgLabel(nums[0] || 'c'), l2 = svgLabel(nums[1] || 'b'), l3 = svgLabel(nums[2] || 'a');
-            return {
-                tikz: '\\begin{tikzpicture}[scale=.9]\\coordinate (A) at (0,0); \\coordinate (B) at (4.2,0); \\coordinate (C) at (1.35,2.35); \\draw[cp line] (A)--(B)--(C)--cycle; \\node[below left] at (A) {$' + a + '$}; \\node[below right] at (B) {$' + b + '$}; \\node[above] at (C) {$' + c + '$}; \\pic[draw=black,angle radius=5mm,"$' + angle.replace('°', '^\\\\circ') + '$",angle eccentricity=1.35] {angle=A--C--B};\\end{tikzpicture}',
-                svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="Triangle diagram"><path d="M48 138 L268 138 L112 36 Z" fill="none" stroke="#2f3440" stroke-width="3" stroke-linejoin="round"/><path d="M130 117 Q117 102 104 121" fill="none" stroke="#2f3440" stroke-width="2"/><text x="38" y="158" font-size="16" font-family="Arial" fill="#2f3440">' + svgLabel(a) + '</text><text x="270" y="158" font-size="16" font-family="Arial" fill="#2f3440">' + svgLabel(b) + '</text><text x="105" y="27" font-size="16" font-family="Arial" fill="#2f3440">' + svgLabel(c) + '</text><text x="151" y="156" font-size="14" font-family="Arial" fill="#2f3440">' + l1 + '</text><text x="58" y="86" font-size="14" font-family="Arial" fill="#2f3440">' + l2 + '</text><text x="203" y="87" font-size="14" font-family="Arial" fill="#2f3440">' + l3 + '</text><text x="125" y="111" font-size="14" font-family="Arial" fill="#2f3440">' + svgLabel(angle) + '</text></svg>'
-            };
-        }
-        function wsBearingVisual(q) {
-            const t = wsPlainText(q), low = t.toLowerCase();
-            if (!/\b(bearing|navigation|north|heading)\b/.test(low)) return null;
-            const nums = wsNumbers(t);
-            const bearings = Array.from(t.matchAll(/\b(?:bearing\s+(?:of\s*)?|N\s*)(\d{1,3})(?:\s*degrees?)?/gi)).map(m => Math.min(359, parseInt(m[1], 10))).slice(0, 2);
-            const b1 = bearings[0] || 45, b2 = bearings[1] || 115;
-            return {
-                tikz: '\\begin{tikzpicture}[scale=.85]\\coordinate (O) at (0,0); \\draw[cp axis,-Stealth] (O)--(0,2.4) node[above] {$N$}; \\draw[cp axis,-Stealth] (O)--(2.3,0) node[right] {$E$}; \\draw[cp line,-Stealth] (O)--(' + (90 - b1) + ':2.4) node[midway,above] {$' + (nums[0] || '') + '$}; \\draw[cp line,-Stealth] (O)--(' + (90 - b2) + ':2.7) node[midway,right] {$' + (nums[1] || '') + '$};\\end{tikzpicture>',
-                svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="Bearing diagram"><defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#2f3440"/></marker></defs><line x1="70" y1="145" x2="70" y2="30" stroke="#697386" stroke-width="2" marker-end="url(#arr)"/><line x1="70" y1="145" x2="188" y2="145" stroke="#697386" stroke-width="2" marker-end="url(#arr)"/><line x1="70" y1="145" x2="156" y2="58" stroke="#2f3440" stroke-width="3" marker-end="url(#arr)"/><line x1="70" y1="145" x2="232" y2="92" stroke="#2f3440" stroke-width="3" marker-end="url(#arr)"/><path d="M70 96 A49 49 0 0 1 105 111" fill="none" stroke="#2f3440" stroke-width="2"/><path d="M70 76 A69 69 0 0 1 130 87" fill="none" stroke="#2f3440" stroke-width="2" stroke-dasharray="5 4"/><text x="60" y="25" font-size="15" font-family="Arial" fill="#2f3440">N</text><text x="193" y="150" font-size="15" font-family="Arial" fill="#2f3440">E</text><text x="103" y="93" font-size="14" font-family="Arial" fill="#2f3440">' + svgLabel(b1 + '\u00b0') + '</text><text x="128" y="76" font-size="14" font-family="Arial" fill="#2f3440">' + svgLabel(b2 + '\u00b0') + '</text><text x="160" y="58" font-size="13" font-family="Arial" fill="#2f3440">' + svgLabel(nums[0] || '') + '</text><text x="235" y="94" font-size="13" font-family="Arial" fill="#2f3440">' + svgLabel(nums[1] || '') + '</text></svg>'
-            };
-        }
-        function wsVectorVisual(q) {
-            const t = wsPlainText(q), low = t.toLowerCase();
-            if (!/\b(vector|resultant|force|velocity|parallelogram)\b/.test(low)) return null;
-            const nums = wsNumbers(t), angle = wsAngleLabel(t);
-            return {
-                tikz: '\\begin{tikzpicture}[scale=.85]\\coordinate (O) at (0,0); \\coordinate (A) at (3.2,0); \\coordinate (B) at (55:2.4); \\coordinate (C) at ($(A)+(B)$); \\draw[cp dashed] (A)--(C)--(B); \\draw[cp line,-Stealth] (O)--(A) node[midway,below] {$\\\\vec F_1$}; \\draw[cp line,-Stealth] (O)--(B) node[midway,left] {$\\\\vec F_2$}; \\draw[cp line,-Stealth] (O)--(C) node[pos=.58,above] {$\\\\vec R$}; \\pic[draw=black,angle radius=5mm,"$' + angle.replace('°', '^\\\\circ') + '$",angle eccentricity=1.35] {angle=A--O--B};\\end{tikzpicture>',
-                svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="Vector resultant diagram"><defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#2f3440"/></marker></defs><line x1="58" y1="140" x2="178" y2="140" stroke="#2f3440" stroke-width="3" marker-end="url(#arr)"/><line x1="58" y1="140" x2="118" y2="52" stroke="#2f3440" stroke-width="3" marker-end="url(#arr)"/><line x1="58" y1="140" x2="238" y2="52" stroke="#2f3440" stroke-width="3" marker-end="url(#arr)"/><line x1="178" y1="140" x2="238" y2="52" stroke="#697386" stroke-width="2" stroke-dasharray="6 5"/><line x1="118" y1="52" x2="238" y2="52" stroke="#697386" stroke-width="2" stroke-dasharray="6 5"/><path d="M91 140 A33 33 0 0 0 78 111" fill="none" stroke="#2f3440" stroke-width="2"/><text x="110" y="158" font-size="14" font-family="Arial" fill="#2f3440">F1 ' + svgLabel(nums[0] || '') + '</text><text x="72" y="86" font-size="14" font-family="Arial" fill="#2f3440">F2 ' + svgLabel(nums[1] || '') + '</text><text x="169" y="86" font-size="14" font-family="Arial" fill="#2f3440">R</text><text x="91" y="119" font-size="14" font-family="Arial" fill="#2f3440">' + svgLabel(angle) + '</text></svg>'
-            };
-        }
-        function wsGeometryVisual(q) {
-            const t = wsPlainText(q), low = t.toLowerCase();
-            if (!/\b(rectangle|circle|cylinder|cone|sphere|volume|surface area|geometry)\b/.test(low)) return null;
-            if (/\bcylinder\b/.test(low)) return { tikz: '\\begin{tikzpicture}[scale=.85]\\draw[cp line] (0,0) ellipse (1.25 and .35); \\draw[cp line] (-1.25,0)--(-1.25,2.4) (1.25,0)--(1.25,2.4); \\draw[cp line] (0,2.4) ellipse (1.25 and .35); \\draw[cp dashed] (0,2.4)--(1.25,2.4) node[midway,above] {$r$}; \\draw[cp dashed,<->] (1.65,0)--(1.65,2.4) node[midway,right] {$h$};\\end{tikzpicture>', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="Cylinder diagram"><ellipse cx="145" cy="45" rx="65" ry="20" fill="none" stroke="#2f3440" stroke-width="3"/><path d="M80 45 V135 M210 45 V135" fill="none" stroke="#2f3440" stroke-width="3"/><ellipse cx="145" cy="135" rx="65" ry="20" fill="none" stroke="#2f3440" stroke-width="3"/><line x1="145" y1="45" x2="210" y2="45" stroke="#697386" stroke-width="2" stroke-dasharray="5 4"/><line x1="235" y1="45" x2="235" y2="135" stroke="#697386" stroke-width="2"/><text x="174" y="37" font-size="15" font-family="Arial" fill="#2f3440">r</text><text x="245" y="94" font-size="15" font-family="Arial" fill="#2f3440">h</text></svg>' };
-            return { tikz: '\\begin{tikzpicture}[scale=.9]\\coordinate (A) at (0,0); \\coordinate (B) at (3.8,0); \\coordinate (C) at (3.8,2.1); \\coordinate (D) at (0,2.1); \\draw[cp line] (A)--(B)--(C)--(D)--cycle; \\node[below] at ($(A)!0.5!(B)$) {$l$}; \\node[right] at ($(B)!0.5!(C)$) {$w$}; \\draw[cp dashed] (A)--(C) node[midway,above left] {$d$};\\end{tikzpicture>', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="Geometry diagram"><rect x="66" y="42" width="188" height="98" fill="none" stroke="#2f3440" stroke-width="3"/><line x1="66" y1="140" x2="254" y2="42" stroke="#697386" stroke-width="2" stroke-dasharray="6 5"/><text x="153" y="160" font-size="15" font-family="Arial" fill="#2f3440">l</text><text x="265" y="94" font-size="15" font-family="Arial" fill="#2f3440">w</text><text x="158" y="83" font-size="15" font-family="Arial" fill="#2f3440">d</text></svg>' };
-        }
-        function deterministicWorksheetVisual(q) {
-            return wsTriangleVisual(q) || wsBearingVisual(q) || wsVectorVisual(q) || wsGeometryVisual(q);
-        }
-        async function renderTikzWorksheet(data) {
+        async function renderTikzWorksheet(data, progress) {
             if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
             const candidates = data.questions.filter(q => q && worksheetNeedsVisual(q) && !String(q.tikzSvg || '').trim()).slice(0, 10);
-            candidates.forEach(q => {
-                const visual = deterministicWorksheetVisual(q);
-                if (visual && visual.svg) {
-                    q.tikz = visual.tikz || q.tikz || '';
-                    q.tikzSvg = visual.svg;
-                }
-            });
-            const aiCandidates = candidates.filter(q => q && !String(q.tikzSvg || '').trim()).slice(0, 3);
+            const aiCandidates = candidates.filter(q => q && !String(q.tikzSvg || '').trim()).slice(0, 6);
+            let completed = 0;
+            if (progress) progress.detail(aiCandidates.length ? ('Rendering TikZ visual 1 of ' + aiCandidates.length + ' on the backend') : 'No backend visuals needed');
             await Promise.all(aiCandidates.map(async q => {
                 try {
                     const out = await generateTikzVisual({
@@ -12865,6 +12777,14 @@
                         }
                     }
                     console.warn('[worksheet] TikZ renderer unavailable', e);
+                } finally {
+                    completed++;
+                    if (progress && aiCandidates.length) {
+                        const pct = 65 + Math.round((completed / aiCandidates.length) * 20);
+                        progress.set(3, completed < aiCandidates.length
+                            ? ('Rendering TikZ visual ' + (completed + 1) + ' of ' + aiCandidates.length + ' on the backend')
+                            : 'Backend visuals complete', pct);
+                    }
                 }
             }));
             return data;
@@ -12883,7 +12803,8 @@
             if (visualsEnabled && !tikzReady()) { toast('The TikZ renderer is not set up yet.', 'err'); return; }
             runTool('worksheet', visualsEnabled
                 ? ['Reading your inputs', 'Designing questions', 'Writing the answer key', 'Rendering TikZ visuals', 'Formatting the worksheet']
-                : ['Reading your inputs', 'Designing questions', 'Writing the answer key', 'Formatting the worksheet'], async () => {
+                : ['Reading your inputs', 'Designing questions', 'Writing the answer key', 'Formatting the worksheet'], async progress => {
+                if (progress) progress.set(0, 'Reading topic, settings, and source materials', 0);
                 const prompt =
                     'You are an expert teacher creating a printable classroom worksheet.\n' +
                     'Topic: ' + (topic || '(derive from the attached materials)') + '\n' +
@@ -12896,13 +12817,25 @@
                     (visualsEnabled ? tikzPrompt('worksheet questions') : '') +
                     (latexOn('wsLatex') ? LATEX_ON : '') +
                     (srcCount(scr) ? '\nBase the questions on the attached source materials.' : '');
-                const parts = [{ text: prompt }].concat(await sourceParts(scr));
+                const srcParts = await sourceParts(scr);
+                const parts = [{ text: prompt }].concat(srcParts);
+                if (progress) {
+                    progress.done(0, srcParts.length ? 'Source materials prepared' : 'Inputs prepared', 15);
+                    progress.set(1, 'Gemini is creating the worksheet JSON', 20);
+                }
                 WS_DATA = normalizeGeneratedContent(await gemini(parts, WS_SCHEMA));
-                if (visualsEnabled) await renderTikzWorksheet(WS_DATA);
+                if (progress) progress.done(2, 'Worksheet text returned from Gemini', visualsEnabled ? 60 : 78);
+                if (visualsEnabled) {
+                    if (progress) progress.set(3, 'Sending visual-worthy questions to the TikZ backend', 62);
+                    await renderTikzWorksheet(WS_DATA, progress);
+                    if (progress) progress.done(3, 'TikZ backend visual pass complete', 86);
+                }
                 // Header uses what the user typed: subject (top-left), grade/level (top-right).
                 WS_DATA.subject = subject || WS_DATA.subject || '';
                 WS_DATA.level = level || '';
+                if (progress) progress.set(visualsEnabled ? 4 : 3, 'Rendering worksheet and typesetting math', 90);
                 renderWorksheet(WS_DATA);
+                if (progress) progress.done(visualsEnabled ? 4 : 3, 'Worksheet ready', 96);
                 markDirty();
             });
         });
@@ -13829,7 +13762,7 @@
             vidStop();
             const cues = (captions || []).filter(c => c && c.text);
             const timed = cues.length > 0 && cues[0].start != null;  // SRT timeline vs sequential
-            const speeds = [{ v: '0.8', label: '0.8×' }, { v: '0.9', label: '0.9×' }, { v: '1', label: '1×' }, { v: '1.1', label: '1.1×' }, { v: '1.25', label: '1.25×' }];
+            const speeds = [{ v: '0.8', label: '0.8Ã—' }, { v: '0.9', label: '0.9Ã—' }, { v: '1', label: '1Ã—' }, { v: '1.1', label: '1.1Ã—' }, { v: '1.25', label: '1.25Ã—' }];
 
             mount.innerHTML =
                 '<div class="vid-player">' +
@@ -15040,7 +14973,7 @@
                 '<button class="vid-cbtn" data-sdrestart title="Restart">' + vIco.replay + '</button>' +
                 '<span class="vid-time" data-sdpos>1 / ' + total + '</span>' +
                 (TTS_OK ? '<button class="vid-cbtn on" data-sdcc title="Toggle captions" aria-label="Toggle captions"><span class="vid-cc-txt">CC</span></button>' : '') +
-                (TTS_OK ? ddHTML('sdSpeed', [{ v: '0.8', label: '0.8×' }, { v: '0.9', label: '0.9×' }, { v: '1', label: '1×' }, { v: '1.1', label: '1.1×' }, { v: '1.25', label: '1.25×' }], '1') : '') +
+                (TTS_OK ? ddHTML('sdSpeed', [{ v: '0.8', label: '0.8Ã—' }, { v: '0.9', label: '0.9Ã—' }, { v: '1', label: '1Ã—' }, { v: '1.1', label: '1.1Ã—' }, { v: '1.25', label: '1.25Ã—' }], '1') : '') +
                 '</div>' +
                 '<div class="sd-cc" data-sdcctext></div>' +
                 '</div>';
@@ -15378,3 +15311,4 @@
 </body>
 
 </html>
+
