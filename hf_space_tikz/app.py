@@ -1284,12 +1284,15 @@ def render(req: RenderReq):
 
 
 def _deterministic_fallback(req: GenerateReq) -> dict | None:
-    """Render the best-guess deterministic diagram, trusting our own template.
+    """Render a KEYWORD-MATCHED deterministic diagram when Gemini is unavailable.
 
-    Used as the last resort when Gemini is unavailable (503 storm, timeouts) or
-    produces nothing usable, so a visual-worthy question still gets a diagram.
+    IMPORTANT: this must NOT force a generic triangle. A question with no matching
+    shape (a quadratic, an algebra proof, a "state the property" question) should
+    get NO visual rather than an irrelevant triangle repeated across the worksheet.
+    So we only fall back to a template whose own trigger actually matches the
+    request; if nothing matches, we return None and the question stays blank.
     """
-    fallback = _deterministic_template(req, generic=True)
+    fallback = _deterministic_template(req, generic=False)
     if not fallback:
         return None
     rendered = _render_template(req, fallback, check_semantics=False)

@@ -84,6 +84,21 @@ const cases = [
         name: 'SCREENSHOT answer: long equation chain must become display (not overflow inline)',
         json: String.raw`{"q":"ok","answer":"Using the Cosine Law: \\(r^2 = p^2 + q^2 - 2pq\\cos R = 15^2 + 18^2 - 2(15)(18)\\cos 40^\\circ = 225 + 324 - 540(0.766) = 549 - 413.6 = 135.4\\). So \\(r = \\sqrt{135.4} \\approx 11.6m\\)."}`,
         expect: { answerHasDisplayChain: true }
+    },
+    {
+        name: 'SCREENSHOT answer: single-$ steps with dropped closing $ must not leave literal $x=',
+        json: "{\"q\":\"ok\",\"answer\":\"Substituting:\\n$x = \\\\frac{-5 \\\\pm \\\\sqrt{25+24}}{6}\\n$x = \\\\frac{-5 \\\\pm \\\\sqrt{49}}{6}$\\n$x = \\\\frac{-5 \\\\pm 7}{6}$\"}",
+        expect: { answerNoLiteralDollar: true }
+    },
+    {
+        name: 'ANSWER: single-backslash \\pm must survive JSON (protect list)',
+        json: "{\"answer\":\"So $x = -5 \\pm 7$ over 6.\",\"q\":\"ok\"}",
+        expect: { answerNoLiteralDollar: true, answerKeepsProseSpaces: ['over 6'] }
+    },
+    {
+        name: 'ANSWER: currency must NOT be converted to math',
+        json: "{\"q\":\"ok\",\"answer\":\"The ticket costs $5 and the meal costs $12 today.\"}",
+        expect: { answerKeepsProseSpaces: ['costs', 'today'] }
     }
 ];
 
@@ -128,6 +143,7 @@ for (const c of cases) {
             if (o !== cl) flags.push('unbalanced inline delimiters (opens=' + o + ' closes=' + cl + ')');
         }
         if (exp.answerHasDisplayChain && !/\\\[[\s\S]*=[\s\S]*=[\s\S]*\\\]/.test(aHtml)) flags.push('long equation chain was NOT promoted to display (will overflow inline)');
+        if (exp.answerNoLiteralDollar && /(?<!\\)\$(?!\$)/.test(aHtml.replace(/\\\$/g, ''))) flags.push('stray single $ survived (renders as literal "$x=" text)');
     }
     if (flags.length) failures++;
     console.log(flags.length ? '  FLAGS: ' + flags.join(' | ') : '  OK');

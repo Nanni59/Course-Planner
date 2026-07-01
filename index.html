@@ -11372,7 +11372,7 @@
                 .replace(/\\\\(?=(?:[()[\]]|[A-Za-z]+(?:\b|_|\{)))/g, '\\');
         }
         function repairModelMathText(s) {
-            let t = normalizeLatexBackslashes(s);
+            let t = normalizeLatexBackslashes(balanceDollarMath(s));
             t = t.replace(/\bMath input error\b\.?/gi, '');
             // Gemini sometimes escapes math delimiters as \$...\$ because it is trying to
             // avoid currency ambiguity. Only unescape those pairs when the inside looks mathy.
@@ -11461,10 +11461,15 @@
                 const inner = s.slice(i + 1, j);
                 if (looksLikeInlineMath(inner)) {
                     out += '\\(' + inner.trim() + '\\)';
+                    i = j + 1;
                 } else {
-                    out += '$' + inner + '$';
+                    // Not valid inline math between these two $: the opening $ is probably a
+                    // stray/unclosed delimiter. Emit just it literally and advance ONE char so
+                    // the $ at j is reconsidered as a fresh opener — this stops one dropped $
+                    // from mis-pairing (and corrupting) every following span.
+                    out += s[i];
+                    i += 1;
                 }
-                i = j + 1;
             }
             return wrapBareLatexCommands(out);
         }
@@ -11544,8 +11549,22 @@
                 .replace(/\^\\\(\s*\\?circ\s*\\\)/g, '^\\circ')
                 .replace(/\^\\\(\s*\\?times\s*\\\)/g, '^\\circ');
         }
+        // Auto-close a dangling single-$ math delimiter per line before anything tries to
+        // pair delimiters. The model routinely drops the closing $ on a step line
+        // ("$x = \frac{...}{6}" with no close); left unpaired, positional $...$ matching
+        // mis-pairs every following $ and cascades into literal "$x =" fragments and nested
+        // \(\(. Only touch lines that clearly contain math (a \command or =,^,_), so currency
+        // prose ("it costs $5 today") is never affected. Runs FIRST, before the mathSpan pass.
+        function balanceDollarMath(s) {
+            return String(s == null ? '' : s).split('\n').map(line => {
+                if (line.indexOf('$$') >= 0) return line; // leave display math alone
+                const singles = (line.replace(/\\\$/g, '').match(/\$/g) || []).length;
+                if (singles % 2 === 1 && /\\[A-Za-z]+|[=^_]/.test(line)) return line + '$';
+                return line;
+            }).join('\n');
+        }
         function normalizeGeneratedString(s) {
-            let t = normalizeLatexBackslashes(repairParsedLatexEscapes(s))
+            let t = normalizeLatexBackslashes(repairParsedLatexEscapes(balanceDollarMath(s)))
                 .replace(/\bMath input error\b\.?/gi, '')
                 .replace(/\b(\d+(?:\.\d+)?)(km\/h|m\/s|cm|mm|km|m|N|newtons?|units?)\b/gi, '$1 $2')
                 .replace(/\^\s*\\times\b/g, '^\\circ')
@@ -11763,7 +11782,7 @@
         }
         function protectLatexJsonEscapes(s) {
             return String(s || '').replace(
-                /(^|[^\\])\\(?=[()[\]]|(?:angle|triangle|text|theta|times|frac|dfrac|tfrac|sqrt|left|right|circ|degree|vec|overline|hat|bar|sin|cos|tan|sec|csc|cot|log|ln|pi|alpha|beta|gamma|delta|lambda|mu|sigma|omega|Delta|Omega)\b)/g,
+                /(^|[^\\])\\(?=[()[\]]|(?:angle|triangle|text|theta|times|frac|dfrac|tfrac|sqrt|left|right|circ|degree|vec|overline|hat|bar|sin|cos|tan|sec|csc|cot|log|ln|pi|alpha|beta|gamma|delta|epsilon|lambda|mu|sigma|omega|phi|rho|tau|Delta|Omega|Sigma|Gamma|Theta|Lambda|Phi|Pi|pm|mp|cdot|div|neq|leq|geq|approx|equiv|infty|partial|nabla|cup|cap|subset|supset|forall|exists|sum|prod|int|oint|lim|binom|frac|mathbb|mathbf|mathcal|mathrm|operatorname|boxed|quad|qquad|rightarrow|Rightarrow|leftarrow|Leftarrow|leftrightarrow|to|mapsto|cos|sin|tan|deg|arcsin|arccos|arctan)\b)/g,
                 '$1\\\\'
             );
         }
@@ -12767,15 +12786,30 @@
             if (png) return '<div class="st-q-tikz"><img alt="" src="data:image/png;base64,' + esc(png) + '"></div>';
             return '';
         }
+        // Decide whether a worksheet question should get a backend diagram. The gate is
+        // deliberately CONSERVATIVE: a wrong/irrelevant diagram (a triangle on a quadratic,
+        // a vector arrow on an algebra proof) is worse than none, and the backend no longer
+        // fabricates a generic shape when nothing fits. Only questions with a concrete
+        // geometric or graphable signal are sent.
         function worksheetNeedsVisual(q) {
             if (sdCleanTikz(q && q.tikz)) return true;
             const hay = [q && q.q, q && q.answer].join(' ').toLowerCase();
-            const explicitlyVisual = /\b(graph|diagram|sketch|plot|draw|visual|illustrate)\b/.test(hay);
-            const abstractVectorAlgebra = /\b(vector|vectors|vec)\b/.test(hay)
-                && /\b(simplify|expression|identity|prove|equation|terms of|scalar|properties of vector addition)\b/.test(hay)
-                && !/\b(resultant|force|bearing|navigation|parallelogram|prism|3d|angle between|magnitude|geometry|diagram|draw|sketch|plot|graph)\b/.test(hay);
-            if (abstractVectorAlgebra && !explicitlyVisual) return false;
-            return explicitlyVisual || /\b(resultant|triangle|trigonometry|law of sines|law of cosines|sine law|cosine law|angle of elevation|angle of depression|bearing|navigation|parallelogram|trapezium|trapezoid|diagonal|midpoint|force|velocity|angle between|perpendicular|parallel|coordinate|intercept|vertex|slope|tangent|secant|curve|area under|integral|derivative|geometry|circle|rectangle|cylinder|cone|sphere|prism|volume|surface area|line|ray|axis|axes|plane|3d|normal|projection|intersection|distance)\b/.test(hay);
+            // An explicit request to draw/graph always wins.
+            if (/\b(graph|diagram|sketch|plot|draw|illustrate|construct|shade the region|number line)\b/.test(hay)) return true;
+            // Hard exclusion: statements, definitions, proofs, and pure symbolic
+            // manipulation never benefit from a diagram — even when they name vectors,
+            // "3D space", or coordinates. This is what was putting a diagram on
+            // "state the associative property", "prove the identity", "simplify AB+BC".
+            const isAbstract = /\b(state|write|express|prove|show that|explain|define|describe|verify|derive|expand|factor|simplify|evaluate|determine whether)\b/.test(hay)
+                && /\b(property|properties|identity|notation|definition|rule|axiom|theorem|expression|formula|equivalent|in your own words|associative|commutative|distributive)\b/.test(hay);
+            if (isAbstract) return false;
+            // Vectors get a diagram only for a genuinely geometric setup, not for
+            // component arithmetic, notation, or proofs that merely mention "vector".
+            if (/\b(vector|vectors|vec)\b/.test(hay)) {
+                return /\b(resultant|angle between|magnitude|parallelogram|force|velocity|displacement|bearing|navigation|head[- ]to[- ]tail|projection|position vector|perpendicular|tension|equilibrium|component form|triangle|cross product|torque|work done)\b/.test(hay);
+            }
+            // Everything else: require a concrete geometric or graphable term.
+            return /\b(triangle|trigonometry|law of sines|law of cosines|sine law|cosine law|angle of elevation|angle of depression|bearing|navigation|parallelogram|trapezium|trapezoid|rhombus|quadrilateral|diagonal|midpoint|angle between|perpendicular bisector|intercept|vertex|axis of symmetry|parabola|slope|tangent line|secant line|area under|geometry|circle|rectangle|cylinder|cone|sphere|prism|volume|surface area|normal vector|projection onto|intersection of|histogram|box[- ]?plot|box[- ]and[- ]whisker|quartile|normal distribution|gaussian|bell curve|scatter plot|frequency distribution|unit circle|coordinate plane)\b/.test(hay);
         }
         async function renderTikzWorksheet(data, progress) {
             if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
