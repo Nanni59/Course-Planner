@@ -255,6 +255,7 @@ def _template(tikz: str, theme: str, target: str) -> str:
 \usepackage{{amsmath,amssymb}}
 \usepackage{{pgfplots}}
 \pgfplotsset{{compat=1.18}}
+\usepgfplotslibrary{{statistics}}
 \usetikzlibrary{{arrows.meta,calc,decorations.pathreplacing,patterns,positioning,angles,quotes,intersections,3d}}
 \definecolor{{cpGreen}}{{HTML}}{{3F8F46}}
 \definecolor{{cpSage}}{{HTML}}{{6AA96F}}
@@ -396,10 +397,17 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
     raise RuntimeError(last_err)
 
 
-TIKZ_EXAMPLE_LIBRARY = r"""
-Use these compact patterns as quality targets. Adapt coordinates and labels to the user's problem.
-
-CALCULUS / GRAPHING:
+# Curated example library, adapted from open sources (Active Calculus LaTeX source,
+# tkz-euclide manual constructions translated to plain TikZ, Underleaf PGFPlots
+# tutorials, TikZ.net Gaussian article) plus the original in-house patterns.
+# Each entry: (section title, trigger keywords, compile-ready snippet). The prompt
+# builder injects ONLY the sections whose keywords match the request, so adding
+# examples here does not bloat unrelated prompts.
+TIKZ_EXAMPLE_SECTIONS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("CALCULUS / GRAPHING",
+     ("graph", "tangent", "secant", "derivative", "integral", "curve", "slope",
+      "quadratic", "parabola", "polynomial", "rate of change", "area under", "optimization"),
+     r"""
 \begin{tikzpicture}
 \begin{axis}[xmin=-1,xmax=4,ymin=-1,ymax=6,axis lines=middle,xlabel={$x$},ylabel={$y$},
   grid=both,grid style={draw=gray!20},width=7cm,height=4.5cm,clip=false]
@@ -409,8 +417,28 @@ CALCULUS / GRAPHING:
   \node[anchor=west] at (axis cs:2.4,2.2) {tangent};
 \end{axis}
 \end{tikzpicture}
-
-VECTORS:
+"""),
+    ("FUNCTION FAMILIES (ADVANCED FUNCTIONS)",
+     ("exponential", "logarithm", "log(", "ln(", "sinusoidal", "periodic", "asymptote",
+      "transformation", "radian", "function", "cubic", "reciprocal", "rational"),
+     r"""
+\begin{tikzpicture}
+\begin{axis}[width=7.2cm,height=5cm,axis lines=middle,xlabel={$x$},ylabel={$y$},
+  xmin=-3.4,xmax=3.6,ymin=-3.5,ymax=5.5,restrict y to domain=-3.5:5.5,samples=120,
+  grid=both,grid style={draw=gray!15}]
+  \addplot[cp line,domain=-2.2:2.2] {x^2} node[pos=.95,right] {\small $y=x^2$};
+  \addplot[cp dashed,domain=-3.2:3.2] {sin(deg(x))} node[pos=.04,below] {\small $y=\sin x$};
+  \addplot[cp line,densely dotted,domain=-3.2:1.6] {exp(x)} node[pos=.99,left] {\small $y=e^x$};
+  \addplot[cp dashed,domain=0.08:3.2] {ln(x)} node[pos=.9,below] {\small $y=\ln x$};
+\end{axis}
+\end{tikzpicture}
+Note: trig graphs of a real variable need deg(): sin(deg(x)). Avoid x=0 for ln and
+division; restrict each curve's domain so it stays inside the axis window.
+"""),
+    ("VECTORS (2D)",
+     ("vector", "resultant", "magnitude", "dot product", "unit vector", "parallelogram",
+      "force", "velocity", "displacement", "component"),
+     r"""
 \begin{tikzpicture}[scale=.8]
   \coordinate (O) at (0,0); \coordinate (A) at (3,0); \coordinate (B) at (4.3,1.8);
   \draw[cp line,-Stealth] (O)--(A) node[midway,below] {$\vec u$};
@@ -419,7 +447,19 @@ VECTORS:
   \fill (O) circle (1.4pt) (A) circle (1.4pt) (B) circle (1.4pt);
 \end{tikzpicture}
 
-VECTOR MAGNITUDE MIN/MAX:
+Parallelogram with both diagonals labelled:
+\begin{tikzpicture}[scale=.8]
+  \coordinate (A) at (0,0); \coordinate (B) at (3,0); \coordinate (D) at (.9,1.8); \coordinate (C) at (3.9,1.8);
+  \draw[cp line] (A)--(B)--(C)--(D)--cycle;
+  \draw[cp line,-Stealth] (A)--(B) node[midway,below] {$\vec u$};
+  \draw[cp line,-Stealth] (A)--(D) node[midway,left] {$\vec v$};
+  \draw[cp dashed,-Stealth] (A)--(C) node[pos=.62,above] {$\vec u+\vec v$};
+  \draw[cp dashed,-Stealth] (B)--(D) node[pos=.55,below left] {$\vec v-\vec u$};
+  \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$};
+  \node[above right] at (C) {$C$}; \node[above left] at (D) {$D$};
+\end{tikzpicture}
+
+Magnitude min/max, two separated rows:
 \begin{tikzpicture}[scale=.8]
   \coordinate (A) at (0,1.1); \coordinate (B) at (1.4,1.1); \coordinate (C) at (4.2,1.1);
   \node[anchor=east] at (-.15,1.1) {\small same};
@@ -432,28 +472,62 @@ VECTOR MAGNITUDE MIN/MAX:
   \draw[cp line,-Stealth] (E)--(F) node[midway,above] {$\vec u$};
   \draw[cp dashed,-Stealth] (D)--(F) node[midway,below] {$\bigl||\vec v|-|\vec u|\bigr|$};
 \end{tikzpicture}
-
-VECTOR PARALLELOGRAM DIAGONALS:
-\begin{tikzpicture}[scale=.8]
-  \coordinate (A) at (0,0); \coordinate (B) at (3,0); \coordinate (D) at (.9,1.8); \coordinate (C) at (3.9,1.8);
-  \draw[cp line] (A)--(B)--(C)--(D)--cycle;
-  \draw[cp line,-Stealth] (A)--(B) node[midway,below] {$\vec u$};
-  \draw[cp line,-Stealth] (A)--(D) node[midway,left] {$\vec v$};
-  \draw[cp dashed,-Stealth] (A)--(C) node[pos=.62,above] {$\vec u+\vec v$};
-  \draw[cp dashed,-Stealth] (B)--(D) node[pos=.55,below left] {$\vec v-\vec u$};
-  \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$};
-  \node[above right] at (C) {$C$}; \node[above left] at (D) {$D$};
+"""),
+    ("VECTORS & GEOMETRY (3D)",
+     ("3d", "three-dimensional", "cross product", "triple product", "parallelepiped",
+      "torque", "projection", "skew", "octant", "xyz"),
+     r"""
+Triangle PQR in 3D with edge vectors (area via cross product), Active Calculus style:
+\begin{tikzpicture}[scale=.9]
+  \draw[cp axis,-Stealth] (0,0,0) -- (2.6,0,0) node[right] {$x$};
+  \draw[cp axis,-Stealth] (0,0,0) -- (0,2.4,0) node[above] {$y$};
+  \draw[cp axis,-Stealth] (0,0,0) -- (0,0,2.6) node[below left] {$z$};
+  \coordinate (P) at (0.4,-0.7,0.2);
+  \coordinate (Q) at (0.7,1.8,0.3);
+  \coordinate (R) at (1.9,0.8,-0.5);
+  \draw[cp line,-Stealth] (P) -- (Q) node[pos=.55,left] {$\vec v$};
+  \draw[cp line,-Stealth] (P) -- (R) node[pos=.6,below] {$\vec w$};
+  \draw[cp line] (Q) -- (R);
+  \fill (P) circle (1.3pt) node[below] {$P$};
+  \fill (Q) circle (1.3pt) node[above] {$Q$};
+  \fill (R) circle (1.3pt) node[right] {$R$};
 \end{tikzpicture}
 
-GEOMETRY:
+Parallelepiped spanned by u, v, w (volume via scalar triple product):
+\begin{tikzpicture}[scale=.85]
+  \coordinate (O) at (0,0,0);
+  \coordinate (U) at (0.5,1.5,1);
+  \coordinate (V) at (1.9,0.6,-0.4);
+  \coordinate (W) at (0.5,-1,0.6);
+  \coordinate (UV) at ($(U)+(V)$); \coordinate (UW) at ($(U)+(W)$);
+  \coordinate (VW) at ($(V)+(W)$); \coordinate (UVW) at ($(U)+(V)+(W)$);
+  \draw[cp line,-Stealth] (O)--(U) node[pos=.6,left] {$\vec u$};
+  \draw[cp line,-Stealth] (O)--(V) node[pos=.7,above] {$\vec v$};
+  \draw[cp line,-Stealth] (O)--(W) node[pos=.7,below left] {$\vec w$};
+  \draw[cp line] (U)--(UV)--(UVW)--(UW)--cycle;
+  \draw[cp line] (V)--(UV) (W)--(UW);
+  \draw[cp dashed] (V)--(VW)--(W) (VW)--(UVW);
+\end{tikzpicture}
+In 3D write coordinates as (x,y,z); node at (x,y,z) works directly.
+"""),
+    ("TRIANGLES & TRIG LAWS",
+     ("triangle", "sine law", "cosine law", "law of sines", "law of cosines",
+      "trigonometry", "angle", "obtuse", "acute", "ambiguous case"),
+     r"""
 \begin{tikzpicture}[scale=.9]
-  \coordinate (A) at (0,0); \coordinate (B) at (4,0); \coordinate (C) at (1.1,2.4);
+  \coordinate (A) at (0,0); \coordinate (B) at (4.4,0); \coordinate (C) at (1.2,2.2);
   \draw[cp line] (A)--(B)--(C)--cycle;
   \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$}; \node[above] at (C) {$C$};
-  \pic[draw=black,angle radius=7mm,"$\theta$",angle eccentricity=1.35] {angle=B--A--C};
+  \node[below] at ($(A)!0.5!(B)$) {$c$};
+  \node[left] at ($(A)!0.5!(C)$) {$b$};
+  \node[right] at ($(B)!0.5!(C)$) {$a$};
+  \pic[draw=black,angle radius=5mm,"$A$",angle eccentricity=1.35] {angle=B--A--C};
+  \pic[draw=black,angle radius=5mm,"$C$",angle eccentricity=1.35] {angle=A--C--B};
 \end{tikzpicture}
+With this counter-clockwise A,B,C layout, interior angle pics are:
+at A use {angle=B--A--C}; at B use {angle=C--B--A}; at C use {angle=A--C--B}.
 
-TRIANGLE INTERIOR ANGLES:
+Sides with given values:
 \begin{tikzpicture}[scale=.9]
   \coordinate (A) at (0,0); \coordinate (B) at (4.2,0); \coordinate (C) at (1.4,2.5);
   \draw[cp line] (A)--(B)--(C)--cycle;
@@ -463,20 +537,36 @@ TRIANGLE INTERIOR ANGLES:
   \pic[draw=black,angle radius=6mm,"$45^\circ$",angle eccentricity=1.35] {angle=B--A--C};
   \pic[draw=black,angle radius=5mm,"$60^\circ$",angle eccentricity=1.35] {angle=A--C--B};
 \end{tikzpicture}
-
-LAW OF SINES / COSINES TRIANGLE:
+"""),
+    ("RIGHT TRIANGLES & CONSTRUCTIONS",
+     ("right triangle", "right-angled", "pythagorean", "hypotenuse", "perpendicular",
+      "altitude", "bisector", "midpoint", "construction", "elevation", "depression",
+      "isosceles", "equilateral", "median"),
+     r"""
+Right triangle with a proper right-angle mark (tkz-euclide style, plain TikZ):
 \begin{tikzpicture}[scale=.9]
-  \coordinate (A) at (0,0); \coordinate (B) at (4.4,0); \coordinate (C) at (1.2,2.2);
+  \coordinate (A) at (0,0); \coordinate (B) at (4,0); \coordinate (C) at (0,3);
   \draw[cp line] (A)--(B)--(C)--cycle;
-  \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$}; \node[above] at (C) {$C$};
+  \pic[draw=black] {right angle=B--A--C};
   \node[below] at ($(A)!0.5!(B)$) {$c$};
   \node[left] at ($(A)!0.5!(C)$) {$b$};
-  \node[right] at ($(B)!0.5!(C)$) {$a$};
-  \pic[draw=black,angle radius=5mm,"$C$",angle eccentricity=1.35] {angle=A--C--B};
-  \pic[draw=black,angle radius=5mm,"$A$",angle eccentricity=1.35] {angle=B--A--C};
+  \node[above right] at ($(B)!0.5!(C)$) {$a$};
+  \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$}; \node[above] at (C) {$C$};
 \end{tikzpicture}
 
-BEARING / DIRECTION:
+Isosceles construction: altitude, right-angle mark, equal base angles:
+\begin{tikzpicture}[scale=.9]
+  \coordinate (A) at (0,0); \coordinate (B) at (4,0); \coordinate (C) at (2,2.6); \coordinate (M) at (2,0);
+  \draw[cp line] (A)--(B)--(C)--cycle;
+  \draw[cp dashed] (C)--(M) node[pos=.5,right] {$h$};
+  \pic[draw=black] {right angle=B--M--C};
+  \pic[draw=black,angle radius=5mm,"$\alpha$",angle eccentricity=1.4] {angle=B--A--C};
+  \pic[draw=black,angle radius=5mm,"$\alpha$",angle eccentricity=1.4] {angle=C--B--A};
+\end{tikzpicture}
+"""),
+    ("BEARINGS / NAVIGATION",
+     ("bearing", "navigation", "heading", "compass", "north", "due east", "due west"),
+     r"""
 \begin{tikzpicture}[scale=.85]
   \coordinate (O) at (0,0);
   \draw[cp axis,-Stealth] (O)--(0,2.5) node[above] {$N$};
@@ -488,20 +578,11 @@ BEARING / DIRECTION:
   \node at (73:.75) {$30^\circ$};
   \node at (48:1.05) {$75^\circ$};
 \end{tikzpicture}
-
-PARALLELOGRAM WITH INTERIOR ANGLE:
-\begin{tikzpicture}[scale=.85]
-  \coordinate (A) at (0,0); \coordinate (B) at (3.8,0); \coordinate (D) at (1.1,1.5); \coordinate (C) at (4.9,1.5);
-  \draw[cp line] (A)--(B)--(C)--(D)--cycle;
-  \draw[cp dashed] (A)--(C) node[pos=.6,above] {$d$};
-  \node[below] at ($(A)!0.5!(B)$) {$10$};
-  \node[left] at ($(A)!0.5!(D)$) {$6$};
-  \pic[draw=black,angle radius=6mm,"$45^\circ$",angle eccentricity=1.35] {angle=B--A--D};
-  \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$};
-  \node[above right] at (C) {$C$}; \node[above left] at (D) {$D$};
-\end{tikzpicture}
-
-3D LINE AND PLANE:
+"""),
+    ("3D LINES AND PLANES",
+     ("plane", "intersection", "normal vector", "scalar equation", "cartesian equation",
+      "parametric", "distance from a point"),
+     r"""
 \begin{tikzpicture}[scale=.85]
   \coordinate (O) at (0,0); \coordinate (X) at (3.0,-.3); \coordinate (Y) at (0,2.4); \coordinate (Z) at (-1.7,-1.2);
   \draw[cp axis,-Stealth] (O)--(X) node[right] {$x$};
@@ -512,8 +593,10 @@ PARALLELOGRAM WITH INTERIOR ANGLE:
   \draw[cp line,-Stealth] (.3,-.85)--(1.9,1.65) node[above] {$L$};
   \node[below right] at (1.4,-.35) {$\Pi$};
 \end{tikzpicture}
-
-TRIGONOMETRY:
+"""),
+    ("UNIT CIRCLE",
+     ("unit circle", "terminal arm", "radian", "special angle", "cast rule", "reference angle"),
+     r"""
 \begin{tikzpicture}[scale=1]
   \draw[cp axis] (-1.3,0)--(1.5,0) node[right] {$x$};
   \draw[cp axis] (0,-1.3)--(0,1.5) node[above] {$y$};
@@ -522,7 +605,77 @@ TRIGONOMETRY:
   \draw[cp dashed] (45:1)--({sqrt(2)/2},0) node[below] {$\cos\theta$};
   \node[right] at (45:1) {$(\cos\theta,\sin\theta)$};
 \end{tikzpicture}
-""".strip()
+"""),
+    ("DATA MANAGEMENT: HISTOGRAM",
+     ("histogram", "frequency", "bins", "class interval", "tally", "data set"),
+     r"""
+\begin{tikzpicture}
+\begin{axis}[width=7.2cm,height=4.6cm,ybar interval,xlabel={Value},ylabel={Frequency},
+  ymin=0,xtick=data]
+\addplot[hist={bins=8,data min=0,data max=80},fill=gray!25,draw=black]
+  table[row sep=\\,y index=0] {
+    data\\ 12\\ 18\\ 22\\ 25\\ 31\\ 34\\ 35\\ 41\\ 44\\ 47\\ 52\\ 55\\ 58\\ 63\\ 71\\ 76\\
+  };
+\end{axis}
+\end{tikzpicture}
+hist= needs table[row sep=\\ ,y index=0] with a "data\\" header row; the statistics
+pgfplots library is preloaded.
+"""),
+    ("DATA MANAGEMENT: BOX PLOT",
+     ("box plot", "boxplot", "box-and-whisker", "quartile", "median", "whisker",
+      "interquartile", "iqr", "five-number"),
+     r"""
+\begin{tikzpicture}
+\begin{axis}[width=7.2cm,height=3.2cm,boxplot/draw direction=x,xlabel={Mark},
+  ytick={1},yticklabels={Scores}]
+\addplot[boxplot prepared={median=72,lower quartile=64,upper quartile=81,
+  lower whisker=48,upper whisker=95},fill=gray!20,draw=black] coordinates {};
+\end{axis}
+\end{tikzpicture}
+Give the five summary values with boxplot prepared; list outliers (if any) as
+coordinates {(0,103) (0,110)}.
+"""),
+    ("STATISTICS: NORMAL DISTRIBUTION",
+     ("normal distribution", "gaussian", "bell curve", "standard deviation", "z-score",
+      "probability density", "confidence", "normally distributed"),
+     r"""
+\begin{tikzpicture}[declare function={gauss(\x,\m,\s)=1/(\s*sqrt(2*pi))*exp(-((\x-\m)^2)/(2*\s^2));}]
+\begin{axis}[width=7.2cm,height=4.2cm,axis lines=middle,xlabel={$x$},ylabel={density},
+  xmin=-4,xmax=4,ymin=0,ymax=0.45,samples=120,ytick=\empty,xtick={-2,-1,0,1,2}]
+  \addplot[cp fill,draw=none,domain=-1:1] {gauss(x,0,1)} \closedcycle;
+  \addplot[cp line,domain=-4:4] {gauss(x,0,1)};
+  \node at (axis cs:0,0.13) {\small $68\%$};
+  \node[anchor=west] at (axis cs:1.6,0.34) {\small $\mu=0,\ \sigma=1$};
+\end{axis}
+\end{tikzpicture}
+Define helper functions ONLY with declare function={...} inside the tikzpicture or
+axis options; anything placed outside the tikzpicture environment is stripped.
+"""),
+)
+
+# Sections injected when nothing matches the request text (general STEM default).
+DEFAULT_EXAMPLE_SECTIONS = ("CALCULUS / GRAPHING", "VECTORS (2D)", "TRIANGLES & TRIG LAWS")
+MAX_EXAMPLE_SECTIONS = 6
+
+
+def _example_blocks(req: GenerateReq) -> str:
+    """Pick only the example sections relevant to this request.
+
+    Keyword-routing keeps the prompt compact and makes each example salient: a
+    histogram question sees histogram patterns, not bearings. Falls back to a
+    general trio when nothing matches.
+    """
+    text = _request_text(req).lower()
+    picked = [(name, block) for name, keys, block in TIKZ_EXAMPLE_SECTIONS
+              if any(k in text for k in keys)]
+    if not picked:
+        wanted = set(DEFAULT_EXAMPLE_SECTIONS)
+        picked = [(name, block) for name, _keys, block in TIKZ_EXAMPLE_SECTIONS if name in wanted]
+    picked = picked[:MAX_EXAMPLE_SECTIONS]
+    parts = ["Use these compact patterns as quality targets. Adapt coordinates, labels, and values to the user's problem."]
+    for name, block in picked:
+        parts.append(name + ":\n" + block.strip())
+    return "\n\n".join(parts)
 
 
 def _request_text(req: GenerateReq) -> str:
@@ -643,9 +796,14 @@ def _triangle_template(req: GenerateReq, generic: bool = False) -> tuple[str, st
     side = _extract_triangle_sides(text, vertices)
     angles = _extract_triangle_angles(text, vertices)
     angle_lines = []
+    # The fixed skeleton A=(0,0), B=(4.2,0), C=(1.35,2.35) is counter-clockwise oriented,
+    # and TikZ's \pic{angle=P1--V--P2} sweeps CCW from ray V→P1 to ray V→P2. Each entry
+    # below is ordered so that CCW sweep covers the INTERIOR angle at that vertex. Vertex B
+    # (bottom-right) must be C--B--A, not A--B--C, or the arc wraps around the outside as an
+    # exterior angle (~320° instead of the interior ~40°).
     angle_specs = {
         a: ("B", "A", "C", "0.72,0.24"),
-        b: ("A", "B", "C", "3.42,0.26"),
+        b: ("C", "B", "A", "3.42,0.26"),
         c: ("A", "C", "B", "1.45,1.86"),
     }
     for vertex, value in angles.items():
@@ -911,13 +1069,18 @@ Rules:
 - For bearing or navigation questions, draw short N/E reference rays and put clockwise bearing arcs inside the sector from North to the travel vector. Avoid large empty compass circles.
 - For parallelogram, diagonal, and vector-geometry questions, show the named diagonal or resultant, not just the outline. Put side/angle labels outside strokes and keep the interior crossing uncluttered.
 - For 3D geometry, planes, spheres, skew lines, projections, normals, and line-plane questions, use a sparse isometric sketch with x/y/z axes when helpful, one gray plane if needed, and labels outside intersections. Do not use red or blue labels unless color is explicitly requested.
+- Mark right angles with \\pic[draw=black] {{right angle=B--A--C}}; (vertex in the middle), never with a hand-drawn small square.
+- Define helper functions ONLY with declare function={{...}} inside the tikzpicture or axis options. Never place \\pgfmathdeclarefunction or any command outside the tikzpicture environment - it will be stripped and the compile will fail.
+- The pgfplots statistics library is preloaded. For histograms use \\addplot[hist={{bins=...,data min=...,data max=...}}] table[row sep=\\\\,y index=0] {{...}} with a "data\\\\" header row inside a ybar interval axis. For box plots use boxplot prepared={{median=...,lower quartile=...,upper quartile=...,lower whisker=...,upper whisker=...}} with boxplot/draw direction set on the axis.
+- In 3D, write coordinates as (x,y,z) and place labels with node at (x,y,z); calc expressions like ($(U)+(V)$) work for vertex sums.
+- For plots of trig functions of a real variable use sin(deg(x)); restrict domains so ln, division, and exponentials stay inside the axis window.
 - If an existing rough TikZ idea is colored, cluttered, formula-only, missing the requested visual element, or has exterior-looking angle arcs, replace it with a clean diagram instead of preserving it.
 - If the request is not visual, return an empty tikz string and a brief caption.
 
 {target_rules}
 
 Reference patterns:
-{TIKZ_EXAMPLE_LIBRARY}
+{_example_blocks(req)}
 
 Subject: {req.subject[:160]}
 Title: {req.title[:240]}
@@ -1217,11 +1380,17 @@ def _warm_latex_caches() -> None:
     gives up — worksheets ship with no visuals at all.
     """
     code = r"\begin{tikzpicture}\draw[cp line] (0,0)--(1,0);\node at (0.5,0.4) {$x^{2}\;\theta$};\end{tikzpicture}"
-    try:
-        out = _render(RenderReq(code=code, format="svg", theme="mono", target="generic"))
-        print(f"[warmup] LaTeX cache warm-up ok={out.get('ok')} err={str(out.get('error') or '')[:120]}", flush=True)
-    except Exception as exc:
-        print(f"[warmup] LaTeX cache warm-up failed: {exc}", flush=True)
+    stats_code = (
+        r"\begin{tikzpicture}\begin{axis}[width=5cm,height=3cm,boxplot/draw direction=x]"
+        r"\addplot[boxplot prepared={median=5,lower quartile=3,upper quartile=7,"
+        r"lower whisker=1,upper whisker=9},draw=black] coordinates {};\end{axis}\end{tikzpicture}"
+    )
+    for label, snippet in (("LaTeX cache", code), ("pgfplots statistics", stats_code)):
+        try:
+            out = _render(RenderReq(code=snippet, format="svg", theme="mono", target="generic"))
+            print(f"[warmup] {label} warm-up ok={out.get('ok')} err={str(out.get('error') or '')[:120]}", flush=True)
+        except Exception as exc:
+            print(f"[warmup] {label} warm-up failed: {exc}", flush=True)
 
 
 threading.Thread(target=_warm_latex_caches, daemon=True).start()

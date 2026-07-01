@@ -74,6 +74,16 @@ const cases = [
         name: 'SCREENSHOT answer: \\(a) label typo must not swallow prose',
         json: String.raw`{"q":"ok","answer":"So \\(\\angle C = 70^\\circ\\). \\(a) To find side \\(a = BC\\), use the Sine Law."}`,
         expect: { answerKeepsProseSpaces: ['To find side', 'use the Sine Law'] }
+    },
+    {
+        name: 'SCREENSHOT answer: doubled opener \\(\\( must not leave red blob',
+        json: String.raw`{"q":"ok","answer":"Let the sides be \\(\\(a = 5cm, b = 7cm, c = 8cm\\). The largest angle is opposite side \\(c\\)."}`,
+        expect: { answerBalancedDelimiters: true, answerNoDoubledDelimiters: true }
+    },
+    {
+        name: 'SCREENSHOT answer: long equation chain must become display (not overflow inline)',
+        json: String.raw`{"q":"ok","answer":"Using the Cosine Law: \\(r^2 = p^2 + q^2 - 2pq\\cos R = 15^2 + 18^2 - 2(15)(18)\\cos 40^\\circ = 225 + 324 - 540(0.766) = 549 - 413.6 = 135.4\\). So \\(r = \\sqrt{135.4} \\approx 11.6m\\)."}`,
+        expect: { answerHasDisplayChain: true }
     }
 ];
 
@@ -112,6 +122,12 @@ for (const c of cases) {
                 if (!aHtml.includes(phrase)) flags.push('prose "' + phrase + '" was swallowed/space-collapsed');
             }
         }
+        if (exp.answerNoDoubledDelimiters && (/\\\(\s*\\\(/.test(aHtml) || /\\\)\s*\\\)/.test(aHtml))) flags.push('doubled \\(\\( or \\)\\) survived (red error blob)');
+        if (exp.answerBalancedDelimiters) {
+            const o = (aHtml.match(/\\\(/g) || []).length, cl = (aHtml.match(/\\\)/g) || []).length;
+            if (o !== cl) flags.push('unbalanced inline delimiters (opens=' + o + ' closes=' + cl + ')');
+        }
+        if (exp.answerHasDisplayChain && !/\\\[[\s\S]*=[\s\S]*=[\s\S]*\\\]/.test(aHtml)) flags.push('long equation chain was NOT promoted to display (will overflow inline)');
     }
     if (flags.length) failures++;
     console.log(flags.length ? '  FLAGS: ' + flags.join(' | ') : '  OK');

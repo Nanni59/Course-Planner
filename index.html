@@ -11475,10 +11475,15 @@
         function smoothInlineMath(s) {
             let t = String(s == null ? '' : s)
                 // Kill malformed delimiters the model emits inside long answer blocks:
-                // an empty \(\) / \[\] / $$ $$ (renders as a red MathJax error blob), and
-                // a "\(a)" label typo — \( opened but closed with a plain ) — which makes
-                // MathJax swallow the following prose (spaces vanish: "To find side" -> "Tofindside")
-                // until the next real \). Turn that back into a plain "(a)" label.
+                // - Doubled openers/closers "\(\(x\)" or "\(x\)\)": the extra delimiter is an
+                //   invalid macro inside math mode, so MathJax renders it as a red error blob
+                //   right before/after otherwise-valid math. Collapse runs of them to one.
+                // - Empty \(\) / \[\] / $$ $$ (also a red error blob).
+                // - A "\(a)" label typo — \( opened but closed with a plain ) — which makes
+                //   MathJax swallow the following prose (spaces vanish: "To find side" ->
+                //   "Tofindside") until the next real \). Turn it back into a plain "(a)" label.
+                .replace(/(?:\\\(\s*){2,}/g, '\\(')
+                .replace(/(?:\s*\\\)){2,}/g, '\\)')
                 .replace(/\\\(\s*\\\)/g, '')
                 .replace(/\\\[\s*\\\]/g, '')
                 .replace(/\$\$\s*\$\$/g, '')
@@ -11490,6 +11495,14 @@
             const demote = (m, inner) => (/\\begin\s*\{|\\\\/.test(inner) ? m : '\\(' + inner.trim() + '\\)');
             t = t.replace(/\$\$([^$]{1,80}?)\$\$/g, demote)
                 .replace(/\\\[([\s\S]{1,80}?)\\\]/g, demote);
+            // Inverse: a long inline equation *chain* (>=90 chars, 2+ "=") can't line-break as
+            // inline math, so it overflows its column and gets clipped (fitWideMath only scales
+            // visually, it can't shrink the layout box). Promote it to display \[...\] so MathJax's
+            // linebreak overflow wraps it at the = signs. Leave real matrices/aligned blocks alone.
+            t = t.replace(/\\\(([\s\S]*?)\\\)/g, (m, inner) =>
+                (inner.length >= 90 && (inner.match(/=/g) || []).length >= 2 && !/\\begin\s*\{/.test(inner))
+                    ? '\\[' + inner.trim() + '\\]'
+                    : m);
             // A break directly before \( …, or right after \) when the sentence clearly
             // continues (lowercase or punctuation, not a new numbered step), becomes a space.
             return t
