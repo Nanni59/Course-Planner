@@ -3218,8 +3218,8 @@
         .st-q .st-opts { list-style:none; margin:10px 0 0; padding:0 0 0 26px; }
         .st-q .st-opts li { margin:6px 0; }
         .st-q .st-opts li::before { content: attr(data-l) ")"; font-weight:600; margin-right:8px; color:#444; }
-        .st-q-tikz { margin:10px 0 2px 34px; max-width:560px; }
-        .st-q-tikz svg { display:block; max-width:100%; height:auto; max-height:220px; }
+        .st-q-tikz { margin:10px 0 2px 34px; width:min(240px,100%); max-width:240px; overflow:hidden; }
+        .st-q-tikz svg { display:block; width:100%; max-width:100%; height:auto; max-height:220px; overflow:visible; }
         .st-q .st-worklines { margin-top:10px; }
         .st-q .st-worklines div { height:26px; }
         /* Answer-section view options (toggled per worksheet) */
@@ -3350,6 +3350,9 @@
             #stPrintArea, #stPrintArea * { visibility: visible !important; }
             #stPrintArea { position:absolute; left:0; top:0; width:100%; display:block !important; }
             #stPrintArea .st-a4 { width:100%; min-height:auto; margin:0; border-radius:0; box-shadow:none; padding:0; page-break-after:always; }
+            #stPrintArea .st-q-tikz { width:42mm; max-width:42mm; overflow:hidden; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+            #stPrintArea .st-q-tikz svg { width:100% !important; height:auto !important; max-height:38mm; overflow:visible; color:#111; }
+            #stPrintArea .st-q-tikz svg [stroke] { stroke:#111 !important; stroke-opacity:1 !important; stroke-width:0.7pt !important; vector-effect:non-scaling-stroke; }
             #stPrintArea .st-a4:last-child { page-break-after:auto; }
         }
         #stPrintArea { display:none; }
@@ -12405,7 +12408,7 @@
         }
         function tikzPrompt(kind) {
             const target = kind || 'content';
-            return '\nTextbook visuals are enabled. For math, physics, chemistry, engineering, statistics, graphing, geometry, vectors, calculus, or other STEM ' + target + ' where a real diagram helps, add a concise TikZ snippet in the appropriate "tikz" field. Use TikZ only for diagrams with drawing primitives such as axes, curves, regions, points, arrows, geometric shapes, number lines, vectors, force diagrams, probability trees, or labeled relationships. Do NOT use TikZ for standalone formulas or equation text; put formulas in the normal text/equation fields instead. Use either a full \\begin{tikzpicture}...\\end{tikzpicture} block or only commands that belong inside tikzpicture. Do not include \\documentclass, \\usepackage, \\begin{document}, markdown fences, external images, file inputs, or shell commands. Keep labels short and readable. Use the built-in styles cp axis, cp line, cp dashed, cp fill, cp point, cp label when useful. Leave tikzSvg empty.';
+            return '\nTextbook visuals are enabled. For math, physics, chemistry, engineering, statistics, graphing, geometry, vectors, calculus, or other STEM ' + target + ' where a real diagram helps, add a concise TikZ snippet in the appropriate "tikz" field. Use TikZ only for diagrams with drawing primitives such as axes, curves, regions, points, arrows, geometric shapes, number lines, vectors, force diagrams, probability trees, or labeled relationships. Do NOT use TikZ for standalone formulas or equation text; put formulas in the normal text/equation fields instead. Use either a full \\begin{tikzpicture}...\\end{tikzpicture} block or only commands that belong inside tikzpicture. Do not include \\documentclass, \\usepackage, \\begin{document}, markdown fences, external images, file inputs, or shell commands. Keep labels short and readable. Prefer clean black/gray textbook styling, not green branding. Use the built-in styles cp axis, cp line, cp dashed, cp fill, cp point, cp label when useful. Leave tikzSvg empty.';
         }
         [['wsSubject', 'wsLatex'], ['aioSubject', 'aioLatex'], ['gSubject', 'gLatex'], ['fSubject', 'fLatex'], ['sdSubject', 'sdLatex']].forEach(([subId, latexId]) => {
             const dd = document.getElementById(subId);
@@ -12580,13 +12583,14 @@
             const res = await fetch(TIKZ_SPACE_URL + '/render', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: sdCleanTikz(code), format: 'svg', theme: 'green', target: target || 'generic' })
+                body: JSON.stringify({ code: sdCleanTikz(code), format: 'svg', theme: 'mono', target: target || 'generic' })
             });
             const out = await res.json().catch(() => null);
             if (res.ok && out && out.ok && out.svg) return out.svg;
             throw new Error(out && (out.error || out.log) || ('TikZ render failed: ' + res.status));
         }
         async function generateTikzVisual(payload) {
+            payload = Object.assign({ format: 'svg' }, payload || {}, { theme: 'mono' });
             const res = await fetch(TIKZ_SPACE_URL + '/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -12600,13 +12604,38 @@
             const svg = cleanEmbeddedSvg(q && q.tikzSvg);
             return svg && /^<svg[\s>]/i.test(svg) ? '<div class="st-q-tikz">' + svg + '</div>' : '';
         }
+        function worksheetNeedsVisual(q) {
+            if (sdCleanTikz(q && q.tikz)) return true;
+            const hay = [q && q.q, q && q.answer].join(' ').toLowerCase();
+            return /\b(graph|diagram|sketch|plot|draw|visual|vector|resultant|triangle|parallelogram|force|velocity|angle|perpendicular|parallel|coordinate|intercept|vertex|slope|tangent|secant|curve|area under|integral|derivative|geometry|circle|line|ray|axis|axes)\b/.test(hay);
+        }
         async function renderTikzWorksheet(data) {
             if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
-            const candidates = data.questions.filter(q => q && sdCleanTikz(q.tikz) && !String(q.tikzSvg || '').trim()).slice(0, 10);
+            const candidates = data.questions.filter(q => q && worksheetNeedsVisual(q) && !String(q.tikzSvg || '').trim()).slice(0, 10);
             await Promise.all(candidates.map(async q => {
                 try {
-                    q.tikzSvg = await renderTikzCode(q.tikz, 'worksheet');
+                    const out = await generateTikzVisual({
+                        title: q.q || 'Worksheet visual',
+                        brief: [
+                            'Create a small textbook diagram that helps answer this worksheet question.',
+                            q.q ? 'Question: ' + q.q : '',
+                            q.answer ? 'Answer/key idea: ' + q.answer : '',
+                            sdCleanTikz(q.tikz) ? 'Existing rough TikZ idea may be ignored if weak: ' + sdCleanTikz(q.tikz).slice(0, 900) : ''
+                        ].filter(Boolean).join('\n'),
+                        subject: data.subject || data.unit || data.title || 'General',
+                        target: 'worksheet'
+                    });
+                    q.tikz = out.tikz || q.tikz || '';
+                    q.tikzSvg = out.svg;
                 } catch (e) {
+                    if (sdCleanTikz(q.tikz)) {
+                        try {
+                            q.tikzSvg = await renderTikzCode(q.tikz, 'worksheet');
+                            return;
+                        } catch (fallbackErr) {
+                            console.warn('[worksheet] TikZ fallback render failed', fallbackErr);
+                        }
+                    }
                     console.warn('[worksheet] TikZ renderer unavailable', e);
                 }
             }));

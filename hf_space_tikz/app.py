@@ -239,6 +239,10 @@ def _template(tikz: str, theme: str, target: str) -> str:
         accent_two = "cpSage"
         fill = "cpMint"
 
+    line_width = "1.15pt" if theme == "mono" else "1pt"
+    dashed_width = "1pt" if theme == "mono" else "0.8pt"
+    axis_width = "0.85pt" if theme == "mono" else "0.7pt"
+
     scale = {
         "slide": "1.0",
         "worksheet": "0.92",
@@ -257,9 +261,9 @@ def _template(tikz: str, theme: str, target: str) -> str:
 \definecolor{{cpMint}}{{HTML}}{{E7F5E8}}
 \tikzset{{
   every picture/.style={{scale={scale}, transform shape}},
-  cp axis/.style={{-{{Stealth[length=2.5mm]}}, line width=0.7pt, draw=black!70}},
-  cp line/.style={{line width=1pt, draw={accent}}},
-  cp dashed/.style={{line width=0.8pt, draw={accent_two}, dashed}},
+  cp axis/.style={{-{{Stealth[length=2.5mm]}}, line width={axis_width}, draw=black!75}},
+  cp line/.style={{line width={line_width}, draw={accent}}},
+  cp dashed/.style={{line width={dashed_width}, draw={accent_two}, dashed}},
   cp fill/.style={{fill={fill}, draw={accent}}},
   cp point/.style={{circle, fill={accent}, inner sep=1.7pt}},
   cp label/.style={{font=\small}},
@@ -413,6 +417,7 @@ Rules:
 - Make a real diagram, not a formula poster. Use drawing primitives: axes, curves, arrows, shaded regions, points, vectors, trees, geometry, or relationships.
 - Do not use standalone equation text as the visual. If an equation matters, use it only as a tiny label.
 - Keep labels very short: 1 to 3 words, variables, or symbols. Avoid full sentences in nodes.
+- Prefer clean black/gray textbook styling. Do not use green unless the user specifically asks for color.
 - Use safe TikZ/PGFPlots only. No documentclass, packages, begin document, external files, markdown fences, shell commands, or custom macros.
 - Keep the drawing within a roughly 6 by 4 coordinate area so it fits slides and guides.
 - Prefer the built-in styles when useful: cp axis, cp line, cp dashed, cp fill, cp point, cp label.
