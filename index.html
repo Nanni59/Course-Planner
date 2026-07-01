@@ -3196,7 +3196,7 @@
         .st-a4-head .st-a4-meta span:last-child { text-align:right; }
         .st-a4-head h1 { display:block; font-size:24px; font-weight:700; color:#1f2430; margin:6px 0 0; }
         .st-a4-instr { font-style:italic; color:#444; font-size:12.5px; margin-bottom:24px; }
-        .st-q { margin-bottom:20px; page-break-inside:avoid; break-inside:avoid; }
+        .st-q { margin-bottom:20px; }
         .st-q.has-visual { margin-bottom:16px; }
         /* align-items:baseline keeps the question number sitting on the same
            baseline as the first line of the question text, so a tall inline
@@ -3348,17 +3348,18 @@
                continuation pages — keeps the same top/bottom & side spacing around
                the header and footer content. */
             @page { size: A4 portrait; margin: 16mm 15mm; }
-            body * { visibility: hidden !important; }
+            body { margin:0 !important; background:#fff !important; }
+            body > :not(#stPrintArea) { display:none !important; }
             #stPrintArea, #stPrintArea * { visibility: visible !important; }
-            #stPrintArea { position:absolute; left:0; top:0; width:100%; display:block !important; }
-            #stPrintArea .st-a4 { width:100%; min-height:auto; margin:0; border-radius:0; box-shadow:none; padding:0; page-break-after:always; }
-            #stPrintArea .st-q { margin-bottom:4.6mm; break-inside:avoid; page-break-inside:avoid; }
+            #stPrintArea { position:static; width:100%; display:block !important; overflow:visible; }
+            #stPrintArea .st-a4 { width:100%; min-height:auto; margin:0; border-radius:0; box-shadow:none; padding:0; break-after:page; page-break-after:always; overflow:visible; }
+            #stPrintArea .st-q { margin-bottom:4.6mm; break-inside:auto; page-break-inside:auto; }
             #stPrintArea .st-q.has-visual { margin-bottom:3.6mm; }
             #stPrintArea .st-q-tikz { width:43mm; max-width:43mm; margin-top:2mm; margin-bottom:0; overflow:visible; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
             #stPrintArea .st-q-tikz svg,
             #stPrintArea .st-q-tikz img { width:100% !important; height:auto !important; max-height:31mm; object-fit:contain; overflow:visible; color:#111; }
-            #stPrintArea .st-q-tikz svg [stroke] { stroke:#111 !important; stroke-opacity:1 !important; stroke-width:0.7pt !important; vector-effect:non-scaling-stroke; }
-            #stPrintArea .st-a4:last-child { page-break-after:auto; }
+            #stPrintArea .st-q-tikz svg [stroke]:not([stroke="none"]) { stroke:#111 !important; stroke-opacity:1 !important; vector-effect:non-scaling-stroke; }
+            #stPrintArea .st-a4:last-child { break-after:auto; page-break-after:auto; }
         }
         #stPrintArea { display:none; }
 
@@ -12578,11 +12579,34 @@
         let WS_DATA = null;
         // Answer-section view options (persist for the session). Defaults: spacing removed, lines hidden.
         let WS_LINES = false, WS_SPACE = false;
+        let WS_SVG_SEQ = 0;
         function cleanEmbeddedSvg(svg) {
             return String(svg || '')
                 .replace(/<\?xml[\s\S]*?\?>/i, '')
                 .replace(/<!DOCTYPE[\s\S]*?>/i, '')
                 .trim();
+        }
+        function escRegExp(s) {
+            return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        function isolateEmbeddedSvg(svg) {
+            svg = cleanEmbeddedSvg(svg);
+            if (!svg || !/^<svg[\s>]/i.test(svg)) return '';
+            const prefix = 'cpTikz' + (++WS_SVG_SEQ) + '_';
+            const ids = [];
+            svg = svg.replace(/\bid=(["'])([^"']+)\1/g, (m, q, id) => {
+                ids.push(id);
+                return 'id=' + q + prefix + id + q;
+            });
+            ids.forEach(id => {
+                const next = prefix + id;
+                const re = escRegExp(id);
+                svg = svg
+                    .replace(new RegExp('url\\(#' + re + '\\)', 'g'), 'url(#' + next + ')')
+                    .replace(new RegExp("([\"'])#" + re + "\\1", 'g'), '$1#' + next + '$1')
+                    .replace(new RegExp('([\\s:=])#' + re + '(?=["\'\\s>])', 'g'), '$1#' + next);
+            });
+            return svg;
         }
         async function renderTikzCode(code, target) {
             const res = await fetch(TIKZ_SPACE_URL + '/render', {
@@ -12606,7 +12630,7 @@
             throw new Error(out && (out.error || out.log) || ('TikZ generation failed: ' + res.status));
         }
         function worksheetTikzHTML(q) {
-            const svg = cleanEmbeddedSvg(q && q.tikzSvg);
+            const svg = isolateEmbeddedSvg(q && q.tikzSvg);
             if (svg && /^<svg[\s>]/i.test(svg)) {
                 const fitted = svg
                     .replace(/<svg\b/i, '<svg class="st-tikz-svg"')
