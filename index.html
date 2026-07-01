@@ -11474,6 +11474,15 @@
         // renders $$…$$/\[…\] as its own block even when it only wraps "\angle A = 40^\circ".
         function smoothInlineMath(s) {
             let t = String(s == null ? '' : s)
+                // Kill malformed delimiters the model emits inside long answer blocks:
+                // an empty \(\) / \[\] / $$ $$ (renders as a red MathJax error blob), and
+                // a "\(a)" label typo — \( opened but closed with a plain ) — which makes
+                // MathJax swallow the following prose (spaces vanish: "To find side" -> "Tofindside")
+                // until the next real \). Turn that back into a plain "(a)" label.
+                .replace(/\\\(\s*\\\)/g, '')
+                .replace(/\\\[\s*\\\]/g, '')
+                .replace(/\$\$\s*\$\$/g, '')
+                .replace(/\\\(\s*([A-Za-z0-9]{1,2})\s*\)/g, '($1)')
                 .replace(/\\\([\s\S]*?\\\)/g, m => m.replace(/\s*\n\s*/g, ' '))
                 .replace(/\\\[[\s\S]*?\\\]/g, m => m.replace(/\s*\n\s*/g, ' '))
                 .replace(/\$\$[\s\S]*?\$\$/g, m => m.replace(/\s*\n\s*/g, ' '));

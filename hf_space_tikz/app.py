@@ -532,6 +532,10 @@ def _request_text(req: GenerateReq) -> str:
     text = text.replace("\\angle", " angle ")
     text = text.replace("^\\circ", " degrees")
     text = text.replace("°", " degrees")
+    # Drop inline/display math delimiters so extractors see "bearing of 040", "p = 8m",
+    # etc. as plain tokens instead of "bearing of \(040" where a \( blocks the match.
+    text = re.sub(r"\\[()\[\]]", " ", text)
+    text = text.replace("$", " ")
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -558,6 +562,18 @@ def _triangle_vertices(text: str) -> tuple[str, str, str] | None:
     m = re.search(r"\b([A-Z]{3})\b", text)
     if m and re.search(r"\b(?:triangle|law of sines|law of cosines|angle|side)\b", text, re.I):
         return tuple(m.group(1))  # type: ignore[return-value]
+    # Infer from the letters naming the sides/angles: sides p,q,r with angles P,R imply
+    # a triangle PQR. Vertex X is conventionally opposite side x, so uppercasing the side
+    # letters gives the vertex set. Only trust this when it resolves to exactly 3 letters.
+    letters: set[str] = set()
+    for a in re.findall(r"\bangle\s+([A-Z])\b", text):
+        letters.add(a.upper())
+    for s in re.findall(r"\b([a-z])\s*(?:=|is|measures)\s*[-+]?\d", text):
+        letters.add(s.upper())
+    for s in re.findall(r"\bsides?\s+([a-z])\b", text):
+        letters.add(s.upper())
+    if len(letters) == 3:
+        return tuple(sorted(letters))  # type: ignore[return-value]
     return None
 
 
@@ -596,10 +612,31 @@ def _extract_triangle_sides(text: str, vertices: tuple[str, str, str]) -> dict[s
     return edge_labels
 
 
+def _looks_like_triangle(text: str) -> bool:
+    low = text.lower()
+    if re.search(
+        r"\b(triangle|law of sines|law of cosines|cosine law|sine law|trigonometry|"
+        r"angle of elevation|angle of depression|elevation|depression|line of sight)\b",
+        low,
+    ):
+        return True
+    # "angle CAB", "angle PQR" — a 3-letter vertex-named angle always implies a triangle.
+    if re.search(r"\bangle\s+[A-Z]{3}\b", text):
+        return True
+    # Two or more distinct single-letter named angles (e.g. "angle A ... angle B") plus a
+    # "distance across"/side reference is the classic solve-the-triangle setup.
+    named_angles = {a.upper() for a in re.findall(r"\bangle\s+([A-Z])\b", text)}
+    if len(named_angles) >= 2:
+        return True
+    if "distance across" in low and named_angles:
+        return True
+    return False
+
+
 def _triangle_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
     text = _request_text(req)
     low = text.lower()
-    if not generic and not re.search(r"\b(triangle|law of sines|law of cosines|cosine law|sine law|trigonometry)\b", low):
+    if not generic and not _looks_like_triangle(text):
         return None
     vertices = _triangle_vertices(text) or ("A", "B", "C")
     a, b, c = vertices
@@ -656,8 +693,14 @@ def _bearing_template(req: GenerateReq, generic: bool = False) -> tuple[str, str
     if not bearings:
         bearings = [int(float(x)) % 360 for x in re.findall(r"\b([0-9]{2,3})\s*(?:degrees?|°)\s*(?:bearing|from north|clockwise)", low)]
     bearings = bearings[:2] or [45, 115]
-    distances = re.findall(_number_with_unit_re(), text)
-    distances = [d.strip() for d in distances if re.search(r"\d", d)][:2]
+    # Distances must carry a length unit — otherwise the bare 2-3 digit bearing values
+    # (e.g. "040", "110") get mistaken for leg lengths and labelled onto the vectors.
+    distances = re.findall(
+        r"([-+]?\d+(?:\.\d+)?\s*(?:km|cm|mm|nautical miles?|nmi|nm|mi|miles?|m|ft|yd))\b",
+        text,
+        re.IGNORECASE,
+    )
+    distances = [re.sub(r"\s+", "", d.strip()) for d in distances][:2]
     b1 = bearings[0]
     b2 = bearings[1] if len(bearings) > 1 else min(165, b1 + 55)
     a1 = 90 - b1
@@ -779,24 +822,28 @@ def _geometry_template(req: GenerateReq, generic: bool = False) -> tuple[str, st
 
 
 def _deterministic_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
-    text = _request_text(req).lower()
-    ordered = (
-        (_triangle_template, ("triangle", "law of sines", "law of cosines", "cosine law", "sine law")),
-        (_bearing_template, ("bearing", "navigation", "north", "heading")),
-        (_vector_template, ("vector", "resultant", "force", "velocity", "parallelogram")),
-        (_geometry_template, ("rectangle", "circle", "cylinder", "cone", "sphere", "area", "volume", "geometry")),
-    )
-    for fn, keys in ordered:
-        if generic or any(k in text for k in keys):
-            hit = fn(req, generic=generic)
+    # Each template function owns its own trigger detection (returns None when it does
+    # not apply), so a bearing/vector/circle question is never force-fitted to a triangle.
+    ordered = (_triangle_template, _bearing_template, _vector_template, _geometry_template)
+    for fn in ordered:
+        hit = fn(req, generic=False)
+        if hit:
+            return hit
+    # Generic last resort (used when Gemini is unavailable): produce the best-guess
+    # shape so the question still gets *a* diagram rather than nothing.
+    if generic:
+        for fn in ordered:
+            hit = fn(req, generic=True)
             if hit:
                 return hit
     return None
 
 
-def _render_template(req: GenerateReq, hit: tuple[str, str]) -> dict:
+def _render_template(req: GenerateReq, hit: tuple[str, str], check_semantics: bool = True) -> dict:
     tikz, caption = hit
-    semantic_issue = _semantic_visual_issue(req, tikz)
+    # Our own deterministic templates are trusted, fixed skeletons — the semantic
+    # audit exists to police free-form Gemini output, so skip it for template hits.
+    semantic_issue = _semantic_visual_issue(req, tikz) if check_semantics else None
     rendered = (
         {"ok": False, "error": semantic_issue, "log": semantic_issue}
         if semantic_issue
@@ -1073,57 +1120,90 @@ def render(req: RenderReq):
     return JSONResponse(result, status_code=status)
 
 
+def _deterministic_fallback(req: GenerateReq) -> dict | None:
+    """Render the best-guess deterministic diagram, trusting our own template.
+
+    Used as the last resort when Gemini is unavailable (503 storm, timeouts) or
+    produces nothing usable, so a visual-worthy question still gets a diagram.
+    """
+    fallback = _deterministic_template(req, generic=True)
+    if not fallback:
+        return None
+    rendered = _render_template(req, fallback, check_semantics=False)
+    if rendered.get("ok"):
+        rendered["fallback"] = "deterministic"
+        return rendered
+    return None
+
+
 @app.post("/generate")
 def generate(req: GenerateReq):
     try:
+        # 1) Trust a matching deterministic template and render it directly. This keeps
+        #    common triangle/bearing/vector/geometry questions off the Gemini path
+        #    entirely, so a Gemini "high demand" outage can't starve them of visuals.
         template_hit = _deterministic_template(req)
         if template_hit:
-            rendered = _render_template(req, template_hit)
+            rendered = _render_template(req, template_hit, check_semantics=False)
             if rendered.get("ok"):
                 return JSONResponse(rendered, status_code=200)
 
-        spec = _gemini(_visual_prompt(req), as_json=True, temperature=0.25)
-        tikz = _strip_fence(str(spec.get("tikz", "")))
-        caption = str(spec.get("caption", "")).strip()
-        if not tikz:
-            return JSONResponse({"ok": False, "skipped": True, "error": "No diagram was appropriate.", "caption": caption}, status_code=400)
+        # 2) Otherwise ask Gemini for bespoke TikZ. Any Gemini failure (exhausted
+        #    retries during a 503 storm, network timeout) is caught so we can still
+        #    fall back to a deterministic diagram instead of returning a bare 500.
+        rendered: dict = {"ok": False, "error": "No diagram was produced."}
+        tikz = ""
+        caption = ""
+        try:
+            spec = _gemini(_visual_prompt(req), as_json=True, temperature=0.25)
+            tikz = _strip_fence(str(spec.get("tikz", "")))
+            caption = str(spec.get("caption", "")).strip()
+            if tikz:
+                semantic_issue = _semantic_visual_issue(req, tikz)
+                rendered = (
+                    {"ok": False, "error": semantic_issue, "log": semantic_issue}
+                    if semantic_issue
+                    else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
+                )
+                if not rendered.get("ok"):
+                    repaired = _gemini(
+                        _visual_prompt(req, repair_log=rendered.get("log") or rendered.get("error") or "", previous_code=tikz),
+                        as_json=True,
+                        temperature=0.15,
+                    )
+                    tikz = _strip_fence(str(repaired.get("tikz", tikz)))
+                    caption = str(repaired.get("caption", caption)).strip()
+                    semantic_issue = _semantic_visual_issue(req, tikz)
+                    rendered = (
+                        {"ok": False, "error": semantic_issue, "log": semantic_issue}
+                        if semantic_issue
+                        else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
+                    )
+        except Exception as gem_exc:
+            rendered = {"ok": False, "error": f"Gemini unavailable: {str(gem_exc)[:200]}"}
+            print(f"[generate] Gemini path failed, trying deterministic fallback: {str(gem_exc)[:180]}", flush=True)
 
-        semantic_issue = _semantic_visual_issue(req, tikz)
-        rendered = (
-            {"ok": False, "error": semantic_issue, "log": semantic_issue}
-            if semantic_issue
-            else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
-        )
-        if not rendered.get("ok"):
-            repaired = _gemini(
-                _visual_prompt(req, repair_log=rendered.get("log") or rendered.get("error") or "", previous_code=tikz),
-                as_json=True,
-                temperature=0.15,
-            )
-            tikz = _strip_fence(str(repaired.get("tikz", tikz)))
-            caption = str(repaired.get("caption", caption)).strip()
-            semantic_issue = _semantic_visual_issue(req, tikz)
-            rendered = (
-                {"ok": False, "error": semantic_issue, "log": semantic_issue}
-                if semantic_issue
-                else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
-            )
-
-        if not rendered.get("ok"):
-            fallback = _deterministic_template(req, generic=True)
-            if fallback:
-                fallback_rendered = _render_template(req, fallback)
-                if fallback_rendered.get("ok"):
-                    fallback_rendered["fallback"] = "deterministic"
-                    return JSONResponse(fallback_rendered, status_code=200)
+        if rendered.get("ok"):
             rendered["tikz"] = tikz
             rendered["caption"] = caption
-            return JSONResponse(rendered, status_code=400)
+            return JSONResponse(rendered, status_code=200)
+
+        # 3) Last resort: a deterministic diagram so the question is not left blank.
+        fallback_rendered = _deterministic_fallback(req)
+        if fallback_rendered:
+            return JSONResponse(fallback_rendered, status_code=200)
 
         rendered["tikz"] = tikz
         rendered["caption"] = caption
-        return JSONResponse(rendered, status_code=200)
+        return JSONResponse(rendered, status_code=400)
     except Exception as exc:
+        # Even an unexpected error shouldn't leave a visual-worthy question blank.
+        try:
+            fallback_rendered = _deterministic_fallback(req)
+            if fallback_rendered:
+                return JSONResponse(fallback_rendered, status_code=200)
+        except Exception:
+            pass
         return JSONResponse({"ok": False, "error": str(exc)[:500]}, status_code=500)
 
 

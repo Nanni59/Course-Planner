@@ -64,6 +64,16 @@ const cases = [
     {
         name: 'legit long display equation must stay display',
         json: String.raw`{"q":"Derive the result.","answer":"Start from the identity below.\n$$\\frac{a}{\\sin A} = \\frac{b}{\\sin B} = \\frac{c}{\\sin C} = 2R \\quad\\text{for any triangle inscribed in a circle of radius } R$$\nThen substitute."}`
+    },
+    {
+        name: 'SCREENSHOT answer: empty \\(\\) blob must vanish',
+        json: String.raw`{"q":"ok","answer":"So \\(\\sin P \\approx 0.5312\\)\\(\\)P = \\arcsin(0.5312) \\approx 32.08^\\circ."}`,
+        expect: { answerHasNoEmptyMath: true }
+    },
+    {
+        name: 'SCREENSHOT answer: \\(a) label typo must not swallow prose',
+        json: String.raw`{"q":"ok","answer":"So \\(\\angle C = 70^\\circ\\). \\(a) To find side \\(a = BC\\), use the Sine Law."}`,
+        expect: { answerKeepsProseSpaces: ['To find side', 'use the Sine Law'] }
     }
 ];
 
@@ -95,6 +105,13 @@ for (const c of cases) {
         show('answer html    ', aHtml);
         if (/frac[\s\S]*<br>[\s\S]*Substitute/.test(aHtml) === false && /Substitute/.test(aHtml) && !/<br>2\. Substitute|<br>.*Substitute/.test(aHtml)) flags.push('answer lost its step line breaks!');
         if (/\\\(\\frac\{a\}/.test(aHtml) && /quad/.test(aHtml)) flags.push('long display equation was wrongly demoted to inline!');
+        const exp = c.expect || {};
+        if (exp.answerHasNoEmptyMath && /\\\(\s*\\\)/.test(aHtml)) flags.push('empty \\(\\) survived (renders as red error blob)');
+        if (exp.answerKeepsProseSpaces) {
+            for (const phrase of exp.answerKeepsProseSpaces) {
+                if (!aHtml.includes(phrase)) flags.push('prose "' + phrase + '" was swallowed/space-collapsed');
+            }
+        }
     }
     if (flags.length) failures++;
     console.log(flags.length ? '  FLAGS: ' + flags.join(' | ') : '  OK');
