@@ -544,6 +544,7 @@ Worksheet-specific rules:
 - Keep vector diagrams close to the question: short arrows, clear arrowheads, labels just outside the strokes.
 - Keep triangle angle marks small and inside the shape. For triangle angle marks, use \\pic[draw=black,...] {{angle=side--vertex--side}}; do not hand-draw them with \\draw ... arc. Exterior angle arcs are allowed only for questions that explicitly say exterior angle.
 - For law of sines/cosines questions, include the given side lengths and angle values in the triangle when the question provides them.
+- Match the triangle's named vertices exactly. If the question says triangle PQR, label the vertices P, Q, and R only; do not switch to A, B, C. If the question asks for angle R, place the angle mark at vertex R and label it R or the given degree measure.
 - Do not leave large empty margins inside the drawing; center the math object tightly.
 """.strip()
 
@@ -568,13 +569,15 @@ Rules:
 - For tangent/secant/integral visuals, label the relevant point(s), interval endpoint(s), tangent/secant line, and shaded region where applicable.
 - Avoid abstract unlabeled curves for worksheet questions; students need coordinates and readable reference points.
 - For vectors, use clear head-to-tail or parallelogram construction. Put arrowheads on every vector and avoid ambiguous floating labels.
+- For vector angle-between questions, draw both vectors from the same tail and mark the smaller interior sector between them. Use a small angle radius around 4mm to 6mm; never draw a loop around the outside of the vector tail.
 - For vector min/max questions, use two separated horizontal rows: "same" and "opposite". Put case words at the far left, never above the arrows, and keep result labels below dashed resultants.
 - For parallelogram diagonal questions, place labels outside the crossing: label AC as u+v above the solid/dashed diagonal and BD as v-u or u-v below/left of the other diagonal. Never stack multiple formulas at the center.
 - Avoid long phrase labels such as "Maximum Resultant" inside small diagrams; use short labels and let the worksheet question carry the wording.
 - Before returning, mentally inspect the diagram: no label may sit on a line crossing, arrowhead, point marker, or another label. Move it with above/below/left/right/pos/anchor if needed.
 - For geometry, trigonometry, law of sines, and law of cosines, use named points, interior angle marks, and side labels. Avoid decorative shapes without mathematical meaning.
+- Preserve the problem's exact vertex labels. Do not use generic A/B/C labels for a triangle named PQR, XYZ, or any other label set. If the question states angle R, the angle marker must be at vertex R, not at a generic C vertex.
 - For any triangle angle mark, use TikZ angle pics, not raw arc paths: \\pic[draw=black,angle radius=5mm,"$60^\\circ$",angle eccentricity=1.35] {{angle=B--A--C}};. The vertex is the middle coordinate, so angle=B--A--C marks the angle at A. Never use \\draw (...) arc (...) for triangle angles, because it often creates exterior-looking arcs. Never draw exterior-looking angle arcs unless the question explicitly asks for an exterior angle.
-- Put triangle angle labels inside the measured angle, close to the vertex, with a small radius around 4mm to 7mm. If the angle is at C, use angle=A--C--B; if it is at B, use angle=A--B--C; if it is at A, use angle=B--A--C.
+- Put triangle angle labels inside the measured angle, close to the vertex, with a small radius around 4mm to 6mm. If the angle is at C, use angle=A--C--B; if it is at B, use angle=A--B--C; if it is at A, use angle=B--A--C.
 - For bearing or navigation questions, draw short N/E reference rays and put clockwise bearing arcs inside the sector from North to the travel vector. Avoid large empty compass circles.
 - For parallelogram, diagonal, and vector-geometry questions, show the named diagonal or resultant, not just the outline. Put side/angle labels outside strokes and keep the interior crossing uncluttered.
 - For 3D geometry, planes, spheres, skew lines, projections, normals, and line-plane questions, use a sparse isometric sketch with x/y/z axes when helpful, one gray plane if needed, and labels outside intersections. Do not use red or blue labels unless color is explicitly requested.
@@ -598,6 +601,7 @@ Target: {req.target}
 
 def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
     hay = " ".join([req.subject, req.title, req.equation, req.brief]).lower()
+    original = " ".join([req.subject, req.title, req.equation, req.brief])
     is_triangle = any(term in hay for term in (
         "triangle",
         "law of sines",
@@ -615,6 +619,59 @@ def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
             "not raw arc paths. Raw arcs often render as exterior angle marks. Use examples like "
             "\\pic[draw=black,angle radius=5mm,\"$60^\\circ$\",angle eccentricity=1.35] {angle=B--A--C};"
         )
+    is_vector_angle = (
+        ("angle" in hay)
+        and any(term in hay for term in ("vector", "force", "resultant"))
+        and not any(term in hay for term in ("bearing", "navigation", "compass"))
+    )
+    if is_vector_angle and re.search(r"\barc\s*(?:\[|\()", tikz):
+        return (
+            "Vector angle diagrams must mark the small interior angle sector between vectors from a shared tail. "
+            "Do not use raw arc paths that can wrap outside the vector diagram."
+        )
+    if is_triangle:
+        for radius in re.findall(r"angle\s+radius\s*=\s*([0-9.]+)\s*(cm|mm)?", tikz, flags=re.IGNORECASE):
+            value = float(radius[0])
+            unit = (radius[1] or "cm").lower()
+            radius_mm = value * 10 if unit == "cm" else value
+            if radius_mm > 7:
+                return "Triangle angle marks are too large. Use small interior angle pics with angle radius between 4mm and 6mm."
+    if is_vector_angle:
+        for radius in re.findall(r"angle\s+radius\s*=\s*([0-9.]+)\s*(cm|mm)?", tikz, flags=re.IGNORECASE):
+            value = float(radius[0])
+            unit = (radius[1] or "cm").lower()
+            radius_mm = value * 10 if unit == "cm" else value
+            if radius_mm > 7:
+                return "Vector angle marks are too large. Use a small interior sector with angle radius between 4mm and 6mm."
+
+    if is_triangle:
+        requested_labels: set[str] = set()
+        for match in re.findall(r"(?:triangle|\\triangle)\s*([A-Z]{3})", original, flags=re.IGNORECASE):
+            requested_labels.update(match.upper())
+        for match in re.findall(r"\b([A-Z])([A-Z])([A-Z])\b", original):
+            triplet = "".join(match)
+            if any(word in hay for word in ("side", "angle", "triangle", "law of")):
+                requested_labels.update(triplet)
+        if requested_labels:
+            drawn_labels = set(re.findall(r"\{\s*\$?([A-Z])\$?\s*\}", tikz))
+            stray = sorted(label for label in drawn_labels if label in {"A", "B", "C", "P", "Q", "R", "X", "Y", "Z"} and label not in requested_labels)
+            missing = sorted(label for label in requested_labels if label not in drawn_labels)
+            if stray or missing:
+                return (
+                    "Triangle labels must match the problem exactly. "
+                    f"Use only requested labels {''.join(sorted(requested_labels))}; "
+                    f"missing={''.join(missing) or 'none'}, stray={''.join(stray) or 'none'}."
+                )
+
+        requested_angles = set(re.findall(r"(?:∠|\\angle\s*)\s*([A-Z])", original))
+        if requested_angles:
+            pic_labels = set(re.findall(r"\\pic\s*\[[^\]]*\"\$?([A-Z])\$?\"", tikz))
+            wrong_angles = sorted(label for label in pic_labels if label in {"A", "B", "C", "P", "Q", "R", "X", "Y", "Z"} and label not in requested_angles and requested_labels and label in requested_labels)
+            if wrong_angles:
+                return (
+                    "Triangle angle labels must match the angle named in the question. "
+                    f"Requested angle label(s): {''.join(sorted(requested_angles))}; wrong interior label(s): {''.join(wrong_angles)}."
+                )
     return None
 
 
