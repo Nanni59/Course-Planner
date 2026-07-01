@@ -11357,6 +11357,7 @@
             const t = String(s || '').trim();
             if (!t) return false;
             const words = t
+                .replace(/\\(?:text|mathrm)\s*\{[^{}]*\}/g, '')
                 .replace(/\\[A-Za-z]+/g, '')
                 .replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|max|min)\b/g, '')
                 .replace(/\bd[xyztrsu]\b/g, '');
@@ -11477,10 +11478,47 @@
             .replace(/\\\[[\s\S]*?\\\]/g, m => m.replace(/\s*\n\s*/g, ' '))
             .replace(/\$\$[\s\S]*?\$\$/g, m => m.replace(/\s*\n\s*/g, ' ')))
             .replace(/\n{2,}/g, '<br><br>').replace(/\n/g, ' ');
+        function repairParsedLatexEscapes(s) {
+            return String(s == null ? '' : s)
+                .replace(/\t\s*riangle\b/g, '\\triangle')
+                .replace(/\t\s*ext\s*\{/g, '\\text{')
+                .replace(/\t\s*heta\b/g, '\\theta')
+                .replace(/\t\s*imes\b/g, '\\times')
+                .replace(/\t\s*an\b/g, '\\tan')
+                .replace(/\t\s*o\b/g, '\\to')
+                .replace(/\f\s*rac\b/g, '\\frac')
+                .replace(/\r\s*ight\b/g, '\\right')
+                .replace(/\n\s*abla\b/g, '\\nabla')
+                .replace(/(^|[\s([{])riangle\s+([A-Z]{3})/g, '$1\\triangle $2')
+                .replace(/(^|[\s([{])ext\s*\{/g, '$1\\text{')
+                .replace(/(^|[\s^([{])imes\b/g, '$1\\times')
+                .replace(/(^|[\s([{])heta(?=[_A-Z]|\b)/g, '$1\\theta');
+        }
+        function flattenInlineMath(s) {
+            let t = String(s == null ? '' : s);
+            let prev;
+            do {
+                prev = t;
+                t = t
+                    .replace(/\\\(\\\(([\s\S]{1,160}?)\\\)\\\)/g, '\\($1\\)')
+                    .replace(/\\\(([^\\()]*)\\\(([^\\()]*)\\\)([^\\()]*)\\\)/g, '\\($1$2$3\\)');
+            } while (t !== prev);
+            return t
+                .replace(/\^\\\(\s*\\?circ\s*\\\)/g, '^\\circ')
+                .replace(/\^\\\(\s*\\?times\s*\\\)/g, '^\\circ');
+        }
         function normalizeGeneratedString(s) {
-            let t = normalizeLatexBackslashes(s)
+            let t = normalizeLatexBackslashes(repairParsedLatexEscapes(s))
                 .replace(/\bMath input error\b\.?/gi, '')
+                .replace(/\b(\d+(?:\.\d+)?)(km\/h|m\/s|cm|mm|km|m|N|newtons?|units?)\b/gi, '$1 $2')
+                .replace(/\^\s*\\times\b/g, '^\\circ')
+                .replace(/\^\s*times\b/g, '^\\circ')
+                .replace(/\^\s*\\?circ\b/g, '^\\circ')
+                .replace(/\\text\s*\{\s*([,;:.]?\s*(?:if|and|or|side|with|where|when|then|the|a|an|is|are|was|were|be|from|on|at|what|which|find|round|express)[^{}]{0,90}?)\s*\}/gi, '$1')
+                .replace(/\\text\s*\{\s*([,;:.!?])\s*\}/g, '$1')
                 .replace(/\\text\s*\{\s*([^{}]+?)\s*\}/g, (m, unit) => '\\text{' + unit.trim() + '}')
+                .replace(/\b([A-Za-z])\s*=\s*([-+]?\d+(?:\.\d+)?\s*\\text\s*\{[^{}]+?\})/g, '\\($1 = $2\\)')
+                .replace(/\\theta_([A-Z])\s+is\s+([-+]?\d+(?:\.\d+)?\s*\^\\circ)/gi, '\\(\\theta_$1 = $2\\)')
                 .replace(/\btriangle\s+([A-Z])\s+([A-Z])\s+([A-Z])\b/g, 'triangle $1$2$3')
                 .replace(/\bTriangle\s+([A-Z])\s+([A-Z])\s+([A-Z])\b/g, 'Triangle $1$2$3')
                 .replace(/([A-Za-z,;:])\s*\n\s*([A-Za-z])/g, '$1 $2')
@@ -11498,7 +11536,7 @@
                 last = offset + m.length;
                 return m;
             });
-            return normalizeMathDelimiters(out + wrapPlain(t.slice(last))).replace(/[ \t]{2,}/g, ' ').trim();
+            return flattenInlineMath(normalizeMathDelimiters(out + wrapPlain(t.slice(last)))).replace(/[ \t]{2,}/g, ' ').trim();
         }
         function normalizeGeneratedContent(value, key) {
             if (typeof value === 'string') {
@@ -11673,7 +11711,7 @@
                 if (!out) { lastErr = new Error('Empty response from Gemini.'); continue; }
                 if (!schema) return out;
                 try {
-                    return JSON.parse(stripJSON(out));
+                    return JSON.parse(protectLatexJsonEscapes(stripJSON(out)));
                 } catch (e) {
                     lastErr = e; // malformed JSON — re-request before giving up
                 }
@@ -11685,6 +11723,12 @@
             let t = (s || '').trim();
             if (t.indexOf('```') === 0) t = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
             return t;
+        }
+        function protectLatexJsonEscapes(s) {
+            return String(s || '').replace(
+                /(^|[^\\])\\(?=(?:angle|triangle|text|theta|times|frac|dfrac|tfrac|sqrt|left|right|circ|degree|vec|overline|hat|bar|sin|cos|tan|sec|csc|cot|log|ln|pi|alpha|beta|gamma|delta|lambda|mu|sigma|omega|Delta|Omega)\b)/g,
+                '$1\\\\'
+            );
         }
         function geminiErr(e) {
             const m = (e && e.message) || '';
