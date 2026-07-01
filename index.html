@@ -3219,6 +3219,7 @@
         .st-q .st-opts { list-style:none; margin:10px 0 0; padding:0 0 0 26px; }
         .st-q .st-opts li { margin:6px 0; }
         .st-q .st-opts li::before { content: attr(data-l) ")"; font-weight:600; margin-right:8px; color:#444; }
+        .st-a4 mjx-merror { display:none !important; }
         .st-q-tikz { margin:7px 0 1px 34px; width:min(230px,100%); max-width:230px; overflow:visible; break-inside:avoid; }
         .st-q-tikz svg,
         .st-q-tikz img { display:block; width:100%; max-width:100%; height:auto; max-height:158px; object-fit:contain; overflow:visible; }
@@ -11370,6 +11371,7 @@
         }
         function repairModelMathText(s) {
             let t = normalizeLatexBackslashes(s);
+            t = t.replace(/\bMath input error\b\.?/gi, '');
             // Gemini sometimes escapes math delimiters as \$...\$ because it is trying to
             // avoid currency ambiguity. Only unescape those pairs when the inside looks mathy.
             const escDollar = '\uE000';
@@ -11381,7 +11383,7 @@
             t = t.replace(new RegExp('\\$([\\s\\S]{1,260}?)' + escDollar, 'g'),
                 (m, inner) => looksLikeInlineMath(inner) ? '$' + inner.trim() + '$' : m.replaceAll(escDollar, '\\$'));
             t = t.replaceAll(escDollar, '\\$');
-            return t;
+            return t.replace(/\bMath input error\b\.?/gi, '');
         }
         function normalizeMathExpr(expr) {
             return String(expr || '')
@@ -12048,9 +12050,19 @@
                     if (window.MathJax.typesetClear) {
                         try { window.MathJax.typesetClear([el]); } catch (e) { }
                     }
-                    window.MathJax.typesetPromise([el]).then(() => { if (opts.after) opts.after(); }).catch(() => { });
+                    window.MathJax.typesetPromise([el]).then(() => {
+                        suppressMathErrors(el);
+                        if (opts.after) opts.after();
+                    }).catch(() => { suppressMathErrors(el); });
                 } catch (e) { }
             }).catch(() => { });
+        }
+        function suppressMathErrors(scope) {
+            if (!scope) return;
+            scope.querySelectorAll('mjx-merror').forEach(err => {
+                const container = err.closest('mjx-container') || err;
+                container.style.display = 'none';
+            });
         }
         // Shrink any math block that is wider than its column down to fit, mirroring
         // how the browser shrinks the printed page so over-wide matrix rows stay
@@ -12390,7 +12402,7 @@
         }
         const latexOn = id => { const el = document.getElementById(id); return !el || el.classList.contains('on'); };
         const visualOn = id => { const el = document.getElementById(id); return !!(el && el.classList.contains('on')); };
-        const LATEX_ON = ' IMPORTANT — math formatting rules: Render EVERY mathematical expression, symbol, variable, fraction, exponent, unit and numeric formula as valid LaTeX. Wrap inline math in \\( ... \\) and keep it on the SAME line as the surrounding words — never put a line break before, after, or inside an inline expression, and never start a new line just for a single symbol or variable. Use $$ ... $$ only for a full standalone equation, never for a lone variable. Write every variable and vector in plain italic — do NOT bold them with \\mathbf, \\boldsymbol, \\pmb or similar. Write strictly valid LaTeX: every \\left must have a matching \\right; if you are not certain a pair is balanced, use plain ( ) [ ] | instead of \\left/\\right. Never write math, fractions or exponents as plain text.';
+        const LATEX_ON = ' IMPORTANT - math formatting rules: Render EVERY mathematical expression, symbol, variable, fraction, exponent, unit and numeric formula as valid LaTeX. Wrap inline math in \\( ... \\) and keep it on the SAME line as the surrounding words - never put a line break before, after, or inside an inline expression, and never start a new line just for a single symbol or variable. Use $$ ... $$ only for a full standalone equation, never for a lone variable. Write every variable and vector in plain italic - do NOT bold them with \\mathbf, \\boldsymbol, \\pmb or similar. Write strictly valid LaTeX: every \\left must have a matching \\right; if you are not certain a pair is balanced, use plain ( ) [ ] | instead of \\left/\\right. Use only supported MathJax macros. Write \\(\\pi\\), \\(\\theta\\), \\(x^2\\), \\(\\int_0^2 4t\\,dt\\), and units like \\(\\text{cm}^3\\) exactly this way. Never output the phrase Math input error. Never write math, fractions or exponents as plain text.';
         root.querySelectorAll('[data-latex], [data-visuals]').forEach(b => b.addEventListener('click', () => {
             b.querySelector('.st-tp-state').textContent = b.classList.toggle('on') ? 'On' : 'Off';
         }));
@@ -12414,7 +12426,7 @@
         }
         function tikzPrompt(kind) {
             const target = kind || 'content';
-            return '\nTextbook visuals are enabled. For math, physics, chemistry, engineering, statistics, graphing, geometry, vectors, calculus, or other STEM ' + target + ' where a real diagram helps, add a concise TikZ snippet in the appropriate "tikz" field. Use TikZ only for diagrams with drawing primitives such as axes, curves, regions, points, arrows, geometric shapes, number lines, vectors, force diagrams, probability trees, or labeled relationships. Do NOT use TikZ for standalone formulas or equation text; put formulas in the normal text/equation fields instead. Use either a full \\begin{tikzpicture}...\\end{tikzpicture} block or only commands that belong inside tikzpicture. Do not include \\documentclass, \\usepackage, \\begin{document}, markdown fences, external images, file inputs, or shell commands. Keep labels short and readable. Prefer clean black/gray textbook styling, not green branding. Use the built-in styles cp axis, cp line, cp dashed, cp fill, cp point, cp label when useful. Leave tikzSvg empty.';
+            return '\nTextbook visuals are enabled. For math, physics, chemistry, engineering, statistics, graphing, geometry, vectors, calculus, or other STEM ' + target + ' where a real diagram helps, add a concise TikZ snippet in the appropriate "tikz" field. Use TikZ only for diagrams with drawing primitives such as axes, curves, regions, points, arrows, geometric shapes, number lines, vectors, force diagrams, probability trees, or labeled relationships. Do NOT use TikZ for standalone formulas or equation text; put formulas in the normal text/equation fields instead. For triangle, trigonometry, bearing, law of sines, or law of cosines diagrams, draw angle marks inside the triangle/sector; never place an angle arc outside unless the question explicitly asks for an exterior angle. For parallelogram, diagonal, midpoint, plane, 3D, graph, and coordinate problems, include the specific points, side labels, axes, diagonals, or reference lines named in the question. Use either a full \\begin{tikzpicture}...\\end{tikzpicture} block or only commands that belong inside tikzpicture. Do not include \\documentclass, \\usepackage, \\begin{document}, markdown fences, external images, file inputs, or shell commands. Keep labels short and readable. Prefer clean black/gray textbook styling, not green branding. Use the built-in styles cp axis, cp line, cp dashed, cp fill, cp point, cp label when useful. Leave tikzSvg empty.';
         }
         [['wsSubject', 'wsLatex'], ['aioSubject', 'aioLatex'], ['gSubject', 'gLatex'], ['fSubject', 'fLatex'], ['sdSubject', 'sdLatex']].forEach(([subId, latexId]) => {
             const dd = document.getElementById(subId);
@@ -12644,7 +12656,7 @@
         function worksheetNeedsVisual(q) {
             if (sdCleanTikz(q && q.tikz)) return true;
             const hay = [q && q.q, q && q.answer].join(' ').toLowerCase();
-            return /\b(graph|diagram|sketch|plot|draw|visual|vector|resultant|triangle|parallelogram|force|velocity|angle|perpendicular|parallel|coordinate|intercept|vertex|slope|tangent|secant|curve|area under|integral|derivative|geometry|circle|line|ray|axis|axes)\b/.test(hay);
+            return /\b(graph|diagram|sketch|plot|draw|visual|vector|resultant|triangle|trigonometry|law of sines|law of cosines|bearing|parallelogram|trapezium|trapezoid|diagonal|midpoint|force|velocity|angle|perpendicular|parallel|coordinate|intercept|vertex|slope|tangent|secant|curve|area under|integral|derivative|geometry|circle|rectangle|cylinder|cone|sphere|volume|surface area|line|ray|axis|axes|plane|3d|normal|projection|intersection|distance)\b/.test(hay);
         }
         async function renderTikzWorksheet(data) {
             if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
@@ -12657,6 +12669,8 @@
                             'Create a small SVG-first textbook diagram that helps answer this worksheet question.',
                             'Keep it compact and landscape-oriented so it fits beside late worksheet questions without creating large vertical gaps.',
                             'Use black/gray lines, short labels, visible arrowheads, and no oversized empty compass circles unless the circle is mathematically essential.',
+                            'Prefer a fresh clean diagram over any rough existing TikZ if the rough idea is formula-only, colored, cluttered, missing required labels, or uses exterior-looking angle arcs.',
+                            'For triangles, trigonometry, law of sines/cosines, and bearings, place angle arcs inside the triangle or sector. For vector/parallelogram problems, include the named vectors, diagonals, and resultants rather than a generic shape.',
                             q.q ? 'Question: ' + q.q : '',
                             q.answer ? 'Answer/key idea: ' + q.answer : '',
                             sdCleanTikz(q.tikz) ? 'Existing rough TikZ idea may be ignored if weak: ' + sdCleanTikz(q.tikz).slice(0, 900) : ''
@@ -12840,7 +12854,7 @@
                     // leak into print, which already prints correctly.
                     setMathOverflow('overflow');
                     if (window.MathJax.typesetClear) { try { window.MathJax.typesetClear([printArea]); } catch (e) { } }
-                    return window.MathJax.typesetPromise([printArea]);
+                    return window.MathJax.typesetPromise([printArea]).then(() => suppressMathErrors(printArea));
                 }
             }).catch(() => { }).then(() => setTimeout(() => window.print(), 150));
         }

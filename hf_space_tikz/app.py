@@ -453,6 +453,54 @@ GEOMETRY:
   \pic[draw=black,angle radius=7mm,"$\theta$",angle eccentricity=1.35] {angle=B--A--C};
 \end{tikzpicture}
 
+TRIANGLE INTERIOR ANGLES:
+\begin{tikzpicture}[scale=.9]
+  \coordinate (A) at (0,0); \coordinate (B) at (4.2,0); \coordinate (C) at (1.4,2.5);
+  \draw[cp line] (A)--(B)--(C)--cycle;
+  \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$}; \node[above] at (C) {$C$};
+  \node[below] at ($(A)!0.5!(B)$) {$b=10$};
+  \node[right] at ($(B)!0.5!(C)$) {$a=7$};
+  \pic[draw=black,angle radius=6mm,"$45^\circ$",angle eccentricity=1.35] {angle=B--A--C};
+  \pic[draw=black,angle radius=5mm,"$C$",angle eccentricity=1.35] {angle=A--C--B};
+\end{tikzpicture}
+
+BEARING / DIRECTION:
+\begin{tikzpicture}[scale=.85]
+  \coordinate (O) at (0,0);
+  \draw[cp axis,-Stealth] (O)--(0,2.5) node[above] {$N$};
+  \draw[cp axis,-Stealth] (O)--(2.4,0) node[right] {$E$};
+  \draw[cp line,-Stealth] (O)--(55:2.6) node[above right] {$P_1$};
+  \draw[cp line,-Stealth] (O)--(15:2.9) node[right] {$P_2$};
+  \draw[cp dashed] (90:.55) arc[start angle=90,end angle=55,radius=.55];
+  \draw[cp dashed] (90:.85) arc[start angle=90,end angle=15,radius=.85];
+  \node at (73:.75) {$30^\circ$};
+  \node at (48:1.05) {$75^\circ$};
+\end{tikzpicture}
+
+PARALLELOGRAM WITH INTERIOR ANGLE:
+\begin{tikzpicture}[scale=.85]
+  \coordinate (A) at (0,0); \coordinate (B) at (3.8,0); \coordinate (D) at (1.1,1.5); \coordinate (C) at (4.9,1.5);
+  \draw[cp line] (A)--(B)--(C)--(D)--cycle;
+  \draw[cp dashed] (A)--(C) node[pos=.6,above] {$d$};
+  \node[below] at ($(A)!0.5!(B)$) {$10$};
+  \node[left] at ($(A)!0.5!(D)$) {$6$};
+  \pic[draw=black,angle radius=6mm,"$45^\circ$",angle eccentricity=1.35] {angle=B--A--D};
+  \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$};
+  \node[above right] at (C) {$C$}; \node[above left] at (D) {$D$};
+\end{tikzpicture}
+
+3D LINE AND PLANE:
+\begin{tikzpicture}[scale=.85]
+  \coordinate (O) at (0,0); \coordinate (X) at (3.0,-.3); \coordinate (Y) at (0,2.4); \coordinate (Z) at (-1.7,-1.2);
+  \draw[cp axis,-Stealth] (O)--(X) node[right] {$x$};
+  \draw[cp axis,-Stealth] (O)--(Y) node[above] {$y$};
+  \draw[cp axis,-Stealth] (O)--(Z) node[left] {$z$};
+  \fill[cp fill] (-.7,-.45)--(2.3,-.72)--(3.05,.35)--(.1,.62)--cycle;
+  \draw[cp line] (-.7,-.45)--(2.3,-.72)--(3.05,.35)--(.1,.62)--cycle;
+  \draw[cp line,-Stealth] (.3,-.85)--(1.9,1.65) node[above] {$L$};
+  \node[below right] at (1.4,-.35) {$\Pi$};
+\end{tikzpicture}
+
 TRIGONOMETRY:
 \begin{tikzpicture}[scale=1]
   \draw[cp axis] (-1.3,0)--(1.5,0) node[right] {$x$};
@@ -482,6 +530,8 @@ Worksheet-specific rules:
 - Prefer compact landscape compositions about 5.5 units wide by 3 units tall.
 - Avoid tall compass-style diagrams unless the problem explicitly needs directions.
 - Keep vector diagrams close to the question: short arrows, clear arrowheads, labels just outside the strokes.
+- Keep triangle angle marks small and inside the shape; exterior angle arcs are allowed only for questions that explicitly say exterior angle.
+- For law of sines/cosines questions, include the given side lengths and angle values in the triangle when the question provides them.
 - Do not leave large empty margins inside the drawing; center the math object tightly.
 """.strip()
 
@@ -510,7 +560,12 @@ Rules:
 - For parallelogram diagonal questions, place labels outside the crossing: label AC as u+v above the solid/dashed diagonal and BD as v-u or u-v below/left of the other diagonal. Never stack multiple formulas at the center.
 - Avoid long phrase labels such as "Maximum Resultant" inside small diagrams; use short labels and let the worksheet question carry the wording.
 - Before returning, mentally inspect the diagram: no label may sit on a line crossing, arrowhead, point marker, or another label. Move it with above/below/left/right/pos/anchor if needed.
-- For geometry and trigonometry, use named points, angle marks, and side labels. Avoid decorative shapes without mathematical meaning.
+- For geometry, trigonometry, law of sines, and law of cosines, use named points, angle marks, and side labels. Avoid decorative shapes without mathematical meaning.
+- Angle marks must be inside the triangle or inside the sector being measured. With TikZ pics, the vertex is the middle coordinate: angle=B--A--C marks the angle at A. Never draw exterior-looking angle arcs unless the question explicitly asks for an exterior angle.
+- For bearing or navigation questions, draw short N/E reference rays and put clockwise bearing arcs inside the sector from North to the travel vector. Avoid large empty compass circles.
+- For parallelogram, diagonal, and vector-geometry questions, show the named diagonal or resultant, not just the outline. Put side/angle labels outside strokes and keep the interior crossing uncluttered.
+- For 3D geometry, planes, spheres, skew lines, projections, normals, and line-plane questions, use a sparse isometric sketch with x/y/z axes when helpful, one gray plane if needed, and labels outside intersections. Do not use red or blue labels unless color is explicitly requested.
+- If an existing rough TikZ idea is colored, cluttered, formula-only, missing the requested visual element, or has exterior-looking angle arcs, replace it with a clean diagram instead of preserving it.
 - If the request is not visual, return an empty tikz string and a brief caption.
 
 {target_rules}
