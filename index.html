@@ -11477,6 +11477,40 @@
             .replace(/\\\[[\s\S]*?\\\]/g, m => m.replace(/\s*\n\s*/g, ' '))
             .replace(/\$\$[\s\S]*?\$\$/g, m => m.replace(/\s*\n\s*/g, ' ')))
             .replace(/\n{2,}/g, '<br><br>').replace(/\n/g, ' ');
+        function normalizeGeneratedString(s) {
+            let t = normalizeLatexBackslashes(s)
+                .replace(/\bMath input error\b\.?/gi, '')
+                .replace(/\\text\s*\{\s*([^{}]+?)\s*\}/g, (m, unit) => '\\text{' + unit.trim() + '}')
+                .replace(/\btriangle\s+([A-Z])\s+([A-Z])\s+([A-Z])\b/g, 'triangle $1$2$3')
+                .replace(/\bTriangle\s+([A-Z])\s+([A-Z])\s+([A-Z])\b/g, 'Triangle $1$2$3')
+                .replace(/([A-Za-z,;:])\s*\n\s*([A-Za-z])/g, '$1 $2')
+                .replace(/(^|\n)\s*([A-Za-z])\s*\n\s*([A-Za-z])\s*\n\s*([A-Za-z])(?=\s|\n|$)/g, '$1$2$3')
+                .replace(/\n\s*([A-Za-z])\s*\n/g, ' $1 ');
+            const mathSpan = /\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\$[\s\S]*?\$/g;
+            const wrapPlain = chunk => chunk
+                .replace(/(^|[^\w\\])((?:\\triangle\s*[A-Z]{3}|\\angle\s*[A-Z](?:\s*=\s*[-+]?\d+(?:\.\d+)?\s*(?:\^\\circ|°|degrees?))?|[-+]?\d+(?:\.\d+)?\s*\^\\circ|[-+]?\d+(?:\.\d+)?\s*\\text\s*\{[^{}]+?\}))/g,
+                    (m, lead, expr) => lead + '\\(' + expr.replace(/\s+/g, ' ').trim() + '\\)')
+                .replace(/(^|[^\w\\])((?:\\(?:triangle|angle)\b|\\(?:circ|degree)\b|\\text\s*\{)[^,.;!?<>\n]{0,90})/g,
+                    (m, lead, expr) => lead + '\\(' + expr.replace(/\s+/g, ' ').trim() + '\\)');
+            let out = '', last = 0;
+            t.replace(mathSpan, (m, offset) => {
+                out += wrapPlain(t.slice(last, offset)) + m.replace(/\s*\n\s*/g, ' ');
+                last = offset + m.length;
+                return m;
+            });
+            return normalizeMathDelimiters(out + wrapPlain(t.slice(last))).replace(/[ \t]{2,}/g, ' ').trim();
+        }
+        function normalizeGeneratedContent(value, key) {
+            if (typeof value === 'string') {
+                if (/^(?:tikz|tikzSvg|tikzPng|svg|png|base64|mermaid|code|src|url)$/i.test(String(key || ''))) return value;
+                return normalizeGeneratedString(value);
+            }
+            if (Array.isArray(value)) return value.map(v => normalizeGeneratedContent(v, key));
+            if (value && typeof value === 'object') {
+                Object.keys(value).forEach(k => { value[k] = normalizeGeneratedContent(value[k], k); });
+            }
+            return value;
+        }
 
         /* ---------- Subjects from the planner's course cards + custom themed dropdown ----------
            Native <select> popups can't be themed, so Study Tools uses a small custom dropdown.
@@ -12727,7 +12761,7 @@
                     (latexOn('wsLatex') ? LATEX_ON : '') +
                     (srcCount(scr) ? '\nBase the questions on the attached source materials.' : '');
                 const parts = [{ text: prompt }].concat(await sourceParts(scr));
-                WS_DATA = await gemini(parts, WS_SCHEMA);
+                WS_DATA = normalizeGeneratedContent(await gemini(parts, WS_SCHEMA));
                 if (visualsEnabled) await renderTikzWorksheet(WS_DATA);
                 // Header uses what the user typed: subject (top-left), grade/level (top-right).
                 WS_DATA.subject = subject || WS_DATA.subject || '';
@@ -12767,6 +12801,7 @@
                 '</div>';
         }
         function renderWorksheet(d, targetEl) {
+            d = normalizeGeneratedContent(d || {});
             WS_DATA = d;
             const res = targetEl || document.getElementById('wsResult');
             const cl = on => on ? ' class="on"' : '';
@@ -12924,7 +12959,7 @@
                     (visualsEnabled ? '\nAlso include a "visuals" array with up to 4 useful textbook-style visuals. Each item should include title, caption, and tikz.' + tikzPrompt('study-guide concepts, formulas, or worked examples') : '') +
                     nonStemExampleRules(subject, topic) +
                     (latexOn('gLatex') ? LATEX_ON : '');
-                const g = await gemini([{ text: prompt }].concat(parts), GUIDE_SCHEMA);
+                const g = normalizeGeneratedContent(await gemini([{ text: prompt }].concat(parts), GUIDE_SCHEMA));
                 if (visualsEnabled) await renderTikzGuide(g);
                 renderGuide(g);
                 markDirty();
@@ -12934,6 +12969,7 @@
             return '<div class="st-gsec"><h3><span class="st-gsec-ico">' + sectionIco + '</span>' + esc(title) + '</h3>' + inner + '</div>';
         }
         function renderGuide(g, alreadySaved, targetEl) {
+            g = normalizeGeneratedContent(g || {});
             let html =
                 '<div class="st-actions" style="margin-bottom:18px; align-items:center">' +
                 '<div class="st-ws-opt"><span>Topic</span><input type="text" class="st-input st-ws-subject" data-gtitle placeholder="Topic" value="' + esc(g.title || '') + '"></div>' +
@@ -13013,7 +13049,7 @@
                     (visualsEnabled ? '\nFor STEM cards where a small diagram helps the answer, add a concise TikZ snippet in the card field "tikz". Keep the front text concise; the rendered visual appears with the back/definition.' + tikzPrompt('flashcard answers') : '') +
                     (latexOn('fLatex') ? LATEX_ON : ' ') +
                     'Give the deck a short descriptive "deckTitle".' + (title ? ' Prefer this deck title: "' + title + '".' : '');
-                const deck = await gemini([{ text: prompt }].concat(parts), DECK_SCHEMA);
+                const deck = normalizeGeneratedContent(await gemini([{ text: prompt }].concat(parts), DECK_SCHEMA));
                 if (visualsEnabled) await renderTikzDeckCards(deck);
                 if (title) deck.deckTitle = title;
                 showDeck(deck);
@@ -13024,6 +13060,7 @@
             saveItem('deck', { id: 'd' + Date.now(), deckTitle: deck.deckTitle, cards: deck.cards, createdAt: Date.now() });
         }
         function showDeck(deck, alreadySaved, targetEl) {
+            deck = normalizeGeneratedContent(deck || {});
             FC.cards = deck.cards || []; FC.idx = 0; FC.flipped = false; FC.title = deck.deckTitle || 'Deck';
             const res = FC.res = targetEl || document.getElementById('fResult');
             res.innerHTML =
@@ -13129,7 +13166,7 @@
                     'Also provide a descriptive "title", the "subject", a "unit" label, and a short student "instructions" line.' +
                     (visualsEnabled ? tikzPrompt('worksheet questions') : '') +
                     mathRules + (hasSrc ? '\nBase the questions on the attached source materials.' : '');
-                const wsData = await gemini([{ text: wsPrompt }].concat(parts), WS_SCHEMA);
+                const wsData = normalizeGeneratedContent(await gemini([{ text: wsPrompt }].concat(parts), WS_SCHEMA));
                 if (visualsEnabled) await renderTikzWorksheet(wsData);
                 wsData.subject = subject || wsData.subject || '';
                 wsData.level = level || '';
@@ -13142,7 +13179,7 @@
                     'For non-STEM topics, fill realLifeExamples with one practical, concrete example for each major concept or term.' +
                     (visualsEnabled ? '\nAlso include a "visuals" array with up to 4 useful textbook-style visuals. Each item should include title, caption, and tikz.' + tikzPrompt('study-guide concepts, formulas, or worked examples') : '') +
                     nonStemExampleRules(subject, topic) + mathRules;
-                const guide = await gemini([{ text: gPrompt }].concat(parts), GUIDE_SCHEMA);
+                const guide = normalizeGeneratedContent(await gemini([{ text: gPrompt }].concat(parts), GUIDE_SCHEMA));
                 if (visualsEnabled) await renderTikzGuide(guide);
 
                 const fPrompt =
@@ -13151,7 +13188,7 @@
                     (visualsEnabled ? '\nFor STEM cards where a small diagram helps the answer, add a concise TikZ snippet in the card field "tikz". Keep the front text concise; the rendered visual appears with the back/definition.' + tikzPrompt('flashcard answers') : '') +
                     (mathRules || ' ') +
                     'Give the deck a short descriptive "deckTitle".';
-                const deck = await gemini([{ text: fPrompt }].concat(parts), DECK_SCHEMA);
+                const deck = normalizeGeneratedContent(await gemini([{ text: fPrompt }].concat(parts), DECK_SCHEMA));
                 if (visualsEnabled) await renderTikzDeckCards(deck);
 
                 const sdPrompt = studyDeckPrompt(topic, subject, slideCount, '', hasSrc, !!mathRules, visualsEnabled);
@@ -13167,7 +13204,7 @@
                     (hasSrc ? '\nBase the deck strictly on the attached source materials.' : '') +
                     ' Also return an overall "title" and the "subject".';
                 */
-                const slideDeck = await gemini([{ text: sdPrompt }].concat(parts), SD_SCHEMA);
+                const slideDeck = normalizeGeneratedContent(await gemini([{ text: sdPrompt }].concat(parts), SD_SCHEMA));
                 if (visualsEnabled) await renderTikzDeck(slideDeck, 'slide');
 
                 // Keep the title consistent across all four outputs so the set reads as
@@ -13315,6 +13352,7 @@
             renderGeneratedAll();
         }
         function saveItem(kind, item) {
+            item = normalizeGeneratedContent(item || {});
             const arr = readJSON(SAVE_KEYS[kind]);
             arr.unshift(item);
             localStorage.setItem(SAVE_KEYS[kind], JSON.stringify(arr));
@@ -14377,6 +14415,7 @@
             return t === 'recall' || t === 'quiz' || t === 'matching' || t === 'finalAssessment';
         }
         function sdNormalizeDeck(data) {
+            data = normalizeGeneratedContent(data || {});
             data = data || {};
             function paceSlides(list) {
                 const minRunway = list.length >= 12 ? 3 : 2;
@@ -15175,7 +15214,7 @@
                     ' Also return an overall "title" and the "subject".';
                 */
                 const parts = [{ text: prompt }].concat(sourceBrief ? [] : srcParts);
-                const data = await gemini(parts, SD_SCHEMA);
+                const data = normalizeGeneratedContent(await gemini(parts, SD_SCHEMA));
                 if (visualsEnabled) await renderTikzDeck(data, 'slide');
                 buildSlidePlayer(data, resultEl);
                 markDirty();

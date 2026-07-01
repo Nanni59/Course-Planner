@@ -525,6 +525,289 @@ TRIGONOMETRY:
 """.strip()
 
 
+def _request_text(req: GenerateReq) -> str:
+    text = " ".join([req.subject or "", req.title or "", req.equation or "", req.brief or ""])
+    text = re.sub(r"\\text\s*\{\s*([^{}]+?)\s*\}", r" \1 ", text)
+    text = text.replace("\\triangle", " triangle ")
+    text = text.replace("\\angle", " angle ")
+    text = text.replace("^\\circ", " degrees")
+    text = text.replace("°", " degrees")
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _tex_label(value: str, default: str = "") -> str:
+    value = re.sub(r"\s+", " ", str(value or default)).strip()
+    value = value.strip("$")
+    value = re.sub(r"\\text\s*\{\s*([^{}]+?)\s*\}", r" \1", value)
+    value = value.replace(" degrees", "^\\circ").replace(" degree", "^\\circ")
+    value = value.replace("°", "^\\circ")
+    value = re.sub(r"[^A-Za-z0-9_+\-*/=.,:()\\\\^{}\\s/]", "", value).strip()
+    return value or default
+
+
+def _fill(template: str, **values: str) -> str:
+    for key, value in values.items():
+        template = template.replace("__" + key + "__", value)
+    return template
+
+
+def _triangle_vertices(text: str) -> tuple[str, str, str] | None:
+    m = re.search(r"(?:triangle|tri\.?)\s*([A-Z])\s*([A-Z])\s*([A-Z])\b", text)
+    if m:
+        return (m.group(1), m.group(2), m.group(3))
+    m = re.search(r"\b([A-Z]{3})\b", text)
+    if m and re.search(r"\b(?:triangle|law of sines|law of cosines|angle|side)\b", text, re.I):
+        return tuple(m.group(1))  # type: ignore[return-value]
+    return None
+
+
+def _number_with_unit_re() -> str:
+    return r"[-+]?\d+(?:\.\d+)?(?:\s*(?:cm|mm|m|km|in|ft|yd|mi|units?|N|newtons?|m/s|km/h|mph))?"
+
+
+def _extract_triangle_angles(text: str, vertices: tuple[str, str, str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    num = _number_with_unit_re()
+    for label, value in re.findall(r"\bangle\s*([A-Z])\s*(?:=|is|measures)?\s*(" + num + r")\s*(?:degrees?)?", text, re.I):
+        lab = label.upper()
+        if lab in vertices:
+            out[lab] = _tex_label(value + "^\\circ" if re.fullmatch(r"[-+]?\d+(?:\.\d+)?", value.strip()) else value)
+    return out
+
+
+def _extract_triangle_sides(text: str, vertices: tuple[str, str, str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    num = _number_with_unit_re()
+    for label, value in re.findall(r"\b(?:side|length)?\s*([a-z]|[A-Z]{2})\s*(?:=|is|measures|has length)?\s*(" + num + r")", text):
+        out[label] = _tex_label(value)
+    for label, value in re.findall(r"\b([a-z]|[A-Z]{2})\s*=\s*(" + num + r")", text):
+        out.setdefault(label, _tex_label(value))
+    a, b, c = vertices
+    defaults = {
+        (b + c): out.get(a.lower(), a.lower()),
+        (a + c): out.get(b.lower(), b.lower()),
+        (a + b): out.get(c.lower(), c.lower()),
+    }
+    edge_labels = {
+        a + b: out.get(a + b) or out.get(b + a) or defaults[a + b],
+        a + c: out.get(a + c) or out.get(c + a) or defaults[a + c],
+        b + c: out.get(b + c) or out.get(c + b) or defaults[b + c],
+    }
+    return edge_labels
+
+
+def _triangle_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
+    text = _request_text(req)
+    low = text.lower()
+    if not generic and not re.search(r"\b(triangle|law of sines|law of cosines|cosine law|sine law|trigonometry)\b", low):
+        return None
+    vertices = _triangle_vertices(text) or ("A", "B", "C")
+    a, b, c = vertices
+    side = _extract_triangle_sides(text, vertices)
+    angles = _extract_triangle_angles(text, vertices)
+    angle_lines = []
+    angle_specs = {
+        a: ("B", "A", "C", "0.72,0.24"),
+        b: ("A", "B", "C", "3.42,0.26"),
+        c: ("A", "C", "B", "1.45,1.86"),
+    }
+    for vertex, value in angles.items():
+        p1, mid, p2, _ = angle_specs[vertex]
+        angle_lines.append(
+            f'  \\pic[draw=black,angle radius=5mm,"${_tex_label(value)}$",angle eccentricity=1.35] {{angle={p1}--{mid}--{p2}}};'
+        )
+    if not angle_lines:
+        vertex = c if "law of cosines" in low or "cosine law" in low else a
+        p1, mid, p2, _ = angle_specs[vertex]
+        angle_lines.append(
+            f'  \\pic[draw=black,angle radius=5mm,"${vertex}$",angle eccentricity=1.35] {{angle={p1}--{mid}--{p2}}};'
+        )
+    tikz = _fill(
+        r"""
+\begin{tikzpicture}[scale=.9]
+  \coordinate (A) at (0,0); \coordinate (B) at (4.2,0); \coordinate (C) at (1.35,2.35);
+  \draw[cp line] (A)--(B)--(C)--cycle;
+  \node[below left] at (A) {$__A__$};
+  \node[below right] at (B) {$__B__$};
+  \node[above] at (C) {$__C__$};
+  \node[below] at ($(A)!0.5!(B)$) {$__AB__$};
+  \node[left] at ($(A)!0.5!(C)$) {$__AC__$};
+  \node[right] at ($(B)!0.5!(C)$) {$__BC__$};
+__ANGLES__
+\end{tikzpicture}
+""".strip(),
+        A=a,
+        B=b,
+        C=c,
+        AB=_tex_label(side.get(a + b, c.lower())),
+        AC=_tex_label(side.get(a + c, b.lower())),
+        BC=_tex_label(side.get(b + c, a.lower())),
+        ANGLES="\n".join(angle_lines),
+    )
+    return tikz, "Triangle diagram with interior angle and side labels."
+
+
+def _bearing_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
+    text = _request_text(req)
+    low = text.lower()
+    if not generic and not re.search(r"\b(bearing|navigation|north|east|compass|heading)\b", low):
+        return None
+    bearings = [int(float(x)) % 360 for x in re.findall(r"\b(?:bearing|heading)\s*(?:of|=|is)?\s*([0-9]{1,3})(?:\s*degrees?)?", low)]
+    if not bearings:
+        bearings = [int(float(x)) % 360 for x in re.findall(r"\b([0-9]{2,3})\s*(?:degrees?|°)\s*(?:bearing|from north|clockwise)", low)]
+    bearings = bearings[:2] or [45, 115]
+    distances = re.findall(_number_with_unit_re(), text)
+    distances = [d.strip() for d in distances if re.search(r"\d", d)][:2]
+    b1 = bearings[0]
+    b2 = bearings[1] if len(bearings) > 1 else min(165, b1 + 55)
+    a1 = 90 - b1
+    a2 = 90 - b2
+    label1 = _tex_label(distances[0] if distances else f"{b1}^\\circ")
+    label2 = _tex_label(distances[1] if len(distances) > 1 else f"{b2}^\\circ")
+    tikz = _fill(
+        r"""
+\begin{tikzpicture}[scale=.85]
+  \coordinate (O) at (0,0);
+  \coordinate (P) at (__A1__:2.45);
+  \coordinate (Q) at ($(P)+(__A2__:2.1)$);
+  \draw[cp axis,-Stealth] (O)--(0,2.4) node[above] {$N$};
+  \draw[cp axis,-Stealth] (O)--(2.3,0) node[right] {$E$};
+  \draw[cp line,-Stealth] (O)--(P) node[midway,above right] {$__L1__$};
+  \draw[cp line,-Stealth] (P)--(Q) node[midway,above] {$__L2__$};
+  \draw[cp dashed] (O)--(Q) node[midway,below] {$d$};
+  \draw[cp dashed] (90:.62) arc[start angle=90,end angle=__A1__,radius=.62];
+  \node at (__M1__:.88) {$__B1__^\circ$};
+  \draw[cp dashed] ($(P)+(0,.58)$) arc[start angle=90,end angle=__A2__,radius=.58];
+  \node at ($(P)+(__M2__:.84)$) {$__B2__^\circ$};
+  \fill (O) circle (1.3pt) node[below left] {$A$};
+  \fill (P) circle (1.3pt) node[above left] {$B$};
+  \fill (Q) circle (1.3pt) node[right] {$C$};
+\end{tikzpicture}
+""".strip(),
+        A1=str(a1),
+        A2=str(a2),
+        M1=str((90 + a1) / 2),
+        M2=str((90 + a2) / 2),
+        B1=str(b1),
+        B2=str(b2),
+        L1=label1,
+        L2=label2,
+    )
+    return tikz, "Bearing diagram with north reference rays and travel vectors."
+
+
+def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
+    text = _request_text(req)
+    low = text.lower()
+    if not generic and not re.search(r"\b(vector|resultant|parallelogram|force|velocity|displacement)\b", low):
+        return None
+    angle_match = re.search(r"\b([0-9]{1,3})(?:\s*degrees?)?\s*(?:between|angle)", low) or re.search(r"\bangle\s*(?:is|=)?\s*([0-9]{1,3})", low)
+    angle = int(angle_match.group(1)) if angle_match else 55
+    names = re.findall(r"\\vec\s*\{?\s*([A-Za-z])\s*\}?|\bvector\s+([A-Za-z])\b", text, re.I)
+    flat_names = [next((part for part in pair if part), "") for pair in names]
+    u = flat_names[0].lower() if flat_names else "u"
+    v = flat_names[1].lower() if len(flat_names) > 1 else "v"
+    if "parallelogram" in low or "resultant" in low or "sum" in low:
+        tikz = _fill(
+            r"""
+\begin{tikzpicture}[scale=.82]
+  \coordinate (O) at (0,0); \coordinate (A) at (3.2,0); \coordinate (B) at (__ANGLE__:2.2); \coordinate (C) at ($(A)+(B)$);
+  \draw[cp dashed] (A)--(C)--(B);
+  \draw[cp line,-Stealth] (O)--(A) node[midway,below] {$\vec{__U__}$};
+  \draw[cp line,-Stealth] (O)--(B) node[midway,left] {$\vec{__V__}$};
+  \draw[cp line,-Stealth] (O)--(C) node[pos=.58,above] {$\vec{__U__}+\vec{__V__}$};
+  \pic[draw=black,angle radius=5mm,"$__ANGLE__^\circ$",angle eccentricity=1.35] {angle=A--O--B};
+  \fill (O) circle (1.3pt);
+\end{tikzpicture}
+""".strip(),
+            U=u,
+            V=v,
+            ANGLE=str(angle),
+        )
+        return tikz, "Vector resultant shown with a parallelogram construction."
+    tikz = _fill(
+        r"""
+\begin{tikzpicture}[scale=.9]
+  \coordinate (O) at (0,0); \coordinate (A) at (3.2,0); \coordinate (B) at (__ANGLE__:3.0);
+  \draw[cp line,-Stealth] (O)--(A) node[midway,below] {$\vec{__U__}$};
+  \draw[cp line,-Stealth] (O)--(B) node[midway,above left] {$\vec{__V__}$};
+  \pic[draw=black,angle radius=5mm,"$__ANGLE__^\circ$",angle eccentricity=1.35] {angle=A--O--B};
+  \fill (O) circle (1.3pt) node[below left] {$O$};
+\end{tikzpicture}
+""".strip(),
+        U=u,
+        V=v,
+        ANGLE=str(angle),
+    )
+    return tikz, "Vector angle diagram with both vectors from a shared tail."
+
+
+def _geometry_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
+    text = _request_text(req)
+    low = text.lower()
+    if not generic and not re.search(r"\b(rectangle|circle|cylinder|cone|sphere|area|volume|surface area|perimeter|geometry)\b", low):
+        return None
+    if "cylinder" in low:
+        return r"""
+\begin{tikzpicture}[scale=.85]
+  \draw[cp line] (0,0) ellipse (1.25 and .35);
+  \draw[cp line] (-1.25,0)--(-1.25,2.4) (1.25,0)--(1.25,2.4);
+  \draw[cp line] (0,2.4) ellipse (1.25 and .35);
+  \draw[cp dashed] (0,2.4)--(1.25,2.4) node[midway,above] {$r$};
+  \draw[cp dashed,<->] (1.65,0)--(1.65,2.4) node[midway,right] {$h$};
+\end{tikzpicture}
+""".strip(), "Cylinder sketch with radius and height labels."
+    if "circle" in low or "circumference" in low:
+        return r"""
+\begin{tikzpicture}[scale=.9]
+  \coordinate (O) at (0,0);
+  \draw[cp line] (O) circle (1.45);
+  \draw[cp line] (O)--(35:1.45) node[midway,above] {$r$};
+  \draw[cp dashed] (-1.45,0)--(1.45,0) node[midway,below] {$d$};
+  \fill (O) circle (1.3pt) node[below left] {$O$};
+\end{tikzpicture}
+""".strip(), "Circle sketch with radius and diameter."
+    return r"""
+\begin{tikzpicture}[scale=.9]
+  \coordinate (A) at (0,0); \coordinate (B) at (3.8,0); \coordinate (C) at (3.8,2.1); \coordinate (D) at (0,2.1);
+  \draw[cp line] (A)--(B)--(C)--(D)--cycle;
+  \node[below] at ($(A)!0.5!(B)$) {$l$};
+  \node[right] at ($(B)!0.5!(C)$) {$w$};
+  \draw[cp dashed] (A)--(C) node[midway,above left] {$d$};
+\end{tikzpicture}
+""".strip(), "Rectangle sketch with length, width, and diagonal."
+
+
+def _deterministic_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
+    text = _request_text(req).lower()
+    ordered = (
+        (_triangle_template, ("triangle", "law of sines", "law of cosines", "cosine law", "sine law")),
+        (_bearing_template, ("bearing", "navigation", "north", "heading")),
+        (_vector_template, ("vector", "resultant", "force", "velocity", "parallelogram")),
+        (_geometry_template, ("rectangle", "circle", "cylinder", "cone", "sphere", "area", "volume", "geometry")),
+    )
+    for fn, keys in ordered:
+        if generic or any(k in text for k in keys):
+            hit = fn(req, generic=generic)
+            if hit:
+                return hit
+    return None
+
+
+def _render_template(req: GenerateReq, hit: tuple[str, str]) -> dict:
+    tikz, caption = hit
+    semantic_issue = _semantic_visual_issue(req, tikz)
+    rendered = (
+        {"ok": False, "error": semantic_issue, "log": semantic_issue}
+        if semantic_issue
+        else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
+    )
+    if rendered.get("ok"):
+        rendered["tikz"] = tikz
+        rendered["caption"] = caption
+    return rendered
+
+
 def _visual_prompt(req: GenerateReq, repair_log: str = "", previous_code: str = "") -> str:
     repair_block = ""
     if repair_log:
@@ -793,6 +1076,12 @@ def render(req: RenderReq):
 @app.post("/generate")
 def generate(req: GenerateReq):
     try:
+        template_hit = _deterministic_template(req)
+        if template_hit:
+            rendered = _render_template(req, template_hit)
+            if rendered.get("ok"):
+                return JSONResponse(rendered, status_code=200)
+
         spec = _gemini(_visual_prompt(req), as_json=True, temperature=0.25)
         tikz = _strip_fence(str(spec.get("tikz", "")))
         caption = str(spec.get("caption", "")).strip()
@@ -821,6 +1110,12 @@ def generate(req: GenerateReq):
             )
 
         if not rendered.get("ok"):
+            fallback = _deterministic_template(req, generic=True)
+            if fallback:
+                fallback_rendered = _render_template(req, fallback)
+                if fallback_rendered.get("ok"):
+                    fallback_rendered["fallback"] = "deterministic"
+                    return JSONResponse(fallback_rendered, status_code=200)
             rendered["tikz"] = tikz
             rendered["caption"] = caption
             return JSONResponse(rendered, status_code=400)
