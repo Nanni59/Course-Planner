@@ -419,6 +419,32 @@ VECTORS:
   \fill (O) circle (1.4pt) (A) circle (1.4pt) (B) circle (1.4pt);
 \end{tikzpicture}
 
+VECTOR MAGNITUDE MIN/MAX:
+\begin{tikzpicture}[scale=.8]
+  \coordinate (A) at (0,1.1); \coordinate (B) at (1.4,1.1); \coordinate (C) at (4.2,1.1);
+  \node[anchor=east] at (-.15,1.1) {\small same};
+  \draw[cp line,-Stealth] (A)--(B) node[midway,above] {$\vec u$};
+  \draw[cp line,-Stealth] (B)--(C) node[midway,above] {$\vec v$};
+  \draw[cp dashed,-Stealth] (A)--(C) node[midway,below] {$|\vec u|+|\vec v|$};
+  \coordinate (D) at (0,0); \coordinate (E) at (2.8,0); \coordinate (F) at (1.4,0);
+  \node[anchor=east] at (-.15,0) {\small opposite};
+  \draw[cp line,-Stealth] (D)--(E) node[midway,above] {$\vec v$};
+  \draw[cp line,-Stealth] (E)--(F) node[midway,above] {$\vec u$};
+  \draw[cp dashed,-Stealth] (D)--(F) node[midway,below] {$\bigl||\vec v|-|\vec u|\bigr|$};
+\end{tikzpicture}
+
+VECTOR PARALLELOGRAM DIAGONALS:
+\begin{tikzpicture}[scale=.8]
+  \coordinate (A) at (0,0); \coordinate (B) at (3,0); \coordinate (D) at (.9,1.8); \coordinate (C) at (3.9,1.8);
+  \draw[cp line] (A)--(B)--(C)--(D)--cycle;
+  \draw[cp line,-Stealth] (A)--(B) node[midway,below] {$\vec u$};
+  \draw[cp line,-Stealth] (A)--(D) node[midway,left] {$\vec v$};
+  \draw[cp dashed,-Stealth] (A)--(C) node[pos=.62,above] {$\vec u+\vec v$};
+  \draw[cp dashed,-Stealth] (B)--(D) node[pos=.55,below left] {$\vec v-\vec u$};
+  \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$};
+  \node[above right] at (C) {$C$}; \node[above left] at (D) {$D$};
+\end{tikzpicture}
+
 GEOMETRY:
 \begin{tikzpicture}[scale=.9]
   \coordinate (A) at (0,0); \coordinate (B) at (4,0); \coordinate (C) at (1.1,2.4);
@@ -480,6 +506,10 @@ Rules:
 - For tangent/secant/integral visuals, label the relevant point(s), interval endpoint(s), tangent/secant line, and shaded region where applicable.
 - Avoid abstract unlabeled curves for worksheet questions; students need coordinates and readable reference points.
 - For vectors, use clear head-to-tail or parallelogram construction. Put arrowheads on every vector and avoid ambiguous floating labels.
+- For vector min/max questions, use two separated horizontal rows: "same" and "opposite". Put case words at the far left, never above the arrows, and keep result labels below dashed resultants.
+- For parallelogram diagonal questions, place labels outside the crossing: label AC as u+v above the solid/dashed diagonal and BD as v-u or u-v below/left of the other diagonal. Never stack multiple formulas at the center.
+- Avoid long phrase labels such as "Maximum Resultant" inside small diagrams; use short labels and let the worksheet question carry the wording.
+- Before returning, mentally inspect the diagram: no label may sit on a line crossing, arrowhead, point marker, or another label. Move it with above/below/left/right/pos/anchor if needed.
 - For geometry and trigonometry, use named points, angle marks, and side labels. Avoid decorative shapes without mathematical meaning.
 - If the request is not visual, return an empty tikz string and a brief caption.
 
