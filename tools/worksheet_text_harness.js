@@ -99,6 +99,16 @@ const cases = [
         name: 'ANSWER: currency must NOT be converted to math',
         json: "{\"q\":\"ok\",\"answer\":\"The ticket costs $5 and the meal costs $12 today.\"}",
         expect: { answerKeepsProseSpaces: ['costs', 'today'] }
+    },
+    {
+        name: 'PDF vector glyphs become LaTeX vectors',
+        json: "{\"q\":\"Two vectors ⅑ and ⅒ have magnitudes |⅑| = 15 and |⅒| = 20. The angle between them is 30^∘.\"}",
+        expect: { qContains: ['\\vec{u}', '\\vec{v}', '^\\circ'], qNotContains: ['⅑', '⅒', '^∘'] }
+    },
+    {
+        name: 'PDF indexed vector glyphs become subscripted LaTeX vectors',
+        json: "{\"q\":\"Two forces ⅑_1 and ⅑_2 act on a particle. The angle between the two forces is 40^âˆ˜.\"}",
+        expect: { qContains: ['\\vec{u}_{1}', '\\vec{u}_{2}', '^\\circ'], qNotContains: ['⅑', '^âˆ˜'] }
     }
 ];
 
@@ -122,6 +132,17 @@ for (const c of cases) {
     const qHtml = escMathFlow(norm.q); // worksheet question path
     show('q html (flow)  ', qHtml);
     const flags = [];
+    const expQ = c.expect || {};
+    if (expQ.qContains) {
+        for (const phrase of expQ.qContains) {
+            if (!qHtml.includes(phrase)) flags.push('question lost expected "' + phrase + '"');
+        }
+    }
+    if (expQ.qNotContains) {
+        for (const phrase of expQ.qNotContains) {
+            if (qHtml.includes(phrase)) flags.push('question still contains bad token "' + phrase + '"');
+        }
+    }
     if (qHtml.includes('<br>')) flags.push('q HAS <br> (line fragmentation!)');
     if (/\$\$[\s\S]*?\$\$/.test(qHtml)) flags.push('q HAS $$ display math (block fragmentation!)');
     if (/\\\[[\s\S]*?\\\]/.test(qHtml)) flags.push('q HAS \\[ \\] display math (block fragmentation!)');

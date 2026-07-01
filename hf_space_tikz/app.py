@@ -765,11 +765,20 @@ def _extract_triangle_sides(text: str, vertices: tuple[str, str, str]) -> dict[s
     return edge_labels
 
 
+def _has_triangle_measure(text: str) -> bool:
+    num = _number_with_unit_re()
+    return bool(
+        re.search(r"\bangle\s+[A-Z]\s*(?:=|is|measures)?\s*" + num, text, re.I)
+        or re.search(r"\b(?:side|length)?\s*(?:[a-z]|[A-Z]{2})\s*(?:=|is|measures|has length)\s*" + num, text)
+        or re.search(r"\b(?:distance|height|length)\s+(?:of|is|=|measures)?\s*" + num, text, re.I)
+    )
+
+
 def _looks_like_triangle(text: str) -> bool:
     low = text.lower()
     if re.search(
-        r"\b(triangle|law of sines|law of cosines|cosine law|sine law|trigonometry|"
-        r"angle of elevation|angle of depression|elevation|depression|line of sight)\b",
+        r"\b(triangle|law of sines|law of cosines|cosine law|sine law|"
+        r"angle of elevation|angle of depression|line of sight)\b",
         low,
     ):
         return True
@@ -791,7 +800,11 @@ def _triangle_template(req: GenerateReq, generic: bool = False) -> tuple[str, st
     low = text.lower()
     if not generic and not _looks_like_triangle(text):
         return None
-    vertices = _triangle_vertices(text) or ("A", "B", "C")
+    vertices = _triangle_vertices(text)
+    if not vertices:
+        if not re.search(r"\b(angle of elevation|angle of depression|line of sight)\b", low) or not _has_triangle_measure(text):
+            return None
+        vertices = ("A", "B", "C")
     a, b, c = vertices
     side = _extract_triangle_sides(text, vertices)
     angles = _extract_triangle_angles(text, vertices)
@@ -811,7 +824,15 @@ def _triangle_template(req: GenerateReq, generic: bool = False) -> tuple[str, st
         angle_lines.append(
             f'  \\pic[draw=black,angle radius=5mm,"${_tex_label(value)}$",angle eccentricity=1.35] {{angle={p1}--{mid}--{p2}}};'
         )
-    if not angle_lines:
+    requested_angles = {x.upper() for x in re.findall(r"\bangle\s+([A-Z])\b", text)}
+    if not angle_lines and requested_angles:
+        vertex = next((x for x in (a, b, c) if x in requested_angles), None)
+        if vertex:
+            p1, mid, p2, _ = angle_specs[vertex]
+            angle_lines.append(
+                f'  \\pic[draw=black,angle radius=5mm,"${vertex}$",angle eccentricity=1.35] {{angle={p1}--{mid}--{p2}}};'
+            )
+    if not angle_lines and re.search(r"\b(angle of elevation|angle of depression)\b", low):
         vertex = c if "law of cosines" in low or "cosine law" in low else a
         p1, mid, p2, _ = angle_specs[vertex]
         angle_lines.append(
@@ -840,6 +861,52 @@ __ANGLES__
         ANGLES="\n".join(angle_lines),
     )
     return tikz, "Triangle diagram with interior angle and side labels."
+
+
+def _format_vector_name(base: str, subscript: str = "") -> str:
+    base = re.sub(r"[^A-Za-z]", "", base or "u")[:1] or "u"
+    if subscript:
+        return f"\\vec{{{base}}}_{{{_tex_label(subscript)}}}"
+    return f"\\vec{{{base}}}"
+
+
+def _extract_vector_names(text: str) -> tuple[str, str, str]:
+    found: list[str] = []
+    for base, sub in re.findall(r"\\vec\s*\{?\s*([A-Za-z])\s*\}?\s*(?:_\s*\{?\s*([A-Za-z0-9]+)\s*\}?)?", text):
+        found.append(_format_vector_name(base, sub))
+    for base, sub in re.findall(r"\b(?:vector|force|velocity|displacement)\s+([A-Za-z])\s*(?:_\s*\{?\s*([A-Za-z0-9]+)\s*\}?)?", text, re.I):
+        found.append(_format_vector_name(base, sub))
+    unique: list[str] = []
+    for item in found:
+        if item not in unique:
+            unique.append(item)
+    low = text.lower()
+    if len(unique) < 2 and re.search(r"\b(two forces?|force vectors?)\b", low):
+        unique = (unique + [r"\vec{F}_{1}", r"\vec{F}_{2}"])[:2]
+    if len(unique) < 2 and re.search(r"\b(two velocities|velocity vectors?)\b", low):
+        unique = (unique + [r"\vec{v}_{1}", r"\vec{v}_{2}"])[:2]
+    if len(unique) < 2 and re.search(r"\b(displacement vectors?|two displacements?)\b", low):
+        unique = (unique + [r"\vec{d}_{1}", r"\vec{d}_{2}"])[:2]
+    if len(unique) < 2:
+        unique = (unique + [r"\vec{u}", r"\vec{v}"])[:2]
+    result = r"\vec{R}" if re.search(r"\bresultant\b", low) else unique[0] + "+" + unique[1]
+    return unique[0], unique[1], result
+
+
+def _extract_vector_magnitudes(text: str) -> list[str]:
+    num = _number_with_unit_re()
+    values: list[str] = []
+    patterns = [
+        r"\bmagnitude\s+of\s+[^,.;]{0,50}?\s+(?:is|=)\s*(" + num + r")",
+        r"\bmagnitudes?\s+(?:are|of)?\s*(" + num + r")\s*(?:and|,)\s*(" + num + r")",
+    ]
+    for pat in patterns:
+        for match in re.findall(pat, text, re.I):
+            if isinstance(match, tuple):
+                values.extend(_tex_label(part) for part in match if part)
+            else:
+                values.append(_tex_label(match))
+    return values[:2]
 
 
 def _bearing_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
@@ -902,27 +969,32 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
     low = text.lower()
     if not generic and not re.search(r"\b(vector|resultant|parallelogram|force|velocity|displacement)\b", low):
         return None
-    angle_match = re.search(r"\b([0-9]{1,3})(?:\s*degrees?)?\s*(?:between|angle)", low) or re.search(r"\bangle\s*(?:is|=)?\s*([0-9]{1,3})", low)
+    angle_match = (
+        re.search(r"\b([0-9]{1,3})(?:\s*degrees?)?\s*(?:between|angle)", low)
+        or re.search(r"\bangle\s+between\b[^.。;:\n]{0,80}?\b(?:is|=|of)?\s*([0-9]{1,3})(?:\s*degrees?)?", low)
+        or re.search(r"\bangle\s*(?:is|=)?\s*([0-9]{1,3})", low)
+    )
     angle = int(angle_match.group(1)) if angle_match else 55
-    names = re.findall(r"\\vec\s*\{?\s*([A-Za-z])\s*\}?|\bvector\s+([A-Za-z])\b", text, re.I)
-    flat_names = [next((part for part in pair if part), "") for pair in names]
-    u = flat_names[0].lower() if flat_names else "u"
-    v = flat_names[1].lower() if len(flat_names) > 1 else "v"
+    u, v, result = _extract_vector_names(text)
+    magnitudes = _extract_vector_magnitudes(text)
+    u_label = u + (r"\,=" + magnitudes[0] if magnitudes else "")
+    v_label = v + (r"\,=" + magnitudes[1] if len(magnitudes) > 1 else "")
     if "parallelogram" in low or "resultant" in low or "sum" in low:
         tikz = _fill(
             r"""
 \begin{tikzpicture}[scale=.82]
   \coordinate (O) at (0,0); \coordinate (A) at (3.2,0); \coordinate (B) at (__ANGLE__:2.2); \coordinate (C) at ($(A)+(B)$);
   \draw[cp dashed] (A)--(C)--(B);
-  \draw[cp line,-Stealth] (O)--(A) node[midway,below] {$\vec{__U__}$};
-  \draw[cp line,-Stealth] (O)--(B) node[midway,left] {$\vec{__V__}$};
-  \draw[cp line,-Stealth] (O)--(C) node[pos=.58,above] {$\vec{__U__}+\vec{__V__}$};
+  \draw[cp line,-Stealth] (O)--(A) node[midway,below] {$__U_LABEL__$};
+  \draw[cp line,-Stealth] (O)--(B) node[midway,left] {$__V_LABEL__$};
+  \draw[cp line,-Stealth] (O)--(C) node[pos=.58,above] {$__R_LABEL__$};
   \pic[draw=black,angle radius=5mm,"$__ANGLE__^\circ$",angle eccentricity=1.35] {angle=A--O--B};
   \fill (O) circle (1.3pt);
 \end{tikzpicture}
 """.strip(),
-            U=u,
-            V=v,
+            U_LABEL=u_label,
+            V_LABEL=v_label,
+            R_LABEL=result,
             ANGLE=str(angle),
         )
         return tikz, "Vector resultant shown with a parallelogram construction."
@@ -930,14 +1002,14 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
         r"""
 \begin{tikzpicture}[scale=.9]
   \coordinate (O) at (0,0); \coordinate (A) at (3.2,0); \coordinate (B) at (__ANGLE__:3.0);
-  \draw[cp line,-Stealth] (O)--(A) node[midway,below] {$\vec{__U__}$};
-  \draw[cp line,-Stealth] (O)--(B) node[midway,above left] {$\vec{__V__}$};
+  \draw[cp line,-Stealth] (O)--(A) node[midway,below] {$__U_LABEL__$};
+  \draw[cp line,-Stealth] (O)--(B) node[midway,above left] {$__V_LABEL__$};
   \pic[draw=black,angle radius=5mm,"$__ANGLE__^\circ$",angle eccentricity=1.35] {angle=A--O--B};
   \fill (O) circle (1.3pt) node[below left] {$O$};
 \end{tikzpicture}
 """.strip(),
-        U=u,
-        V=v,
+        U_LABEL=u_label,
+        V_LABEL=v_label,
         ANGLE=str(angle),
     )
     return tikz, "Vector angle diagram with both vectors from a shared tail."
@@ -982,7 +1054,7 @@ def _geometry_template(req: GenerateReq, generic: bool = False) -> tuple[str, st
 def _deterministic_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
     # Each template function owns its own trigger detection (returns None when it does
     # not apply), so a bearing/vector/circle question is never force-fitted to a triangle.
-    ordered = (_triangle_template, _bearing_template, _vector_template, _geometry_template)
+    ordered = (_bearing_template, _vector_template, _triangle_template, _geometry_template)
     for fn in ordered:
         hit = fn(req, generic=False)
         if hit:
@@ -999,6 +1071,8 @@ def _deterministic_template(req: GenerateReq, generic: bool = False) -> tuple[st
 
 def _render_template(req: GenerateReq, hit: tuple[str, str], check_semantics: bool = True) -> dict:
     tikz, caption = hit
+    # Template callers pass check_semantics=True so slot-filled skeletons are
+    # audited for topic relevance before rendering.
     # Our own deterministic templates are trusted, fixed skeletons — the semantic
     # audit exists to police free-form Gemini output, so skip it for template hits.
     semantic_issue = _semantic_visual_issue(req, tikz) if check_semantics else None
@@ -1056,6 +1130,7 @@ Rules:
 - Place labels with small offsets so they do not overlap curves, axes, or points.
 - For tangent/secant/integral visuals, label the relevant point(s), interval endpoint(s), tangent/secant line, and shaded region where applicable.
 - Avoid abstract unlabeled curves for worksheet questions; students need coordinates and readable reference points.
+- Never draw or preserve a triangle as a generic placeholder. Use a triangle only for explicit triangle, law-of-sines/cosines, named side/angle, elevation/depression, bearing, or triangle-method vector problems. If the rough TikZ idea is a triangle but the question is calculus, statistics, matrix algebra, or another non-triangle topic, discard it.
 - For vectors, use clear head-to-tail or parallelogram construction. Put arrowheads on every vector and avoid ambiguous floating labels.
 - For vector angle-between questions, draw both vectors from the same tail and mark the smaller interior sector between them. Use a small angle radius around 4mm to 6mm; never draw a loop around the outside of the vector tail.
 - For vector min/max questions, use two separated horizontal rows: "same" and "opposite". Put case words at the far left, never above the arrows, and keep result labels below dashed resultants.
@@ -1095,17 +1170,28 @@ Target: {req.target}
 def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
     hay = " ".join([req.subject, req.title, req.equation, req.brief]).lower()
     original = " ".join([req.subject, req.title, req.equation, req.brief])
-    is_triangle = any(term in hay for term in (
-        "triangle",
-        "law of sines",
-        "law of cosines",
-        "side a",
-        "side b",
-        "side c",
-        "angle a",
-        "angle b",
-        "angle c",
+    is_triangle = (
+        _looks_like_triangle(original)
+        or any(term in hay for term in ("triangle", "law of sines", "law of cosines"))
+        or bool(re.search(r"\b(?:side|angle)\s+[abc]\b", hay))
+    )
+    has_plain_triangle_cycle = bool(re.search(
+        r"\\draw[^\n;]*\([A-Za-z]\)[^\n;]*--[^\n;]*\([A-Za-z]\)[^\n;]*--[^\n;]*\([A-Za-z]\)[^\n;]*--\s*cycle",
+        tikz,
     ))
+    has_triangle_angle_pic = bool(re.search(r"\\pic\s*\[[^\]]*\]\s*\{angle=[A-Za-z]--[A-Za-z]--[A-Za-z]\}", tikz))
+    has_vector_arrows = bool(re.search(r"(?:-|=)\s*Stealth|->|<-", tikz))
+    has_axes_or_plot = "\\begin{axis}" in tikz or re.search(r"\baxis\s+lines\b|\\addplot|\\draw[^\n;]*(?:->|-Stealth)[^\n;]*node[^\n;]*\{\$x\$\}", tikz)
+    if (
+        not is_triangle
+        and has_plain_triangle_cycle
+        and (has_triangle_angle_pic or not has_vector_arrows)
+        and not has_axes_or_plot
+    ):
+        return (
+            "The request is not a triangle problem, so do not draw or preserve a generic triangle. "
+            "Use the relevant visual type for the topic, or return an empty tikz string if no safe visual applies."
+        )
     if is_triangle and "exterior angle" not in hay and re.search(r"\barc\s*(?:\[|\()", tikz):
         return (
             "Triangle and law-of-sines/cosines visuals must mark angles with TikZ angle pics, "
@@ -1295,7 +1381,7 @@ def _deterministic_fallback(req: GenerateReq) -> dict | None:
     fallback = _deterministic_template(req, generic=False)
     if not fallback:
         return None
-    rendered = _render_template(req, fallback, check_semantics=False)
+    rendered = _render_template(req, fallback, check_semantics=True)
     if rendered.get("ok"):
         rendered["fallback"] = "deterministic"
         return rendered
@@ -1310,7 +1396,7 @@ def generate(req: GenerateReq):
         #    entirely, so a Gemini "high demand" outage can't starve them of visuals.
         template_hit = _deterministic_template(req)
         if template_hit:
-            rendered = _render_template(req, template_hit, check_semantics=False)
+            rendered = _render_template(req, template_hit, check_semantics=True)
             if rendered.get("ok"):
                 return JSONResponse(rendered, status_code=200)
 

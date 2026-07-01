@@ -31,6 +31,9 @@ const cases = [
   // things that should NOT get visuals
   [false, 'solve linear', 'Solve the equation 2x + 3 = 7 for x.'],
   [false, 'factor polynomial', 'Factor the expression x^2 - 5x + 6.'],
+  [false, 'matrix determinant', 'Calculate the determinant of the matrix A = [[4, -2], [3, 5]].'],
+  [false, 'matrix Gaussian elimination', 'Solve the system of linear equations using matrix methods such as Gaussian elimination.'],
+  [true, 'linear transformation unit square', 'Describe the geometric transformation applied to the unit square in the coordinate plane by the matrix M.'],
 ];
 let fails = 0;
 for (const [exp, label, q] of cases) {

@@ -11563,10 +11563,20 @@
                 return line;
             }).join('\n');
         }
+        function repairVectorGlyphs(s) {
+            return String(s == null ? '' : s)
+                .replace(/\|\s*⅑\s*\|/g, '\\(|\\vec{u}|\\)')
+                .replace(/\|\s*⅒\s*\|/g, '\\(|\\vec{v}|\\)')
+                .replace(/⅑\s*_\s*([A-Za-z0-9]+)/g, '\\(\\vec{u}_{$1}\\)')
+                .replace(/⅒\s*_\s*([A-Za-z0-9]+)/g, '\\(\\vec{v}_{$1}\\)')
+                .replace(/⅑/g, '\\(\\vec{u}\\)')
+                .replace(/⅒/g, '\\(\\vec{v}\\)');
+        }
         function normalizeGeneratedString(s) {
-            let t = normalizeLatexBackslashes(repairParsedLatexEscapes(balanceDollarMath(s)))
+            let t = normalizeLatexBackslashes(repairParsedLatexEscapes(repairVectorGlyphs(balanceDollarMath(s))))
                 .replace(/\bMath input error\b\.?/gi, '')
                 .replace(/\b(\d+(?:\.\d+)?)(km\/h|m\/s|cm|mm|km|m|N|newtons?|units?)\b/gi, '$1 $2')
+                .replace(/\^\s*(?:∘|°|âˆ˜|ˆ˜)/g, '^\\circ')
                 .replace(/\^\s*\\times\b/g, '^\\circ')
                 .replace(/\^\s*times\b/g, '^\\circ')
                 .replace(/\^\s*\\?circ\b/g, '^\\circ')
@@ -12794,6 +12804,7 @@
         function worksheetNeedsVisual(q) {
             if (sdCleanTikz(q && q.tikz)) return true;
             const hay = [q && q.q, q && q.answer].join(' ').toLowerCase();
+            if (/\b(gaussian elimination|row reduction|row-reduction|rref|determinant of (?:the )?matrix)\b/.test(hay)) return false;
             // An explicit request to draw/graph always wins.
             if (/\b(graph|diagram|sketch|plot|draw|illustrate|construct|shade the region|number line)\b/.test(hay)) return true;
             // Hard exclusion: statements, definitions, proofs, and pure symbolic
