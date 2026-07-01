@@ -11348,8 +11348,9 @@
             if (!t) return false;
             const words = t
                 .replace(/\\[A-Za-z]+/g, '')
-                .replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|max|min)\b/g, '');
-            if (/\b[A-Za-z]{2,}\b/.test(words)) return false;
+                .replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|max|min)\b/g, '')
+                .replace(/\bd[xyztrsu]\b/g, '');
+            if (/\b[A-Za-z]{3,}\b/.test(words)) return false;
             return /\\|[\^_=+\-*/{}()[\],<>]/.test(t)
                 || /^\d+(?:\.\d+)?$/.test(t)
                 || /^[A-Za-z](?:\d+)?(?:\s*,\s*[A-Za-z](?:\d+)?)*$/.test(t);
@@ -11358,10 +11359,51 @@
             return String(s == null ? '' : s)
                 .replace(/\\\\(?=(?:[()[\]]|[A-Za-z]+(?:\b|_|\{)))/g, '\\');
         }
+        function repairModelMathText(s) {
+            let t = normalizeLatexBackslashes(s);
+            // Gemini sometimes escapes math delimiters as \$...\$ because it is trying to
+            // avoid currency ambiguity. Only unescape those pairs when the inside looks mathy.
+            const escDollar = '\uE000';
+            t = t.replace(/\\+\$/g, escDollar);
+            t = t.replace(new RegExp(escDollar + '([\\s\\S]{1,260}?)' + escDollar, 'g'),
+                (m, inner) => looksLikeInlineMath(inner) ? '$' + inner.trim() + '$' : '\\$' + inner + '\\$');
+            // Repair the common half-escaped form: \$\int...$ or $\int...\$.
+            t = t.replace(new RegExp(escDollar + "(?=\\s*(?:\\\\[A-Za-z]+|[A-Za-z]\\s*[\\'(]|[A-Za-z]\\s*[=^_]))", 'g'), '$');
+            t = t.replace(new RegExp('\\$([\\s\\S]{1,260}?)' + escDollar, 'g'),
+                (m, inner) => looksLikeInlineMath(inner) ? '$' + inner.trim() + '$' : m.replaceAll(escDollar, '\\$'));
+            t = t.replaceAll(escDollar, '\\$');
+            return t;
+        }
+        function normalizeMathExpr(expr) {
+            return String(expr || '')
+                .replace(/\s+/g, ' ')
+                .replace(/\bd\/d([A-Za-z])\b/g, '\\frac{d}{d$1}')
+                .replace(/([A-Za-z])\^\{?([A-Za-z0-9+\-]+)\}?/g, '$1^{$2}')
+                .trim();
+        }
+        function wrapObviousPlainMath(s) {
+            const source = String(s == null ? '' : s);
+            const mathSpan = /\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\$[\s\S]*?\$/g;
+            const wrapPlain = chunk => chunk
+                .replace(/(^|[\s([{])((?:[A-Za-z](?:'\s*)?\([^)\n]{1,24}\)|[A-Za-z])\s*=\s*(?:(?:\\(?:frac|dfrac|tfrac|sqrt|sum|prod|int|lim|sin|cos|tan|log|ln)(?=[^A-Za-z]|$))|[A-Za-z0-9()[\]{}+\-*/^_.'\\\s]){1,90})/g,
+                    (m, lead, expr) => {
+                        const cleaned = normalizeMathExpr(expr).replace(/\s+(?:and|or|then|where|using|apply|applies|equals)\s*$/i, '');
+                        return looksLikeInlineMath(cleaned) ? lead + '\\(' + cleaned + '\\)' : m;
+                    })
+                .replace(/(^|[\s([{])((?:\\(?:frac|dfrac|tfrac|sqrt|sum|prod|int|lim)(?=[^A-Za-z]|$))[^,.;!?<>\n]{1,120})/g,
+                    (m, lead, expr) => lead + '\\(' + normalizeMathExpr(expr) + '\\)');
+            let out = '', last = 0;
+            source.replace(mathSpan, (m, offset) => {
+                out += wrapPlain(source.slice(last, offset)) + m;
+                last = offset + m.length;
+                return m;
+            });
+            return out + wrapPlain(source.slice(last));
+        }
         function wrapBareLatexCommands(s) {
             const source = String(s == null ? '' : s);
             const wrapPlain = chunk => chunk.replace(
-                /(^|[\s([{])((?:\\(?:frac|dfrac|tfrac|sqrt|sum|prod|int|lim|left|right|begin|end|pi|theta|alpha|beta|gamma|delta|epsilon|lambda|mu|sigma|omega|Delta|Omega|cdot|times|div|leq|geq|neq|approx|infty|vec|overline|hat|bar|text|mathrm|sin|cos|tan|sec|csc|cot|log|ln)\b)[^,.;!?<>\n]*)/g,
+                /(^|[\s([{])((?:\\(?:frac|dfrac|tfrac|sqrt|sum|prod|int|lim|left|right|begin|end|pi|theta|alpha|beta|gamma|delta|epsilon|lambda|mu|sigma|omega|Delta|Omega|cdot|times|div|leq|geq|neq|approx|infty|vec|overline|hat|bar|text|mathrm|sin|cos|tan|sec|csc|cot|log|ln)(?=[^A-Za-z]|$))[^,.;!?<>\n]*)/g,
                 (m, lead, expr) => lead + '\\(' + expr.trim() + '\\)'
             );
             let out = '', last = 0;
@@ -11374,7 +11416,7 @@
             return out + wrapPlain(source.slice(last));
         }
         function normalizeMathDelimiters(s) {
-            s = normalizeLatexBackslashes(s);
+            s = wrapObviousPlainMath(repairModelMathText(s));
             s = String(s == null ? '' : s);
             let out = '', i = 0;
             while (i < s.length) {

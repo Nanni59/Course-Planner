@@ -45,6 +45,7 @@ RENDER_TIMEOUT = int(os.environ.get("RENDER_TIMEOUT", "25"))
 MAX_OUTPUT_BYTES = int(os.environ.get("MAX_OUTPUT_BYTES", "1500000"))
 GEMINI_TIMEOUT = (10, int(os.environ.get("GEMINI_READ_TIMEOUT", "90")))
 GEMINI_MAX_ATTEMPTS = int(os.environ.get("GEMINI_MAX_ATTEMPTS", "4"))
+GEMINI_DEADLINE = int(os.environ.get("GEMINI_DEADLINE", "180"))
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
 GEMINI_FALLBACK_MODELS = [
     m.strip()
@@ -64,6 +65,10 @@ GEMINI_KEYS = [
 ]
 _key_idx = 0
 _key_lock = threading.Lock()
+_model_blocked_until: dict[tuple[object, str], float] = {}
+_model_lock = threading.Lock()
+_last_success_model = None
+_last_success_model_lock = threading.Lock()
 
 
 class RenderReq(BaseModel):
@@ -91,6 +96,61 @@ def _next_key_index() -> int:
         idx = _key_idx
         _key_idx = (_key_idx + 1) % len(GEMINI_KEYS)
         return idx
+
+
+def _model_block_key(model: str, key_idx: int | None = None):
+    return ("*", model) if key_idx is None else (key_idx, model)
+
+
+def _model_is_blocked(model: str, key_idx: int | None = None) -> bool:
+    now = time.time()
+    with _model_lock:
+        if _model_blocked_until.get(_model_block_key(model, None), 0) > now:
+            return True
+        if key_idx is not None and _model_blocked_until.get(_model_block_key(model, key_idx), 0) > now:
+            return True
+    return False
+
+
+def _available_models(key_idx: int | None = None) -> list[str]:
+    models = [m for m in GEMINI_MODELS if not _model_is_blocked(m, key_idx)]
+    return models or GEMINI_MODELS[:]
+
+
+def _temporarily_block_model(model: str, seconds: int = 900, key_idx: int | None = None) -> None:
+    with _model_lock:
+        _model_blocked_until[_model_block_key(model, key_idx)] = time.time() + seconds
+
+
+def _fallback_models_after(model: str, key_idx: int | None = None) -> list[str]:
+    models = [m for m in GEMINI_MODELS if m != model and not _model_is_blocked(m, key_idx)]
+    return models or [m for m in GEMINI_MODELS if m != model] or [model]
+
+
+def _probe_model_access() -> list[dict]:
+    out = []
+    for key_idx, key in enumerate(GEMINI_KEYS):
+        row = {"key_slot": key_idx + 1, "models": []}
+        for model in GEMINI_MODELS:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}"
+            try:
+                res = requests.get(url, headers={"x-goog-api-key": key}, timeout=(8, 20))
+                row["models"].append({
+                    "model": model,
+                    "ok": res.status_code == 200,
+                    "status": res.status_code,
+                    "blocked_temporarily": _model_is_blocked(model, key_idx),
+                })
+            except requests.exceptions.RequestException as exc:
+                row["models"].append({
+                    "model": model,
+                    "ok": False,
+                    "status": "network",
+                    "error": str(exc)[:120],
+                    "blocked_temporarily": _model_is_blocked(model, key_idx),
+                })
+        out.append(row)
+    return out
 
 
 DANGEROUS_PATTERNS = [
@@ -253,11 +313,17 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
         body["generationConfig"]["responseMimeType"] = "application/json"
 
     last_err = "Gemini call failed."
+    backoff = 2
+    started = time.time()
     key_idx = _next_key_index()
     attempts = max(GEMINI_MAX_ATTEMPTS, len(GEMINI_KEYS) * len(GEMINI_MODELS))
     for attempt in range(attempts):
-        key = GEMINI_KEYS[key_idx % len(GEMINI_KEYS)]
-        model = GEMINI_MODELS[(attempt // max(1, len(GEMINI_KEYS))) % len(GEMINI_MODELS)]
+        if time.time() - started > GEMINI_DEADLINE:
+            break
+        key_idx = key_idx % len(GEMINI_KEYS)
+        key = GEMINI_KEYS[key_idx]
+        models = _available_models(key_idx)
+        model = models[0]
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         try:
             res = requests.post(
@@ -268,29 +334,60 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
             )
         except requests.exceptions.RequestException as exc:
             last_err = f"Gemini network error: {str(exc)[:180]}"
-            key_idx += 1
-            time.sleep(min(2 + attempt, 8))
+            print(f"[gemini] {last_err} - attempt {attempt + 1}/{attempts}, rotating key.", flush=True)
+            key_idx = (key_idx + 1) % len(GEMINI_KEYS)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 20)
             continue
 
+        low_body = res.text.lower()
         if res.status_code == 200:
             try:
                 text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                global _last_success_model
+                with _last_success_model_lock:
+                    _last_success_model = model
+                print(f"[gemini] success using model {model} on key slot {key_idx + 1}.", flush=True)
                 if as_json:
                     return json.loads(_strip_fence(text))
                 return text
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 last_err = f"Gemini returned unusable output: {type(exc).__name__}"
-                time.sleep(min(2 + attempt, 8))
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 20)
                 continue
 
         last_err = f"Gemini API error {res.status_code}: {res.text[:220]}"
-        if res.status_code in (400, 403, 404) and len(GEMINI_MODELS) <= 1 and len(GEMINI_KEYS) <= 1:
-            break
-        if res.status_code in (429, 500, 502, 503, 504):
-            key_idx += 1
-            time.sleep(min(2 + attempt, 8))
+        if res.status_code == 429:
+            key_idx = (key_idx + 1) % len(GEMINI_KEYS)
+            if (attempt + 1) % max(1, len(GEMINI_KEYS)) == 0:
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 20)
             continue
-        key_idx += 1
+        if res.status_code == 404 and len(GEMINI_MODELS) > 1:
+            _temporarily_block_model(model, seconds=3600, key_idx=key_idx)
+            key_idx = (key_idx + 1) % len(GEMINI_KEYS)
+            print(f"[gemini] {last_err} - trying another key/model.", flush=True)
+            continue
+        if res.status_code in (400, 403) and len(GEMINI_KEYS) > 1:
+            _temporarily_block_model(model, seconds=1800, key_idx=key_idx)
+            key_idx = (key_idx + 1) % len(GEMINI_KEYS)
+            print(f"[gemini] {last_err} - trying another key/model.", flush=True)
+            continue
+        if res.status_code in (429, 500, 502, 503, 504):
+            if res.status_code == 503 and len(GEMINI_MODELS) > 1 and (
+                "high demand" in low_body or "overloaded" in low_body or "capacity" in low_body
+            ):
+                _temporarily_block_model(model, seconds=900, key_idx=None)
+                print(f"[gemini] {last_err} - temporarily falling back from {model}.", flush=True)
+                continue
+            key_idx = (key_idx + 1) % len(GEMINI_KEYS)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 20)
+            continue
+        if len(GEMINI_MODELS) <= 1 and len(GEMINI_KEYS) <= 1:
+            break
+        key_idx = (key_idx + 1) % len(GEMINI_KEYS)
 
     raise RuntimeError(last_err)
 
@@ -319,6 +416,11 @@ Rules:
 - Use safe TikZ/PGFPlots only. No documentclass, packages, begin document, external files, markdown fences, shell commands, or custom macros.
 - Keep the drawing within a roughly 6 by 4 coordinate area so it fits slides and guides.
 - Prefer the built-in styles when useful: cp axis, cp line, cp dashed, cp fill, cp point, cp label.
+- For graphing, calculus, quadratic, coordinate-plane, or worksheet visuals, include visible x/y axes, tick marks or a light grid, axis labels, and coordinate labels for key points.
+- For quadratic/parabola visuals, label intercepts and the vertex when known or inferable.
+- Place labels with small offsets so they do not overlap curves, axes, or points.
+- For tangent/secant/integral visuals, label the relevant point(s), interval endpoint(s), tangent/secant line, and shaded region where applicable.
+- Avoid abstract unlabeled curves for worksheet questions; students need coordinates and readable reference points.
 - If the request is not visual, return an empty tikz string and a brief caption.
 
 Subject: {req.subject[:160]}
@@ -423,6 +525,19 @@ def health():
         "timeout": RENDER_TIMEOUT,
         "gemini_configured": bool(GEMINI_KEYS),
         "gemini_models": GEMINI_MODELS,
+        "gemini_key_slots": len(GEMINI_KEYS),
+        "model_candidates": _available_models(),
+        "last_success_model": _last_success_model,
+    }
+
+
+@app.get("/models")
+def models():
+    return {
+        "configured_model_order": GEMINI_MODELS,
+        "key_slots": len(GEMINI_KEYS),
+        "last_success_model": _last_success_model,
+        "access": _probe_model_access() if GEMINI_KEYS else [],
     }
 
 
