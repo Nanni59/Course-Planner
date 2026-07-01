@@ -12701,23 +12701,32 @@
             });
             return svg;
         }
+        async function tikzFetch(url, options, timeoutMs) {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), timeoutMs || 30000);
+            try {
+                return await fetch(url, Object.assign({}, options || {}, { signal: ctrl.signal }));
+            } finally {
+                clearTimeout(timer);
+            }
+        }
         async function renderTikzCode(code, target) {
-            const res = await fetch(TIKZ_SPACE_URL + '/render', {
+            const res = await tikzFetch(TIKZ_SPACE_URL + '/render', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code: sdCleanTikz(code), format: 'svg', theme: 'mono', target: target || 'generic' })
-            });
+            }, 25000);
             const out = await res.json().catch(() => null);
             if (res.ok && out && out.ok && out.svg) return out.svg;
             throw new Error(out && (out.error || out.log) || ('TikZ render failed: ' + res.status));
         }
         async function generateTikzVisual(payload) {
             payload = Object.assign({ format: 'svg' }, payload || {}, { theme: 'mono' });
-            const res = await fetch(TIKZ_SPACE_URL + '/generate', {
+            const res = await tikzFetch(TIKZ_SPACE_URL + '/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
-            });
+            }, 45000);
             const out = await res.json().catch(() => null);
             if (res.ok && out && out.ok && (out.svg || out.base64)) return out;
             throw new Error(out && (out.error || out.log) || ('TikZ generation failed: ' + res.status));
@@ -12739,10 +12748,93 @@
             const hay = [q && q.q, q && q.answer].join(' ').toLowerCase();
             return /\b(graph|diagram|sketch|plot|draw|visual|vector|resultant|triangle|trigonometry|law of sines|law of cosines|bearing|parallelogram|trapezium|trapezoid|diagonal|midpoint|force|velocity|angle|perpendicular|parallel|coordinate|intercept|vertex|slope|tangent|secant|curve|area under|integral|derivative|geometry|circle|rectangle|cylinder|cone|sphere|volume|surface area|line|ray|axis|axes|plane|3d|normal|projection|intersection|distance)\b/.test(hay);
         }
+        function wsPlainText(q) {
+            return normalizeGeneratedString([q && q.q, q && q.answer].filter(Boolean).join(' '))
+                .replace(/\\\(([\s\S]*?)\\\)/g, ' $1 ')
+                .replace(/\$([\s\S]*?)\$/g, ' $1 ')
+                .replace(/\\text\s*\{([^{}]+)\}/g, ' $1 ')
+                .replace(/\\triangle/g, ' triangle ')
+                .replace(/\\angle/g, ' angle ')
+                .replace(/\\theta/g, ' theta')
+                .replace(/\\circ/g, ' degrees')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+        function svgLabel(s) {
+            return esc(String(s || '').replace(/\\[A-Za-z]+/g, '').replace(/[{}$]/g, '').replace(/\s+/g, ' ').trim()).slice(0, 32);
+        }
+        function wsVertices(t) {
+            let m = t.match(/\btriangle\s+([A-Z])\s*([A-Z])\s*([A-Z])\b/i);
+            if (m) return [m[1], m[2], m[3]].map(x => x.toUpperCase());
+            m = t.match(/\bvertices\s+([A-Z])\s*,?\s+([A-Z])\s*,?\s*(?:and\s+)?([A-Z])\b/i);
+            if (m) return [m[1], m[2], m[3]].map(x => x.toUpperCase());
+            return ['A', 'B', 'C'];
+        }
+        function wsNumbers(t) {
+            const out = [];
+            const re = /\b(\d+(?:\.\d+)?)\s*(km\/h|m\/s|cm|mm|km|m|N|newtons?|units?)?\b/gi;
+            let m;
+            while ((m = re.exec(t)) && out.length < 5) out.push((m[1] || '') + (m[2] ? ' ' + m[2] : ''));
+            return out;
+        }
+        function wsAngleLabel(t) {
+            const m = t.match(/\b(?:angle\s+[A-Z]|theta_?[A-Z]?)\s*(?:=|is)?\s*(\d+(?:\.\d+)?)\s*(?:degrees?)?/i)
+                || t.match(/\b(\d+(?:\.\d+)?)\s*(?:degrees?)\b/i);
+            return m ? m[1] + '\u00b0' : '\u03b8';
+        }
+        function wsTriangleVisual(q) {
+            const t = wsPlainText(q), low = t.toLowerCase();
+            if (!/\b(triangle|law of sines|law of cosines|cosine law|sine law)\b/.test(low)) return null;
+            if (/\b(explain|scenario|when would|state the|define)\b/.test(low) && !/\d/.test(t)) return null;
+            const v = wsVertices(t), nums = wsNumbers(t), angle = wsAngleLabel(t);
+            const [a, b, c] = v;
+            const l1 = svgLabel(nums[0] || 'c'), l2 = svgLabel(nums[1] || 'b'), l3 = svgLabel(nums[2] || 'a');
+            return {
+                tikz: '\\begin{tikzpicture}[scale=.9]\\coordinate (A) at (0,0); \\coordinate (B) at (4.2,0); \\coordinate (C) at (1.35,2.35); \\draw[cp line] (A)--(B)--(C)--cycle; \\node[below left] at (A) {$' + a + '$}; \\node[below right] at (B) {$' + b + '$}; \\node[above] at (C) {$' + c + '$}; \\pic[draw=black,angle radius=5mm,"$' + angle.replace('°', '^\\\\circ') + '$",angle eccentricity=1.35] {angle=A--C--B};\\end{tikzpicture}',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="Triangle diagram"><path d="M48 138 L268 138 L112 36 Z" fill="none" stroke="#2f3440" stroke-width="3" stroke-linejoin="round"/><path d="M130 117 Q117 102 104 121" fill="none" stroke="#2f3440" stroke-width="2"/><text x="38" y="158" font-size="16" font-family="Arial" fill="#2f3440">' + svgLabel(a) + '</text><text x="270" y="158" font-size="16" font-family="Arial" fill="#2f3440">' + svgLabel(b) + '</text><text x="105" y="27" font-size="16" font-family="Arial" fill="#2f3440">' + svgLabel(c) + '</text><text x="151" y="156" font-size="14" font-family="Arial" fill="#2f3440">' + l1 + '</text><text x="58" y="86" font-size="14" font-family="Arial" fill="#2f3440">' + l2 + '</text><text x="203" y="87" font-size="14" font-family="Arial" fill="#2f3440">' + l3 + '</text><text x="125" y="111" font-size="14" font-family="Arial" fill="#2f3440">' + svgLabel(angle) + '</text></svg>'
+            };
+        }
+        function wsBearingVisual(q) {
+            const t = wsPlainText(q), low = t.toLowerCase();
+            if (!/\b(bearing|navigation|north|heading)\b/.test(low)) return null;
+            const nums = wsNumbers(t);
+            const bearings = Array.from(t.matchAll(/\b(?:bearing\s+(?:of\s*)?|N\s*)(\d{1,3})(?:\s*degrees?)?/gi)).map(m => Math.min(359, parseInt(m[1], 10))).slice(0, 2);
+            const b1 = bearings[0] || 45, b2 = bearings[1] || 115;
+            return {
+                tikz: '\\begin{tikzpicture}[scale=.85]\\coordinate (O) at (0,0); \\draw[cp axis,-Stealth] (O)--(0,2.4) node[above] {$N$}; \\draw[cp axis,-Stealth] (O)--(2.3,0) node[right] {$E$}; \\draw[cp line,-Stealth] (O)--(' + (90 - b1) + ':2.4) node[midway,above] {$' + (nums[0] || '') + '$}; \\draw[cp line,-Stealth] (O)--(' + (90 - b2) + ':2.7) node[midway,right] {$' + (nums[1] || '') + '$};\\end{tikzpicture>',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="Bearing diagram"><defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#2f3440"/></marker></defs><line x1="70" y1="145" x2="70" y2="30" stroke="#697386" stroke-width="2" marker-end="url(#arr)"/><line x1="70" y1="145" x2="188" y2="145" stroke="#697386" stroke-width="2" marker-end="url(#arr)"/><line x1="70" y1="145" x2="156" y2="58" stroke="#2f3440" stroke-width="3" marker-end="url(#arr)"/><line x1="70" y1="145" x2="232" y2="92" stroke="#2f3440" stroke-width="3" marker-end="url(#arr)"/><path d="M70 96 A49 49 0 0 1 105 111" fill="none" stroke="#2f3440" stroke-width="2"/><path d="M70 76 A69 69 0 0 1 130 87" fill="none" stroke="#2f3440" stroke-width="2" stroke-dasharray="5 4"/><text x="60" y="25" font-size="15" font-family="Arial" fill="#2f3440">N</text><text x="193" y="150" font-size="15" font-family="Arial" fill="#2f3440">E</text><text x="103" y="93" font-size="14" font-family="Arial" fill="#2f3440">' + svgLabel(b1 + '\u00b0') + '</text><text x="128" y="76" font-size="14" font-family="Arial" fill="#2f3440">' + svgLabel(b2 + '\u00b0') + '</text><text x="160" y="58" font-size="13" font-family="Arial" fill="#2f3440">' + svgLabel(nums[0] || '') + '</text><text x="235" y="94" font-size="13" font-family="Arial" fill="#2f3440">' + svgLabel(nums[1] || '') + '</text></svg>'
+            };
+        }
+        function wsVectorVisual(q) {
+            const t = wsPlainText(q), low = t.toLowerCase();
+            if (!/\b(vector|resultant|force|velocity|parallelogram)\b/.test(low)) return null;
+            const nums = wsNumbers(t), angle = wsAngleLabel(t);
+            return {
+                tikz: '\\begin{tikzpicture}[scale=.85]\\coordinate (O) at (0,0); \\coordinate (A) at (3.2,0); \\coordinate (B) at (55:2.4); \\coordinate (C) at ($(A)+(B)$); \\draw[cp dashed] (A)--(C)--(B); \\draw[cp line,-Stealth] (O)--(A) node[midway,below] {$\\\\vec F_1$}; \\draw[cp line,-Stealth] (O)--(B) node[midway,left] {$\\\\vec F_2$}; \\draw[cp line,-Stealth] (O)--(C) node[pos=.58,above] {$\\\\vec R$}; \\pic[draw=black,angle radius=5mm,"$' + angle.replace('°', '^\\\\circ') + '$",angle eccentricity=1.35] {angle=A--O--B};\\end{tikzpicture>',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="Vector resultant diagram"><defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#2f3440"/></marker></defs><line x1="58" y1="140" x2="178" y2="140" stroke="#2f3440" stroke-width="3" marker-end="url(#arr)"/><line x1="58" y1="140" x2="118" y2="52" stroke="#2f3440" stroke-width="3" marker-end="url(#arr)"/><line x1="58" y1="140" x2="238" y2="52" stroke="#2f3440" stroke-width="3" marker-end="url(#arr)"/><line x1="178" y1="140" x2="238" y2="52" stroke="#697386" stroke-width="2" stroke-dasharray="6 5"/><line x1="118" y1="52" x2="238" y2="52" stroke="#697386" stroke-width="2" stroke-dasharray="6 5"/><path d="M91 140 A33 33 0 0 0 78 111" fill="none" stroke="#2f3440" stroke-width="2"/><text x="110" y="158" font-size="14" font-family="Arial" fill="#2f3440">F1 ' + svgLabel(nums[0] || '') + '</text><text x="72" y="86" font-size="14" font-family="Arial" fill="#2f3440">F2 ' + svgLabel(nums[1] || '') + '</text><text x="169" y="86" font-size="14" font-family="Arial" fill="#2f3440">R</text><text x="91" y="119" font-size="14" font-family="Arial" fill="#2f3440">' + svgLabel(angle) + '</text></svg>'
+            };
+        }
+        function wsGeometryVisual(q) {
+            const t = wsPlainText(q), low = t.toLowerCase();
+            if (!/\b(rectangle|circle|cylinder|cone|sphere|volume|surface area|geometry)\b/.test(low)) return null;
+            if (/\bcylinder\b/.test(low)) return { tikz: '\\begin{tikzpicture}[scale=.85]\\draw[cp line] (0,0) ellipse (1.25 and .35); \\draw[cp line] (-1.25,0)--(-1.25,2.4) (1.25,0)--(1.25,2.4); \\draw[cp line] (0,2.4) ellipse (1.25 and .35); \\draw[cp dashed] (0,2.4)--(1.25,2.4) node[midway,above] {$r$}; \\draw[cp dashed,<->] (1.65,0)--(1.65,2.4) node[midway,right] {$h$};\\end{tikzpicture>', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="Cylinder diagram"><ellipse cx="145" cy="45" rx="65" ry="20" fill="none" stroke="#2f3440" stroke-width="3"/><path d="M80 45 V135 M210 45 V135" fill="none" stroke="#2f3440" stroke-width="3"/><ellipse cx="145" cy="135" rx="65" ry="20" fill="none" stroke="#2f3440" stroke-width="3"/><line x1="145" y1="45" x2="210" y2="45" stroke="#697386" stroke-width="2" stroke-dasharray="5 4"/><line x1="235" y1="45" x2="235" y2="135" stroke="#697386" stroke-width="2"/><text x="174" y="37" font-size="15" font-family="Arial" fill="#2f3440">r</text><text x="245" y="94" font-size="15" font-family="Arial" fill="#2f3440">h</text></svg>' };
+            return { tikz: '\\begin{tikzpicture}[scale=.9]\\coordinate (A) at (0,0); \\coordinate (B) at (3.8,0); \\coordinate (C) at (3.8,2.1); \\coordinate (D) at (0,2.1); \\draw[cp line] (A)--(B)--(C)--(D)--cycle; \\node[below] at ($(A)!0.5!(B)$) {$l$}; \\node[right] at ($(B)!0.5!(C)$) {$w$}; \\draw[cp dashed] (A)--(C) node[midway,above left] {$d$};\\end{tikzpicture>', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="Geometry diagram"><rect x="66" y="42" width="188" height="98" fill="none" stroke="#2f3440" stroke-width="3"/><line x1="66" y1="140" x2="254" y2="42" stroke="#697386" stroke-width="2" stroke-dasharray="6 5"/><text x="153" y="160" font-size="15" font-family="Arial" fill="#2f3440">l</text><text x="265" y="94" font-size="15" font-family="Arial" fill="#2f3440">w</text><text x="158" y="83" font-size="15" font-family="Arial" fill="#2f3440">d</text></svg>' };
+        }
+        function deterministicWorksheetVisual(q) {
+            return wsTriangleVisual(q) || wsBearingVisual(q) || wsVectorVisual(q) || wsGeometryVisual(q);
+        }
         async function renderTikzWorksheet(data) {
             if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
             const candidates = data.questions.filter(q => q && worksheetNeedsVisual(q) && !String(q.tikzSvg || '').trim()).slice(0, 10);
-            await Promise.all(candidates.map(async q => {
+            candidates.forEach(q => {
+                const visual = deterministicWorksheetVisual(q);
+                if (visual && visual.svg) {
+                    q.tikz = visual.tikz || q.tikz || '';
+                    q.tikzSvg = visual.svg;
+                }
+            });
+            const aiCandidates = candidates.filter(q => q && !String(q.tikzSvg || '').trim()).slice(0, 3);
+            await Promise.all(aiCandidates.map(async q => {
                 try {
                     const out = await generateTikzVisual({
                         title: q.q || 'Worksheet visual',
