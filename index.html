@@ -12426,6 +12426,9 @@
         }
         function tikzPrompt(kind) {
             const target = kind || 'content';
+            if (/worksheet/i.test(target)) {
+                return '\nTextbook visuals are enabled for this worksheet, but do NOT write TikZ code in the question JSON yourself. Leave "tikz", "tikzSvg", and image fields empty. A separate backend renderer will create clean SVG diagrams after the worksheet text is generated. Still write questions that clearly name the needed points, sides, angles, axes, vectors, bearings, coordinates, and labels so the renderer can draw them accurately.';
+            }
             return '\nTextbook visuals are enabled. For math, physics, chemistry, engineering, statistics, graphing, geometry, vectors, calculus, or other STEM ' + target + ' where a real diagram helps, add a concise TikZ snippet in the appropriate "tikz" field. Use TikZ only for diagrams with drawing primitives such as axes, curves, regions, points, arrows, geometric shapes, number lines, vectors, force diagrams, probability trees, or labeled relationships. Do NOT use TikZ for standalone formulas or equation text; put formulas in the normal text/equation fields instead. For triangle, trigonometry, bearing, law of sines, or law of cosines diagrams, draw angle marks inside the triangle/sector; never place an angle arc outside unless the question explicitly asks for an exterior angle. For parallelogram, diagonal, midpoint, plane, 3D, graph, and coordinate problems, include the specific points, side labels, axes, diagonals, or reference lines named in the question. Use either a full \\begin{tikzpicture}...\\end{tikzpicture} block or only commands that belong inside tikzpicture. Do not include \\documentclass, \\usepackage, \\begin{document}, markdown fences, external images, file inputs, or shell commands. Keep labels short and readable. Prefer clean black/gray textbook styling, not green branding. Use the built-in styles cp axis, cp line, cp dashed, cp fill, cp point, cp label when useful. Leave tikzSvg empty.';
         }
         [['wsSubject', 'wsLatex'], ['aioSubject', 'aioLatex'], ['gSubject', 'gLatex'], ['fSubject', 'fLatex'], ['sdSubject', 'sdLatex']].forEach(([subId, latexId]) => {
@@ -12670,7 +12673,7 @@
                             'Keep it compact and landscape-oriented so it fits beside late worksheet questions without creating large vertical gaps.',
                             'Use black/gray lines, short labels, visible arrowheads, and no oversized empty compass circles unless the circle is mathematically essential.',
                             'Prefer a fresh clean diagram over any rough existing TikZ if the rough idea is formula-only, colored, cluttered, missing required labels, or uses exterior-looking angle arcs.',
-                            'For triangles, trigonometry, law of sines/cosines, and bearings, place angle arcs inside the triangle or sector. For vector/parallelogram problems, include the named vectors, diagonals, and resultants rather than a generic shape.',
+                            'For triangles, trigonometry, and law of sines/cosines, place angle marks inside the triangle only. Do not draw exterior arcs around vertices. For bearings, place bearing arcs inside the measured sector. For vector/parallelogram problems, include the named vectors, diagonals, and resultants rather than a generic shape.',
                             q.q ? 'Question: ' + q.q : '',
                             q.answer ? 'Answer/key idea: ' + q.answer : '',
                             sdCleanTikz(q.tikz) ? 'Existing rough TikZ idea may be ignored if weak: ' + sdCleanTikz(q.tikz).slice(0, 900) : ''

@@ -461,7 +461,19 @@ TRIANGLE INTERIOR ANGLES:
   \node[below] at ($(A)!0.5!(B)$) {$b=10$};
   \node[right] at ($(B)!0.5!(C)$) {$a=7$};
   \pic[draw=black,angle radius=6mm,"$45^\circ$",angle eccentricity=1.35] {angle=B--A--C};
+  \pic[draw=black,angle radius=5mm,"$60^\circ$",angle eccentricity=1.35] {angle=A--C--B};
+\end{tikzpicture}
+
+LAW OF SINES / COSINES TRIANGLE:
+\begin{tikzpicture}[scale=.9]
+  \coordinate (A) at (0,0); \coordinate (B) at (4.4,0); \coordinate (C) at (1.2,2.2);
+  \draw[cp line] (A)--(B)--(C)--cycle;
+  \node[below left] at (A) {$A$}; \node[below right] at (B) {$B$}; \node[above] at (C) {$C$};
+  \node[below] at ($(A)!0.5!(B)$) {$c$};
+  \node[left] at ($(A)!0.5!(C)$) {$b$};
+  \node[right] at ($(B)!0.5!(C)$) {$a$};
   \pic[draw=black,angle radius=5mm,"$C$",angle eccentricity=1.35] {angle=A--C--B};
+  \pic[draw=black,angle radius=5mm,"$A$",angle eccentricity=1.35] {angle=B--A--C};
 \end{tikzpicture}
 
 BEARING / DIRECTION:
@@ -530,7 +542,7 @@ Worksheet-specific rules:
 - Prefer compact landscape compositions about 5.5 units wide by 3 units tall.
 - Avoid tall compass-style diagrams unless the problem explicitly needs directions.
 - Keep vector diagrams close to the question: short arrows, clear arrowheads, labels just outside the strokes.
-- Keep triangle angle marks small and inside the shape; exterior angle arcs are allowed only for questions that explicitly say exterior angle.
+- Keep triangle angle marks small and inside the shape. For triangle angle marks, use \\pic[draw=black,...] {{angle=side--vertex--side}}; do not hand-draw them with \\draw ... arc. Exterior angle arcs are allowed only for questions that explicitly say exterior angle.
 - For law of sines/cosines questions, include the given side lengths and angle values in the triangle when the question provides them.
 - Do not leave large empty margins inside the drawing; center the math object tightly.
 """.strip()
@@ -560,8 +572,9 @@ Rules:
 - For parallelogram diagonal questions, place labels outside the crossing: label AC as u+v above the solid/dashed diagonal and BD as v-u or u-v below/left of the other diagonal. Never stack multiple formulas at the center.
 - Avoid long phrase labels such as "Maximum Resultant" inside small diagrams; use short labels and let the worksheet question carry the wording.
 - Before returning, mentally inspect the diagram: no label may sit on a line crossing, arrowhead, point marker, or another label. Move it with above/below/left/right/pos/anchor if needed.
-- For geometry, trigonometry, law of sines, and law of cosines, use named points, angle marks, and side labels. Avoid decorative shapes without mathematical meaning.
-- Angle marks must be inside the triangle or inside the sector being measured. With TikZ pics, the vertex is the middle coordinate: angle=B--A--C marks the angle at A. Never draw exterior-looking angle arcs unless the question explicitly asks for an exterior angle.
+- For geometry, trigonometry, law of sines, and law of cosines, use named points, interior angle marks, and side labels. Avoid decorative shapes without mathematical meaning.
+- For any triangle angle mark, use TikZ angle pics, not raw arc paths: \\pic[draw=black,angle radius=5mm,"$60^\\circ$",angle eccentricity=1.35] {{angle=B--A--C}};. The vertex is the middle coordinate, so angle=B--A--C marks the angle at A. Never use \\draw (...) arc (...) for triangle angles, because it often creates exterior-looking arcs. Never draw exterior-looking angle arcs unless the question explicitly asks for an exterior angle.
+- Put triangle angle labels inside the measured angle, close to the vertex, with a small radius around 4mm to 7mm. If the angle is at C, use angle=A--C--B; if it is at B, use angle=A--B--C; if it is at A, use angle=B--A--C.
 - For bearing or navigation questions, draw short N/E reference rays and put clockwise bearing arcs inside the sector from North to the travel vector. Avoid large empty compass circles.
 - For parallelogram, diagonal, and vector-geometry questions, show the named diagonal or resultant, not just the outline. Put side/angle labels outside strokes and keep the interior crossing uncluttered.
 - For 3D geometry, planes, spheres, skew lines, projections, normals, and line-plane questions, use a sparse isometric sketch with x/y/z axes when helpful, one gray plane if needed, and labels outside intersections. Do not use red or blue labels unless color is explicitly requested.
@@ -581,6 +594,28 @@ Target: {req.target}
 
 {repair_block}
 """.strip()
+
+
+def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
+    hay = " ".join([req.subject, req.title, req.equation, req.brief]).lower()
+    is_triangle = any(term in hay for term in (
+        "triangle",
+        "law of sines",
+        "law of cosines",
+        "side a",
+        "side b",
+        "side c",
+        "angle a",
+        "angle b",
+        "angle c",
+    ))
+    if is_triangle and "exterior angle" not in hay and re.search(r"\barc\s*(?:\[|\()", tikz):
+        return (
+            "Triangle and law-of-sines/cosines visuals must mark angles with TikZ angle pics, "
+            "not raw arc paths. Raw arcs often render as exterior angle marks. Use examples like "
+            "\\pic[draw=black,angle radius=5mm,\"$60^\\circ$\",angle eccentricity=1.35] {angle=B--A--C};"
+        )
+    return None
 
 
 def _render(req: RenderReq) -> dict:
@@ -707,7 +742,12 @@ def generate(req: GenerateReq):
         if not tikz:
             return JSONResponse({"ok": False, "skipped": True, "error": "No diagram was appropriate.", "caption": caption}, status_code=400)
 
-        rendered = _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
+        semantic_issue = _semantic_visual_issue(req, tikz)
+        rendered = (
+            {"ok": False, "error": semantic_issue, "log": semantic_issue}
+            if semantic_issue
+            else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
+        )
         if not rendered.get("ok"):
             repaired = _gemini(
                 _visual_prompt(req, repair_log=rendered.get("log") or rendered.get("error") or "", previous_code=tikz),
@@ -716,7 +756,12 @@ def generate(req: GenerateReq):
             )
             tikz = _strip_fence(str(repaired.get("tikz", tikz)))
             caption = str(repaired.get("caption", caption)).strip()
-            rendered = _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
+            semantic_issue = _semantic_visual_issue(req, tikz)
+            rendered = (
+                {"ok": False, "error": semantic_issue, "log": semantic_issue}
+                if semantic_issue
+                else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
+            )
 
         if not rendered.get("ok"):
             rendered["tikz"] = tikz
