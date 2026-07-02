@@ -11529,6 +11529,21 @@
         // renders $$…$$/\[…\] as its own block even when it only wraps "\angle A = 40^\circ".
         function smoothInlineMath(s) {
             let t = String(s == null ? '' : s)
+                // A model that writes a value as \text{$A = 40^\circ$} yields, after delimiter
+                // normalization, \text{\(A = 40^\circ\)} — inline math nested inside \text{} inside
+                // math mode, which MathJax cannot render (it shows a broken "\(\text{\)"). Unwrap a
+                // \text{} that wrongly holds math delimiters back to bare math. The inner pattern
+                // allows one level of nested braces so subscripts/exponents (\(x_{1}\), \(x^{2}\))
+                // are handled; a lone $ (currency: \text{$5 per item}) is left as prose — only a
+                // $...$ pair counts as nested math.
+                .replace(/\\text\s*\{((?:[^{}]|\{[^{}]*\})*?)\}/g, (m, inner) => {
+                    const hasBracketMath = /\\[()[\]]/.test(inner);
+                    const hasPairedDollar = (inner.match(/\$/g) || []).length >= 2;
+                    if (!hasBracketMath && !hasPairedDollar) return m;
+                    let out = inner.replace(/\\[()[\]]/g, '');
+                    if (hasPairedDollar) out = out.replace(/\$/g, '');
+                    return out;
+                })
                 // Kill malformed delimiters the model emits inside long answer blocks:
                 // - Doubled openers/closers "\(\(x\)" or "\(x\)\)": the extra delimiter is an
                 //   invalid macro inside math mode, so MathJax renders it as a red error blob

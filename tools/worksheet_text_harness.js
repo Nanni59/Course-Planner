@@ -114,6 +114,21 @@ const cases = [
         name: 'PDF vector glyph inside dollar math does not nest delimiters',
         json: "{\"q\":\"Given $|⅑| = 15$ and $|⅒| = 20$, find the resultant.\"}",
         expect: { qContains: ['\\vec{u}', '\\vec{v}'], qNotContains: ['$\\(', '\\)$', '⅑', '⅒'] }
+    },
+    {
+        name: 'SCREENSHOT: math nested inside \\text{} must not break MathJax',
+        json: String.raw`{"q":"In triangle ABC, given \\(\\text{$A = 40^\\circ$}\\), \\(\\text{$B = 60^\\circ$}\\), and side \\(\\text{$a = 10cm$}\\). Find side \\(\\text{$b$}\\)."}`,
+        expect: { qContains: ['\\(A = 40^\\circ\\)', '\\(B = 60^\\circ\\)'], qNotContains: ['\\text{\\(', '\\(\\text{\\)'] }
+    },
+    {
+        name: 'subscripted math nested in \\text{} (nested braces) must unwrap',
+        json: String.raw`{"q":"The five-number summary gives \\(\\text{$Q_{1} = 35$}\\) and \\(\\text{$Q_{3} = 75$}\\)."}`,
+        expect: { qContains: ['\\(Q_{1} = 35\\)', '\\(Q_{3} = 75\\)'], qNotContains: ['\\text{\\(', '\\(\\text{\\)'] }
+    },
+    {
+        name: 'currency inside \\text{} (lone $) must NOT be stripped as math',
+        json: "{\"q\":\"ok\",\"answer\":\"The unit price is \\\\(\\\\text{$5 per item}\\\\) before tax.\"}",
+        expect: { answerKeepsProseSpaces: ['$5 per item'] }
     }
 ];
 
