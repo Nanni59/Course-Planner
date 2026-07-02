@@ -691,8 +691,33 @@ def _example_blocks(req: GenerateReq) -> str:
     return "\n\n".join(parts)
 
 
+def _repair_transport_escapes(text: str) -> str:
+    r"""Repair LaTeX command names damaged by a layer interpreting \t, \f, etc."""
+    text = str(text or "")
+    text = re.sub(r"\t\s*riangle\b", r"\\triangle", text)
+    text = re.sub(r"\t\s*ext\s*\{", r"\\text{", text)
+    text = re.sub(r"\t\s*ext(?=(?:less|greater|superscript|subscript|backslash|asciitilde|asciicircum)\b)", r"\\text", text)
+    text = re.sub(r"\t\s*heta\b", r"\\theta", text)
+    text = re.sub(r"\t\s*imes\b", r"\\times", text)
+    text = re.sub(r"\t\s*an\b", r"\\tan", text)
+    text = re.sub(r"\t\s*o\b", r"\\to", text)
+    text = re.sub(r"\f\s*rac\b", r"\\frac", text)
+    text = re.sub(r"\r\s*ight\b", r"\\right", text)
+    text = re.sub(r"\n\s*abla\b", r"\\nabla", text)
+    text = re.sub(
+        r"(^|[\s([{])ext(?=(?:less|greater|superscript|subscript|backslash|asciitilde|asciicircum)\b)",
+        r"\1\\text",
+        text,
+    )
+    return text
+
+
+def _raw_request_text(req: GenerateReq) -> str:
+    return _repair_transport_escapes(" ".join([req.subject or "", req.title or "", req.equation or "", req.brief or ""]))
+
+
 def _request_text(req: GenerateReq) -> str:
-    text = " ".join([req.subject or "", req.title or "", req.equation or "", req.brief or ""])
+    text = _raw_request_text(req)
     text = re.sub(r"\\text\s*\{\s*([^{}]+?)\s*\}", r" \1 ", text)
     text = text.replace("\\triangle", " triangle ")
     text = text.replace("\\angle", " angle ")
@@ -712,7 +737,7 @@ def _question_text(req: GenerateReq) -> str:
     answer says "component-wise" drew a single-vector diagram; a "calculate 2u-3v" whose
     answer did not stayed blank). Keeps \\vec intact so a+b / p-q / 2u-3v are detectable.
     Falls back to the full request text when there is no title (non-worksheet callers)."""
-    title = (req.title or "").strip()
+    title = _repair_transport_escapes(req.title or "").strip()
     if not title:
         return _request_text(req)
     text = re.sub(r"\\text\s*\{\s*([^{}]+?)\s*\}", r" \1 ", title)
@@ -1347,7 +1372,7 @@ def _template_customizer_prompt(
         "new document wrapper or unsupported packages.\n"
         + repair_block
         + "\nUser math question and context:\n"
-        + _request_text(req)[:2600]
+        + _raw_request_text(req)[:2600]
         + "\n\nStructurally sound TikZ template to customize:\n"
         + template[:6000]
     )
@@ -1483,8 +1508,8 @@ Target: {req.target}
 
 
 def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
-    hay = " ".join([req.subject, req.title, req.equation, req.brief]).lower()
-    original = " ".join([req.subject, req.title, req.equation, req.brief])
+    original = _raw_request_text(req)
+    hay = original.lower()
     is_triangle = (
         _looks_like_triangle(original)
         or any(term in hay for term in ("triangle", "law of sines", "law of cosines"))
@@ -1807,12 +1832,8 @@ def _run_generate_job(job_id: str, req: GenerateReq) -> None:
                 ok=True,
                 svg=result.get("svg", ""),
                 base64=result.get("base64", ""),
-                tikz=result.get("tikz", ""),
-                caption=result.get("caption", ""),
                 format=result.get("format", req.format),
                 mime=result.get("mime", "image/svg+xml" if req.format == "svg" else "image/png"),
-                fallback=result.get("fallback", ""),
-                customized=result.get("customized", ""),
                 error="",
             )
             return
@@ -1822,8 +1843,6 @@ def _run_generate_job(job_id: str, req: GenerateReq) -> None:
             ok=False,
             svg="",
             base64="",
-            tikz=result.get("tikz", ""),
-            caption=result.get("caption", ""),
             error=result.get("error") or result.get("log") or "TikZ generation failed.",
         )
     except Exception as exc:
@@ -1841,8 +1860,6 @@ def generate(req: GenerateReq, background_tasks: BackgroundTasks):
             "ok": False,
             "svg": "",
             "base64": "",
-            "tikz": "",
-            "caption": "",
             "error": "",
             "created": time.time(),
         }
@@ -1856,7 +1873,14 @@ def status(job_id: str):
         job = jobs.get(job_id)
         if job is None:
             return JSONResponse({"status": "failed", "error": "Unknown or expired job id."}, status_code=404)
-        return dict(job)
+        if job.get("status") == "completed":
+            out = {"status": "completed", "svg": job.get("svg", ""), "error": ""}
+            if job.get("base64"):
+                out["base64"] = job.get("base64", "")
+            return out
+        if job.get("status") == "failed":
+            return {"status": "failed", "svg": "", "error": job.get("error", "TikZ generation failed.")}
+        return {"status": job.get("status", "pending"), "svg": "", "error": ""}
 
 
 def _warm_latex_caches() -> None:

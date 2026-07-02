@@ -11603,6 +11603,7 @@
             return String(s == null ? '' : s)
                 .replace(/\t\s*riangle\b/g, '\\triangle')
                 .replace(/\t\s*ext\s*\{/g, '\\text{')
+                .replace(/\t\s*ext(?=(?:less|greater|superscript|subscript|backslash|asciitilde|asciicircum)\b)/g, '\\text')
                 .replace(/\t\s*heta\b/g, '\\theta')
                 .replace(/\t\s*imes\b/g, '\\times')
                 .replace(/\t\s*an\b/g, '\\tan')
@@ -11612,6 +11613,7 @@
                 .replace(/\n\s*abla\b/g, '\\nabla')
                 .replace(/(^|[\s([{])riangle\s+([A-Z]{3})/g, '$1\\triangle $2')
                 .replace(/(^|[\s([{])ext\s*\{/g, '$1\\text{')
+                .replace(/(^|[\s([{])ext(?=(?:less|greater|superscript|subscript|backslash|asciitilde|asciicircum)\b)/g, '$1\\text')
                 .replace(/(^|[\s^([{])imes\b/g, '$1\\times')
                 .replace(/(^|[\s([{])heta(?=[_A-Z]|\b)/g, '$1\\theta');
         }
@@ -12959,27 +12961,27 @@
             let completed = 0;
             if (progress) progress.detail(aiCandidates.length ? ('Rendering TikZ visual 1 of ' + aiCandidates.length + ' on the backend') : 'No backend visuals needed');
             let nextVisual = 0;
+            const diagramQuestionText = q => String(q && q.q || '')
+                .replace(/\t\s*ext\s*\{/g, '\\text{')
+                .replace(/\t\s*ext(?=(?:less|greater|superscript|subscript|backslash|asciitilde|asciicircum)\b)/g, '\\text')
+                .replace(/(^|[\s([{])ext(?=(?:less|greater|superscript|subscript|backslash|asciitilde|asciicircum)\b)/g, '$1\\text')
+                .replace(/\t\s*riangle\b/g, '\\triangle')
+                .replace(/\t\s*heta\b/g, '\\theta')
+                .replace(/\t\s*imes\b/g, '\\times');
             const renderOne = async q => {
                 try {
+                    const questionText = diagramQuestionText(q);
                     const out = await generateTikzVisual({
-                        title: q.q || 'Worksheet visual',
-                        // Keep this brief free of shape words ("triangle", "vector",
-                        // "parallelogram", "compass", "SVG"): the backend routes templates and
-                        // audits relevance off the request text, so boilerplate keywords here
-                        // leak into every question and mis-fire the deterministic diagrams
-                        // (e.g. "SVG-first" was read as a triangle named S-V-G). The backend's
-                        // own visual prompt already carries the detailed drawing guidance.
-                        brief: [
-                            'Create a compact, landscape textbook diagram that helps a student answer this worksheet question. Use clean black or gray lines with short labels. If this question has no safe, directly relevant diagram, return an empty tikz string rather than a generic or decorative picture.',
-                            q.q ? 'Question: ' + q.q : '',
-                            q.answer ? 'Answer/key idea: ' + q.answer : '',
-                            sdCleanTikz(q.tikz) ? 'Existing rough TikZ idea may be ignored if weak: ' + sdCleanTikz(q.tikz).slice(0, 900) : ''
-                        ].filter(Boolean).join('\n'),
+                        title: questionText || 'Worksheet visual',
+                        // Backend is a diagram-only microservice. Send only the
+                        // isolated question text, never the answer key or full
+                        // worksheet prose, so LaTeX in normal worksheet content
+                        // remains entirely on the frontend rendering path.
+                        brief: questionText ? 'Question: ' + questionText : '',
                         subject: data.subject || data.unit || data.title || 'General',
                         format: 'svg',
                         target: 'worksheet'
                     });
-                    q.tikz = out.tikz || q.tikz || '';
                     q.tikzSvg = out.svg || '';
                     q.tikzPng = out.base64 || '';
                 } catch (e) {
