@@ -3533,8 +3533,28 @@
            so the Day A/B colour cue remains. Paused cards stay purple. */
         body.dark-mode .course-card h3,
         body.dark-mode .tracker-course-card h3 { color: #e8ebf2; }
+        body.dark-mode .course-card.paused,
+        body.dark-mode .tracker-course-card.paused {
+            background-color: #211d2d;
+            border-color: var(--color-pause-purple);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+            opacity: 0.92;
+        }
         body.dark-mode .course-card.paused h3,
         body.dark-mode .tracker-course-card.paused h3 { color: var(--color-pause-purple); }
+        body.dark-mode .course-card.paused .task-list textarea,
+        body.dark-mode .course-card.paused .task-link {
+            background-color: #252a36;
+            border-color: #3a4456;
+            color: #cbd2e0 !important;
+            -webkit-text-fill-color: #cbd2e0 !important;
+        }
+        body.dark-mode .course-card.paused .task-list textarea::placeholder,
+        body.dark-mode .course-card.paused .task-link::placeholder {
+            color: #8b94a6;
+            -webkit-text-fill-color: #8b94a6;
+        }
+        body.dark-mode .course-card.paused .task-type-label { color: #c9a4ef; }
         /* Lesson / Assignment field VALUES hard-code `color:#000 !important` AND
            `-webkit-text-fill-color:#000 !important` (so the previous override was
            ignored). Match that force in dark mode. Paused cards are excluded —
@@ -14693,7 +14713,8 @@
         }
         function sdIconHTML(s) {
             const items = sdArr(s.bullets).slice(0, 3);
-            const labels = items.length ? items : ['People', 'Product', 'Place'];
+            if (!items.length) return '';
+            const labels = items;
             const icons = [
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 17.5a5 5 0 0 1 5.5 3.5"/></svg>',
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l1 13H5L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>',
@@ -14703,14 +14724,47 @@
                 '<div class="sd-icon-card">' + icons[idx % icons.length] + '<span>' + escMath(label) + '</span></div>'
             ).join('') + '</div>';
         }
+        function sdLooksTrigGeometry(s) {
+            const hay = [
+                s.subject, s.visualType, s.visual, s.title, s.eyebrow, s.narration, s.equation,
+                sdArr(s.bullets).join(' ')
+            ].join(' ').toLowerCase();
+            return /\b(trig|trigonometry|sine|cosine|law of cosines|law of sines|triangle|triangles|geometry|angle|side length|hypotenuse)\b/.test(hay);
+        }
         function sdLooksStem(s) {
             const hay = [
                 s.subject, s.visualType, s.visual, s.title, s.eyebrow, s.narration, s.equation,
                 sdArr(s.bullets).join(' ')
             ].join(' ').toLowerCase();
-            return /\b(math|calculus|derivative|integral|function|slope|tangent|secant|curve|graph|axis|coordinate|geometry|vector|physics|force|velocity|acceleration|chemistry|equation|formula|polynomial|probability|statistics)\b/.test(hay);
+            return sdLooksTrigGeometry(s) || /\b(math|calculus|derivative|integral|function|slope|tangent|secant|curve|graph|axis|coordinate|geometry|vector|physics|force|velocity|acceleration|chemistry|equation|formula|polynomial|probability|statistics)\b/.test(hay);
+        }
+        function sdTrigGeometryFallbackHTML(s) {
+            const hay = [
+                s.subject, s.visualType, s.visual, s.title, s.eyebrow, s.narration, s.equation,
+                sdArr(s.bullets).join(' ')
+            ].join(' ').toLowerCase();
+            const label = sdCleanLabel(s.title || s.visual || 'Triangle relationship', 'Triangle relationship');
+            const relation = /law of sines|\bsine\b/.test(hay)
+                ? 'a/sin(A) = b/sin(B) = c/sin(C)'
+                : (/pythag|hypotenuse|right triangle/.test(hay)
+                    ? 'a^2 + b^2 = c^2'
+                    : (/law of cosines|\bcosine\b|\bcos\b/.test(hay)
+                        ? 'c^2 = a^2 + b^2 - 2ab cos(C)'
+                        : 'Angles and side lengths stay linked'));
+            return '<svg class="sd-concept-svg" viewBox="0 0 560 260" role="img" aria-label="Triangle relationship diagram">' +
+                '<path d="M96 204H446L316 54Z" fill="#eef8ef" stroke="#4f9e54" stroke-width="4" stroke-linejoin="round"/>' +
+                '<path d="M316 54 A46 46 0 0 1 346 90" fill="none" stroke="#2f5fd1" stroke-width="3"/>' +
+                '<circle cx="96" cy="204" r="6" fill="#4f9e54"/><circle cx="446" cy="204" r="6" fill="#4f9e54"/><circle cx="316" cy="54" r="6" fill="#4f9e54"/>' +
+                '<text x="74" y="224" class="sd-svg-label">A</text><text x="454" y="224" class="sd-svg-label">B</text><text x="324" y="48" class="sd-svg-label">C</text>' +
+                '<text x="266" y="222" text-anchor="middle" class="sd-svg-label">c</text>' +
+                '<text x="188" y="126" text-anchor="middle" class="sd-svg-label">b</text>' +
+                '<text x="394" y="126" text-anchor="middle" class="sd-svg-label">a</text>' +
+                '<text x="354" y="84" class="sd-svg-note">Angle C</text>' +
+                '<text x="280" y="244" text-anchor="middle" class="sd-svg-note">' + label + ': ' + relation + '</text>' +
+                '</svg>';
         }
         function sdMathFallbackHTML(s) {
+            if (sdLooksTrigGeometry(s)) return sdTrigGeometryFallbackHTML(s);
             if (s.equation) return '<div class="sd-eq">\\[' + esc(s.equation) + '\\]</div>';
             return '<svg class="sd-concept-svg" viewBox="0 0 560 260" role="img" aria-label="Math concept diagram">' +
                 '<defs><marker id="sdMathArrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#3f8f46"/></marker></defs>' +
@@ -14778,7 +14832,7 @@
             if (/network|team|hub|contractor|partner|external|node|outsourc/.test(hay)) return sdNetworkHTML(s);
             if (/compare|comparison|versus|\bvs\b|formal|informal|side a|side b/.test(hay)) return sdCompareHTML(s);
             if (/process|flow|arrow|sequence|cycle|step|path/.test(hay)) return sdProcessHTML(s);
-            return sdIconHTML(s);
+            return sdIconHTML(s) || '<div class="sd-visual-text">' + escMath(s.visual || s.narration || s.title || 'Focus on the key idea before testing yourself.') + '</div>';
         }
         function sdMermaidFallbackHTML(code) {
             code = String(code || '');
@@ -14868,7 +14922,9 @@
             if (vt === 'process' || vt === 'timeline' || vt === 'cycle') return sdProcessHTML(s);
             if (vt === 'comparison' || vt === 'compare') return sdCompareHTML(s);
             if (vt === 'network' || /network diagram|nodes?|linked|reporting arrows?|communication lines?/.test(visualText)) return sdNetworkHTML(s);
-            if (vt === 'icons' || /icons? representing|globe|shopping bag|product|customer/.test(visualText)) return sdIconHTML(s);
+            if (vt === 'icons' || /icons? representing|globe|shopping bag|product|customer/.test(visualText)) {
+                return sdIconHTML(s) || '<div class="sd-visual-text">' + escMath(s.visual || s.narration || s.title || 'Focus on the key idea before testing yourself.') + '</div>';
+            }
             if (s.equation) return '<div class="sd-eq">\\[' + esc(s.equation) + '\\]</div>';
             if (placeholderVisual || !String(s.visual || '').trim()) return sdSmartVisualHTML(s);
             return '<div class="sd-visual-text">' + escMath(s.visual || s.note || s.narration || 'Focus on the key idea, then test yourself on the next slide.') + '</div>';
