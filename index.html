@@ -12830,15 +12830,15 @@
                 return /\b(resultant|angle between|magnitude|parallelogram|force|velocity|displacement|bearing|navigation|head[- ]to[- ]tail|projection|position vector|perpendicular|tension|equilibrium|component form|triangle|cross product|torque|work done)\b/.test(hay);
             }
             // Everything else: require a concrete geometric or graphable term.
-            return /\b(triangle|trigonometry|law of sines|law of cosines|sine law|cosine law|angle of elevation|angle of depression|bearing|navigation|parallelogram|trapezium|trapezoid|rhombus|quadrilateral|diagonal|midpoint|angle between|perpendicular bisector|intercept|vertex|axis of symmetry|parabola|slope|tangent line|secant line|area under|geometry|circle|rectangle|cylinder|cone|sphere|prism|volume|surface area|normal vector|projection onto|intersection of|histogram|box[- ]?plot|box[- ]and[- ]whisker|quartile|normal distribution|gaussian|bell curve|scatter plot|frequency distribution|unit circle|coordinate plane)\b/.test(hay);
+            return /\b(triangle|trigonometry|law of sines|law of cosines|sine law|cosine law|angle of elevation|angle of depression|bearing|navigation|parallelogram|trapezium|trapezoid|rhombus|quadrilateral|diagonal|midpoint|angle between|perpendicular bisector|intercept|vertex|axis of symmetry|parabola|slope|tangent line|secant line|area under|geometry|circle|rectangle|cylinder|cone|sphere|prism|volume|surface area|normal vector|projection onto|intersection of|histogram|box[- ]?plot|box[- ]and[- ]whisker|quartile|normal distribution|gaussian|bell curve|scatter plot|frequency distribution|standard deviation|z-score|empirical rule|skewness|skewed|data set|dataset|unit circle|coordinate plane)\b/.test(hay);
         }
         async function renderTikzWorksheet(data, progress) {
             if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
-            const candidates = data.questions.filter(q => q && worksheetNeedsVisual(q) && !String(q.tikzSvg || '').trim()).slice(0, 10);
-            const aiCandidates = candidates.filter(q => q && !String(q.tikzSvg || '').trim()).slice(0, 6);
+            const aiCandidates = data.questions.filter(q => q && !String(q.tikzSvg || '').trim());
             let completed = 0;
             if (progress) progress.detail(aiCandidates.length ? ('Rendering TikZ visual 1 of ' + aiCandidates.length + ' on the backend') : 'No backend visuals needed');
-            await Promise.all(aiCandidates.map(async q => {
+            let nextVisual = 0;
+            const renderOne = async q => {
                 try {
                     const out = await generateTikzVisual({
                         title: q.q || 'Worksheet visual',
@@ -12848,6 +12848,7 @@
                             'Use black/gray lines, short labels, visible arrowheads, and no oversized empty compass circles unless the circle is mathematically essential.',
                             'Prefer a fresh clean diagram over any rough existing TikZ if the rough idea is formula-only, colored, cluttered, missing required labels, or uses exterior-looking angle arcs.',
                             'For triangles, trigonometry, and law of sines/cosines, place angle marks inside the triangle only. Do not draw exterior arcs around vertices. For bearings, place bearing arcs inside the measured sector. For vector/parallelogram problems, include the named vectors, diagonals, and resultants rather than a generic shape.',
+                            worksheetNeedsVisual(q) ? '' : 'If this question does not have a safe, relevant visual representation, return an empty tikz string instead of a generic or decorative diagram.',
                             q.q ? 'Question: ' + q.q : '',
                             q.answer ? 'Answer/key idea: ' + q.answer : '',
                             sdCleanTikz(q.tikz) ? 'Existing rough TikZ idea may be ignored if weak: ' + sdCleanTikz(q.tikz).slice(0, 900) : ''
@@ -12878,7 +12879,14 @@
                             : 'Backend visuals complete', pct);
                     }
                 }
-            }));
+            };
+            const workers = Array.from({ length: Math.min(3, aiCandidates.length) }, async () => {
+                while (nextVisual < aiCandidates.length) {
+                    const q = aiCandidates[nextVisual++];
+                    await renderOne(q);
+                }
+            });
+            await Promise.all(workers);
             return data;
         }
         document.getElementById('wsGen').addEventListener('click', () => {

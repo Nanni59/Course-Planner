@@ -1015,6 +1015,53 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
     return tikz, "Vector angle diagram with both vectors from a shared tail."
 
 
+def _statistics_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
+    text = _request_text(req)
+    low = text.lower()
+    if not generic and not re.search(
+        r"\b(histogram|frequency distribution|box[- ]?(?:and[- ]?)?whisker|box plot|boxplot|"
+        r"quartile|interquartile|iqr|five-number|median|skew|skewness|normal distribution|"
+        r"normally distributed|gaussian|bell curve|standard deviation|z-score|empirical rule|"
+        r"68-95-99\.?7|data set|dataset|distribution)\b",
+        low,
+    ):
+        return None
+    if re.search(r"\b(normal distribution|normally distributed|gaussian|bell curve|standard deviation|z-score|empirical rule|68-95-99\.?7)\b", low):
+        return r"""
+\begin{tikzpicture}[declare function={gauss(\x,\m,\s)=1/(\s*sqrt(2*pi))*exp(-((\x-\m)^2)/(2*\s^2));}]
+\begin{axis}[width=6.4cm,height=3.5cm,axis lines=middle,xlabel={$x$},ylabel={density},
+  xmin=-3.6,xmax=3.6,ymin=0,ymax=0.45,samples=120,ytick=\empty,
+  xtick={-2,-1,0,1,2},xticklabels={$-2\sigma$,$-\sigma$,$\mu$,$\sigma$,$2\sigma$}]
+  \addplot[cp fill,draw=none,domain=-1:1] {gauss(x,0,1)} \closedcycle;
+  \addplot[cp line,domain=-3.5:3.5] {gauss(x,0,1)};
+  \node at (axis cs:0,0.13) {\small $68\%$};
+\end{axis}
+\end{tikzpicture}
+""".strip(), "Normal distribution curve with the central one-standard-deviation region shaded."
+    if re.search(r"\b(box[- ]?(?:and[- ]?)?whisker|box plot|boxplot|quartile|interquartile|iqr|five-number|median)\b", low):
+        return r"""
+\begin{tikzpicture}
+\begin{axis}[width=6.4cm,height=2.8cm,boxplot/draw direction=x,
+  xmin=0,xmax=100,ytick={1},yticklabels={data},xlabel={Value}]
+  \addplot[boxplot prepared={median=55,lower quartile=35,upper quartile=75,
+    lower whisker=15,upper whisker=95},draw=black,fill=gray!20] coordinates {};
+  \node[anchor=south] at (axis cs:35,1.23) {\small $Q_1$};
+  \node[anchor=south] at (axis cs:55,1.23) {\small median};
+  \node[anchor=south] at (axis cs:75,1.23) {\small $Q_3$};
+\end{axis}
+\end{tikzpicture}
+""".strip(), "Box-and-whisker plot with quartiles and median marked."
+    return r"""
+\begin{tikzpicture}
+\begin{axis}[width=6.4cm,height=3.5cm,ybar,bar width=9pt,ymin=0,ymax=6,
+  xtick={1,2,3,4,5},xticklabels={0--2,3--5,6--8,9--11,12+},
+  x tick label style={font=\scriptsize},xlabel={Class interval},ylabel={Frequency}]
+  \addplot[fill=gray!25,draw=black] coordinates {(1,2) (2,5) (3,4) (4,3) (5,2)};
+\end{axis}
+\end{tikzpicture}
+""".strip(), "Histogram sketch showing class intervals and frequencies."
+
+
 def _geometry_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
     text = _request_text(req)
     low = text.lower()
@@ -1054,7 +1101,7 @@ def _geometry_template(req: GenerateReq, generic: bool = False) -> tuple[str, st
 def _deterministic_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
     # Each template function owns its own trigger detection (returns None when it does
     # not apply), so a bearing/vector/circle question is never force-fitted to a triangle.
-    ordered = (_bearing_template, _vector_template, _triangle_template, _geometry_template)
+    ordered = (_statistics_template, _bearing_template, _vector_template, _triangle_template, _geometry_template)
     for fn in ordered:
         hit = fn(req, generic=False)
         if hit:

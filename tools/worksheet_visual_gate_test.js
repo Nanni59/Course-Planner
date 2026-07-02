@@ -27,6 +27,7 @@ const cases = [
   [true, 'bearing navigation', 'A boat sails 10km on a bearing of 040 degrees then 15km on a bearing of 110 degrees. How far from port?'],
   [true, 'histogram data', 'Draw a histogram for the following frequency distribution of test scores.'],
   [true, 'box plot', 'Construct a box-and-whisker plot given the five-number summary.'],
+  [true, 'skewness distribution', 'A dataset has a mean of 5%, median of 4%, and mode of 3%. Describe the skewness of this distribution.'],
   [true, 'angle of elevation', 'A surveyor measures the angle of elevation to the top of a tree as 30 degrees.'],
   // things that should NOT get visuals
   [false, 'solve linear', 'Solve the equation 2x + 3 = 7 for x.'],
