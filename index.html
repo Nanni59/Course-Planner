@@ -11529,6 +11529,12 @@
         // renders $$…$$/\[…\] as its own block even when it only wraps "\angle A = 40^\circ".
         function smoothInlineMath(s) {
             let t = String(s == null ? '' : s)
+                // A model that writes a value as \text{$A = 40^\circ$} yields, after delimiter
+                // normalization, \text{\(A = 40^\circ\)} — inline math nested inside \text{} inside
+                // math mode, which MathJax cannot render (it shows a broken "\(\text{\)"). When a
+                // \text{} wrongly contains math delimiters, unwrap it back to the bare math.
+                .replace(/\\text\s*\{([^{}]*?)\}/g, (m, inner) =>
+                    /\\[()[\]]|\$/.test(inner) ? inner.replace(/\\[()[\]]/g, '').replace(/\$/g, '') : m)
                 // Kill malformed delimiters the model emits inside long answer blocks:
                 // - Doubled openers/closers "\(\(x\)" or "\(x\)\)": the extra delimiter is an
                 //   invalid macro inside math mode, so MathJax renders it as a red error blob

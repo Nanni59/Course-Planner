@@ -114,6 +114,11 @@ const cases = [
         name: 'PDF vector glyph inside dollar math does not nest delimiters',
         json: "{\"q\":\"Given $|⅑| = 15$ and $|⅒| = 20$, find the resultant.\"}",
         expect: { qContains: ['\\vec{u}', '\\vec{v}'], qNotContains: ['$\\(', '\\)$', '⅑', '⅒'] }
+    },
+    {
+        name: 'SCREENSHOT: math nested inside \\text{} must not break MathJax',
+        json: String.raw`{"q":"In triangle ABC, given \\(\\text{$A = 40^\\circ$}\\), \\(\\text{$B = 60^\\circ$}\\), and side \\(\\text{$a = 10cm$}\\). Find side \\(\\text{$b$}\\)."}`,
+        expect: { qContains: ['\\(A = 40^\\circ\\)', '\\(B = 60^\\circ\\)'], qNotContains: ['\\text{\\(', '\\(\\text{\\)'] }
     }
 ];
 
