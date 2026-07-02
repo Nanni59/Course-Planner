@@ -117,6 +117,20 @@ check("trig median (not stats)", "Find the length of the median of triangle ABC 
       subject="Trigonometry", expect_template=True, expect_caption="Triangle")
 check("vectors resultant", "Two forces of magnitude 10 N and 15 N act at an angle of 120 degrees; find the resultant.",
       subject="Vectors", expect_template=True, expect_caption="Vector")
+# Algebraic vector-quantity questions must each get a RELEVANT deterministic diagram
+# (matches the question), not a blank and not the generic angle-between picture.
+check("vectors magnitude", "Find the magnitude of the algebraic vector u = 4i - 2j + 4k in R^3.",
+      subject="Vectors", expect_template=True, expect_caption="components")
+check("vectors component form", "Given points A(3,-5) and B(-2,7), write the vector AB in component form.",
+      subject="Vectors", expect_template=True, expect_caption="components")
+check("vectors orthogonal", "Determine if the algebraic vectors u = (2,-3,4) and v = (5,2,-1) are orthogonal.",
+      subject="Vectors", expect_template=True, expect_caption="orthogonal")
+check("vectors collinear", "Determine the values of m and n so that the vectors u = (3,m,-2) and v = (9,12,n) are collinear.",
+      subject="Vectors", expect_template=True, expect_caption="Collinear")
+# A triangle/trig question that merely says "magnitude" must NOT be stolen by the vector
+# template — it still routes to the triangle diagram.
+check("trig magnitude not vector", "In triangle ABC, find the magnitude of angle B given side a = 10 cm and angle A = 40 degrees.",
+      subject="Trigonometry", expect_template=True, expect_caption="Triangle")
 check("stats histogram", "Draw a histogram for the frequency distribution of the data.",
       subject="Statistics", expect_template=True, expect_caption="Histogram")
 check("stats box plot", "Construct a box-and-whisker plot; find the quartiles and interquartile range.",

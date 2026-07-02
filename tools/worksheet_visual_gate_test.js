@@ -17,6 +17,15 @@ const cases = [
   [false, 'V-Q3 state distributive property', 'State the distributive property of scalar multiplication over vector addition in mathematical notation, given a scalar k and vectors a and b.'],
   [false, 'V-Q4 prove vector identity', 'Prove the vector identity: a + (b - c) = (a + b) - c. Assume a, b, and c are vectors in 3D space.'],
   [false, 'V-Q5 calculate 3(u-v)', 'Let u = (2, -1, 4) and v = (-3, 5, 1). Calculate 3(u - v) and verify that it is equal to 3u - 3v.'],
+  // concrete vector-QUANTITY questions SHOULD get a visual when TikZ is enabled — the
+  // backend matches the diagram (single vector + components for magnitude/component form,
+  // perpendicular arrows for orthogonal). These are NOT the abstract state/prove cases above.
+  [true, 'V-Q6 magnitude of 3D vector', 'Find the magnitude of the algebraic vector u = 4i - 2j + 4k in R^3. Show your steps.'],
+  [true, 'V-Q7 component form linear combo', 'Given points A(3, -5) and B(-2, 7) in R^2, write the vector AB in component form and then as a linear combination of the standard unit vectors i and j.'],
+  [true, 'V-Q8 component form of c=3a-2b', 'If a = (3, -1) and b = (-2, 5), determine the component form of the vector c = 3a - 2b.'],
+  [true, 'V-Q9 position vector of midpoint', 'Find the position vector of the midpoint M of the line segment AB, and verify that OM = OA + (1/2)AB, where O is the origin.'],
+  [true, 'V-Q10 orthogonal vectors', 'Determine if the algebraic vectors u = (2, -3, 4) and v = (5, 2, -1) are orthogonal.'],
+  [true, 'V-Q11 unit vector opposite', 'Find a unit vector in the opposite direction of v = (-3, 0, 4).'],
   // quadratic: a parabola genuinely helps -> should be TRUE (Gemini draws it; no wrong triangle now)
   [true, 'Quad-Q1 vertex', 'What is the vertex of the quadratic function f(x) = 2x^2 - 8x + 5?'],
   [true, 'Quad-Q3 axis of symmetry parabola', 'What is the axis of symmetry for the parabola defined by y = -x^2 + 6x - 9?'],

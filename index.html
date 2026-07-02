@@ -11579,10 +11579,10 @@
             const demote = (m, inner) => (/\\begin\s*\{|\\\\/.test(inner) ? m : '\\(' + inner.trim() + '\\)');
             t = t.replace(/\$\$([^$]{1,80}?)\$\$/g, demote)
                 .replace(/\\\[([\s\S]{1,80}?)\\\]/g, demote);
-            // Inverse: a long inline equation *chain* (>=90 chars, 2+ "=") can't line-break as
-            // inline math, so it overflows its column and gets clipped (fitWideMath only scales
-            // visually, it can't shrink the layout box). Promote it to display \[...\] so MathJax's
-            // linebreak overflow wraps it at the = signs. Leave real matrices/aligned blocks alone.
+            // Inverse: a long inline equation *chain* (>=90 chars, 2+ "=") gets clipped in an
+            // inline layout box (fitWideMath can't shrink an inline box). Promote it to display
+            // \[...\], which gets its own line and is then scaled to fit by fitWideMath. Leave
+            // real matrices/aligned blocks alone.
             t = t.replace(/\\\(([\s\S]*?)\\\)/g, (m, inner) =>
                 (inner.length >= 90 && (inner.match(/=/g) || []).length >= 2 && !/\\begin\s*\{/.test(inner))
                     ? '\\[' + inner.trim() + '\\]'
@@ -12253,20 +12253,24 @@
                 },
                 options: {
                     skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'input', 'select']
-                },
-                // Default: wrap an over-wide display equation onto the next line.
-                // renderMath() overrides this per call ('scale' for flashcards,
-                // 'overflow' for print) via setMathOverflow().
-                chtml: { displayOverflow: 'linebreak' }
+                }
+                // NB: MathJax v3 (loaded below) has no automatic display line-breaking —
+                // the v4-only `chtml.displayOverflow` option is rejected as "Invalid option"
+                // and does nothing. Over-wide display math is instead shrunk to fit by
+                // fitWideMath() after typeset. Do not re-add displayOverflow unless the CDN
+                // load is bumped to MathJax v4.
             };
             mathjaxP = loadScript('https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js')
                 .then(() => (window.MathJax && window.MathJax.startup) ? window.MathJax.startup.promise : null);
             return mathjaxP;
         }
-        // opts.overflow sets how MathJax handles a display equation that is wider
-        // than its column: 'linebreak' wraps it onto the next line (worksheet),
-        // 'scale' shrinks it to fit (flashcards), 'overflow' leaves it as-is
-        // (print, which the browser page-scales). opts.after runs once typeset.
+        // opts.overflow records the *intended* handling of an over-wide display
+        // equation ('linebreak' for worksheet, 'scale' for flashcards, 'overflow'
+        // for print). MathJax v3 has no display line-breaking, so under the current
+        // v3 load every mode falls back to fitWideMath() scaling and this only
+        // sets the (v4-only) displayOverflow property, which v3 ignores. The
+        // threading is kept so a future v4 bump gets per-call overflow for free.
+        // opts.after runs once typeset.
         function setMathOverflow(mode) {
             try {
                 const oj = window.MathJax.startup && window.MathJax.startup.document && window.MathJax.startup.document.outputJax;
@@ -12903,10 +12907,16 @@
             const isAbstract = /\b(state|write|express|prove|show that|explain|define|describe|verify|derive|expand|factor|simplify|evaluate|determine whether)\b/.test(hay)
                 && /\b(property|properties|identity|notation|definition|rule|axiom|theorem|expression|formula|equivalent|in your own words|associative|commutative|distributive)\b/.test(hay);
             if (isAbstract) return false;
-            // Vectors get a diagram only for a genuinely geometric setup, not for
-            // component arithmetic, notation, or proofs that merely mention "vector".
+            // Vectors get a diagram for any concrete vector QUANTITY question — not just
+            // geometric setups (resultant/angle) but also the algebraic ones a student
+            // expects a picture for: magnitude, component form, unit/position vectors,
+            // orthogonal/collinear pairs. The backend now owns matching the diagram to
+            // the question (a single vector with its components for magnitude/component
+            // form; two perpendicular arrows for orthogonal; etc.), so when the TikZ
+            // toggle is on these reliably get a relevant picture instead of a blank.
+            // Pure abstract/notation/proof questions are already excluded above (isAbstract).
             if (/\b(vector|vectors|vec)\b/.test(hay)) {
-                return /\b(resultant|angle between|magnitude|parallelogram|force|velocity|displacement|bearing|navigation|head[- ]to[- ]tail|projection|position vector|perpendicular|tension|equilibrium|component form|triangle|cross product|torque|work done)\b/.test(hay);
+                return /\b(resultant|angle between|parallelogram|force|velocity|displacement|bearing|navigation|head[- ]to[- ]tail|projection|perpendicular|orthogonal|collinear|tension|equilibrium|triangle|cross product|dot product|torque|work done|magnitude|component|unit vector|position vector|scalar multiple)\b/.test(hay);
             }
             // Everything else: require a concrete geometric or graphable term.
             return /\b(triangle|trigonometry|law of sines|law of cosines|sine law|cosine law|angle of elevation|angle of depression|bearing|navigation|parallelogram|trapezium|trapezoid|rhombus|quadrilateral|diagonal|midpoint|angle between|perpendicular bisector|intercept|vertex|axis of symmetry|parabola|slope|tangent line|secant line|area under|geometry|circle|rectangle|cylinder|cone|sphere|prism|volume|surface area|normal vector|projection onto|intersection of|histogram|box[- ]?plot|box[- ]and[- ]whisker|quartile|normal distribution|gaussian|bell curve|scatter plot|frequency distribution|standard deviation|z-score|empirical rule|skewness|skewed|data set|dataset|unit circle|coordinate plane)\b/.test(hay);

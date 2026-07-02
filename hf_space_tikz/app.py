@@ -964,11 +964,64 @@ def _bearing_template(req: GenerateReq, generic: bool = False) -> tuple[str, str
     return tikz, "Bearing diagram with north reference rays and travel vectors."
 
 
+def _single_vector_diagram(text: str) -> tuple[str, str]:
+    """A single vector drawn from the origin with its horizontal/vertical component
+    legs (a right triangle). This is the textbook picture for a *component form* or
+    *magnitude* question — the hypotenuse is the vector (its length = the magnitude).
+    Labels are symbolic (u_x, u_y / Δx, Δy) so they stay correct for R^2 or R^3 alike
+    instead of plugging real numbers onto a 2D sketch of a 3D vector."""
+    low = text.lower()
+    u, _v, _r = _extract_vector_names(text)
+    # A displacement between two named points ("the vector AB") reads best as \vec{AB}
+    # with Δx, Δy component legs; a plain named vector uses its own letter subscripts.
+    disp = (
+        re.search(r"\\(?:vec|overrightarrow)\s*\{\s*([A-Z])\s*([A-Z])\s*\}", text)
+        or re.search(r"\b(?:the\s+)?vector\s+([A-Z])([A-Z])\b", text)
+    )
+    if disp:
+        name = r"\vec{" + disp.group(1) + disp.group(2) + "}"
+        xlab, ylab = r"\Delta x", r"\Delta y"
+    else:
+        base_m = re.search(r"\\vec\{([A-Za-z])\}", u)
+        base = base_m.group(1) if base_m else "u"
+        name = u
+        xlab, ylab = base + "_x", base + "_y"
+    vlab = ("|" + name + "|") if "magnitude" in low else name
+    tikz = _fill(
+        r"""
+\begin{tikzpicture}[scale=.95]
+  \coordinate (O) at (0,0); \coordinate (P) at (2.8,1.9); \coordinate (Px) at (2.8,0);
+  \draw[cp axis,-Stealth] (-0.4,0)--(3.5,0) node[right] {$x$};
+  \draw[cp axis,-Stealth] (0,-0.4)--(0,2.7) node[above] {$y$};
+  \draw[cp dashed] (O)--(Px) node[midway,below] {$__XLAB__$};
+  \draw[cp dashed] (Px)--(P) node[midway,right] {$__YLAB__$};
+  \draw[cp line,-Stealth] (O)--(P) node[pos=.5,above left] {$__VLAB__$};
+  \draw[cp line] (2.55,0)--(2.55,0.25)--(2.8,0.25);
+  \fill (O) circle (1.3pt) node[below left] {$O$};
+\end{tikzpicture}
+""".strip(),
+        XLAB=xlab,
+        YLAB=ylab,
+        VLAB=vlab,
+    )
+    return tikz, "Vector shown from the origin with its horizontal and vertical components."
+
+
 def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
     text = _request_text(req)
     low = text.lower()
-    if not generic and not re.search(r"\b(vector|resultant|parallelogram|force|velocity|displacement)\b", low):
-        return None
+    # Fire for genuine vector cues AND for concrete vector-QUANTITY questions (magnitude,
+    # component form, unit/position vectors, orthogonal/collinear) so the student reliably
+    # gets a relevant deterministic diagram instead of a Gemini coin-flip. The quantity-only
+    # cues must not steal a triangle/trig question that merely says "magnitude"/"component",
+    # so defer to the triangle template in that case (this fn runs before _triangle_template).
+    has_vec_word = re.search(r"\b(vector|resultant|parallelogram|force|velocity|displacement)\b", low)
+    has_vec_quantity = re.search(r"\b(magnitude|component|unit vector|position vector|orthogonal|collinear|scalar multiple|dot product)\b", low)
+    if not generic:
+        if not has_vec_word and not has_vec_quantity:
+            return None
+        if not has_vec_word and _looks_like_triangle(text):
+            return None
     # A linear-algebra transformation question ("maps the unit square to a parallelogram,
     # find the 2x2 matrix") trips the "parallelogram" trigger but is not vector addition.
     # If it reads as matrix/transformation work and carries no genuine vector cue, defer to
@@ -976,6 +1029,41 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
     if not generic and re.search(r"\b(matrix|matrices|determinant|linear transformation|transformation matrix|unit square|eigen\w*)\b", low) \
             and not re.search(r"\b(vector|vectors|resultant|force|velocity|displacement|magnitude|head[- ]to[- ]tail)\b", low):
         return None
+    # Relevant single/pair-relationship diagrams for the algebraic cases, chosen so the
+    # picture matches the question. Anything else falls through to the existing
+    # resultant/parallelogram and angle-between diagrams below (unchanged behavior).
+    if re.search(r"\b(orthogonal|perpendicular)\b", low) and not re.search(r"\b(resultant|parallelogram)\b", low):
+        u, v, _r = _extract_vector_names(text)
+        tikz = _fill(
+            r"""
+\begin{tikzpicture}[scale=.95]
+  \coordinate (O) at (0,0); \coordinate (A) at (8:3.0); \coordinate (B) at (98:2.7);
+  \draw[cp line,-Stealth] (O)--(A) node[pos=.62,below right] {$__U__$};
+  \draw[cp line,-Stealth] (O)--(B) node[pos=.62,above left] {$__V__$};
+  \pic[draw=black,angle radius=4mm] {right angle=A--O--B};
+  \fill (O) circle (1.3pt) node[below left] {$O$};
+\end{tikzpicture}
+""".strip(),
+            U=u,
+            V=v,
+        )
+        return tikz, "Two orthogonal vectors meeting at a right angle."
+    if re.search(r"\b(collinear|scalar multiple|parallel vectors?)\b", low):
+        u, v, _r = _extract_vector_names(text)
+        tikz = _fill(
+            r"""
+\begin{tikzpicture}[scale=.95]
+  \draw[cp line,-Stealth] (0,0.5)--(2.3,0.5) node[midway,above] {$__U__$};
+  \draw[cp line,-Stealth] (0.4,-0.45)--(3.8,-0.45) node[midway,below] {$__V__$};
+\end{tikzpicture}
+""".strip(),
+            U=u,
+            V=v,
+        )
+        return tikz, "Collinear vectors are parallel — scalar multiples of each other."
+    if (has_vec_quantity and re.search(r"\b(magnitude|component|unit vector|position vector)\b", low)
+            and not re.search(r"\b(resultant|parallelogram|angle between|sum of|between them|two vectors|two forces)\b", low)):
+        return _single_vector_diagram(text)
     angle_match = (
         re.search(r"\b([0-9]{1,3})(?:\s*degrees?)?\s*(?:between|angle)", low)
         or re.search(r"\bangle\s+between\b[^.。;:\n]{0,80}?\b(?:is|=|of)?\s*([0-9]{1,3})(?:\s*degrees?)?", low)
