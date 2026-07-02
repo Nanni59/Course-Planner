@@ -129,6 +129,16 @@ const cases = [
         name: 'currency inside \\text{} (lone $) must NOT be stripped as math',
         json: "{\"q\":\"ok\",\"answer\":\"The unit price is \\\\(\\\\text{$5 per item}\\\\) before tax.\"}",
         expect: { answerKeepsProseSpaces: ['$5 per item'] }
+    },
+    {
+        name: 'ANSWER: inline \\(prose\\) nested in $$ splits out (no collapse, no literal **)',
+        json: String.raw`{"q":"ok","answer":"**Right-Hand Side (RHS):**\n$$ k\\vec{u} + m\\vec{u} = (ku_1, ku_2, ku_3) + (mu_1, mu_2, mu_3) \\(Using vector addition:\\) = (ku_1 + mu_1, ku_2 + mu_2, ku_3 + mu_3) $$\nSince LHS = RHS."}`,
+        expect: { answerKeepsProseSpaces: ['Using vector addition', 'Right-Hand Side'], answerNotContains: ['**', '\\(Using', '\\(2.'] }
+    },
+    {
+        name: 'ANSWER: markdown **bold** markers stripped from prose',
+        json: String.raw`{"q":"ok","answer":"**Step 1:** Distribute the scalars, then **combine** like terms."}`,
+        expect: { answerNotContains: ['**'], answerKeepsProseSpaces: ['Step 1', 'combine'] }
     }
 ];
 
@@ -185,6 +195,11 @@ for (const c of cases) {
         }
         if (exp.answerHasDisplayChain && !/\\\[[\s\S]*=[\s\S]*=[\s\S]*\\\]/.test(aHtml)) flags.push('long equation chain was NOT promoted to display (will overflow inline)');
         if (exp.answerNoLiteralDollar && /(?<!\\)\$(?!\$)/.test(aHtml.replace(/\\\$/g, ''))) flags.push('stray single $ survived (renders as literal "$x=" text)');
+        if (exp.answerNotContains) {
+            for (const phrase of exp.answerNotContains) {
+                if (aHtml.includes(phrase)) flags.push('answer still contains bad token "' + phrase + '"');
+            }
+        }
     }
     if (flags.length) failures++;
     console.log(flags.length ? '  FLAGS: ' + flags.join(' | ') : '  OK');

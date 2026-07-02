@@ -11544,6 +11544,20 @@
                     if (hasPairedDollar) out = out.replace(/\$/g, '');
                     return out;
                 })
+                // The model sometimes nests an inline \(...\) group inside a $$...$$ or \[...\]
+                // display block to drop in a prose note ("... \(Using vector addition:\) ..."). Nested
+                // math delimiters are invalid: MathJax fails on the whole block, the note collapses to
+                // run-on text ("Usingvectoraddition"), and the over-wide line overflows its column.
+                // Split the block at each nested group so the equation stays display math and the note
+                // falls back to plain prose. Use \[...\] display delimiters (not $$ toggles) so the
+                // demote pass below can't re-pair the note as a $$note$$ block and re-nest it.
+                .replace(/\$\$([\s\S]*?)\$\$/g, (m, inner) =>
+                    /\\[()]/.test(inner) ? '\\[' + inner.replace(/\\\(/g, () => '\\]').replace(/\\\)/g, () => '\\[') + '\\]' : m)
+                .replace(/\\\[([\s\S]*?)\\\]/g, (m, inner) =>
+                    /\\[()]/.test(inner) ? '\\[' + inner.replace(/\\\(/g, () => '\\]').replace(/\\\)/g, () => '\\[') + '\\]' : m)
+                // Strip markdown bold markers the model emits in prose. "**" never appears in valid
+                // LaTeX, so this is safe, and otherwise they render literally ("**Case 1**").
+                .replace(/\*\*([^*\n]+?)\*\*/g, '$1')
                 // Kill malformed delimiters the model emits inside long answer blocks:
                 // - Doubled openers/closers "\(\(x\)" or "\(x\)\)": the extra delimiter is an
                 //   invalid macro inside math mode, so MathJax renders it as a red error blob
