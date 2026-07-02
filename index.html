@@ -3923,14 +3923,44 @@
         body.dark-mode .sd-info,
         body.dark-mode .sd-question-panel,
         body.dark-mode .sd-mini-q { background:#17221a; border-color:#2b3f31; box-shadow:0 8px 22px rgba(0,0,0,.32); }
-        body.dark-mode .sd-stage { background:#111912; border-color:#2b3f31; }
+        body.dark-mode .sd-stage { background:#0f1713; border-color:#3a5941; }
         body.dark-mode .sd-card { color:#dfe5ef; }
+        body.dark-mode .sd-outline button { color:#b9c4d5; }
+        body.dark-mode .sd-outline button:hover { background:#213125; color:#eef3fb; }
+        body.dark-mode .sd-outline button.on { background:#dff5e3; color:#1f5b31; }
         body.dark-mode .sd-card h2,
         body.dark-mode .sd-info h3,
         body.dark-mode .sd-question-panel h3,
         body.dark-mode .sd-question,
         body.dark-mode .sd-mini-q strong { color:#eef3fb; }
-        body.dark-mode .sd-visual::before { background:linear-gradient(180deg,#1d2a20,#132017); }
+        body.dark-mode .sd-visual { background:#1c2b21; border-color:#4b6f52; }
+        body.dark-mode .sd-visual::before { background:linear-gradient(180deg,#263a2a,#17251b); box-shadow:inset 0 0 0 1px rgba(160,210,165,.12); }
+        body.dark-mode .sd-tikz-svg svg,
+        body.dark-mode .sd-concept-svg { color:#eef3fb; }
+        body.dark-mode .sd-tikz-svg svg [stroke]:not([stroke="none"]),
+        body.dark-mode .sd-concept-svg [stroke]:not([stroke="none"]) {
+            stroke:#dfeee1 !important;
+            stroke-opacity:1 !important;
+            vector-effect:non-scaling-stroke;
+        }
+        body.dark-mode .sd-tikz-svg svg text,
+        body.dark-mode .sd-tikz-svg svg tspan,
+        body.dark-mode .sd-tikz-svg svg [fill="#000"],
+        body.dark-mode .sd-tikz-svg svg [fill="#000000"],
+        body.dark-mode .sd-tikz-svg svg [fill="black"],
+        body.dark-mode .sd-concept-svg text,
+        body.dark-mode .sd-concept-svg tspan,
+        body.dark-mode .sd-concept-svg [fill="#000"],
+        body.dark-mode .sd-concept-svg [fill="#000000"],
+        body.dark-mode .sd-concept-svg [fill="black"] {
+            fill:#eef3fb !important;
+            fill-opacity:1 !important;
+        }
+        body.dark-mode .sd-tikz-svg svg marker path,
+        body.dark-mode .sd-concept-svg marker path {
+            fill:#dfeee1 !important;
+            stroke:#dfeee1 !important;
+        }
         body.dark-mode .sd-bullets li,
         body.dark-mode .sd-visual-text,
         body.dark-mode .sd-step-text,
