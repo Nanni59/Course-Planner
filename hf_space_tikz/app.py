@@ -257,9 +257,9 @@ def _template(tikz: str, theme: str, target: str) -> str:
     axis_width = "0.85pt" if theme == "mono" else "0.7pt"
 
     scale = {
-        "slide": "1.0",
-        "worksheet": "0.92",
-        "guide": "0.95",
+        "slide": "1.08",
+        "worksheet": "1.12",
+        "guide": "1.05",
         "generic": "1.0",
     }.get(target, "1.0")
 
@@ -1043,22 +1043,43 @@ def _single_vector_diagram(text: str) -> tuple[str, str]:
         name = u
         xlab, ylab = base + "_x", base + "_y"
     vlab = ("|" + name + "|") if "magnitude" in low else name
+    found_2d = _first_2d_vector(text)
+    px, py = _scaled_2d_vector_point(found_2d[1]) if found_2d else (2.8, 1.9)
+    if found_2d:
+        raw_x, raw_y = found_2d[1]
+        xlab = f"{raw_x:g}"
+        ylab = f"{raw_y:g}"
+        vlab = ("|" + rf"\vec{{{found_2d[0]}}}" + "|") if "magnitude" in low else rf"\vec{{{found_2d[0]}}}"
+    xmin = min(-0.7, px - 0.7)
+    xmax = max(3.5, px + 0.7)
+    ymin = min(-0.7, py - 0.7)
+    ymax = max(2.7, py + 0.7)
+    elbow_x = px - 0.25 if px >= 0 else px + 0.25
+    elbow_y = 0.25 if py >= 0 else -0.25
     tikz = _fill(
         r"""
 \begin{tikzpicture}[scale=.95]
-  \coordinate (O) at (0,0); \coordinate (P) at (2.8,1.9); \coordinate (Px) at (2.8,0);
-  \draw[cp axis,-Stealth] (-0.4,0)--(3.5,0) node[right] {$x$};
-  \draw[cp axis,-Stealth] (0,-0.4)--(0,2.7) node[above] {$y$};
+  \coordinate (O) at (0,0); \coordinate (P) at (__PX__,__PY__); \coordinate (Px) at (__PX__,0);
+  \draw[cp axis,-Stealth] (__XMIN__,0)--(__XMAX__,0) node[right] {$x$};
+  \draw[cp axis,-Stealth] (0,__YMIN__)--(0,__YMAX__) node[above] {$y$};
   \draw[cp dashed] (O)--(Px) node[midway,below] {$__XLAB__$};
   \draw[cp dashed] (Px)--(P) node[midway,right] {$__YLAB__$};
   \draw[cp line,-Stealth] (O)--(P) node[pos=.5,above left] {$__VLAB__$};
-  \draw[cp line] (2.55,0)--(2.55,0.25)--(2.8,0.25);
+  \draw[cp line] (__ELX__,0)--(__ELX__,__ELY__)--(__PX__,__ELY__);
   \fill (O) circle (1.3pt) node[below left] {$O$};
 \end{tikzpicture}
 """.strip(),
         XLAB=xlab,
         YLAB=ylab,
         VLAB=vlab,
+        PX=str(px),
+        PY=str(py),
+        XMIN=str(round(xmin, 3)),
+        XMAX=str(round(xmax, 3)),
+        YMIN=str(round(ymin, 3)),
+        YMAX=str(round(ymax, 3)),
+        ELX=str(round(elbow_x, 3)),
+        ELY=str(round(elbow_y, 3)),
     )
     return tikz, "Vector shown from the origin with its horizontal and vertical components."
 
@@ -1089,7 +1110,7 @@ def _vector_difference_diagram(text: str) -> tuple[str, str]:
 
 def _first_3d_vector(text: str) -> tuple[str, tuple[float, float, float]] | None:
     vec_pat = re.compile(
-        r"(?:\\vec\s*\{?\s*([A-Za-z])\s*\}?|vector\s+([A-Za-z]))\s*=?\s*"
+        r"(?:\\+vec\s*\{?\s*([A-Za-z])\s*\}?|vector\s+([A-Za-z]))\s*=?\s*"
         r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)",
         re.I,
     )
@@ -1099,6 +1120,20 @@ def _first_3d_vector(text: str) -> tuple[str, tuple[float, float, float]] | None
     name = match.group(1) or match.group(2) or "u"
     coords = tuple(float(match.group(i)) for i in (3, 4, 5))
     return name, coords
+
+
+def _first_2d_vector(text: str) -> tuple[str, tuple[float, float]] | None:
+    text = _repair_transport_escapes(text)
+    vec_pat = re.compile(
+        r"(?:\\+vec\s*\{?\s*([A-Za-z])\s*\}?|vector\s+([A-Za-z]))\s*=?\s*"
+        r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)",
+        re.I,
+    )
+    match = vec_pat.search(text)
+    if not match:
+        return None
+    name = match.group(1) or match.group(2) or "u"
+    return name, (float(match.group(3)), float(match.group(4)))
 
 
 def _vector_3d_diagram(text: str) -> tuple[str, str]:
@@ -1129,6 +1164,13 @@ def _vector_3d_diagram(text: str) -> tuple[str, str]:
         LABEL=label,
     )
     return tikz, "3D vector shown in an xyz coordinate frame."
+
+
+def _scaled_2d_vector_point(coords: tuple[float, float]) -> tuple[float, float]:
+    x, y = coords
+    max_abs = max(abs(x), abs(y), 1.0)
+    scale = 2.6 / max_abs
+    return round(x * scale, 3), round(y * scale, 3)
 
 
 def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
@@ -1502,15 +1544,33 @@ def _param_blueprint(req: GenerateReq, hit: tuple[str, str]) -> dict | None:
 \end{{tikzpicture}}""",
         }
     if "components" in cap:
+        found_2d = _first_2d_vector(_raw_request_text(req))
+        if found_2d:
+            name, coords = found_2d
+            px, py = _scaled_2d_vector_point(coords)
+            raw_x, raw_y = coords
+            defaults = {
+                "px": f"{px:g}",
+                "py": f"{py:g}",
+                "xmin": f"{min(-0.7, px - 0.7):.3g}",
+                "xmax": f"{max(3.5, px + 0.7):.3g}",
+                "ymin": f"{min(-0.7, py - 0.7):.3g}",
+                "ymax": f"{max(2.7, py + 0.7):.3g}",
+                "xlab": f"{raw_x:g}",
+                "ylab": f"{raw_y:g}",
+                "vlab": rf"\vec{{{name}}}",
+            }
+        else:
+            defaults = {"px": "2.8", "py": "1.9", "xmin": "-0.7", "xmax": "3.5", "ymin": "-0.7", "ymax": "2.7", "xlab": "u_x", "ylab": "u_y", "vlab": "\\vec{u}"}
         return {
             "name": "vector_components",
             "caption": caption,
-            "numeric": set(),
-            "defaults": {"xlab": "u_x", "ylab": "u_y", "vlab": "\\vec{u}"},
-            "template": r"""\begin{{tikzpicture}}[scale=.95]
-  \coordinate (O) at (0,0); \coordinate (P) at (2.8,1.9); \coordinate (Px) at (2.8,0);
-  \draw[cp axis,-Stealth] (-0.4,0)--(3.5,0) node[right] {{$x$}};
-  \draw[cp axis,-Stealth] (0,-0.4)--(0,2.7) node[above] {{$y$}};
+            "numeric": {"px", "py", "xmin", "xmax", "ymin", "ymax"},
+            "defaults": defaults,
+            "template": r"""\begin{{tikzpicture}}[scale=1.1]
+  \coordinate (O) at (0,0); \coordinate (P) at ({px},{py}); \coordinate (Px) at ({px},0);
+  \draw[cp axis,-Stealth] ({xmin},0)--({xmax},0) node[right] {{$x$}};
+  \draw[cp axis,-Stealth] (0,{ymin})--(0,{ymax}) node[above] {{$y$}};
   \draw[cp dashed] (O)--(Px) node[midway,below] {{$ {xlab} $}};
   \draw[cp dashed] (Px)--(P) node[midway,right] {{$ {ylab} $}};
   \draw[cp line,-Stealth] (O)--(P) node[pos=.5,above left] {{$ {vlab} $}};
@@ -1882,6 +1942,33 @@ def _heuristic_visual_correction(req: GenerateReq, tikz: str) -> tuple[str, str]
     if has_3d_vector and re.search(r"\\coordinate\s*\(P\)\s*at\s*\([^,()]+,[^,()]+\);", tikz):
         corrected, _caption = _vector_3d_diagram(original)
         return corrected, "3D vector used a 2D coordinate pair; pivoted to xyz frame."
+    found_2d = _first_2d_vector(original)
+    if found_2d:
+        (_name, (raw_x, raw_y)) = found_2d
+        expected_x = 0 if abs(raw_x) < 1e-9 else (1 if raw_x > 0 else -1)
+        expected_y = 0 if abs(raw_y) < 1e-9 else (1 if raw_y > 0 else -1)
+        geometry_code = re.sub(r"\$[^$]*\$", "", tikz)
+        geometry_code = re.sub(r"node(?:\[[^\]]*\])?\s*\{[^{}]*\}", "node{}", geometry_code)
+        coords = [
+            (float(x), float(y))
+            for x, y in re.findall(r"\((-?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\)", geometry_code)
+        ]
+        def same_direction(value: float, expected: int) -> bool:
+            if expected == 0:
+                return abs(value) < 1e-6
+            return value * expected > 0
+        has_matching_endpoint = any(
+            (abs(x) > 0.15 or abs(y) > 0.15)
+            and same_direction(x, expected_x)
+            and same_direction(y, expected_y)
+            for x, y in coords
+        )
+        if not has_matching_endpoint:
+            corrected, _caption = _single_vector_diagram(original)
+            return corrected, (
+                f"2D vector signs were not physically plotted in the correct quadrant; "
+                f"expected ({raw_x:g}, {raw_y:g})."
+            )
     return None
 
 
@@ -1893,9 +1980,11 @@ Examine the code for the following logical and structural failures:
 1. Dimension Mismatches: Is a 3D vector or coordinate point being forced into a 2D template, resulting in zero-valued axes or flat, degenerate triangles? (e.g., a vector like (-3,0,4) rendered on a flat 2D right triangle with a height label of 0).
 2. Geometric Impossible Shapes: Does the TikZ code attempt to draw lines, triangles, or graphs that contradict the constants or variables given in the text?
 3. Label Clashes: Are labels overlapping axes or placed at mathematically incorrect positions?
+4. Sign and Direction Integrity: Do all vector components, coordinate points, line slopes, and plotted endpoints physically match the signs in the question text? A negative x component must point left of the y-axis, a negative y component must point below the x-axis, and mixed-sign vectors must land in the correct quadrant or octant. Do not accept a diagram that merely labels a positive arrow with a negative coordinate.
+5. Layout and Clipping: After enlarging the diagram, are axes, labels, arrowheads, plotted points, and curves still inside the visible drawing area without clipping?
 
 If the proposed TikZ code is perfectly accurate, respond with EXACTLY: "VALID".
-If there is a flaw, write a short explanation of the mistake, followed by a corrected, fully compilable raw TikZ block wrapper.
+If there is a flaw, write a short explanation of the mistake, followed by a corrected, fully compilable raw TikZ block wrapper. When correcting a sign or quadrant mismatch, rewrite the actual coordinate endpoints, axis bounds, or vector targets, not only the text labels.
 
 Original Worksheet Question Text:
 {_raw_request_text(req)[:2800]}
@@ -1930,12 +2019,36 @@ def _verify_visual_accuracy(req: GenerateReq, tikz: str, source: str = "draft") 
     return tikz, verdict[:800]
 
 
+def _enlarge_visual_code(req: GenerateReq, tikz: str) -> str:
+    factor = 1.22 if req.target == "worksheet" else 1.1
+
+    def scale_option(match):
+        value = float(match.group(1))
+        return f"scale={value * factor:.3g}"
+
+    def cm_dim(match):
+        key, value = match.group(1), float(match.group(2))
+        return f"{key}={value * factor:.3g}cm"
+
+    out = re.sub(r"scale\s*=\s*([0-9.]+)", scale_option, tikz)
+    out = re.sub(r"\b(width|height)\s*=\s*([0-9.]+)\s*cm\b", cm_dim, out)
+    out = re.sub(
+        r"\\begin\{tikzpicture\}(?!\[)",
+        lambda _m: rf"\begin{{tikzpicture}}[scale={factor:.3g}]",
+        out,
+        count=1,
+    )
+    return out
+
+
 def _verified_render(req: GenerateReq, tikz: str, source: str = "draft") -> dict:
     semantic_issue = _semantic_visual_issue(req, tikz)
     if semantic_issue:
         return {"ok": False, "error": semantic_issue, "log": semantic_issue}
-    checked_tikz, critic_note = _verify_visual_accuracy(req, tikz, source=source)
-    if checked_tikz != tikz:
+    enlarged_tikz = _enlarge_visual_code(req, tikz)
+    checked_tikz, critic_note = _verify_visual_accuracy(req, enlarged_tikz, source=source)
+    if checked_tikz != enlarged_tikz:
+        checked_tikz = _enlarge_visual_code(req, checked_tikz)
         semantic_issue = _semantic_visual_issue(req, checked_tikz)
         if semantic_issue:
             return {"ok": False, "error": semantic_issue, "log": semantic_issue}
