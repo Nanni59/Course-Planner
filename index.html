@@ -12854,7 +12854,11 @@
         }
         async function renderTikzWorksheet(data, progress) {
             if (!data || !Array.isArray(data.questions) || !tikzReady()) return data;
-            const aiCandidates = data.questions.filter(q => q && !String(q.tikzSvg || '').trim());
+            // Only send questions the conservative gate marks visual-worthy. A wrong or
+            // irrelevant diagram is worse than none, and sending every question also lets
+            // abstract questions that merely mention "vector"/"parallelogram" pick up a
+            // stray deterministic diagram on the backend. The gate stays the filter.
+            const aiCandidates = data.questions.filter(q => q && worksheetNeedsVisual(q) && !String(q.tikzSvg || '').trim());
             let completed = 0;
             if (progress) progress.detail(aiCandidates.length ? ('Rendering TikZ visual 1 of ' + aiCandidates.length + ' on the backend') : 'No backend visuals needed');
             let nextVisual = 0;
@@ -12862,13 +12866,14 @@
                 try {
                     const out = await generateTikzVisual({
                         title: q.q || 'Worksheet visual',
+                        // Keep this brief free of shape words ("triangle", "vector",
+                        // "parallelogram", "compass", "SVG"): the backend routes templates and
+                        // audits relevance off the request text, so boilerplate keywords here
+                        // leak into every question and mis-fire the deterministic diagrams
+                        // (e.g. "SVG-first" was read as a triangle named S-V-G). The backend's
+                        // own visual prompt already carries the detailed drawing guidance.
                         brief: [
-                            'Create a small SVG-first textbook diagram that helps answer this worksheet question.',
-                            'Keep it compact and landscape-oriented so it fits beside late worksheet questions without creating large vertical gaps.',
-                            'Use black/gray lines, short labels, visible arrowheads, and no oversized empty compass circles unless the circle is mathematically essential.',
-                            'Prefer a fresh clean diagram over any rough existing TikZ if the rough idea is formula-only, colored, cluttered, missing required labels, or uses exterior-looking angle arcs.',
-                            'For triangles, trigonometry, and law of sines/cosines, place angle marks inside the triangle only. Do not draw exterior arcs around vertices. For bearings, place bearing arcs inside the measured sector. For vector/parallelogram problems, include the named vectors, diagonals, and resultants rather than a generic shape.',
-                            worksheetNeedsVisual(q) ? '' : 'If this question does not have a safe, relevant visual representation, return an empty tikz string instead of a generic or decorative diagram.',
+                            'Create a compact, landscape textbook diagram that helps a student answer this worksheet question. Use clean black or gray lines with short labels. If this question has no safe, directly relevant diagram, return an empty tikz string rather than a generic or decorative picture.',
                             q.q ? 'Question: ' + q.q : '',
                             q.answer ? 'Answer/key idea: ' + q.answer : '',
                             sdCleanTikz(q.tikz) ? 'Existing rough TikZ idea may be ignored if weak: ' + sdCleanTikz(q.tikz).slice(0, 900) : ''

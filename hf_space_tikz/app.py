@@ -969,6 +969,13 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
     low = text.lower()
     if not generic and not re.search(r"\b(vector|resultant|parallelogram|force|velocity|displacement)\b", low):
         return None
+    # A linear-algebra transformation question ("maps the unit square to a parallelogram,
+    # find the 2x2 matrix") trips the "parallelogram" trigger but is not vector addition.
+    # If it reads as matrix/transformation work and carries no genuine vector cue, defer to
+    # Gemini rather than drawing a vector parallelogram.
+    if not generic and re.search(r"\b(matrix|matrices|determinant|linear transformation|transformation matrix|unit square|eigen\w*)\b", low) \
+            and not re.search(r"\b(vector|vectors|resultant|force|velocity|displacement|magnitude|head[- ]to[- ]tail)\b", low):
+        return None
     angle_match = (
         re.search(r"\b([0-9]{1,3})(?:\s*degrees?)?\s*(?:between|angle)", low)
         or re.search(r"\bangle\s+between\b[^.。;:\n]{0,80}?\b(?:is|=|of)?\s*([0-9]{1,3})(?:\s*degrees?)?", low)
@@ -1018,15 +1025,19 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
 def _statistics_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
     text = _request_text(req)
     low = text.lower()
+    # Trigger only on words that unambiguously mean statistics. Bare "median" (a triangle
+    # median), "skew" (skew lines), "distribution" (distribution of forces) and "gaussian"
+    # (Gaussian elimination — linear algebra) all collide with non-stats topics, so require
+    # their stats-specific forms. "gaussian" must not be "gaussian elimination".
     if not generic and not re.search(
         r"\b(histogram|frequency distribution|box[- ]?(?:and[- ]?)?whisker|box plot|boxplot|"
-        r"quartile|interquartile|iqr|five-number|median|skew|skewness|normal distribution|"
-        r"normally distributed|gaussian|bell curve|standard deviation|z-score|empirical rule|"
-        r"68-95-99\.?7|data set|dataset|distribution)\b",
+        r"quartile|interquartile|iqr|five-number|skewness|normal distribution|"
+        r"normally distributed|bell curve|standard deviation|z-score|empirical rule|"
+        r"68-95-99\.?7)\b|\bgaussian\b(?!\s+elimination)",
         low,
     ):
         return None
-    if re.search(r"\b(normal distribution|normally distributed|gaussian|bell curve|standard deviation|z-score|empirical rule|68-95-99\.?7)\b", low):
+    if re.search(r"\b(normal distribution|normally distributed|bell curve|standard deviation|z-score|empirical rule|68-95-99\.?7)\b|\bgaussian\b(?!\s+elimination)", low):
         return r"""
 \begin{tikzpicture}[declare function={gauss(\x,\m,\s)=1/(\s*sqrt(2*pi))*exp(-((\x-\m)^2)/(2*\s^2));}]
 \begin{axis}[width=6.4cm,height=3.5cm,axis lines=middle,xlabel={$x$},ylabel={density},
@@ -1065,7 +1076,11 @@ def _statistics_template(req: GenerateReq, generic: bool = False) -> tuple[str, 
 def _geometry_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
     text = _request_text(req)
     low = text.lower()
-    if not generic and not re.search(r"\b(rectangle|circle|cylinder|cone|sphere|area|volume|surface area|perimeter|geometry)\b", low):
+    # Require an actual shape this template can draw. Bare "area"/"volume"/"geometry" matched
+    # non-geometry questions ("area of the transformed shape" in a matrix problem) and forced
+    # a rectangle. Shapes with no skeleton here (cone/sphere/prism) are left to Gemini instead
+    # of being mis-drawn as a rectangle.
+    if not generic and not re.search(r"\b(rectangle|circle|circumference|cylinder)\b", low):
         return None
     if "cylinder" in low:
         return r"""
