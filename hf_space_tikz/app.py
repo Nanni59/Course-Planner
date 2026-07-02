@@ -1022,22 +1022,30 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
     return tikz, "Vector angle diagram with both vectors from a shared tail."
 
 
+# Statistics triggers as named constants so the entry gate and the per-diagram branch
+# checks below can't drift apart. Deliberately excludes bare "median" (a triangle median)
+# and "skew" (skew lines) — a box plot needs quartile/whisker/IQR context — and "gaussian"
+# only when it is not "gaussian elimination" (linear algebra).
+_STATS_NORMAL_RE = re.compile(
+    r"\b(normal distribution|normally distributed|bell curve|standard deviation|"
+    r"z-score|empirical rule|68-95-99\.?7)\b|\bgaussian\b(?!\s+elimination)"
+)
+_STATS_BOXPLOT_RE = re.compile(
+    r"\b(box[- ]?(?:and[- ]?)?whisker|box plot|boxplot|quartile|interquartile|"
+    r"iqr|five-number)\b"
+)
+
+
 def _statistics_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
     text = _request_text(req)
     low = text.lower()
-    # Trigger only on words that unambiguously mean statistics. Bare "median" (a triangle
-    # median), "skew" (skew lines), "distribution" (distribution of forces) and "gaussian"
-    # (Gaussian elimination — linear algebra) all collide with non-stats topics, so require
-    # their stats-specific forms. "gaussian" must not be "gaussian elimination".
-    if not generic and not re.search(
-        r"\b(histogram|frequency distribution|box[- ]?(?:and[- ]?)?whisker|box plot|boxplot|"
-        r"quartile|interquartile|iqr|five-number|skewness|normal distribution|"
-        r"normally distributed|bell curve|standard deviation|z-score|empirical rule|"
-        r"68-95-99\.?7)\b|\bgaussian\b(?!\s+elimination)",
-        low,
+    if not generic and not (
+        re.search(r"\b(histogram|frequency distribution|skewness)\b", low)
+        or _STATS_NORMAL_RE.search(low)
+        or _STATS_BOXPLOT_RE.search(low)
     ):
         return None
-    if re.search(r"\b(normal distribution|normally distributed|bell curve|standard deviation|z-score|empirical rule|68-95-99\.?7)\b|\bgaussian\b(?!\s+elimination)", low):
+    if _STATS_NORMAL_RE.search(low):
         return r"""
 \begin{tikzpicture}[declare function={gauss(\x,\m,\s)=1/(\s*sqrt(2*pi))*exp(-((\x-\m)^2)/(2*\s^2));}]
 \begin{axis}[width=6.4cm,height=3.5cm,axis lines=middle,xlabel={$x$},ylabel={density},
@@ -1049,7 +1057,7 @@ def _statistics_template(req: GenerateReq, generic: bool = False) -> tuple[str, 
 \end{axis}
 \end{tikzpicture}
 """.strip(), "Normal distribution curve with the central one-standard-deviation region shaded."
-    if re.search(r"\b(box[- ]?(?:and[- ]?)?whisker|box plot|boxplot|quartile|interquartile|iqr|five-number|median)\b", low):
+    if _STATS_BOXPLOT_RE.search(low):
         return r"""
 \begin{tikzpicture}
 \begin{axis}[width=6.4cm,height=2.8cm,boxplot/draw direction=x,

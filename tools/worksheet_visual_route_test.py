@@ -52,14 +52,20 @@ _pyd = _stub("pydantic")
 _pyd.BaseModel = type("BaseModel", (), {"__init__": lambda self, **kw: self.__dict__.update(kw)})
 _pyd.Field = lambda *a, **k: (a[0] if a and a[0] is not ... else "")
 
-# Do not run the LaTeX cache warm-up thread at import time.
+# Suppress only the LaTeX cache warm-up thread that app.py starts at import time, then
+# restore Thread.start so this module can't disable threading elsewhere (e.g. if it is
+# ever collected in a shared pytest session — the *_test.py name matches discovery).
 import threading  # noqa: E402
+_orig_thread_start = threading.Thread.start
 threading.Thread.start = lambda self: None
 
 APP = os.path.join(os.path.dirname(__file__), "..", "hf_space_tikz", "app.py")
 ns = {}
-with open(APP, encoding="utf-8") as fh:
-    exec(compile(fh.read(), APP, "exec"), ns)  # noqa: S102
+try:
+    with open(APP, encoding="utf-8") as fh:
+        exec(compile(fh.read(), APP, "exec"), ns)  # noqa: S102
+finally:
+    threading.Thread.start = _orig_thread_start
 
 _deterministic_template = ns["_deterministic_template"]
 _semantic_visual_issue = ns["_semantic_visual_issue"]
@@ -117,8 +123,14 @@ check("stats box plot", "Construct a box-and-whisker plot; find the quartiles an
       subject="Statistics", expect_template=True, expect_caption="Box")
 check("stats normal", "For a normal distribution, apply the 68-95-99.7 empirical rule.",
       subject="Statistics", expect_template=True, expect_caption="Normal")
+check("geometry rectangle", "Find the area of a rectangle with length 8 cm and width 5 cm.",
+      subject="Geometry", expect_template=True, expect_caption="Rectangle")
+check("geometry circle", "Find the circumference of a circle with radius 7 cm.",
+      subject="Geometry", expect_template=True, expect_caption="Circle")
 
 # --- foreign / non-visual topics must NOT get a deterministic diagram (blank > wrong) ---
+check("geometry vague area (no drawable shape)", "Calculate the area enclosed by the given region.",
+      subject="Geometry", expect_template=False)
 check("LA gaussian elimination", "Solve the system of linear equations using Gaussian elimination: 2x - y + 3z = 9.",
       subject="Linear Algebra", expect_template=False)
 check("LA determinant", "Calculate the determinant of the matrix A = [[4,-2],[3,5]].",
