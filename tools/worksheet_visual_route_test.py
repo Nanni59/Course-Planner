@@ -89,10 +89,11 @@ def req(question, subject="General", answer=""):
 failures = []
 
 
-def check(name, question, *, subject="General", expect_template, expect_caption=None, expect_renders=True):
+def check(name, question, *, subject="General", answer="", expect_template, expect_caption=None, expect_renders=True):
     """expect_template True -> a deterministic template must fire; False -> none may fire.
-    expect_caption: substring the caption must contain. expect_renders: audit must not reject."""
-    hit = _deterministic_template(req(question, subject))
+    expect_caption: substring the caption must contain. expect_renders: audit must not reject.
+    answer: worked-solution prose included in the brief — routing must NOT depend on it."""
+    hit = _deterministic_template(req(question, subject, answer))
     if not expect_template:
         if hit is not None:
             failures.append(f"{name}: expected NO template, got {hit[1]!r}")
@@ -103,7 +104,7 @@ def check(name, question, *, subject="General", expect_template, expect_caption=
     tikz, caption = hit
     if expect_caption and expect_caption.lower() not in caption.lower():
         failures.append(f"{name}: caption {caption!r} lacks {expect_caption!r}")
-    if expect_renders and _semantic_visual_issue(req(question, subject), tikz):
+    if expect_renders and _semantic_visual_issue(req(question, subject, answer), tikz):
         failures.append(f"{name}: relevant template was flagged by the semantic audit")
     # Nothing should ever route to a bearing diagram unless the text is truly about bearings.
     if "bearing" in caption.lower() and "bearing" not in (question + " " + subject).lower():
@@ -127,6 +128,19 @@ check("vectors orthogonal", "Determine if the algebraic vectors u = (2,-3,4) and
       subject="Vectors", expect_template=True, expect_caption="orthogonal")
 check("vectors collinear", "Determine the values of m and n so that the vectors u = (3,m,-2) and v = (9,12,n) are collinear.",
       subject="Vectors", expect_template=True, expect_caption="Collinear")
+# Vector arithmetic: a subtraction and a linear combination must get the SAME difference
+# diagram (not a single-vector picture for one and a blank for the other), and a sum gets
+# the resultant. Routed on the question, so the answer's "component-wise"/"sum" can't flip it.
+check("vectors subtraction", r"Given \vec{p}=(5,-1,2) and \vec{q}=(2,3,-4), calculate \vec{p}-\vec{q}.",
+      subject="Vectors", answer="The subtraction is performed component-wise.",
+      expect_template=True, expect_caption="subtraction")
+check("vectors linear combination", r"Given \vec{u}=(-1,0,4) and \vec{v}=(3,-5,2), calculate 2\vec{u}-3\vec{v}.",
+      subject="Vectors", answer="First, perform the scalar multiplication, then subtract the resulting vectors.",
+      expect_template=True, expect_caption="subtraction")
+check("vectors sum resultant", r"Given \vec{a}=(3,-2) and \vec{b}=(1,5), find the resultant vector \vec{c}=\vec{a}+\vec{b} and its magnitude.",
+      subject="Vectors", expect_template=True, expect_caption="resultant")
+check("vectors magnitude of a sum", r"Given \vec{m}=(6,-8) and \vec{n}=(-2,3), find the magnitude of the vector 2\vec{m}+5\vec{n}.",
+      subject="Vectors", answer="find the sum of these vectors then its magnitude", expect_template=True, expect_caption="resultant")
 # A triangle/trig question that merely says "magnitude" must NOT be stolen by the vector
 # template — it still routes to the triangle diagram.
 check("trig magnitude not vector", "In triangle ABC, find the magnitude of angle B given side a = 10 cm and angle A = 40 degrees.",

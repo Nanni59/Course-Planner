@@ -26,6 +26,12 @@ const cases = [
   [true, 'V-Q9 position vector of midpoint', 'Find the position vector of the midpoint M of the line segment AB, and verify that OM = OA + (1/2)AB, where O is the origin.'],
   [true, 'V-Q10 orthogonal vectors', 'Determine if the algebraic vectors u = (2, -3, 4) and v = (5, 2, -1) are orthogonal.'],
   [true, 'V-Q11 unit vector opposite', 'Find a unit vector in the opposite direction of v = (-3, 0, 4).'],
+  // Symbolic vector operations (a+b, p-q, 2u-3v) are diagram-worthy and must be treated
+  // the SAME whether or not the worked answer happens to say "component-wise" (decided on
+  // the question). Real worksheet output writes vectors as \vec{...}.
+  [true, 'V-Q12 subtraction p-q', 'Given \\vec{p} = (5, -1, 2) and \\vec{q} = (2, 3, -4), calculate \\vec{p} - \\vec{q}.'],
+  [true, 'V-Q13 linear combination 2u-3v', 'Given \\vec{u} = (-1, 0, 4) and \\vec{v} = (3, -5, 2), calculate 2\\vec{u} - 3\\vec{v}.'],
+  [true, 'V-Q14 sum a+b', 'Given \\vec{a} = (3, -2) and \\vec{b} = (1, 5), find the resultant vector \\vec{c} = \\vec{a} + \\vec{b} and its magnitude.'],
   // quadratic: a parabola genuinely helps -> should be TRUE (Gemini draws it; no wrong triangle now)
   [true, 'Quad-Q1 vertex', 'What is the vertex of the quadratic function f(x) = 2x^2 - 8x + 5?'],
   [true, 'Quad-Q3 axis of symmetry parabola', 'What is the axis of symmetry for the parabola defined by y = -x^2 + 6x - 9?'],

@@ -692,6 +692,24 @@ def _request_text(req: GenerateReq) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _question_text(req: GenerateReq) -> str:
+    """Same normalization as _request_text but from the QUESTION (title) only, never the
+    worked answer/brief prose. Diagram TYPE must be decided from what the question asks —
+    keying off the answer made near-identical questions diverge (a "calculate p-q" whose
+    answer says "component-wise" drew a single-vector diagram; a "calculate 2u-3v" whose
+    answer did not stayed blank). Keeps \\vec intact so a+b / p-q / 2u-3v are detectable.
+    Falls back to the full request text when there is no title (non-worksheet callers)."""
+    title = (req.title or "").strip()
+    if not title:
+        return _request_text(req)
+    text = re.sub(r"\\text\s*\{\s*([^{}]+?)\s*\}", r" \1 ", title)
+    text = text.replace("\\triangle", " triangle ").replace("\\angle", " angle ")
+    text = text.replace("^\\circ", " degrees").replace("°", " degrees")
+    text = re.sub(r"\\[()\[\]]", " ", text)
+    text = text.replace("$", " ")
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def _tex_label(value: str, default: str = "") -> str:
     value = re.sub(r"\s+", " ", str(value or default)).strip()
     value = value.strip("$")
@@ -1007,20 +1025,50 @@ def _single_vector_diagram(text: str) -> tuple[str, str]:
     return tikz, "Vector shown from the origin with its horizontal and vertical components."
 
 
+def _vector_difference_diagram(text: str) -> tuple[str, str]:
+    """Head-to-tail construction for a vector subtraction / linear combination
+    (p - q, 2u - 3v): both operands from a shared origin, and the difference drawn
+    from the tip of the second to the tip of the first. This is the textbook picture
+    of the operation the question asks for, so p-q and 2u-3v get the SAME relevant
+    diagram instead of one getting a single-vector picture and the other a blank."""
+    u, v, _r = _extract_vector_names(text)
+    tikz = _fill(
+        r"""
+\begin{tikzpicture}[scale=.9]
+  \coordinate (O) at (0,0); \coordinate (A) at (3.3,0.5); \coordinate (B) at (1.1,2.2);
+  \draw[cp line,-Stealth] (O)--(A) node[midway,below right] {$__U__$};
+  \draw[cp line,-Stealth] (O)--(B) node[midway,above left] {$__V__$};
+  \draw[cp dashed,-Stealth] (B)--(A) node[midway,above] {$__D__$};
+  \fill (O) circle (1.3pt) node[below left] {$O$};
+\end{tikzpicture}
+""".strip(),
+        U=u,
+        V=v,
+        D=u + "-" + v,
+    )
+    return tikz, "Vector subtraction shown head-to-tail as the difference of the two vectors."
+
+
 def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
-    text = _request_text(req)
+    text = _request_text(req)          # full text (subject+title+brief) for extraction/guards
     low = text.lower()
-    # Fire for genuine vector cues AND for concrete vector-QUANTITY questions (magnitude,
-    # component form, unit/position vectors, orthogonal/collinear) so the student reliably
-    # gets a relevant deterministic diagram instead of a Gemini coin-flip. The quantity-only
-    # cues must not steal a triangle/trig question that merely says "magnitude"/"component",
-    # so defer to the triangle template in that case (this fn runs before _triangle_template).
-    has_vec_word = re.search(r"\b(vector|resultant|parallelogram|force|velocity|displacement)\b", low)
-    has_vec_quantity = re.search(r"\b(magnitude|component|unit vector|position vector|orthogonal|collinear|scalar multiple|dot product)\b", low)
+    q = _question_text(req)            # QUESTION only — drives which diagram is drawn
+    ql = q.lower()
+    # A vector operation written symbolically in the question: a+b, p-q, 2u-3v. Detected on
+    # the question so the worked answer's incidental wording can't flip the diagram.
+    op_add = bool(re.search(r"\\vec\s*\{[a-zA-Z]\}\s*\+", q)) or bool(re.search(r"\b(resultant|sum)\b", ql))
+    op_sub = bool(re.search(r"\\vec\s*\{[a-zA-Z]\}\s*-\s*\d*\s*\\?vec", q)) or bool(re.search(r"\b(subtract|difference)\b", ql))
+    # Fire for genuine vector cues AND concrete vector-QUANTITY questions (magnitude,
+    # component form, unit/position vectors, orthogonal/collinear) AND symbolic operations,
+    # so the student reliably gets a relevant deterministic diagram instead of a Gemini
+    # coin-flip. Quantity/op-only cues must not steal a triangle/trig question that merely
+    # says "magnitude" (this fn runs before _triangle_template), so defer in that case.
+    has_vec_word = re.search(r"\b(vector|resultant|parallelogram|force|velocity|displacement)\b", ql)
+    has_vec_quantity = re.search(r"\b(magnitude|component|unit vector|position vector|orthogonal|collinear|scalar multiple|dot product)\b", ql)
     if not generic:
-        if not has_vec_word and not has_vec_quantity:
+        if not (has_vec_word or has_vec_quantity or op_add or op_sub):
             return None
-        if not has_vec_word and _looks_like_triangle(text):
+        if not has_vec_word and not op_add and not op_sub and _looks_like_triangle(text):
             return None
     # A linear-algebra transformation question ("maps the unit square to a parallelogram,
     # find the 2x2 matrix") trips the "parallelogram" trigger but is not vector addition.
@@ -1029,10 +1077,16 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
     if not generic and re.search(r"\b(matrix|matrices|determinant|linear transformation|transformation matrix|unit square|eigen\w*)\b", low) \
             and not re.search(r"\b(vector|vectors|resultant|force|velocity|displacement|magnitude|head[- ]to[- ]tail)\b", low):
         return None
-    # Relevant single/pair-relationship diagrams for the algebraic cases, chosen so the
-    # picture matches the question. Anything else falls through to the existing
-    # resultant/parallelogram and angle-between diagrams below (unchanged behavior).
-    if re.search(r"\b(orthogonal|perpendicular)\b", low) and not re.search(r"\b(resultant|parallelogram)\b", low):
+    # Classify on the question, in priority order, so each type maps to ONE consistent
+    # picture: sum/resultant -> parallelogram; subtraction/combination -> head-to-tail
+    # difference; orthogonal -> right angle; collinear -> parallel arrows; a single vector
+    # quantity (magnitude/component form/unit/position) -> vector-with-components; otherwise
+    # the two-vector angle diagram.
+    if op_sub and not op_add:
+        return _vector_difference_diagram(text)
+    if op_add and not (op_sub or "parallelogram" in ql):
+        pass  # fall through to the parallelogram/resultant diagram below
+    elif re.search(r"\b(orthogonal|perpendicular)\b", ql) and not re.search(r"\b(resultant|parallelogram)\b", ql):
         u, v, _r = _extract_vector_names(text)
         tikz = _fill(
             r"""
@@ -1048,7 +1102,7 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
             V=v,
         )
         return tikz, "Two orthogonal vectors meeting at a right angle."
-    if re.search(r"\b(collinear|scalar multiple|parallel vectors?)\b", low):
+    elif re.search(r"\b(collinear|scalar multiple|parallel vectors?)\b", ql):
         u, v, _r = _extract_vector_names(text)
         tikz = _fill(
             r"""
@@ -1061,8 +1115,8 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
             V=v,
         )
         return tikz, "Collinear vectors are parallel — scalar multiples of each other."
-    if (has_vec_quantity and re.search(r"\b(magnitude|component|unit vector|position vector)\b", low)
-            and not re.search(r"\b(resultant|parallelogram|angle between|sum of|between them|two vectors|two forces)\b", low)):
+    elif (re.search(r"\b(magnitude|component|unit vector|position vector)\b", ql)
+            and not re.search(r"\b(angle between|between them|two vectors|two forces)\b", ql)):
         return _single_vector_diagram(text)
     angle_match = (
         re.search(r"\b([0-9]{1,3})(?:\s*degrees?)?\s*(?:between|angle)", low)
@@ -1074,7 +1128,7 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
     magnitudes = _extract_vector_magnitudes(text)
     u_label = u + (r"\,=" + magnitudes[0] if magnitudes else "")
     v_label = v + (r"\,=" + magnitudes[1] if len(magnitudes) > 1 else "")
-    if "parallelogram" in low or "resultant" in low or "sum" in low:
+    if op_add or "parallelogram" in ql:
         tikz = _fill(
             r"""
 \begin{tikzpicture}[scale=.82]
