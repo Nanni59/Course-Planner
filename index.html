@@ -12872,8 +12872,29 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
-            }, 180000);
+            }, 45000);
             const out = await res.json().catch(() => null);
+            // New TikZ backend contract: /generate starts a background render and
+            // returns immediately. Poll /status until the SVG/PNG is ready so slow
+            // Gemini/LaTeX work cannot trip a gateway timeout.
+            if (res.ok && out && out.job_id) {
+                const started = Date.now();
+                const maxWait = 300000;
+                while (Date.now() - started < maxWait) {
+                    await wait(1800);
+                    const sres = await tikzFetch(TIKZ_SPACE_URL + '/status/' + encodeURIComponent(out.job_id), { cache: 'no-store' }, 30000);
+                    const st = await sres.json().catch(() => null);
+                    if (!sres.ok) throw new Error(st && st.error || ('TikZ status failed: ' + sres.status));
+                    if (st && st.status === 'completed' && (st.svg || st.base64)) {
+                        st.ok = true;
+                        return st;
+                    }
+                    if (st && st.status === 'failed') throw new Error(st.error || 'TikZ generation failed.');
+                }
+                throw new Error('TikZ generation timed out while polling the renderer.');
+            }
+            // Backward-compatible path for older deployed Spaces that still return
+            // the rendered diagram directly.
             if (res.ok && out && out.ok && (out.svg || out.base64)) return out;
             throw new Error(out && (out.error || out.log) || ('TikZ generation failed: ' + res.status));
         }

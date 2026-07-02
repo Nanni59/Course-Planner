@@ -4,6 +4,8 @@ Course Planner - TikZ static visual renderer (Hugging Face Docker Space).
 Exposes:
   GET  /health  -> {"status": "ok", ...}
   POST /render  -> render a constrained TikZ snippet to SVG or PNG
+  POST /generate -> start an async diagram job and return {"job_id": "..."}
+  GET  /status/{job_id} -> poll for the generated SVG/PNG or an error
 
 This service is intentionally separate from the Manim video renderer. It exists
 to turn Gemini-generated TikZ code into textbook-style static visuals for
@@ -25,6 +27,12 @@ from typing import Literal
 
 import requests
 from fastapi import FastAPI
+try:
+    from fastapi import BackgroundTasks
+except ImportError:  # test harness stubs only FastAPI
+    class BackgroundTasks:
+        def add_task(self, *args, **kwargs):
+            return None
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -69,6 +77,11 @@ _model_blocked_until: dict[tuple[object, str], float] = {}
 _model_lock = threading.Lock()
 _last_success_model = None
 _last_success_model_lock = threading.Lock()
+
+jobs: dict[str, dict] = {}
+_jobs_lock = threading.Lock()
+JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", "3600"))
+TEMPLATE_REPAIR_ATTEMPTS = int(os.environ.get("TEMPLATE_REPAIR_ATTEMPTS", "3"))
 
 
 class RenderReq(BaseModel):
@@ -1297,6 +1310,98 @@ def _render_template(req: GenerateReq, hit: tuple[str, str], check_semantics: bo
     return rendered
 
 
+def _template_customizer_prompt(
+    req: GenerateReq,
+    template: str,
+    repair_log: str = "",
+    previous_code: str = "",
+) -> str:
+    repair_block = ""
+    if repair_log:
+        repair_block = (
+            "\nThe previous customized TikZ did not compile or failed validation.\n"
+            "Repair it using this exact diagnostic information:\n"
+            + repair_log[:1600]
+            + "\n\nPrevious customized TikZ:\n"
+            + previous_code[:3500]
+            + "\n"
+        )
+    return (
+        "You are a precise LaTeX/TikZ structural template customizer. You are provided with a "
+        "user's math question and a structurally sound, compilable TikZ template code block.\n\n"
+        "Your ONLY task is to modify the coordinate values, numerical parameters, and textual "
+        "labels inside the provided TikZ template code so that it accurately fits the math question.\n\n"
+        "CRITICAL CONSTRAINTS:\n"
+        "1. Do not alter the base structural paths, style keys, line rules, colors, or package "
+        "settings defined in the template wrapper.\n"
+        "2. Keep all macro settings intact. Only update explicit numerical elements (e.g., "
+        "coordinates like (3,0) or (0,2.4) or vector bounds) and node string labels.\n"
+        "3. Return ONLY valid, raw TikZ text inside a valid environment starting with "
+        "\\begin{tikzpicture} and ending with \\end{tikzpicture}. Do not include markdown fences "
+        "(like ```tex or ```tikz).\n"
+        "4. Preserve the problem's exact point, vector, angle, side, and unit labels. If the "
+        "question gives numbers, put those numbers into the labels or coordinate choices where "
+        "the blueprint has placeholders.\n"
+        "5. If the template is not a good structural match for the question, still keep the same "
+        "broad structure and make the smallest label/coordinate changes needed; do not invent a "
+        "new document wrapper or unsupported packages.\n"
+        + repair_block
+        + "\nUser math question and context:\n"
+        + _request_text(req)[:2600]
+        + "\n\nStructurally sound TikZ template to customize:\n"
+        + template[:6000]
+    )
+
+
+def _customize_template_and_render(
+    req: GenerateReq,
+    hit: tuple[str, str],
+    source: str = "template",
+) -> dict:
+    template, caption = hit
+    rendered: dict = {"ok": False, "error": "Template customization did not produce a diagram."}
+    previous_code = template
+    repair_log = ""
+    for attempt in range(TEMPLATE_REPAIR_ATTEMPTS + 1):
+        try:
+            customized = _gemini(
+                _template_customizer_prompt(req, template, repair_log=repair_log, previous_code=previous_code),
+                as_json=False,
+                temperature=0.1 if attempt else 0.15,
+            )
+        except Exception as exc:
+            rendered = {"ok": False, "error": f"Template customization unavailable: {str(exc)[:220]}"}
+            print(f"[template] {source} customization Gemini failure: {str(exc)[:220]}", flush=True)
+            return rendered
+
+        tikz = _strip_fence(customized)
+        match = re.search(r"\\begin\s*\{tikzpicture\}[\s\S]*?\\end\s*\{tikzpicture\}", tikz)
+        if match:
+            tikz = match.group(0)
+        print(
+            f"[template] {source} customized attempt {attempt + 1}/{TEMPLATE_REPAIR_ATTEMPTS + 1}:\n{tikz[:5000]}",
+            flush=True,
+        )
+        previous_code = tikz
+        semantic_issue = _semantic_visual_issue(req, tikz)
+        rendered = (
+            {"ok": False, "error": semantic_issue, "log": semantic_issue}
+            if semantic_issue
+            else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
+        )
+        if rendered.get("ok"):
+            rendered["tikz"] = tikz
+            rendered["caption"] = caption
+            rendered["customized"] = source
+            return rendered
+        repair_log = rendered.get("log") or rendered.get("error") or "TikZ render failed."
+        print(
+            f"[template] {source} customized render failed on attempt {attempt + 1}: {repair_log[:1600]}",
+            flush=True,
+        )
+    return rendered
+
+
 def _visual_prompt(req: GenerateReq, repair_log: str = "", previous_code: str = "") -> str:
     repair_block = ""
     if repair_log:
@@ -1581,7 +1686,7 @@ def render(req: RenderReq):
 
 
 def _deterministic_fallback(req: GenerateReq) -> dict | None:
-    """Render a KEYWORD-MATCHED deterministic diagram when Gemini is unavailable.
+    """Customize and render a KEYWORD-MATCHED deterministic diagram.
 
     IMPORTANT: this must NOT force a generic triangle. A question with no matching
     shape (a quadratic, an algebra proof, a "state the property" question) should
@@ -1592,24 +1697,29 @@ def _deterministic_fallback(req: GenerateReq) -> dict | None:
     fallback = _deterministic_template(req, generic=False)
     if not fallback:
         return None
-    rendered = _render_template(req, fallback, check_semantics=True)
+    rendered = _customize_template_and_render(req, fallback, source="fallback-template")
     if rendered.get("ok"):
-        rendered["fallback"] = "deterministic"
+        rendered["fallback"] = "customized-deterministic"
         return rendered
     return None
 
 
-@app.post("/generate")
-def generate(req: GenerateReq):
+def _generate_visual_sync(req: GenerateReq) -> dict:
     try:
-        # 1) Trust a matching deterministic template and render it directly. This keeps
-        #    common triangle/bearing/vector/geometry questions off the Gemini path
-        #    entirely, so a Gemini "high demand" outage can't starve them of visuals.
+        # 1) Use a matching deterministic template as a structural blueprint, then let
+        #    Gemini customize coordinates, numerical parameters, and labels to the
+        #    exact worksheet question before compiling. This keeps proven layouts
+        #    while avoiding generic placeholder diagrams.
         template_hit = _deterministic_template(req)
         if template_hit:
-            rendered = _render_template(req, template_hit, check_semantics=True)
+            rendered = _customize_template_and_render(req, template_hit, source="deterministic-template")
             if rendered.get("ok"):
-                return JSONResponse(rendered, status_code=200)
+                return rendered
+            print(
+                "[generate] customized deterministic template failed, trying bespoke Gemini path: "
+                + str(rendered.get("error") or rendered.get("log") or "")[:220],
+                flush=True,
+            )
 
         # 2) Otherwise ask Gemini for bespoke TikZ. Any Gemini failure (exhausted
         #    retries during a 503 storm, network timeout) is caught so we can still
@@ -1649,25 +1759,104 @@ def generate(req: GenerateReq):
         if rendered.get("ok"):
             rendered["tikz"] = tikz
             rendered["caption"] = caption
-            return JSONResponse(rendered, status_code=200)
+            return rendered
 
-        # 3) Last resort: a deterministic diagram so the question is not left blank.
+        # 3) Last resort: retry a matched deterministic blueprint through the same
+        #    customization loop. If no keyword-matched blueprint exists, leave the
+        #    question blank rather than inventing an irrelevant shape.
         fallback_rendered = _deterministic_fallback(req)
         if fallback_rendered:
-            return JSONResponse(fallback_rendered, status_code=200)
+            return fallback_rendered
 
         rendered["tikz"] = tikz
         rendered["caption"] = caption
-        return JSONResponse(rendered, status_code=400)
+        return rendered
     except Exception as exc:
-        # Even an unexpected error shouldn't leave a visual-worthy question blank.
         try:
             fallback_rendered = _deterministic_fallback(req)
             if fallback_rendered:
-                return JSONResponse(fallback_rendered, status_code=200)
+                return fallback_rendered
         except Exception:
             pass
-        return JSONResponse({"ok": False, "error": str(exc)[:500]}, status_code=500)
+        return {"ok": False, "error": str(exc)[:500]}
+
+
+def _cleanup_jobs() -> None:
+    cutoff = time.time() - JOB_TTL_SECONDS
+    with _jobs_lock:
+        stale = [job_id for job_id, data in jobs.items() if data.get("created", 0) < cutoff]
+        for job_id in stale:
+            jobs.pop(job_id, None)
+
+
+def _set_job(job_id: str, **values) -> None:
+    with _jobs_lock:
+        job = jobs.get(job_id)
+        if job is not None:
+            job.update(values)
+
+
+def _run_generate_job(job_id: str, req: GenerateReq) -> None:
+    _set_job(job_id, status="processing", error="")
+    try:
+        result = _generate_visual_sync(req)
+        if result.get("ok"):
+            _set_job(
+                job_id,
+                status="completed",
+                ok=True,
+                svg=result.get("svg", ""),
+                base64=result.get("base64", ""),
+                tikz=result.get("tikz", ""),
+                caption=result.get("caption", ""),
+                format=result.get("format", req.format),
+                mime=result.get("mime", "image/svg+xml" if req.format == "svg" else "image/png"),
+                fallback=result.get("fallback", ""),
+                customized=result.get("customized", ""),
+                error="",
+            )
+            return
+        _set_job(
+            job_id,
+            status="failed",
+            ok=False,
+            svg="",
+            base64="",
+            tikz=result.get("tikz", ""),
+            caption=result.get("caption", ""),
+            error=result.get("error") or result.get("log") or "TikZ generation failed.",
+        )
+    except Exception as exc:
+        _set_job(job_id, status="failed", ok=False, error=str(exc)[:500], svg="", base64="")
+
+
+@app.post("/generate")
+def generate(req: GenerateReq, background_tasks: BackgroundTasks):
+    _cleanup_jobs()
+    job_id = str(uuid.uuid4())
+    with _jobs_lock:
+        jobs[job_id] = {
+            "job_id": job_id,
+            "status": "pending",
+            "ok": False,
+            "svg": "",
+            "base64": "",
+            "tikz": "",
+            "caption": "",
+            "error": "",
+            "created": time.time(),
+        }
+    background_tasks.add_task(_run_generate_job, job_id, req)
+    return JSONResponse({"job_id": job_id, "status": "pending"}, status_code=202)
+
+
+@app.get("/status/{job_id}")
+def status(job_id: str):
+    with _jobs_lock:
+        job = jobs.get(job_id)
+        if job is None:
+            return JSONResponse({"status": "failed", "error": "Unknown or expired job id."}, status_code=404)
+        return dict(job)
 
 
 def _warm_latex_caches() -> None:
