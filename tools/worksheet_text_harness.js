@@ -109,6 +109,11 @@ const cases = [
         name: 'PDF indexed vector glyphs become subscripted LaTeX vectors',
         json: "{\"q\":\"Two forces ⅑_1 and ⅑_2 act on a particle. The angle between the two forces is 40^âˆ˜.\"}",
         expect: { qContains: ['\\vec{u}_{1}', '\\vec{u}_{2}', '^\\circ'], qNotContains: ['⅑', '^âˆ˜'] }
+    },
+    {
+        name: 'PDF vector glyph inside dollar math does not nest delimiters',
+        json: "{\"q\":\"Given $|⅑| = 15$ and $|⅒| = 20$, find the resultant.\"}",
+        expect: { qContains: ['\\vec{u}', '\\vec{v}'], qNotContains: ['$\\(', '\\)$', '⅑', '⅒'] }
     }
 ];
 

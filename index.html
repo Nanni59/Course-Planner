@@ -11564,13 +11564,23 @@
             }).join('\n');
         }
         function repairVectorGlyphs(s) {
-            return String(s == null ? '' : s)
-                .replace(/\|\s*⅑\s*\|/g, '\\(|\\vec{u}|\\)')
-                .replace(/\|\s*⅒\s*\|/g, '\\(|\\vec{v}|\\)')
-                .replace(/⅑\s*_\s*([A-Za-z0-9]+)/g, '\\(\\vec{u}_{$1}\\)')
-                .replace(/⅒\s*_\s*([A-Za-z0-9]+)/g, '\\(\\vec{v}_{$1}\\)')
-                .replace(/⅑/g, '\\(\\vec{u}\\)')
-                .replace(/⅒/g, '\\(\\vec{v}\\)');
+            const source = String(s == null ? '' : s);
+            const replaceGlyphs = (chunk, wrap) => chunk
+                .replace(/\|\s*⅑\s*\|/g, wrap ? '\\(|\\vec{u}|\\)' : '|\\vec{u}|')
+                .replace(/\|\s*⅒\s*\|/g, wrap ? '\\(|\\vec{v}|\\)' : '|\\vec{v}|')
+                .replace(/⅑\s*_\s*([A-Za-z0-9]+)/g, (m, sub) => wrap ? '\\(\\vec{u}_{' + sub + '}\\)' : '\\vec{u}_{' + sub + '}')
+                .replace(/⅒\s*_\s*([A-Za-z0-9]+)/g, (m, sub) => wrap ? '\\(\\vec{v}_{' + sub + '}\\)' : '\\vec{v}_{' + sub + '}')
+                .replace(/⅑/g, wrap ? '\\(\\vec{u}\\)' : '\\vec{u}')
+                .replace(/⅒/g, wrap ? '\\(\\vec{v}\\)' : '\\vec{v}');
+            const mathSpan = /\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\$[\s\S]*?\$/g;
+            let out = '', last = 0;
+            source.replace(mathSpan, (m, offset) => {
+                out += replaceGlyphs(source.slice(last, offset), true);
+                out += replaceGlyphs(m, false);
+                last = offset + m.length;
+                return m;
+            });
+            return out + replaceGlyphs(source.slice(last), true);
         }
         function normalizeGeneratedString(s) {
             let t = normalizeLatexBackslashes(repairParsedLatexEscapes(repairVectorGlyphs(balanceDollarMath(s))))

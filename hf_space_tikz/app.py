@@ -874,7 +874,7 @@ def _extract_vector_names(text: str) -> tuple[str, str, str]:
     found: list[str] = []
     for base, sub in re.findall(r"\\vec\s*\{?\s*([A-Za-z])\s*\}?\s*(?:_\s*\{?\s*([A-Za-z0-9]+)\s*\}?)?", text):
         found.append(_format_vector_name(base, sub))
-    for base, sub in re.findall(r"\b(?:vector|force|velocity|displacement)\s+([A-Za-z])\s*(?:_\s*\{?\s*([A-Za-z0-9]+)\s*\}?)?", text, re.I):
+    for base, sub in re.findall(r"\b(?:vector|force|velocity|displacement)\s+([A-Za-z])(?![A-Za-z])\s*(?:_\s*\{?\s*([A-Za-z0-9]+)\s*\}?)?", text, re.I):
         found.append(_format_vector_name(base, sub))
     unique: list[str] = []
     for item in found:
@@ -1073,8 +1073,6 @@ def _render_template(req: GenerateReq, hit: tuple[str, str], check_semantics: bo
     tikz, caption = hit
     # Template callers pass check_semantics=True so slot-filled skeletons are
     # audited for topic relevance before rendering.
-    # Our own deterministic templates are trusted, fixed skeletons — the semantic
-    # audit exists to police free-form Gemini output, so skip it for template hits.
     semantic_issue = _semantic_visual_issue(req, tikz) if check_semantics else None
     rendered = (
         {"ok": False, "error": semantic_issue, "log": semantic_issue}
@@ -1175,10 +1173,11 @@ def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
         or any(term in hay for term in ("triangle", "law of sines", "law of cosines"))
         or bool(re.search(r"\b(?:side|angle)\s+[abc]\b", hay))
     )
-    has_plain_triangle_cycle = bool(re.search(
-        r"\\draw[^\n;]*\([A-Za-z]\)[^\n;]*--[^\n;]*\([A-Za-z]\)[^\n;]*--[^\n;]*\([A-Za-z]\)[^\n;]*--\s*cycle",
-        tikz,
-    ))
+    cycle_draws = re.findall(r"\\draw[^\n;]*--\s*cycle\s*;", tikz)
+    has_plain_triangle_cycle = any(
+        len(re.findall(r"\([A-Za-z]\)", draw)) == 3
+        for draw in cycle_draws
+    )
     has_triangle_angle_pic = bool(re.search(r"\\pic\s*\[[^\]]*\]\s*\{angle=[A-Za-z]--[A-Za-z]--[A-Za-z]\}", tikz))
     has_vector_arrows = bool(re.search(r"(?:-|=)\s*Stealth|->|<-", tikz))
     has_axes_or_plot = "\\begin{axis}" in tikz or re.search(r"\baxis\s+lines\b|\\addplot|\\draw[^\n;]*(?:->|-Stealth)[^\n;]*node[^\n;]*\{\$x\$\}", tikz)
