@@ -1335,79 +1335,245 @@ def _render_template(req: GenerateReq, hit: tuple[str, str], check_semantics: bo
     return rendered
 
 
-def _template_customizer_prompt(
-    req: GenerateReq,
-    template: str,
-    repair_log: str = "",
-    previous_code: str = "",
-) -> str:
-    repair_block = ""
-    if repair_log:
-        repair_block = (
-            "\nThe previous customized TikZ did not compile or failed validation.\n"
-            "Repair it using this exact diagnostic information:\n"
-            + repair_log[:1600]
-            + "\n\nPrevious customized TikZ:\n"
-            + previous_code[:3500]
-            + "\n"
-        )
-    return (
-        "You are a precise LaTeX/TikZ structural template customizer. You are provided with a "
-        "user's math question and a structurally sound, compilable TikZ template code block.\n\n"
-        "Your ONLY task is to modify the coordinate values, numerical parameters, and textual "
-        "labels inside the provided TikZ template code so that it accurately fits the math question.\n\n"
-        "CRITICAL CONSTRAINTS:\n"
-        "1. Do not alter the base structural paths, style keys, line rules, colors, or package "
-        "settings defined in the template wrapper.\n"
-        "2. Keep all macro settings intact. Only update explicit numerical elements (e.g., "
-        "coordinates like (3,0) or (0,2.4) or vector bounds) and node string labels.\n"
-        "3. Return ONLY valid, raw TikZ text inside a valid environment starting with "
-        "\\begin{tikzpicture} and ending with \\end{tikzpicture}. Do not include markdown fences "
-        "(like ```tex or ```tikz).\n"
-        "4. Preserve the problem's exact point, vector, angle, side, and unit labels. If the "
-        "question gives numbers, put those numbers into the labels or coordinate choices where "
-        "the blueprint has placeholders.\n"
-        "5. If the template is not a good structural match for the question, still keep the same "
-        "broad structure and make the smallest label/coordinate changes needed; do not invent a "
-        "new document wrapper or unsupported packages.\n"
-        + repair_block
-        + "\nUser math question and context:\n"
-        + _raw_request_text(req)[:2600]
-        + "\n\nStructurally sound TikZ template to customize:\n"
-        + template[:6000]
-    )
+def _safe_param_value(value, default: str = "") -> str:
+    value = _repair_transport_escapes(str(value if value is not None else default))
+    value = value.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+    value = re.sub(r"[;&]", " ", value)
+    value = re.sub(r"[^A-Za-z0-9_+\-*/=.,:(){}\\\\^\\s/|°]", "", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value or default
 
 
-def _customize_template_and_render(
-    req: GenerateReq,
-    hit: tuple[str, str],
-    source: str = "template",
-) -> dict:
-    template, caption = hit
-    rendered: dict = {"ok": False, "error": "Template customization did not produce a diagram."}
-    previous_code = template
+def _safe_number(value, default: str = "0") -> str:
+    value = str(value if value is not None else default).strip()
+    match = re.search(r"-?\d+(?:\.\d+)?", value)
+    return match.group(0) if match else default
+
+
+def _safe_tikz_lines(value, default: str = "") -> str:
+    value = _repair_transport_escapes(str(value if value is not None else default))
+    if re.search(r"\\(?:write18|input|include|openin|openout|read|write|def|let|newcommand|usepackage|documentclass)\b", value, re.I):
+        return default
+    lines = []
+    for line in value.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if "\\pic" in line and "angle=" in line:
+            lines.append(line)
+    return "\n  ".join(lines) or default
+
+
+def _format_tikz(template: str, params: dict, defaults: dict, numeric_keys: set[str] | None = None) -> str:
+    numeric_keys = numeric_keys or set()
+    clean = {}
+    for key, default in defaults.items():
+        if key == "angle_lines":
+            clean[key] = _safe_tikz_lines(params.get(key), str(default))
+        else:
+            clean[key] = _safe_number(params.get(key), str(default)) if key in numeric_keys else _safe_param_value(params.get(key), str(default))
+    return template.format(**clean)
+
+
+def _param_blueprint(req: GenerateReq, hit: tuple[str, str]) -> dict | None:
+    _tikz, caption = hit
+    cap = caption.lower()
+    text = _request_text(req).lower()
+    if "triangle" in cap:
+        angle_lines = "\n  ".join(line.strip() for line in _tikz.splitlines() if "\\pic" in line and "angle=" in line)
+        return {
+            "name": "triangle",
+            "caption": caption,
+            "numeric": set(),
+            "defaults": {"A": "A", "B": "B", "C": "C", "AB": "c", "AC": "b", "BC": "a", "angle_lines": angle_lines},
+            "template": r"""\begin{{tikzpicture}}[scale=.9]
+  \coordinate (A) at (0,0); \coordinate (B) at (4.2,0); \coordinate (C) at (1.35,2.35);
+  \draw[cp line] (A)--(B)--(C)--cycle;
+  \node[below left] at (A) {{$ {A} $}};
+  \node[below right] at (B) {{$ {B} $}};
+  \node[above] at (C) {{$ {C} $}};
+  \node[below] at ($(A)!0.5!(B)$) {{$ {AB} $}};
+  \node[left] at ($(A)!0.5!(C)$) {{$ {AC} $}};
+  \node[right] at ($(B)!0.5!(C)$) {{$ {BC} $}};
+  {angle_lines}
+\end{{tikzpicture}}""",
+        }
+    if "bearing" in cap:
+        return {
+            "name": "bearing",
+            "caption": caption,
+            "numeric": {"a1", "a2", "m1", "m2", "b1", "b2"},
+            "defaults": {"a1": "45", "a2": "-25", "m1": "67.5", "m2": "32.5", "b1": "45", "b2": "115", "l1": "45^\\circ", "l2": "115^\\circ"},
+            "template": r"""\begin{{tikzpicture}}[scale=.85]
+  \coordinate (O) at (0,0);
+  \coordinate (P) at ({a1}:2.45);
+  \coordinate (Q) at ($(P)+({a2}:2.1)$);
+  \draw[cp axis,-Stealth] (O)--(0,2.4) node[above] {{$N$}};
+  \draw[cp axis,-Stealth] (O)--(2.3,0) node[right] {{$E$}};
+  \draw[cp line,-Stealth] (O)--(P) node[midway,above right] {{$ {l1} $}};
+  \draw[cp line,-Stealth] (P)--(Q) node[midway,above] {{$ {l2} $}};
+  \draw[cp dashed] (O)--(Q) node[midway,below] {{$d$}};
+  \draw[cp dashed] (90:.62) arc[start angle=90,end angle={a1},radius=.62];
+  \node at ({m1}:.88) {{$ {b1}^\circ $}};
+  \draw[cp dashed] ($(P)+(0,.58)$) arc[start angle=90,end angle={a2},radius=.58];
+  \node at ($(P)+({m2}:.84)$) {{$ {b2}^\circ $}};
+\end{{tikzpicture}}""",
+        }
+    if "subtraction" in cap:
+        return {
+            "name": "vector_difference",
+            "caption": caption,
+            "numeric": set(),
+            "defaults": {"u": "\\vec{u}", "v": "\\vec{v}", "d": "\\vec{u}-\\vec{v}"},
+            "template": r"""\begin{{tikzpicture}}[scale=.9]
+  \coordinate (O) at (0,0); \coordinate (A) at (3.3,0.5); \coordinate (B) at (1.1,2.2);
+  \draw[cp line,-Stealth] (O)--(A) node[midway,below right] {{$ {u} $}};
+  \draw[cp line,-Stealth] (O)--(B) node[midway,above left] {{$ {v} $}};
+  \draw[cp dashed,-Stealth] (B)--(A) node[midway,above] {{$ {d} $}};
+  \fill (O) circle (1.3pt) node[below left] {{$O$}};
+\end{{tikzpicture}}""",
+        }
+    if "components" in cap:
+        return {
+            "name": "vector_components",
+            "caption": caption,
+            "numeric": set(),
+            "defaults": {"xlab": "u_x", "ylab": "u_y", "vlab": "\\vec{u}"},
+            "template": r"""\begin{{tikzpicture}}[scale=.95]
+  \coordinate (O) at (0,0); \coordinate (P) at (2.8,1.9); \coordinate (Px) at (2.8,0);
+  \draw[cp axis,-Stealth] (-0.4,0)--(3.5,0) node[right] {{$x$}};
+  \draw[cp axis,-Stealth] (0,-0.4)--(0,2.7) node[above] {{$y$}};
+  \draw[cp dashed] (O)--(Px) node[midway,below] {{$ {xlab} $}};
+  \draw[cp dashed] (Px)--(P) node[midway,right] {{$ {ylab} $}};
+  \draw[cp line,-Stealth] (O)--(P) node[pos=.5,above left] {{$ {vlab} $}};
+\end{{tikzpicture}}""",
+        }
+    if "orthogonal" in cap:
+        return {
+            "name": "vector_orthogonal",
+            "caption": caption,
+            "numeric": set(),
+            "defaults": {"u": "\\vec{u}", "v": "\\vec{v}"},
+            "template": r"""\begin{{tikzpicture}}[scale=.95]
+  \coordinate (O) at (0,0); \coordinate (A) at (8:3.0); \coordinate (B) at (98:2.7);
+  \draw[cp line,-Stealth] (O)--(A) node[pos=.62,below right] {{$ {u} $}};
+  \draw[cp line,-Stealth] (O)--(B) node[pos=.62,above left] {{$ {v} $}};
+  \pic[draw=black,angle radius=4mm] {{right angle=A--O--B}};
+\end{{tikzpicture}}""",
+        }
+    if "collinear" in cap:
+        return {
+            "name": "vector_collinear",
+            "caption": caption,
+            "numeric": set(),
+            "defaults": {"u": "\\vec{u}", "v": "\\vec{v}"},
+            "template": r"""\begin{{tikzpicture}}[scale=.95]
+  \draw[cp line,-Stealth] (0,0.5)--(2.3,0.5) node[midway,above] {{$ {u} $}};
+  \draw[cp line,-Stealth] (0.4,-0.45)--(3.8,-0.45) node[midway,below] {{$ {v} $}};
+\end{{tikzpicture}}""",
+        }
+    if "vector" in cap:
+        return {
+            "name": "vector_resultant" if "resultant" in cap else "vector_angle",
+            "caption": caption,
+            "numeric": {"angle"},
+            "defaults": {"angle": "55", "u": "\\vec{u}", "v": "\\vec{v}", "r": "\\vec{u}+\\vec{v}"},
+            "template": r"""\begin{{tikzpicture}}[scale=.82]
+  \coordinate (O) at (0,0); \coordinate (A) at (3.2,0); \coordinate (B) at ({angle}:2.2); \coordinate (C) at ($(A)+(B)$);
+  \draw[cp dashed] (A)--(C)--(B);
+  \draw[cp line,-Stealth] (O)--(A) node[midway,below] {{$ {u} $}};
+  \draw[cp line,-Stealth] (O)--(B) node[midway,left] {{$ {v} $}};
+  \draw[cp line,-Stealth] (O)--(C) node[pos=.58,above] {{$ {r} $}};
+  \pic[draw=black,angle radius=5mm,"${angle}^\circ",angle eccentricity=1.35] {{angle=A--O--B}};
+\end{{tikzpicture}}""",
+        }
+    if "normal distribution" in cap:
+        return {"name": "normal", "caption": caption, "numeric": set(), "defaults": {"center_label": "\\mu", "shade_label": "68\\%"}, "template": r"""\begin{{tikzpicture}}[declare function={{gauss(\x,\m,\s)=1/(\s*sqrt(2*pi))*exp(-((\x-\m)^2)/(2*\s^2));}}]
+\begin{{axis}}[width=6.4cm,height=3.5cm,axis lines=middle,xlabel={{$x$}},ylabel={{density}},xmin=-3.6,xmax=3.6,ymin=0,ymax=0.45,samples=120,ytick=\empty,xtick={{-2,-1,0,1,2}},xticklabels={{$-2\sigma$,$-\sigma$,${center_label}$,$\sigma$,$2\sigma$}}]
+  \addplot[cp fill,draw=none,domain=-1:1] {{gauss(x,0,1)}} \closedcycle;
+  \addplot[cp line,domain=-3.5:3.5] {{gauss(x,0,1)}};
+  \node at (axis cs:0,0.13) {{\small ${shade_label}$}};
+\end{{axis}}
+\end{{tikzpicture}}"""}
+    if "box" in cap:
+        return {"name": "boxplot", "caption": caption, "numeric": {"min", "q1", "median", "q3", "max"}, "defaults": {"min": "15", "q1": "35", "median": "55", "q3": "75", "max": "95"}, "template": r"""\begin{{tikzpicture}}
+\begin{{axis}}[width=6.4cm,height=2.8cm,boxplot/draw direction=x,xmin=0,xmax=100,ytick={{1}},yticklabels={{data}},xlabel={{Value}}]
+  \addplot[boxplot prepared={{median={median},lower quartile={q1},upper quartile={q3},lower whisker={min},upper whisker={max}}},draw=black,fill=gray!20] coordinates {{}};
+\end{{axis}}
+\end{{tikzpicture}}"""}
+    if "histogram" in cap:
+        return {"name": "histogram", "caption": caption, "numeric": set(), "defaults": {"bars": "(1,2) (2,5) (3,4) (4,3) (5,2)"}, "template": r"""\begin{{tikzpicture}}
+\begin{{axis}}[width=6.4cm,height=3.5cm,ybar,bar width=9pt,ymin=0,ymax=6,xtick={{1,2,3,4,5}},xticklabels={{0--2,3--5,6--8,9--11,12+}},x tick label style={{font=\scriptsize}},xlabel={{Class interval}},ylabel={{Frequency}}]
+  \addplot[fill=gray!25,draw=black] coordinates {{{bars}}};
+\end{{axis}}
+\end{{tikzpicture}}"""}
+    if "cylinder" in cap or "circle" in cap or "rectangle" in cap:
+        name = "cylinder" if "cylinder" in cap else ("circle" if "circle" in cap else "rectangle")
+        templates = {
+            "cylinder": r"""\begin{{tikzpicture}}[scale=.85]
+  \draw[cp line] (0,0) ellipse (1.25 and .35);
+  \draw[cp line] (-1.25,0)--(-1.25,2.4) (1.25,0)--(1.25,2.4);
+  \draw[cp line] (0,2.4) ellipse (1.25 and .35);
+  \draw[cp dashed] (0,2.4)--(1.25,2.4) node[midway,above] {{$ {r} $}};
+  \draw[cp dashed,<->] (1.65,0)--(1.65,2.4) node[midway,right] {{$ {h} $}};
+\end{{tikzpicture}}""",
+            "circle": r"""\begin{{tikzpicture}}[scale=.9]
+  \coordinate (O) at (0,0);
+  \draw[cp line] (O) circle (1.45);
+  \draw[cp line] (O)--(35:1.45) node[midway,above] {{$ {r} $}};
+  \draw[cp dashed] (-1.45,0)--(1.45,0) node[midway,below] {{$ {d} $}};
+\end{{tikzpicture}}""",
+            "rectangle": r"""\begin{{tikzpicture}}[scale=.9]
+  \coordinate (A) at (0,0); \coordinate (B) at (3.8,0); \coordinate (C) at (3.8,2.1); \coordinate (D) at (0,2.1);
+  \draw[cp line] (A)--(B)--(C)--(D)--cycle;
+  \node[below] at ($(A)!0.5!(B)$) {{$ {l} $}};
+  \node[right] at ($(B)!0.5!(C)$) {{$ {w} $}};
+  \draw[cp dashed] (A)--(C) node[midway,above left] {{$ {d} $}};
+\end{{tikzpicture}}""",
+        }
+        return {"name": name, "caption": caption, "numeric": set(), "defaults": {"r": "r", "h": "h", "d": "d", "l": "l", "w": "w"}, "template": templates[name]}
+    return None
+
+
+def _param_prompt(req: GenerateReq, spec: dict, repair_log: str = "", previous_params: dict | None = None) -> str:
+    return json.dumps({
+        "role": "Return only minified JSON. Do not return TikZ. Fill values for this fixed TikZ template.",
+        "question": _raw_request_text(req)[:2600],
+        "template_name": spec["name"],
+        "keys": list(spec["defaults"].keys()),
+        "defaults": spec["defaults"],
+        "rules": [
+            "Return a flat JSON object with exactly these keys when possible.",
+            "Use strings for every value.",
+            "Preserve LaTeX backslashes by writing JSON escapes, e.g. \\\\vec{u}, \\\\theta, \\\\circ.",
+            "Do not include markdown fences or explanatory text.",
+            "For angle_lines, return zero or more complete TikZ angle-pic lines only, or an empty string.",
+            "For bars, return PGFPlots coordinate pairs like (1,2) (2,5).",
+        ],
+        "previous_params": previous_params or {},
+        "repair_log": repair_log[:1200],
+    }, ensure_ascii=False)
+
+
+def _customize_template_and_render(req: GenerateReq, hit: tuple[str, str], source: str = "template") -> dict:
+    spec = _param_blueprint(req, hit)
+    if not spec:
+        return _render_template(req, hit, check_semantics=True)
+    rendered: dict = {"ok": False, "error": "Parameterized template did not render."}
+    params = dict(spec["defaults"])
     repair_log = ""
     for attempt in range(TEMPLATE_REPAIR_ATTEMPTS + 1):
         try:
-            customized = _gemini(
-                _template_customizer_prompt(req, template, repair_log=repair_log, previous_code=previous_code),
-                as_json=False,
-                temperature=0.1 if attempt else 0.15,
-            )
+            raw_params = _gemini(_param_prompt(req, spec, repair_log=repair_log, previous_params=params), as_json=True, temperature=0.05)
+            if isinstance(raw_params, dict):
+                params.update(raw_params)
         except Exception as exc:
-            rendered = {"ok": False, "error": f"Template customization unavailable: {str(exc)[:220]}"}
-            print(f"[template] {source} customization Gemini failure: {str(exc)[:220]}", flush=True)
-            return rendered
-
-        tikz = _strip_fence(customized)
-        match = re.search(r"\\begin\s*\{tikzpicture\}[\s\S]*?\\end\s*\{tikzpicture\}", tikz)
-        if match:
-            tikz = match.group(0)
-        print(
-            f"[template] {source} customized attempt {attempt + 1}/{TEMPLATE_REPAIR_ATTEMPTS + 1}:\n{tikz[:5000]}",
-            flush=True,
-        )
-        previous_code = tikz
+            print(f"[template-json] {source} parameter Gemini failure: {str(exc)[:220]}", flush=True)
+            if attempt == 0:
+                # Fall back to the regex-filled deterministic diagram, never to raw LLM TikZ.
+                return _render_template(req, hit, check_semantics=True)
+        tikz = _format_tikz(spec["template"], params, spec["defaults"], spec["numeric"])
+        print(f"[template-json] {source}:{spec['name']} params={json.dumps(params, ensure_ascii=False)[:1600]}", flush=True)
         semantic_issue = _semantic_visual_issue(req, tikz)
         rendered = (
             {"ok": False, "error": semantic_issue, "log": semantic_issue}
@@ -1416,14 +1582,10 @@ def _customize_template_and_render(
         )
         if rendered.get("ok"):
             rendered["tikz"] = tikz
-            rendered["caption"] = caption
-            rendered["customized"] = source
+            rendered["caption"] = spec["caption"]
+            rendered["customized"] = "json-" + spec["name"]
             return rendered
         repair_log = rendered.get("log") or rendered.get("error") or "TikZ render failed."
-        print(
-            f"[template] {source} customized render failed on attempt {attempt + 1}: {repair_log[:1600]}",
-            flush=True,
-        )
     return rendered
 
 
