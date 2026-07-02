@@ -1087,6 +1087,50 @@ def _vector_difference_diagram(text: str) -> tuple[str, str]:
     return tikz, "Vector subtraction shown head-to-tail as the difference of the two vectors."
 
 
+def _first_3d_vector(text: str) -> tuple[str, tuple[float, float, float]] | None:
+    vec_pat = re.compile(
+        r"(?:\\vec\s*\{?\s*([A-Za-z])\s*\}?|vector\s+([A-Za-z]))\s*=?\s*"
+        r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)",
+        re.I,
+    )
+    match = vec_pat.search(_repair_transport_escapes(text))
+    if not match:
+        return None
+    name = match.group(1) or match.group(2) or "u"
+    coords = tuple(float(match.group(i)) for i in (3, 4, 5))
+    return name, coords
+
+
+def _vector_3d_diagram(text: str) -> tuple[str, str]:
+    found = _first_3d_vector(text)
+    name, coords = found if found else ("u", (2.0, 1.4, 1.8))
+    x, y, z = coords
+    max_abs = max(abs(x), abs(y), abs(z), 1.0)
+    scale = 2.4 / max_abs
+    sx, sy, sz = (round(v * scale, 3) for v in (x, y, z))
+    label = rf"\vec{{{name}}}=({int(x) if x.is_integer() else x:g},{int(y) if y.is_integer() else y:g},{int(z) if z.is_integer() else z:g})"
+    tikz = _fill(
+        r"""
+\begin{tikzpicture}[scale=.9]
+  \draw[cp axis,-Stealth] (0,0,0) -- (2.8,0,0) node[right] {$x$};
+  \draw[cp axis,-Stealth] (0,0,0) -- (0,2.4,0) node[above] {$y$};
+  \draw[cp axis,-Stealth] (0,0,0) -- (0,0,2.6) node[below left] {$z$};
+  \coordinate (P) at (__X__,__Y__,__Z__);
+  \draw[cp line,-Stealth] (0,0,0)--(P) node[pos=.62,above right] {$__LABEL__$};
+  \draw[cp dashed] (P)--(__X__,__Y__,0) node[pos=.35,right] {$z$};
+  \draw[cp dashed] (__X__,__Y__,0)--(__X__,0,0) node[midway,below] {$y$};
+  \draw[cp dashed] (__X__,__Y__,0)--(0,__Y__,0) node[midway,left] {$x$};
+  \fill (0,0,0) circle (1.3pt) node[below left] {$O$};
+\end{tikzpicture}
+""".strip(),
+        X=str(sx),
+        Y=str(sy),
+        Z=str(sz),
+        LABEL=label,
+    )
+    return tikz, "3D vector shown in an xyz coordinate frame."
+
+
 def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str] | None:
     text = _request_text(req)          # full text (subject+title+brief) for extraction/guards
     low = text.lower()
@@ -1115,6 +1159,8 @@ def _vector_template(req: GenerateReq, generic: bool = False) -> tuple[str, str]
     if not generic and re.search(r"\b(matrix|matrices|determinant|linear transformation|transformation matrix|unit square|eigen\w*)\b", low) \
             and not re.search(r"\b(vector|vectors|resultant|force|velocity|displacement|magnitude|head[- ]to[- ]tail)\b", low):
         return None
+    if _first_3d_vector(_raw_request_text(req)) and re.search(r"\b(magnitude|component|unit vector|position vector|orthogonal|collinear|scalar multiple|dot product|vector)\b", ql):
+        return _vector_3d_diagram(_raw_request_text(req))
     # Classify on the question, in priority order, so each type maps to ONE consistent
     # picture: sum/resultant -> parallelogram; subtraction/combination -> head-to-tail
     # difference; orthogonal -> right angle; collinear -> parallel arrows; a single vector
@@ -1321,16 +1367,9 @@ def _deterministic_template(req: GenerateReq, generic: bool = False) -> tuple[st
 
 def _render_template(req: GenerateReq, hit: tuple[str, str], check_semantics: bool = True) -> dict:
     tikz, caption = hit
-    # Template callers pass check_semantics=True so slot-filled skeletons are
-    # audited for topic relevance before rendering.
-    semantic_issue = _semantic_visual_issue(req, tikz) if check_semantics else None
-    rendered = (
-        {"ok": False, "error": semantic_issue, "log": semantic_issue}
-        if semantic_issue
-        else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
-    )
+    rendered = _verified_render(req, tikz, source="regex-template") if check_semantics else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
     if rendered.get("ok"):
-        rendered["tikz"] = tikz
+        rendered["tikz"] = rendered.get("tikz", tikz)
         rendered["caption"] = caption
     return rendered
 
@@ -1433,6 +1472,35 @@ def _param_blueprint(req: GenerateReq, hit: tuple[str, str]) -> dict | None:
   \fill (O) circle (1.3pt) node[below left] {{$O$}};
 \end{{tikzpicture}}""",
         }
+    if "3d vector" in cap or "xyz coordinate" in cap:
+        found = _first_3d_vector(_raw_request_text(req))
+        name, coords = found if found else ("u", (2.0, 1.4, 1.8))
+        x, y, z = coords
+        max_abs = max(abs(x), abs(y), abs(z), 1.0)
+        scale = 2.4 / max_abs
+        defaults = {
+            "x": f"{x * scale:.3g}",
+            "y": f"{y * scale:.3g}",
+            "z": f"{z * scale:.3g}",
+            "label": rf"\vec{{{name}}}=({x:g},{y:g},{z:g})",
+        }
+        return {
+            "name": "vector_3d",
+            "caption": caption,
+            "numeric": {"x", "y", "z"},
+            "defaults": defaults,
+            "template": r"""\begin{{tikzpicture}}[scale=.9]
+  \draw[cp axis,-Stealth] (0,0,0) -- (2.8,0,0) node[right] {{$x$}};
+  \draw[cp axis,-Stealth] (0,0,0) -- (0,2.4,0) node[above] {{$y$}};
+  \draw[cp axis,-Stealth] (0,0,0) -- (0,0,2.6) node[below left] {{$z$}};
+  \coordinate (P) at ({x},{y},{z});
+  \draw[cp line,-Stealth] (0,0,0)--(P) node[pos=.62,above right] {{$ {label} $}};
+  \draw[cp dashed] (P)--({x},{y},0);
+  \draw[cp dashed] ({x},{y},0)--({x},0,0);
+  \draw[cp dashed] ({x},{y},0)--(0,{y},0);
+  \fill (0,0,0) circle (1.3pt) node[below left] {{$O$}};
+\end{{tikzpicture}}""",
+        }
     if "components" in cap:
         return {
             "name": "vector_components",
@@ -1532,6 +1600,47 @@ def _param_blueprint(req: GenerateReq, hit: tuple[str, str]) -> dict | None:
 \end{{tikzpicture}}""",
         }
         return {"name": name, "caption": caption, "numeric": set(), "defaults": {"r": "r", "h": "h", "d": "d", "l": "l", "w": "w"}, "template": templates[name]}
+    if "calculus tangent" in cap:
+        return {
+            "name": "calculus_tangent",
+            "caption": caption,
+            "numeric": {"a", "b"},
+            "defaults": {"a": "1", "b": "3", "curve": "f(x)", "point": "(1,1)"},
+            "template": r"""\begin{{tikzpicture}}
+\begin{{axis}}[xmin=-1,xmax=4,ymin=-1,ymax=7,axis lines=middle,xlabel={{$x$}},ylabel={{$y$}},grid=both,grid style={{draw=gray!20}},width=7cm,height=4.4cm,clip=false]
+  \addplot[domain=-.5:3.5,samples=100,cp line] {{x^2}};
+  \addplot[domain=.1:3.3,cp dashed] {{2*{a}*(x-{a})+{a}^2}};
+  \addplot[domain={a}:{b},cp dashed] {{{a}+{b}}*(x-{a})+{a}^2};
+  \fill (axis cs:{a},{a}^2) circle (1.5pt) node[above left] {{$ {point} $}};
+  \node[anchor=west] at (axis cs:2.4,2.2) {{\small tangent}};
+\end{{axis}}
+\end{{tikzpicture}}""",
+        }
+    if "linear transformation" in cap:
+        return {
+            "name": "linear_transform",
+            "caption": caption,
+            "numeric": set(),
+            "defaults": {"u": "\\vec{u}", "v": "\\vec{v}", "area": "|\\det T|"},
+            "template": r"""\begin{{tikzpicture}}[scale=.85]
+  \coordinate (O) at (0,0); \coordinate (A) at (2.4,0.2); \coordinate (B) at (.8,1.8); \coordinate (C) at ($(A)+(B)$);
+  \draw[cp axis,-Stealth] (-.3,0)--(3.6,0) node[right] {{$x$}};
+  \draw[cp axis,-Stealth] (0,-.3)--(0,2.5) node[above] {{$y$}};
+  \draw[cp fill] (O)--(A)--(C)--(B)--cycle;
+  \draw[cp line,-Stealth] (O)--(A) node[midway,below] {{$ {u} $}};
+  \draw[cp line,-Stealth] (O)--(B) node[midway,left] {{$ {v} $}};
+  \node at ($(O)!0.5!(C)$) {{$ {area} $}};
+\end{{tikzpicture}}""",
+        }
+    return None
+
+
+def _topic_blueprint_hit(req: GenerateReq) -> tuple[str, str] | None:
+    text = _request_text(req).lower()
+    if re.search(r"\b(tangent|secant|derivative|parabola|curve|sketch|graph)\b", text):
+        return "", "Calculus tangent/secant curve sketch."
+    if re.search(r"\b(linear transformation|unit square|transformation matrix|parallelogram)\b", text):
+        return "", "Linear transformation of a unit square into a parallelogram."
     return None
 
 
@@ -1574,14 +1683,9 @@ def _customize_template_and_render(req: GenerateReq, hit: tuple[str, str], sourc
                 return _render_template(req, hit, check_semantics=True)
         tikz = _format_tikz(spec["template"], params, spec["defaults"], spec["numeric"])
         print(f"[template-json] {source}:{spec['name']} params={json.dumps(params, ensure_ascii=False)[:1600]}", flush=True)
-        semantic_issue = _semantic_visual_issue(req, tikz)
-        rendered = (
-            {"ok": False, "error": semantic_issue, "log": semantic_issue}
-            if semantic_issue
-            else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
-        )
+        rendered = _verified_render(req, tikz, source=f"{source}:{spec['name']}")
         if rendered.get("ok"):
-            rendered["tikz"] = tikz
+            rendered["tikz"] = rendered.get("tikz", tikz)
             rendered["caption"] = spec["caption"]
             rendered["customized"] = "json-" + spec["name"]
             return rendered
@@ -1757,6 +1861,94 @@ def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
     return None
 
 
+def _extract_tikz_block(text: str) -> str:
+    text = _strip_fence(text or "")
+    match = re.search(r"\\begin\s*\{tikzpicture\}[\s\S]*?\\end\s*\{tikzpicture\}", text)
+    return match.group(0).strip() if match else ""
+
+
+def _heuristic_visual_correction(req: GenerateReq, tikz: str) -> tuple[str, str] | None:
+    original = _raw_request_text(req)
+    has_3d_vector = bool(_first_3d_vector(original))
+    looks_flat_vector = (
+        has_3d_vector
+        and "\\begin{axis}" not in tikz
+        and re.search(r"node\[[^\]]*\]\s*\{\$y\$\}", tikz)
+        and not re.search(r"node\[[^\]]*\]\s*\{\$z\$\}", tikz)
+    )
+    if looks_flat_vector:
+        corrected, _caption = _vector_3d_diagram(original)
+        return corrected, "3D vector was being forced into a 2D component diagram; pivoted to xyz frame."
+    if has_3d_vector and re.search(r"\\coordinate\s*\(P\)\s*at\s*\([^,()]+,[^,()]+\);", tikz):
+        corrected, _caption = _vector_3d_diagram(original)
+        return corrected, "3D vector used a 2D coordinate pair; pivoted to xyz frame."
+    return None
+
+
+def _critic_prompt(req: GenerateReq, tikz: str) -> str:
+    return f"""
+You are a rigorous Mathematics and LaTeX/TikZ Geometric Validator. Your job is to review a proposed TikZ diagram snippet against the specific math question it is supposed to illustrate.
+
+Examine the code for the following logical and structural failures:
+1. Dimension Mismatches: Is a 3D vector or coordinate point being forced into a 2D template, resulting in zero-valued axes or flat, degenerate triangles? (e.g., a vector like (-3,0,4) rendered on a flat 2D right triangle with a height label of 0).
+2. Geometric Impossible Shapes: Does the TikZ code attempt to draw lines, triangles, or graphs that contradict the constants or variables given in the text?
+3. Label Clashes: Are labels overlapping axes or placed at mathematically incorrect positions?
+
+If the proposed TikZ code is perfectly accurate, respond with EXACTLY: "VALID".
+If there is a flaw, write a short explanation of the mistake, followed by a corrected, fully compilable raw TikZ block wrapper.
+
+Original Worksheet Question Text:
+{_raw_request_text(req)[:2800]}
+
+Proposed TikZ Code Block:
+{tikz[:6000]}
+""".strip()
+
+
+def _verify_visual_accuracy(req: GenerateReq, tikz: str, source: str = "draft") -> tuple[str, str]:
+    heuristic = _heuristic_visual_correction(req, tikz)
+    if heuristic:
+        corrected, reason = heuristic
+        print(f"[critic] heuristic correction for {source}: {reason}", flush=True)
+        return corrected, reason
+    if not GEMINI_KEYS:
+        print(f"[critic] skipped model critic for {source}: no Gemini key configured.", flush=True)
+        return tikz, ""
+    try:
+        verdict = _gemini(_critic_prompt(req, tikz), as_json=False, temperature=0.05)
+    except Exception as exc:
+        print(f"[critic] model critic unavailable for {source}: {str(exc)[:220]}", flush=True)
+        return tikz, ""
+    if verdict.strip() == "VALID":
+        print(f"[critic] {source}: VALID", flush=True)
+        return tikz, ""
+    corrected = _extract_tikz_block(verdict)
+    if corrected:
+        print(f"[critic] {source}: corrected diagram. Reason/log: {verdict[:800]}", flush=True)
+        return corrected, verdict[:800]
+    print(f"[critic] {source}: flagged issue but returned no TikZ block; keeping draft. Response: {verdict[:800]}", flush=True)
+    return tikz, verdict[:800]
+
+
+def _verified_render(req: GenerateReq, tikz: str, source: str = "draft") -> dict:
+    semantic_issue = _semantic_visual_issue(req, tikz)
+    if semantic_issue:
+        return {"ok": False, "error": semantic_issue, "log": semantic_issue}
+    checked_tikz, critic_note = _verify_visual_accuracy(req, tikz, source=source)
+    if checked_tikz != tikz:
+        semantic_issue = _semantic_visual_issue(req, checked_tikz)
+        if semantic_issue:
+            return {"ok": False, "error": semantic_issue, "log": semantic_issue}
+    rendered = _render(RenderReq(code=checked_tikz, format=req.format, theme=req.theme, target=req.target))
+    if rendered.get("ok"):
+        rendered["tikz"] = checked_tikz
+        if critic_note:
+            rendered["critic"] = critic_note
+    elif critic_note:
+        rendered["critic"] = critic_note
+    return rendered
+
+
 def _render(req: RenderReq) -> dict:
     reason = _reject_reason(req.code)
     if reason:
@@ -1908,6 +2100,17 @@ def _generate_visual_sync(req: GenerateReq) -> dict:
                 flush=True,
             )
 
+        topic_hit = _topic_blueprint_hit(req)
+        if topic_hit:
+            rendered = _customize_template_and_render(req, topic_hit, source="topic-template")
+            if rendered.get("ok"):
+                return rendered
+            print(
+                "[generate] parameterized topic template failed, trying bespoke Gemini path: "
+                + str(rendered.get("error") or rendered.get("log") or "")[:220],
+                flush=True,
+            )
+
         # 2) Otherwise ask Gemini for bespoke TikZ. Any Gemini failure (exhausted
         #    retries during a 503 storm, network timeout) is caught so we can still
         #    fall back to a deterministic diagram instead of returning a bare 500.
@@ -1919,12 +2122,7 @@ def _generate_visual_sync(req: GenerateReq) -> dict:
             tikz = _strip_fence(str(spec.get("tikz", "")))
             caption = str(spec.get("caption", "")).strip()
             if tikz:
-                semantic_issue = _semantic_visual_issue(req, tikz)
-                rendered = (
-                    {"ok": False, "error": semantic_issue, "log": semantic_issue}
-                    if semantic_issue
-                    else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
-                )
+                rendered = _verified_render(req, tikz, source="bespoke-draft")
                 if not rendered.get("ok"):
                     repaired = _gemini(
                         _visual_prompt(req, repair_log=rendered.get("log") or rendered.get("error") or "", previous_code=tikz),
@@ -1933,18 +2131,13 @@ def _generate_visual_sync(req: GenerateReq) -> dict:
                     )
                     tikz = _strip_fence(str(repaired.get("tikz", tikz)))
                     caption = str(repaired.get("caption", caption)).strip()
-                    semantic_issue = _semantic_visual_issue(req, tikz)
-                    rendered = (
-                        {"ok": False, "error": semantic_issue, "log": semantic_issue}
-                        if semantic_issue
-                        else _render(RenderReq(code=tikz, format=req.format, theme=req.theme, target=req.target))
-                    )
+                    rendered = _verified_render(req, tikz, source="bespoke-repair")
         except Exception as gem_exc:
             rendered = {"ok": False, "error": f"Gemini unavailable: {str(gem_exc)[:200]}"}
             print(f"[generate] Gemini path failed, trying deterministic fallback: {str(gem_exc)[:180]}", flush=True)
 
         if rendered.get("ok"):
-            rendered["tikz"] = tikz
+            rendered["tikz"] = rendered.get("tikz", tikz)
             rendered["caption"] = caption
             return rendered
 
