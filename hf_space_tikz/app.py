@@ -863,7 +863,21 @@ def _triangle_template(req: GenerateReq, generic: bool = False) -> tuple[str, st
         return None
     vertices = _triangle_vertices(text)
     if not vertices:
-        if not re.search(r"\b(angle of elevation|angle of depression|line of sight)\b", low) or not _has_triangle_measure(text):
+        elevation = bool(
+            re.search(r"\b(angle of elevation|angle of depression|line of sight)\b", low)
+        ) and _has_triangle_measure(text)
+        # Law-of-cosines / law-of-sines / SAS-SSS-ASA captions describe a generic
+        # triangle even when they name no vertex letters (common in study-guide
+        # captions like "SAS Configuration for Law of Cosines"). Draw a clean,
+        # self-consistent A/B/C triangle for them instead of returning None, which
+        # let the free-form Gemini path emit angle/label-inconsistent diagrams.
+        config = bool(
+            re.search(
+                r"\b(law of cosines|cosine law|law of sines|sine law|sas|sss|asa|included angle)\b",
+                low,
+            )
+        )
+        if not (elevation or config):
             return None
         vertices = ("A", "B", "C")
     a, b, c = vertices
@@ -898,6 +912,15 @@ def _triangle_template(req: GenerateReq, generic: bool = False) -> tuple[str, st
         p1, mid, p2, _ = angle_specs[vertex]
         angle_lines.append(
             f'  \\pic[draw=black,angle radius=5mm,"${vertex}$",angle eccentricity=1.35] {{angle={p1}--{mid}--{p2}}};'
+        )
+    # Law of cosines / SAS: mark the included angle at apex C (between sides CA and
+    # CB, i.e. opposite side c). Without this a "law of cosines / SAS" caption drew
+    # a bare triangle with no angle, disagreeing with the caption. Only kicks in when
+    # no specific angle was named above, so explicit measures still win.
+    if not angle_lines and re.search(r"\b(law of cosines|cosine law|sas|included angle)\b", low):
+        p1, mid, p2, _ = angle_specs[c]
+        angle_lines.append(
+            f'  \\pic[draw=black,angle radius=5mm,"${_tex_label(c)}$",angle eccentricity=1.35] {{angle={p1}--{mid}--{p2}}};'
         )
     tikz = _fill(
         r"""
@@ -1896,12 +1919,16 @@ def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
 
     if is_triangle:
         requested_labels: set[str] = set()
-        for match in re.findall(r"(?:triangle|\\triangle)\s*([A-Z]{3})", original, flags=re.IGNORECASE):
-            requested_labels.update(match.upper())
-        for match in re.findall(r"\b([A-Z])([A-Z])([A-Z])\b", original):
-            triplet = "".join(match)
-            if any(word in hay for word in ("side", "angle", "triangle", "law of")):
-                requested_labels.update(triplet)
+        # Only treat a three-letter group as triangle vertex labels when it is
+        # explicitly introduced as a triangle ("triangle ABC", "In ABC", "△ABC").
+        # The keyword is case-insensitive but the LABELS must be genuinely uppercase:
+        # the old IGNORECASE [A-Z]{3} matched lowercase, so "triangle with" captured
+        # "WIT" and "right triangle with..." harvested phantom labels (the live
+        # "GIRTW" failure), which then rejected the valid generic A/B/C triangle.
+        for match in re.findall(r"(?i:triangle|\\triangle|in)\s+([A-Z]{3})\b", original):
+            requested_labels.update(match)
+        for match in re.findall(r"△\s*([A-Z]{3})\b", original):
+            requested_labels.update(match)
         if requested_labels:
             drawn_labels = set(re.findall(r"\{\s*\$?([A-Z])\$?\s*\}", tikz))
             stray = sorted(label for label in drawn_labels if label in {"A", "B", "C", "P", "Q", "R", "X", "Y", "Z"} and label not in requested_labels)

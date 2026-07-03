@@ -12956,6 +12956,15 @@
             if (res.ok && out && out.ok && (out.svg || out.base64)) return out;
             throw new Error(out && (out.error || out.log) || ('TikZ generation failed: ' + res.status));
         }
+        // When the diagram backend is rate limited / under high demand (429/503/
+        // timeout), some visuals come back empty. Surface a single explainable notice
+        // per generation so the missing diagrams don't silently vanish — the user knows
+        // to retry rather than assuming the tool is broken.
+        function noteVisualFailures(count) {
+            if (!count) return;
+            const n = count === 1 ? '1 diagram' : count + ' diagrams';
+            toast(n + " couldn't be rendered — the diagram service was busy or rate limited. Try generating again shortly.", 'err');
+        }
         function worksheetTikzHTML(q) {
             const svg = isolateEmbeddedSvg(q && q.tikzSvg);
             if (svg && /^<svg[\s>]/i.test(svg)) {
@@ -12990,6 +12999,17 @@
             const isAbstract = /\b(state|write|express|prove|show that|explain|define|describe|verify|derive|expand|factor|simplify|evaluate|determine whether)\b/.test(hay)
                 && /\b(property|properties|identity|notation|definition|rule|axiom|theorem|expression|formula|equivalent|in your own words|associative|commutative|distributive)\b/.test(hay);
             if (isAbstract) return false;
+            // River-crossing, boat-in-current, and airplane-in-wind problems are
+            // resultant-vector questions even when the word "vector" never appears (the
+            // Q8 "boat across a river with a current" case got no diagram because
+            // "velocity"/"resultant" only lived in the vector-keyword branch below).
+            // The backend draws the resultant / parallelogram for these.
+            if (/\bresultant\b/.test(hay)
+                || /\b(relative velocity|ground ?speed|air ?speed|true course|true heading)\b/.test(hay)
+                || (/\b(river|current|stream|boat|canoe|kayak|swimmer|ferry|airplane|aeroplane|aircraft|jet|pilot|wind)\b/.test(hay)
+                    && /\b(cross(?:es|ing)?|downstream|upstream|heading|bearing|velocity|speed|km\/?h|m\/?s|mph|knots|tailwind|headwind|crosswind)\b/.test(hay))) {
+                return true;
+            }
             // Vectors get a diagram for any concrete vector QUANTITY question — not just
             // geometric setups (resultant/angle) but also the algebraic ones a student
             // expects a picture for: magnitude, component form, unit/position vectors,
@@ -13014,7 +13034,7 @@
             // abstract questions that merely mention "vector"/"parallelogram" pick up a
             // stray deterministic diagram on the backend. The gate stays the filter.
             const aiCandidates = data.questions.filter(q => q && worksheetNeedsVisual(q) && !String(q.tikzSvg || '').trim());
-            let completed = 0;
+            let completed = 0, failed = 0;
             if (progress) progress.detail(aiCandidates.length ? ('Rendering TikZ visual 1 of ' + aiCandidates.length + ' on the backend') : 'No backend visuals needed');
             let nextVisual = 0;
             const diagramQuestionText = q => String(q && q.q || '')
@@ -13052,6 +13072,7 @@
                     console.warn('[worksheet] TikZ renderer unavailable for question ' + (data.questions.indexOf(q) + 1), e);
                 } finally {
                     completed++;
+                    if (!String(q.tikzSvg || '').trim()) failed++;
                     if (progress && aiCandidates.length) {
                         const pct = 65 + Math.round((completed / aiCandidates.length) * 20);
                         progress.set(3, completed < aiCandidates.length
@@ -13067,6 +13088,7 @@
                 }
             });
             await Promise.all(workers);
+            noteVisualFailures(failed);
             return data;
         }
         document.getElementById('wsGen').addEventListener('click', () => {
@@ -13263,8 +13285,10 @@
             const candidates = g.visuals.filter(v => v && !String(v.tikzSvg || '').trim()).slice(0, 4);
             // Every diagram is authored by the backend blueprint path (same as the
             // worksheet) so all generators share one style. The model only describes
-            // the visual in title/caption; it never hand-writes TikZ.
-            await Promise.all(candidates.map(async v => {
+            // the visual in title/caption; it never hand-writes TikZ. Throttle to a
+            // small worker pool so a burst of requests doesn't trip backend rate limits.
+            let failed = 0, next = 0;
+            const renderVisual = async v => {
                 try {
                     const out = await generateTikzVisual({
                         title: v.title || 'Study guide visual',
@@ -13274,12 +13298,19 @@
                         target: 'guide'
                     });
                     v.tikz = out.tikz || v.tikz || '';
-                    v.tikzSvg = out.svg;
+                    v.tikzSvg = out.svg || '';
                     if (out.caption && !v.caption) v.caption = out.caption;
+                    if (!v.tikzSvg) failed++;
                 } catch (e) {
+                    failed++;
                     console.warn('[guide] TikZ renderer unavailable', e);
                 }
-            }));
+            };
+            const workers = Array.from({ length: Math.min(3, candidates.length) }, async () => {
+                while (next < candidates.length) await renderVisual(candidates[next++]);
+            });
+            await Promise.all(workers);
+            noteVisualFailures(failed);
             return g;
         }
         document.getElementById('gGen').addEventListener('click', () => {
@@ -13369,7 +13400,12 @@
             // renders it a little smaller to fit the card) so it matches every other
             // generator's style.
             const candidates = deck.cards.filter(c => c && String(c.tikz || '').trim() && !String(c.tikzSvg || '').trim()).slice(0, 10);
-            await Promise.all(candidates.map(async card => {
+            // Throttle to a small worker pool instead of firing every card at once.
+            // Blasting up to 10 concurrent /generate calls was tipping the backend into
+            // 429/503/high-demand, so most flashcard visuals failed while the worksheet
+            // (which already throttles to 3) rendered fine under the same conditions.
+            let failed = 0, next = 0;
+            const renderCard = async card => {
                 try {
                     const out = await generateTikzVisual({
                         title: card.front || 'Flashcard visual',
@@ -13379,11 +13415,18 @@
                         target: 'flashcard'
                     });
                     card.tikz = out.tikz || '';
-                    card.tikzSvg = out.svg;
+                    card.tikzSvg = out.svg || '';
+                    if (!card.tikzSvg) failed++;
                 } catch (e) {
+                    failed++;
                     console.warn('[flashcards] TikZ renderer unavailable', e);
                 }
-            }));
+            };
+            const workers = Array.from({ length: Math.min(3, candidates.length) }, async () => {
+                while (next < candidates.length) await renderCard(candidates[next++]);
+            });
+            await Promise.all(workers);
+            noteVisualFailures(failed);
             return deck;
         }
         document.getElementById('fGen').addEventListener('click', () => {
@@ -15055,7 +15098,9 @@
             // Backend blueprint path authors every slide diagram (same as the
             // worksheet); the model only describes the visual in text. No model-written
             // TikZ is rendered, so slide visuals match the other generators' style.
-            await Promise.all(candidates.map(async slide => {
+            // Throttle to a small worker pool so a burst doesn't trip backend rate limits.
+            let failed = 0, next = 0;
+            const renderSlide = async slide => {
                 try {
                     const out = await generateTikzVisual({
                         title: slide.title || 'Slide visual',
@@ -15066,12 +15111,19 @@
                         target: target || 'slide'
                     });
                     slide.tikz = out.tikz || slide.tikz || '';
-                    slide.tikzSvg = out.svg;
+                    slide.tikzSvg = out.svg || '';
                     slide.visualType = 'tikz';
+                    if (!slide.tikzSvg) failed++;
                 } catch (e) {
+                    failed++;
                     console.warn('[slides] TikZ renderer unavailable', e);
                 }
-            }));
+            };
+            const workers = Array.from({ length: Math.min(3, candidates.length) }, async () => {
+                while (next < candidates.length) await renderSlide(candidates[next++]);
+            });
+            await Promise.all(workers);
+            noteVisualFailures(failed);
             return data;
         }
         function sdVisualHTML(s) {

@@ -44,6 +44,13 @@ const cases = [
   [true, 'box plot', 'Construct a box-and-whisker plot given the five-number summary.'],
   [true, 'skewness distribution', 'A dataset has a mean of 5%, median of 4%, and mode of 3%. Describe the skewness of this distribution.'],
   [true, 'angle of elevation', 'A surveyor measures the angle of elevation to the top of a tree as 30 degrees.'],
+  // river-crossing / boat-in-current / plane-in-wind resultant problems are vector
+  // problems even when the word "vector" never appears (the Q8 regression).
+  [true, 'river current resultant', 'A boat heads directly across a river at 4 m/s while the current flows downstream at 3 m/s. Find the resultant velocity and the angle of the path.'],
+  [true, 'swimmer upstream', 'A swimmer can swim at 1.5 m/s in still water and tries to cross a river with a current of 0.8 m/s. Determine the resultant speed.'],
+  [true, 'airplane wind', 'An airplane flies at 300 km/h on a heading of north while a wind blows from the west at 50 km/h. Find the ground speed.'],
+  // "current"/"plane" in a non-motion context must NOT trigger a diagram
+  [false, 'current price', 'The current price of a stock is $52. If it rises 8%, what is the new price?'],
   // things that should NOT get visuals
   [false, 'solve linear', 'Solve the equation 2x + 3 = 7 for x.'],
   [false, 'factor polynomial', 'Factor the expression x^2 - 5x + 6.'],
