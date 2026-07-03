@@ -12716,15 +12716,15 @@
         });
 
         // Multiple choice isn't an ideal assessment format for Calculus & Vectors, so
-        // selecting that subject turns the "Multiple Choice" chip off by default (it's
-        // on by default otherwise). The chip stays clickable — the user can turn it back
-        // on manually if they want it.
+        // selecting that subject unchecks the "Multiple Choice" chip; any other subject
+        // restores its default on state. The chip's on/off state is thus a predictable
+        // function of the subject, and it stays clickable so the user can override.
         function applyMcDefault(subId, typesSel) {
             const dd = document.getElementById(subId);
             const wrap = root.querySelector(typesSel);
             if (!dd || !wrap) return;
             const mc = wrap.querySelector('.st-chip[data-type="mc"]');
-            if (mc && dd.value === 'Calculus & Vectors') mc.classList.remove('on');
+            if (mc) mc.classList.toggle('on', dd.value !== 'Calculus & Vectors');
         }
         [['wsSubject', '#wsTypes'], ['aioSubject', '#aioTypes']].forEach(([subId, typesSel]) => {
             const dd = document.getElementById(subId);
