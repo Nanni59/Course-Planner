@@ -88,7 +88,7 @@ class RenderReq(BaseModel):
     code: str = Field(..., description="TikZ snippet or full tikzpicture environment")
     format: Literal["svg", "png"] = "svg"
     theme: Literal["green", "mono"] = "green"
-    target: Literal["slide", "worksheet", "guide", "generic"] = "generic"
+    target: Literal["slide", "worksheet", "guide", "flashcard", "generic"] = "generic"
 
 
 class GenerateReq(BaseModel):
@@ -98,7 +98,7 @@ class GenerateReq(BaseModel):
     equation: str = ""
     format: Literal["svg", "png"] = "svg"
     theme: Literal["green", "mono"] = "green"
-    target: Literal["slide", "worksheet", "guide", "generic"] = "generic"
+    target: Literal["slide", "worksheet", "guide", "flashcard", "generic"] = "generic"
 
 
 def _next_key_index() -> int:
@@ -256,10 +256,15 @@ def _template(tikz: str, theme: str, target: str) -> str:
     dashed_width = "1pt" if theme == "mono" else "0.8pt"
     axis_width = "0.85pt" if theme == "mono" else "0.7pt"
 
+    # One shared baseline scale keeps every generator's diagrams the same size
+    # (the worksheet blueprint used to render larger at 1.12; it was a touch too big,
+    # so the whole system now sits at 1.0). Flashcards render a little smaller so a
+    # diagram fits inside the card. Nudge these if the global size needs tuning.
     scale = {
-        "slide": "1.08",
-        "worksheet": "1.12",
-        "guide": "1.05",
+        "slide": "1.0",
+        "worksheet": "1.0",
+        "guide": "1.0",
+        "flashcard": "0.82",
         "generic": "1.0",
     }.get(target, "1.0")
 
