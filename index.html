@@ -12690,7 +12690,7 @@
             if (/worksheet/i.test(target)) {
                 return '\nTextbook visuals are enabled for this worksheet, but do NOT write TikZ code in the question JSON yourself. Leave "tikz", "tikzSvg", and image fields empty. A separate backend renderer will create clean SVG diagrams after the worksheet text is generated. Still write questions that clearly name the needed points, sides, angles, axes, vectors, bearings, coordinates, and labels so the renderer can draw them accurately.';
             }
-            return '\nTextbook visuals are enabled. For math, physics, chemistry, engineering, statistics, graphing, geometry, vectors, calculus, or other STEM ' + target + ' where a real diagram helps, add a concise TikZ snippet in the appropriate "tikz" field. Use TikZ only for diagrams with drawing primitives such as axes, curves, regions, points, arrows, geometric shapes, number lines, vectors, force diagrams, probability trees, or labeled relationships. Do NOT use TikZ for standalone formulas or equation text; put formulas in the normal text/equation fields instead. For triangle, trigonometry, bearing, law of sines, or law of cosines diagrams, draw angle marks inside the triangle/sector; never place an angle arc outside unless the question explicitly asks for an exterior angle. For parallelogram, diagonal, midpoint, plane, 3D, graph, and coordinate problems, include the specific points, side labels, axes, diagonals, or reference lines named in the question. Use either a full \\begin{tikzpicture}...\\end{tikzpicture} block or only commands that belong inside tikzpicture. Do not include \\documentclass, \\usepackage, \\begin{document}, markdown fences, external images, file inputs, or shell commands. Keep labels short and readable. Prefer clean black/gray textbook styling, not green branding. Use the built-in styles cp axis, cp line, cp dashed, cp fill, cp point, cp label when useful. Leave tikzSvg empty.';
+            return '\nTextbook visuals are enabled, but do NOT write TikZ code yourself. Leave "tikzSvg" empty. A separate backend renderer draws every diagram after the text is generated, so all visuals across the worksheet, study guide, flashcard and slide generators share one clean black/gray textbook style. Your job is only to say WHERE a diagram helps and to describe it in plain words — clearly name the points, sides, angles, axes, curves, vectors, bearings, coordinates, regions, and labels the diagram needs for ' + target + '. Only ask for a diagram with real drawing content (graphs, geometry, number lines, vectors, force diagrams, probability trees, regions under a curve). Do not request a diagram for standalone formulas, definitions, statements, or proofs; put formulas in the normal text/equation fields instead.';
         }
         [['wsSubject', 'wsLatex'], ['aioSubject', 'aioLatex'], ['gSubject', 'gLatex'], ['fSubject', 'fLatex'], ['sdSubject', 'sdLatex']].forEach(([subId, latexId]) => {
             const dd = document.getElementById(subId);
@@ -12713,6 +12713,23 @@
             dd.addEventListener('change', () => {
                 if (dd.value === 'Calculus & Vectors') setVisualOn(visualId, true);
             });
+        });
+
+        // Multiple choice isn't an ideal assessment format for Calculus & Vectors, so
+        // selecting that subject turns the "Multiple Choice" chip off by default (it's
+        // on by default otherwise). The chip stays clickable — the user can turn it back
+        // on manually if they want it.
+        function applyMcDefault(subId, typesSel) {
+            const dd = document.getElementById(subId);
+            const wrap = root.querySelector(typesSel);
+            if (!dd || !wrap) return;
+            const mc = wrap.querySelector('.st-chip[data-type="mc"]');
+            if (mc && dd.value === 'Calculus & Vectors') mc.classList.remove('on');
+        }
+        [['wsSubject', '#wsTypes'], ['aioSubject', '#aioTypes']].forEach(([subId, typesSel]) => {
+            const dd = document.getElementById(subId);
+            if (dd) dd.addEventListener('change', () => applyMcDefault(subId, typesSel));
+            applyMcDefault(subId, typesSel);
         });
 
         // init source managers
@@ -12756,7 +12773,24 @@
             const subEl = genEl && genEl.querySelector('.st-gen-sub');
             if (container) container.innerHTML = steps.map(s => '<div class="st-genstep"><span class="st-gs-dot">' + I.check + '</span><span>' + esc(s) + '</span></div>').join('');
             const nodes = container ? Array.prototype.slice.call(container.children) : [];
-            const setPct = p => { if (countEl) countEl.textContent = String(Math.max(0, Math.min(100, Math.round(p || 0)))); };
+            // Ease the displayed percentage toward its target instead of snapping to it.
+            // The first real milestone (reading inputs → generating) is reached almost
+            // instantly when there are no source files, so a hard set would jump the
+            // counter straight to ~20%. Gliding from 0 keeps the ramp smooth.
+            let curPct = 0, targetPct = 0, pctRaf = null;
+            if (countEl) countEl.textContent = '0';
+            const tickPct = () => {
+                pctRaf = null;
+                curPct += (targetPct - curPct) * 0.12;      // ~0.7s to settle a jump at 60fps
+                if (Math.abs(targetPct - curPct) < 0.5) curPct = targetPct;
+                if (countEl) countEl.textContent = String(Math.max(0, Math.min(100, Math.round(curPct))));
+                if (curPct !== targetPct) pctRaf = requestAnimationFrame(tickPct);
+            };
+            const setPct = p => {
+                targetPct = Math.max(0, Math.min(100, Math.round(p || 0)));
+                if (targetPct < curPct) curPct = targetPct;  // a reset snaps immediately
+                if (pctRaf === null) pctRaf = requestAnimationFrame(tickPct);
+            };
             const setActive = (idx, detail, pct) => {
                 nodes.forEach((n, i) => {
                     n.classList.toggle('done', i < idx);
@@ -13227,23 +13261,21 @@
         async function renderTikzGuide(g) {
             if (!g || !Array.isArray(g.visuals) || !tikzReady()) return g;
             const candidates = g.visuals.filter(v => v && !String(v.tikzSvg || '').trim()).slice(0, 4);
+            // Every diagram is authored by the backend blueprint path (same as the
+            // worksheet) so all generators share one style. The model only describes
+            // the visual in title/caption; it never hand-writes TikZ.
             await Promise.all(candidates.map(async v => {
                 try {
-                    if (sdCleanTikz(v.tikz) && !sdTikzIsProbablyFormulaOnly(v.tikz)) {
-                        v.tikzSvg = await renderTikzCode(v.tikz, 'guide');
-                    } else {
-                        const out = await generateTikzVisual({
-                            title: v.title || 'Study guide visual',
-                            brief: [v.caption, v.title].filter(Boolean).join('. '),
-                            subject: g.course || g.title || 'General',
-                            format: 'svg',
-                            theme: 'green',
-                            target: 'guide'
-                        });
-                        v.tikz = out.tikz || v.tikz || '';
-                        v.tikzSvg = out.svg;
-                        if (out.caption && !v.caption) v.caption = out.caption;
-                    }
+                    const out = await generateTikzVisual({
+                        title: v.title || 'Study guide visual',
+                        brief: [v.caption, v.title].filter(Boolean).join('. '),
+                        subject: g.course || g.title || 'General',
+                        format: 'svg',
+                        target: 'guide'
+                    });
+                    v.tikz = out.tikz || v.tikz || '';
+                    v.tikzSvg = out.svg;
+                    if (out.caption && !v.caption) v.caption = out.caption;
                 } catch (e) {
                     console.warn('[guide] TikZ renderer unavailable', e);
                 }
@@ -13271,7 +13303,7 @@
                     'a plain-language overview (1–2 paragraphs); key concepts as term + explanation; important formulas if any; ' +
                     'one fully worked example with ordered steps; key takeaways; and a few short self-check quiz questions. ' +
                     'For non-STEM topics, fill realLifeExamples with one practical, concrete example for each major concept or term.' +
-                    (visualsEnabled ? '\nAlso include a "visuals" array with up to 4 useful textbook-style visuals. Each item should include title, caption, and tikz.' + tikzPrompt('study-guide concepts, formulas, or worked examples') : '') +
+                    (visualsEnabled ? '\nAlso include a "visuals" array with up to 4 useful textbook-style visuals. Each item should include a "title" and a "caption" that clearly describes the diagram to draw; leave "tikz" and "tikzSvg" empty.' + tikzPrompt('study-guide concepts, formulas, or worked examples') : '') +
                     nonStemExampleRules(subject, topic) +
                     (latexOn('gLatex') ? LATEX_ON : '');
                 const g = normalizeGeneratedContent(await gemini([{ text: prompt }].concat(parts), GUIDE_SCHEMA));
@@ -13331,10 +13363,23 @@
         }
         async function renderTikzDeckCards(deck) {
             if (!deck || !Array.isArray(deck.cards) || !tikzReady()) return deck;
-            const candidates = deck.cards.filter(c => c && sdCleanTikz(c.tikz) && !String(c.tikzSvg || '').trim()).slice(0, 10);
+            // A non-empty "tikz" field is the model's signal that this card wants a
+            // diagram — but it now holds a plain-language description, not code. The
+            // backend blueprint path authors the actual diagram (target 'flashcard'
+            // renders it a little smaller to fit the card) so it matches every other
+            // generator's style.
+            const candidates = deck.cards.filter(c => c && String(c.tikz || '').trim() && !String(c.tikzSvg || '').trim()).slice(0, 10);
             await Promise.all(candidates.map(async card => {
                 try {
-                    card.tikzSvg = await renderTikzCode(card.tikz, 'guide');
+                    const out = await generateTikzVisual({
+                        title: card.front || 'Flashcard visual',
+                        brief: [card.tikz, card.front, card.back].filter(Boolean).join('. '),
+                        subject: deck.deckTitle || deck.title || 'General',
+                        format: 'svg',
+                        target: 'flashcard'
+                    });
+                    card.tikz = out.tikz || '';
+                    card.tikzSvg = out.svg;
                 } catch (e) {
                     console.warn('[flashcards] TikZ renderer unavailable', e);
                 }
@@ -13361,7 +13406,7 @@
                     (parts.length ? ' and any attached materials' : '') +
                     ', create a focused flashcard deck of about ' + count + ' cards. ' +
                     'Each card has a concise "front" (a term or question) and a clear "back" (the definition or answer).' +
-                    (visualsEnabled ? '\nFor STEM cards where a small diagram helps the answer, add a concise TikZ snippet in the card field "tikz". Keep the front text concise; the rendered visual appears with the back/definition.' + tikzPrompt('flashcard answers') : '') +
+                    (visualsEnabled ? '\nFor STEM cards where a small diagram helps the answer, put a short plain-language description of that diagram in the card field "tikz" (say what to draw — do NOT write TikZ code). Keep the front text concise; the rendered visual appears with the back/definition.' + tikzPrompt('flashcard answers') : '') +
                     (latexOn('fLatex') ? LATEX_ON : ' ') +
                     'Give the deck a short descriptive "deckTitle".' + (title ? ' Prefer this deck title: "' + title + '".' : '');
                 const deck = normalizeGeneratedContent(await gemini([{ text: prompt }].concat(parts), DECK_SCHEMA));
@@ -13492,7 +13537,7 @@
                     'a plain-language overview (1–2 paragraphs); key concepts as term + explanation; important formulas if any; ' +
                     'one fully worked example with ordered steps; key takeaways; and a few short self-check quiz questions. ' +
                     'For non-STEM topics, fill realLifeExamples with one practical, concrete example for each major concept or term.' +
-                    (visualsEnabled ? '\nAlso include a "visuals" array with up to 4 useful textbook-style visuals. Each item should include title, caption, and tikz.' + tikzPrompt('study-guide concepts, formulas, or worked examples') : '') +
+                    (visualsEnabled ? '\nAlso include a "visuals" array with up to 4 useful textbook-style visuals. Each item should include a "title" and a "caption" that clearly describes the diagram to draw; leave "tikz" and "tikzSvg" empty.' + tikzPrompt('study-guide concepts, formulas, or worked examples') : '') +
                     nonStemExampleRules(subject, topic) + mathRules;
                 const guide = normalizeGeneratedContent(await gemini([{ text: gPrompt }].concat(parts), GUIDE_SCHEMA));
                 if (visualsEnabled) await renderTikzGuide(guide);
@@ -13500,7 +13545,7 @@
                 const fPrompt =
                     'You are an expert tutor. From ' + basis + ' and any attached materials, create a focused flashcard deck of about ' + cards + ' cards. ' +
                     'Each card has a concise "front" (a term or question) and a clear "back" (the definition or answer).' +
-                    (visualsEnabled ? '\nFor STEM cards where a small diagram helps the answer, add a concise TikZ snippet in the card field "tikz". Keep the front text concise; the rendered visual appears with the back/definition.' + tikzPrompt('flashcard answers') : '') +
+                    (visualsEnabled ? '\nFor STEM cards where a small diagram helps the answer, put a short plain-language description of that diagram in the card field "tikz" (say what to draw — do NOT write TikZ code). Keep the front text concise; the rendered visual appears with the back/definition.' + tikzPrompt('flashcard answers') : '') +
                     (mathRules || ' ') +
                     'Give the deck a short descriptive "deckTitle".';
                 const deck = normalizeGeneratedContent(await gemini([{ text: fPrompt }].concat(parts), DECK_SCHEMA));
@@ -15007,25 +15052,22 @@
             if (!data || !Array.isArray(data.slides) || !tikzReady()) return data;
             const candidates = data.slides.filter(s => s && !String(s.tikzSvg || '').trim() && sdLooksStem(s)).slice(0, 8);
             if (!candidates.length) return data;
+            // Backend blueprint path authors every slide diagram (same as the
+            // worksheet); the model only describes the visual in text. No model-written
+            // TikZ is rendered, so slide visuals match the other generators' style.
             await Promise.all(candidates.map(async slide => {
                 try {
-                    if (sdCleanTikz(slide.tikz) && !sdTikzIsProbablyFormulaOnly(slide.tikz)) {
-                        slide.tikzSvg = await renderTikzCode(slide.tikz, target || 'slide');
-                        slide.visualType = 'tikz';
-                    } else {
-                        const out = await generateTikzVisual({
-                            title: slide.title || 'Slide visual',
-                            brief: [slide.visual, slide.narration, sdArr(slide.bullets).join('; ')].filter(Boolean).join('. '),
-                            subject: data.subject || data.title || 'General',
-                            equation: slide.equation || '',
-                            format: 'svg',
-                            theme: 'green',
-                            target: target || 'slide'
-                        });
-                        slide.tikz = out.tikz || slide.tikz || '';
-                        slide.tikzSvg = out.svg;
-                        slide.visualType = 'tikz';
-                    }
+                    const out = await generateTikzVisual({
+                        title: slide.title || 'Slide visual',
+                        brief: [slide.visual, slide.narration, sdArr(slide.bullets).join('; ')].filter(Boolean).join('. '),
+                        subject: data.subject || data.title || 'General',
+                        equation: slide.equation || '',
+                        format: 'svg',
+                        target: target || 'slide'
+                    });
+                    slide.tikz = out.tikz || slide.tikz || '';
+                    slide.tikzSvg = out.svg;
+                    slide.visualType = 'tikz';
                 } catch (e) {
                     console.warn('[slides] TikZ renderer unavailable', e);
                 }
@@ -15174,14 +15216,10 @@
                 visualsOn ? [
                     '',
                     'Textbook visuals are enabled for this deck.',
-                    '- For math, physics, chemistry, engineering, statistics, coding, graphing, geometry, vectors, calculus, or other STEM explanation slides, prefer visualType="tikz" and put ONLY a TikZ snippet in "tikz".',
-                    '- Use TikZ only for actual diagrams. Do NOT put a standalone formula, theorem statement, or large equation in TikZ; use the "equation" field for formulas instead.',
-                    '- The TikZ snippet may be either a full \\begin{tikzpicture}...\\end{tikzpicture} block or only commands that belong inside tikzpicture.',
-                    '- Do NOT include \\documentclass, \\usepackage, \\begin{document}, packages, external images, file inputs, shell commands, or markdown fences.',
-                    '- Use the built-in Course Planner styles when helpful: cp axis, cp line, cp dashed, cp fill, cp point, cp label.',
-                    '- Good TikZ visuals: coordinate graphs, number lines, vectors, geometry diagrams, force diagrams, circuit-like relationships, probability trees, regions under curves, transformations, and annotated formulas.',
-                    '- Keep each visual simple and readable: 1 focused diagram, short labels only, no dense walls of text, no oversized equation-only drawings.',
-                    '- Leave tikzSvg empty; the app renders TikZ after generation.'
+                    '- For math, physics, chemistry, engineering, statistics, coding, graphing, geometry, vectors, calculus, or other STEM explanation slides, set visualType="tikz" and DESCRIBE the needed diagram in plain words in the "visual" field.',
+                    '- Do NOT write TikZ code. A backend renderer draws every diagram after generation, so all slides share one clean textbook style. Leave "tikz" and "tikzSvg" empty.',
+                    '- Ask for actual diagrams only: coordinate graphs, number lines, vectors, geometry diagrams, force diagrams, probability trees, regions under curves, or transformations. Put standalone formulas, theorem statements, or large equations in the "equation" field instead, not as a visual.',
+                    '- Keep each visual to one focused diagram with short labels; name the specific points, axes, curves, and values the diagram needs.'
                 ].join('\n') : '',
                 '',
                 'For every slide, provide type, title, narration, and any fields needed by that type.',
