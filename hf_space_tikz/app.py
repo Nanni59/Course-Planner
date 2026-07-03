@@ -1046,9 +1046,6 @@ def _single_vector_diagram(text: str) -> tuple[str, str]:
     found_2d = _first_2d_vector(text)
     px, py = _scaled_2d_vector_point(found_2d[1]) if found_2d else (2.8, 1.9)
     if found_2d:
-        raw_x, raw_y = found_2d[1]
-        xlab = f"{raw_x:g}"
-        ylab = f"{raw_y:g}"
         vlab = ("|" + rf"\vec{{{found_2d[0]}}}" + "|") if "magnitude" in low else rf"\vec{{{found_2d[0]}}}"
     xmin = min(-0.7, px - 0.7)
     xmax = max(3.5, px + 0.7)
@@ -1143,7 +1140,7 @@ def _vector_3d_diagram(text: str) -> tuple[str, str]:
     max_abs = max(abs(x), abs(y), abs(z), 1.0)
     scale = 2.4 / max_abs
     sx, sy, sz = (round(v * scale, 3) for v in (x, y, z))
-    label = rf"\vec{{{name}}}=({int(x) if x.is_integer() else x:g},{int(y) if y.is_integer() else y:g},{int(z) if z.is_integer() else z:g})"
+    label = rf"\vec{{{name}}}"
     tikz = _fill(
         r"""
 \begin{tikzpicture}[scale=.9]
@@ -1524,7 +1521,7 @@ def _param_blueprint(req: GenerateReq, hit: tuple[str, str]) -> dict | None:
             "x": f"{x * scale:.3g}",
             "y": f"{y * scale:.3g}",
             "z": f"{z * scale:.3g}",
-            "label": rf"\vec{{{name}}}=({x:g},{y:g},{z:g})",
+            "label": rf"\vec{{{name}}}",
         }
         return {
             "name": "vector_3d",
@@ -1556,8 +1553,8 @@ def _param_blueprint(req: GenerateReq, hit: tuple[str, str]) -> dict | None:
                 "xmax": f"{max(3.5, px + 0.7):.3g}",
                 "ymin": f"{min(-0.7, py - 0.7):.3g}",
                 "ymax": f"{max(2.7, py + 0.7):.3g}",
-                "xlab": f"{raw_x:g}",
-                "ylab": f"{raw_y:g}",
+                "xlab": f"{name}_x",
+                "ylab": f"{name}_y",
                 "vlab": rf"\vec{{{name}}}",
             }
         else:
@@ -1716,6 +1713,7 @@ def _param_prompt(req: GenerateReq, spec: dict, repair_log: str = "", previous_p
             "Use strings for every value.",
             "Preserve LaTeX backslashes by writing JSON escapes, e.g. \\\\vec{u}, \\\\theta, \\\\circ.",
             "Do not include markdown fences or explanatory text.",
+            "For worksheet visuals, never place a final answer, solved coordinate tuple, solved component expression, magnitude value, or equation result on the diagram. Use only givens from the question, symbolic labels, or ? for the requested unknown.",
             "For angle_lines, return zero or more complete TikZ angle-pic lines only, or an empty string.",
             "For bars, return PGFPlots coordinate pairs like (1,2) (2,5).",
         ],
@@ -1770,6 +1768,7 @@ Worksheet-specific rules:
 - Prefer compact landscape compositions about 5.5 units wide by 3 units tall.
 - Avoid tall compass-style diagrams unless the problem explicitly needs directions.
 - Keep vector diagrams close to the question: short arrows, clear arrowheads, labels just outside the strokes.
+- Do not reveal the answer on worksheet diagrams. Show only the setup and the givens already visible in the question. Label requested results, unknown magnitudes, missing components, and final vectors with a symbol or ? rather than a solved value.
 - Keep triangle angle marks small and inside the shape. For triangle angle marks, use \\pic[draw=black,...] {{angle=side--vertex--side}}; do not hand-draw them with \\draw ... arc. Exterior angle arcs are allowed only for questions that explicitly say exterior angle.
 - For law of sines/cosines questions, include the given side lengths and angle values in the triangle when the question provides them.
 - Match the triangle's named vertices exactly. If the question says triangle PQR, label the vertices P, Q, and R only; do not switch to A, B, C. If the question asks for angle R, place the angle mark at vertex R and label it R or the given degree measure.
@@ -1982,9 +1981,10 @@ Examine the code for the following logical and structural failures:
 3. Label Clashes: Are labels overlapping axes or placed at mathematically incorrect positions?
 4. Sign and Direction Integrity: Do all vector components, coordinate points, line slopes, and plotted endpoints physically match the signs in the question text? A negative x component must point left of the y-axis, a negative y component must point below the x-axis, and mixed-sign vectors must land in the correct quadrant or octant. Do not accept a diagram that merely labels a positive arrow with a negative coordinate.
 5. Layout and Clipping: After enlarging the diagram, are axes, labels, arrowheads, plotted points, and curves still inside the visible drawing area without clipping?
+6. Answer Leakage: If this is a worksheet diagram and the question asks the student to find, calculate, determine, express, solve, or write a value, does the proposed diagram reveal that final value, solved coordinate tuple, component expression, magnitude, or equation result? A worksheet visual may show givens from the question and the geometric setup, but requested answers must be shown only as symbols or question marks.
 
 If the proposed TikZ code is perfectly accurate, respond with EXACTLY: "VALID".
-If there is a flaw, write a short explanation of the mistake, followed by a corrected, fully compilable raw TikZ block wrapper. When correcting a sign or quadrant mismatch, rewrite the actual coordinate endpoints, axis bounds, or vector targets, not only the text labels.
+If there is a flaw, write a short explanation of the mistake, followed by a corrected, fully compilable raw TikZ block wrapper. When correcting a sign or quadrant mismatch, rewrite the actual coordinate endpoints, axis bounds, or vector targets, not only the text labels. When correcting answer leakage, remove or replace the solved label with a symbolic label or ? while preserving the visual setup.
 
 Original Worksheet Question Text:
 {_raw_request_text(req)[:2800]}
@@ -2041,13 +2041,82 @@ def _enlarge_visual_code(req: GenerateReq, tikz: str) -> str:
     return out
 
 
+def _worksheet_answer_safe_tikz(req: GenerateReq, tikz: str) -> str:
+    """Worksheet visuals should illustrate the setup, not solve the exercise.
+
+    The frontend sends only the question text, but a template customizer can still
+    over-label a diagram with a derived coordinate tuple, component expression, or
+    magnitude. Strip those answer-style labels right before compilation.
+    """
+    if req.target != "worksheet":
+        return tikz
+    original_compact = re.sub(r"\s+", "", _raw_request_text(req))
+    out = str(tikz or "")
+
+    # A vector label like \vec{u}=(3,-2,6) is readable but often duplicates or
+    # reveals the requested component form. Keep the arrow label only.
+    out = re.sub(
+        r"(\\vec\s*\{\s*[A-Za-z]{1,3}\s*\})\s*=\s*\([^$}\n;]*\)",
+        r"\1",
+        out,
+    )
+    # Never put the requested magnitude value on the worksheet diagram.
+    out = re.sub(
+        r"(\|\s*\\vec\s*\{\s*[A-Za-z]{1,3}\s*\}\s*\|)\s*=\s*[^$}\n;]+",
+        r"\1",
+        out,
+    )
+
+    def scrub_math_label(match: re.Match) -> str:
+        body = match.group(1)
+        clean = body
+        clean = re.sub(
+            r"(\\vec\s*\{\s*[A-Za-z]{1,3}\s*\})\s*=\s*\([^)]*\)",
+            r"\1",
+            clean,
+        )
+        clean = re.sub(
+            r"(\|\s*\\vec\s*\{\s*[A-Za-z]{1,3}\s*\}\s*\|)\s*=\s*.*",
+            r"\1",
+            clean,
+        )
+
+        def tuple_guard(tuple_match: re.Match) -> str:
+            tuple_text = tuple_match.group(0)
+            tuple_compact = re.sub(r"\s+", "", tuple_text)
+            return tuple_text if tuple_compact in original_compact else "?"
+
+        clean = re.sub(r"\(\s*[-+]?\d+(?:\.\d+)?(?:\s*,\s*[-+]?\d+(?:\.\d+)?){1,2}\s*\)", tuple_guard, clean)
+
+        unit_component_answer = (
+            re.search(r"\\(?:vec|mathbf)\s*\{\s*[ijk]\s*\}", clean)
+            and re.search(r"[-+]?\d", clean)
+            and ("+" in clean or "-" in clean)
+        )
+        derived_expression = (
+            "=" in clean
+            and re.search(r"\\(?:sqrt|frac|pm)|\([^)]*,[^)]*\)", clean)
+            and not re.search(r"\^\s*\\circ", clean)
+        )
+        if unit_component_answer or derived_expression:
+            clean = "?"
+        return "{$" + clean.strip() + "$}"
+
+    out = re.sub(r"\{\$((?:[^{}]|\{[^{}]*\}){1,180})\$\}", scrub_math_label, out)
+    if out != tikz:
+        print("[answer-guard] stripped answer-style labels from worksheet TikZ", flush=True)
+    return out
+
+
 def _verified_render(req: GenerateReq, tikz: str, source: str = "draft") -> dict:
+    tikz = _worksheet_answer_safe_tikz(req, tikz)
     semantic_issue = _semantic_visual_issue(req, tikz)
     if semantic_issue:
         return {"ok": False, "error": semantic_issue, "log": semantic_issue}
     enlarged_tikz = _enlarge_visual_code(req, tikz)
     checked_tikz, critic_note = _verify_visual_accuracy(req, enlarged_tikz, source=source)
     if checked_tikz != enlarged_tikz:
+        checked_tikz = _worksheet_answer_safe_tikz(req, checked_tikz)
         checked_tikz = _enlarge_visual_code(req, checked_tikz)
         semantic_issue = _semantic_visual_issue(req, checked_tikz)
         if semantic_issue:

@@ -69,6 +69,7 @@ finally:
 
 _deterministic_template = ns["_deterministic_template"]
 _semantic_visual_issue = ns["_semantic_visual_issue"]
+_worksheet_answer_safe_tikz = ns["_worksheet_answer_safe_tikz"]
 
 # The exact fixed instruction the worksheet frontend prepends to every brief. It must stay
 # free of shape words; this test fails if a future edit reintroduces polluting keywords.
@@ -155,6 +156,23 @@ check("geometry rectangle", "Find the area of a rectangle with length 8 cm and w
       subject="Geometry", expect_template=True, expect_caption="Rectangle")
 check("geometry circle", "Find the circumference of a circle with radius 7 cm.",
       subject="Geometry", expect_template=True, expect_caption="Circle")
+
+# --- worksheet diagrams must not reveal the answer ---
+guard_req = req("Express the position vector v corresponding to point P(-4,7) in standard unit vectors i and j.",
+                subject="Vectors")
+guarded = _worksheet_answer_safe_tikz(guard_req, r"""
+\begin{tikzpicture}
+  \node {$\vec{v}=(-4,7)$};
+  \node {$-4\vec{i}+7\vec{j}$};
+  \node {$|\vec{v}|=\sqrt{65}$};
+  \node {$P(-4,7)$};
+\end{tikzpicture}
+""")
+for bad in (r"\vec{v}=(-4,7)", r"-4\vec{i}+7\vec{j}", r"|\vec{v}|=\sqrt{65}"):
+    if bad in guarded:
+        failures.append(f"answer guard: leaked solved label {bad!r}")
+if "P(-4,7)" not in guarded:
+    failures.append("answer guard: removed the given point label")
 
 # --- foreign / non-visual topics must NOT get a deterministic diagram (blank > wrong) ---
 check("geometry vague area (no drawable shape)", "Calculate the area enclosed by the given region.",
