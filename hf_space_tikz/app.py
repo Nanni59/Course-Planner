@@ -1975,6 +1975,8 @@ def _critic_prompt(req: GenerateReq, tikz: str) -> str:
     return f"""
 You are a rigorous Mathematics and LaTeX/TikZ Geometric Validator. Your job is to review a proposed TikZ diagram snippet against the specific math question it is supposed to illustrate.
 
+Important LaTeX context: this snippet is compiled inside the Course Planner wrapper, which already defines the styles cp axis, cp line, cp dashed, cp fill, cp point, and cp label. Do not flag those cp styles as undefined or non-compilable.
+
 Examine the code for the following logical and structural failures:
 1. Dimension Mismatches: Is a 3D vector or coordinate point being forced into a 2D template, resulting in zero-valued axes or flat, degenerate triangles? (e.g., a vector like (-3,0,4) rendered on a flat 2D right triangle with a height label of 0).
 2. Geometric Impossible Shapes: Does the TikZ code attempt to draw lines, triangles, or graphs that contradict the constants or variables given in the text?
@@ -1992,6 +1994,74 @@ Original Worksheet Question Text:
 Proposed TikZ Code Block:
 {tikz[:6000]}
 """.strip()
+
+
+def _critic_acceptance_prompt(req: GenerateReq, original_tikz: str, corrected_tikz: str, critic_text: str) -> str:
+    return f"""
+You are a strict second-pass validator for Course Planner TikZ critic corrections.
+
+The Course Planner LaTeX wrapper already defines these custom styles: cp axis, cp line, cp dashed, cp fill, cp point, cp label. A correction must NOT be accepted merely because another critic claimed those styles are undefined.
+
+Return EXACTLY one of:
+ACCEPT
+REJECT: short reason
+
+Accept only if the corrected TikZ is mathematically closer to the worksheet question, does not reveal requested answers, preserves the diagram's intended topic, and does not introduce avoidable layout/label issues. If uncertain, reject and keep the original.
+
+Worksheet Question:
+{_raw_request_text(req)[:1800]}
+
+Original TikZ:
+{original_tikz[:3000]}
+
+First Critic Text:
+{critic_text[:1200]}
+
+Proposed Corrected TikZ:
+{corrected_tikz[:3000]}
+""".strip()
+
+
+def _local_reject_critic_correction(req: GenerateReq, original_tikz: str, corrected_tikz: str, critic_text: str) -> str | None:
+    verdict_low = str(critic_text or "").lower()
+    corrected_low = str(corrected_tikz or "").lower()
+    if "undefined" in verdict_low and "cp " in verdict_low and re.search(r"\bcp\s+(?:axis|line|dashed|fill|point|label)\b", verdict_low):
+        return "critic falsely treated Course Planner cp styles as undefined"
+    if re.search(r"\\(?:documentclass|usepackage|begin\s*\{document\}|end\s*\{document\})\b", corrected_tikz, re.I):
+        return "correction included document/package wrapper commands"
+    if "\\begin{tikzpicture" not in corrected_tikz:
+        return "correction did not include a tikzpicture"
+    issue = _semantic_visual_issue(req, corrected_tikz)
+    if issue:
+        return "correction failed semantic audit: " + issue
+    original_has_z = bool(re.search(r"\{\$z\$\}|node\[[^\]]*\]\s*\{\$z\$\}", original_tikz))
+    corrected_has_z = bool(re.search(r"\{\$z\$\}|node\[[^\]]*\]\s*\{\$z\$\}", corrected_tikz))
+    if original_has_z and not corrected_has_z and _first_3d_vector(_raw_request_text(req)):
+        return "correction removed the z-axis from a 3D vector diagram"
+    return None
+
+
+def _accept_critic_correction(req: GenerateReq, original_tikz: str, corrected_tikz: str, critic_text: str, source: str) -> tuple[bool, str]:
+    local_reject = _local_reject_critic_correction(req, original_tikz, corrected_tikz, critic_text)
+    if local_reject:
+        return False, local_reject
+    if not GEMINI_KEYS:
+        if "deterministic-template" in source or "topic-template" in source:
+            return False, "verifier unavailable for deterministic correction"
+        return True, "accepted by local checks"
+    try:
+        verdict = _gemini(
+            _critic_acceptance_prompt(req, original_tikz, corrected_tikz, critic_text),
+            as_json=False,
+            temperature=0.0,
+        ).strip()
+    except Exception as exc:
+        if "deterministic-template" in source or "topic-template" in source:
+            return False, "verifier unavailable: " + str(exc)[:160]
+        return True, "accepted by local checks after verifier error: " + str(exc)[:120]
+    if verdict == "ACCEPT":
+        return True, "verified by second pass"
+    return False, verdict[:220] or "second pass rejected correction"
 
 
 def _verify_visual_accuracy(req: GenerateReq, tikz: str, source: str = "draft") -> tuple[str, str]:
@@ -2013,8 +2083,12 @@ def _verify_visual_accuracy(req: GenerateReq, tikz: str, source: str = "draft") 
         return tikz, ""
     corrected = _extract_tikz_block(verdict)
     if corrected:
-        print(f"[critic] {source}: corrected diagram. Reason/log: {verdict[:800]}", flush=True)
-        return corrected, verdict[:800]
+        accepted, reason = _accept_critic_correction(req, tikz, corrected, verdict, source)
+        if accepted:
+            print(f"[critic] {source}: accepted corrected diagram ({reason}). Reason/log: {verdict[:800]}", flush=True)
+            return corrected, verdict[:800]
+        print(f"[critic] {source}: rejected critic correction ({reason}). Keeping draft. Reason/log: {verdict[:800]}", flush=True)
+        return tikz, "critic correction rejected: " + reason
     print(f"[critic] {source}: flagged issue but returned no TikZ block; keeping draft. Response: {verdict[:800]}", flush=True)
     return tikz, verdict[:800]
 

@@ -70,6 +70,7 @@ finally:
 _deterministic_template = ns["_deterministic_template"]
 _semantic_visual_issue = ns["_semantic_visual_issue"]
 _worksheet_answer_safe_tikz = ns["_worksheet_answer_safe_tikz"]
+_local_reject_critic_correction = ns["_local_reject_critic_correction"]
 
 # The exact fixed instruction the worksheet frontend prepends to every brief. It must stay
 # free of shape words; this test fails if a future edit reintroduces polluting keywords.
@@ -173,6 +174,15 @@ for bad in (r"\vec{v}=(-4,7)", r"-4\vec{i}+7\vec{j}", r"|\vec{v}|=\sqrt{65}"):
         failures.append(f"answer guard: leaked solved label {bad!r}")
 if "P(-4,7)" not in guarded:
     failures.append("answer guard: removed the given point label")
+
+cp_style_reject = _local_reject_critic_correction(
+    req("Find the magnitude of vector v = (2,-3,5).", subject="Vectors"),
+    r"\begin{tikzpicture}\draw[cp axis,-Stealth] (0,0)--(1,0);\draw[cp line,-Stealth] (0,0)--(1,1);\end{tikzpicture}",
+    r"\begin{tikzpicture}\draw[-Stealth] (0,0)--(1,0);\draw[-Stealth] (0,0)--(1,1);\end{tikzpicture}",
+    "The proposed TikZ has undefined styles cp axis and cp line.",
+)
+if not cp_style_reject:
+    failures.append("critic guard: accepted a false undefined-cp-style correction")
 
 # --- foreign / non-visual topics must NOT get a deterministic diagram (blank > wrong) ---
 check("geometry vague area (no drawable shape)", "Calculate the area enclosed by the given region.",
