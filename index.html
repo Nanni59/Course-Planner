@@ -11621,10 +11621,18 @@
                 .replace(/(^|[\s^([{])imes\b/g, '$1\\times')
                 .replace(/(^|[\s([{])heta(?=[_A-Z]|\b)/g, '$1\\theta')
                 .replace(/\\vec\s*([A-Za-z])\b/g, '\\vec{$1}')
+                .replace(/(^|[^A-Za-z\\])vec\s*\{\s*([A-Za-z])\s*\}/g, '$1\\vec{$2}')
+                .replace(/(^|[^A-Za-z\\])vec([A-Za-z])\b/g, '$1\\vec{$2}')
                 .replace(/(^|[^\w\\])vec\s*\{\s*([A-Za-z])\s*\}/g, '$1\\vec{$2}')
                 .replace(/(^|[^\w\\])vec([A-Za-z])\b/g, '$1\\vec{$2}')
                 .replace(/(^|[^\w\\])ec\s*\{\s*([A-Za-z])\s*\}/g, '$1\\vec{$2}')
-                .replace(/(^|[^\w\\])ec([A-Za-z])\b/g, '$1\\vec{$2}');
+                .replace(/(^|[^\w\\])ec([A-Za-z])\b/g, '$1\\vec{$2}')
+                .replace(/(^|[^A-Za-z\\])pm(?=(?:\s|[-+]?\d|\\?sqrt))/g, '$1\\pm ')
+                .replace(/(^|[^A-Za-z\\])sqrt\s*\{?\s*([A-Za-z](?:\s*\^\s*\{?[-+]?\d+\}?|_\{?[A-Za-z0-9]+\}?)?)\s*\}?/g, '$1\\sqrt{$2}')
+                .replace(/(^|[^A-Za-z\\])sqrt\s*\{?\s*([-+]?\d+(?:\.\d+)?)\s*\}?/g, '$1\\sqrt{$2}')
+                .replace(/(^|[^A-Za-z\\])-frac\s*([-+]?\d+)(\d)\b/g, '$1\\frac{-$2}{$3}')
+                .replace(/(^|[^A-Za-z\\])frac\s*\{?\s*([-+]?\d+)\s*\}?\s*\{?\s*([-+]?\d+)\s*\}?/g, '$1\\frac{$2}{$3}')
+                .replace(/(^|[^A-Za-z\\])frac\s*([-+]?\d+)(\d)\b/g, '$1\\frac{$2}{$3}');
         }
         function flattenInlineMath(s) {
             let t = String(s == null ? '' : s);
@@ -11633,6 +11641,7 @@
                 prev = t;
                 t = t
                     .replace(/\\\(\\\(([\s\S]{1,160}?)\\\)\\\)/g, '\\($1\\)')
+                    .replace(/\\\(([^()]*?)\\\((\\(?:sqrt|frac|vec|pm)[^()]*?)\\\)([^()]*?)\\\)/g, '\\($1$2$3\\)')
                     .replace(/\\\(([^\\()]*)\\\(([^\\()]*)\\\)([^\\()]*)\\\)/g, '\\($1$2$3\\)');
             } while (t !== prev);
             return t

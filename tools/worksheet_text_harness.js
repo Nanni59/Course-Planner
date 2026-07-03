@@ -96,6 +96,21 @@ const cases = [
         expect: { answerNoLiteralDollar: true, answerKeepsProseSpaces: ['over 6'] }
     },
     {
+        name: 'SCREENSHOT answer: glued vector commands after coefficients are repaired',
+        json: "{\"q\":\"If a = (1,0,-3) and b = (4,-2,2), determine the vector resulting from 2veca - b.\",\"answer\":\"2(1,0,-3) - (4,-2,2) = (2,0,-6) - (4,-2,2) = (-2,2,-8)\"}",
+        expect: { qContains: ['2\\vec{a}'], qNotContains: ['2veca'] }
+    },
+    {
+        name: 'SCREENSHOT answer: sqrt and pm commands with lost backslashes are repaired',
+        json: "{\"q\":\"ok\",\"answer\":\"sqrtk^2 + 12^2 + (-5)^2 = 15. k^2 + 169 = 225 k^2 = 56 k = pmsqrt56 = pm2sqrt14\"}",
+        expect: { answerKeepsProseSpaces: ['\\sqrt{k^{2}', '\\pm \\sqrt{56}', '\\pm 2\\sqrt{14}'], answerNotContains: ['sqrtk', 'pmsqrt', 'pm2sqrt'] }
+    },
+    {
+        name: 'SCREENSHOT answer: compact frac commands are repaired',
+        json: "{\"q\":\"Let u=(1,-2,3) and v=(0,4,-1). Determine x such that 3vecx + u = 2vecv.\",\"answer\":\"3vecx = 2vecv - u. x = (-frac13, frac103, -frac53)\"}",
+        expect: { qContains: ['3\\vec{x}', '2\\vec{v}'], answerKeepsProseSpaces: ['3\\vec{x}', '2\\vec{v}', '\\frac{-1}{3}', '\\frac{10}{3}', '\\frac{-5}{3}'], answerNotContains: ['3vecx', '2vecv', 'frac13', 'frac103', 'frac53'] }
+    },
+    {
         name: 'ANSWER: currency must NOT be converted to math',
         json: "{\"q\":\"ok\",\"answer\":\"The ticket costs $5 and the meal costs $12 today.\"}",
         expect: { answerKeepsProseSpaces: ['costs', 'today'] }
