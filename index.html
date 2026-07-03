@@ -11601,6 +11601,10 @@
             .replace(/\n{2,}/g, '<br><br>').replace(/\n/g, ' ');
         function repairParsedLatexEscapes(s) {
             return String(s == null ? '' : s)
+                .replace(/\v\s*ec\s*\{\s*([A-Za-z])\s*\}/g, '\\vec{$1}')
+                .replace(/\v\s*ec\s*([A-Za-z])\b/g, '\\vec{$1}')
+                .replace(/\v\s*([A-Za-z])\b/g, '\\vec{$1}')
+                .replace(/\v/g, '\\vec')
                 .replace(/\t\s*riangle\b/g, '\\triangle')
                 .replace(/\t\s*ext\s*\{/g, '\\text{')
                 .replace(/\t\s*ext(?=(?:less|greater|superscript|subscript|backslash|asciitilde|asciicircum)\b)/g, '\\text')
@@ -11615,7 +11619,12 @@
                 .replace(/(^|[\s([{])ext\s*\{/g, '$1\\text{')
                 .replace(/(^|[\s([{])ext(?=(?:less|greater|superscript|subscript|backslash|asciitilde|asciicircum)\b)/g, '$1\\text')
                 .replace(/(^|[\s^([{])imes\b/g, '$1\\times')
-                .replace(/(^|[\s([{])heta(?=[_A-Z]|\b)/g, '$1\\theta');
+                .replace(/(^|[\s([{])heta(?=[_A-Z]|\b)/g, '$1\\theta')
+                .replace(/\\vec\s*([A-Za-z])\b/g, '\\vec{$1}')
+                .replace(/(^|[^\w\\])vec\s*\{\s*([A-Za-z])\s*\}/g, '$1\\vec{$2}')
+                .replace(/(^|[^\w\\])vec([A-Za-z])\b/g, '$1\\vec{$2}')
+                .replace(/(^|[^\w\\])ec\s*\{\s*([A-Za-z])\s*\}/g, '$1\\vec{$2}')
+                .replace(/(^|[^\w\\])ec([A-Za-z])\b/g, '$1\\vec{$2}');
         }
         function flattenInlineMath(s) {
             let t = String(s == null ? '' : s);
@@ -11683,6 +11692,8 @@
                 .replace(/\n\s*([A-Za-z])\s*\n/g, ' $1 ');
             const mathSpan = /\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\$[\s\S]*?\$/g;
             const wrapPlain = chunk => chunk
+                .replace(/(^|[^\w\\])((?:\\vec\s*\{[A-Za-z]\}(?:_\{?[A-Za-z0-9]+\}?)?\s*=\s*\(\s*[-+]?\d+(?:\.\d+)?\s*,\s*[-+]?\d+(?:\.\d+)?(?:\s*,\s*[-+]?\d+(?:\.\d+)?)?\s*\)))/g,
+                    (m, lead, expr) => lead + '\\(' + expr.replace(/\s+/g, ' ').trim() + '\\)')
                 .replace(/(^|[^\w\\])((?:\\triangle\s*[A-Z]{3}|\\angle\s*[A-Z](?:\s*=\s*[-+]?\d+(?:\.\d+)?\s*(?:\^\\circ|°|degrees?))?|[-+]?\d+(?:\.\d+)?\s*\^\\circ|[-+]?\d+(?:\.\d+)?\s*\\text\s*\{[^{}]+?\}))/g,
                     (m, lead, expr) => lead + '\\(' + expr.replace(/\s+/g, ' ').trim() + '\\)')
                 .replace(/(^|[^\w\\])((?:\\(?:triangle|angle)\b|\\(?:circ|degree)\b|\\text\s*\{)[^,.;!?<>\n]{0,90})/g,
@@ -11882,7 +11893,9 @@
             return t;
         }
         function protectLatexJsonEscapes(s) {
-            return String(s || '').replace(
+            return String(s || '')
+            .replace(/(^|[^\\])\\(?=vec[A-Za-z]\b)/g, '$1\\\\')
+            .replace(
                 /(^|[^\\])\\(?=[()[\]]|(?:angle|triangle|text|theta|times|frac|dfrac|tfrac|sqrt|left|right|circ|degree|vec|overline|hat|bar|sin|cos|tan|sec|csc|cot|log|ln|pi|alpha|beta|gamma|delta|epsilon|lambda|mu|sigma|omega|phi|rho|tau|Delta|Omega|Sigma|Gamma|Theta|Lambda|Phi|Pi|pm|mp|cdot|div|neq|leq|geq|approx|equiv|infty|partial|nabla|cup|cap|subset|supset|forall|exists|sum|prod|int|oint|lim|binom|frac|mathbb|mathbf|mathcal|mathrm|operatorname|boxed|quad|qquad|rightarrow|Rightarrow|leftarrow|Leftarrow|leftrightarrow|to|mapsto|cos|sin|tan|deg|arcsin|arccos|arctan)\b)/g,
                 '$1\\\\'
             );
@@ -12641,7 +12654,7 @@
         }
         const latexOn = id => { const el = document.getElementById(id); return !el || el.classList.contains('on'); };
         const visualOn = id => { const el = document.getElementById(id); return !!(el && el.classList.contains('on')); };
-        const LATEX_ON = ' IMPORTANT - math formatting rules: Render EVERY mathematical expression, symbol, variable, fraction, exponent, unit and numeric formula as valid LaTeX. Wrap inline math in \\( ... \\) and keep it on the SAME line as the surrounding words - never put a line break before, after, or inside an inline expression, and never start a new line just for a single symbol or variable. Use $$ ... $$ only for a full standalone equation, never for a lone variable. Write every variable and vector in plain italic - do NOT bold them with \\mathbf, \\boldsymbol, \\pmb or similar. Write strictly valid LaTeX: every \\left must have a matching \\right; if you are not certain a pair is balanced, use plain ( ) [ ] | instead of \\left/\\right. Use only supported MathJax macros. Write \\(\\pi\\), \\(\\theta\\), \\(x^2\\), \\(\\int_0^2 4t\\,dt\\), and units like \\(\\text{cm}^3\\) exactly this way. Never output the phrase Math input error. Never write math, fractions or exponents as plain text.';
+        const LATEX_ON = ' IMPORTANT - math formatting rules: Render EVERY mathematical expression, symbol, variable, fraction, exponent, unit and numeric formula as valid LaTeX. Wrap inline math in \\( ... \\) and keep it on the SAME line as the surrounding words - never put a line break before, after, or inside an inline expression, and never start a new line just for a single symbol or variable. Use $$ ... $$ only for a full standalone equation, never for a lone variable. In JSON strings, double-escape every LaTeX backslash so vector and fraction commands survive exactly as \\\\vec{v}, \\\\vec{i}, \\\\vec{j}, and \\\\frac{a}{b}; never write vecv, vecu, vecj, ecx, or raw vector commands outside math delimiters. Write every variable and vector in plain italic - do NOT bold them with \\mathbf, \\boldsymbol, \\pmb or similar. Write strictly valid LaTeX: every \\left must have a matching \\right; if you are not certain a pair is balanced, use plain ( ) [ ] | instead of \\left/\\right. Use only supported MathJax macros. Write \\(\\pi\\), \\(\\theta\\), \\(x^2\\), \\(\\int_0^2 4t\\,dt\\), \\(\\vec{v}\\), and units like \\(\\text{cm}^3\\) exactly this way. Never output the phrase Math input error. Never write math, fractions or exponents as plain text.';
         root.querySelectorAll('[data-latex], [data-visuals]').forEach(b => b.addEventListener('click', () => {
             b.querySelector('.st-tp-state').textContent = b.classList.toggle('on') ? 'On' : 'Off';
         }));

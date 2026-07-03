@@ -116,6 +116,21 @@ const cases = [
         expect: { qContains: ['\\vec{u}', '\\vec{v}'], qNotContains: ['$\\(', '\\)$', '⅑', '⅒'] }
     },
     {
+        name: 'RAW JSON: malformed \\vecv command is protected and repaired',
+        json: String.raw`{"q":"Let \vecv = (-0.6, 0.8). Find the direction of the vector."}`,
+        expect: { qContains: ['\\(\\vec{v} = (-0.6, 0.8)\\)'], qNotContains: ['\\vecv', 'vecv'] }
+    },
+    {
+        name: 'VERTICAL TAB: swallowed \\v in vector command is restored',
+        json: "{\"q\":\"Let \\u000becu = (3, 4). Express the magnitude of the vector.\"}",
+        expect: { qContains: ['\\(\\vec{u} = (3, 4)\\)'], qNotContains: ['\u000b', 'vecu'] }
+    },
+    {
+        name: 'PLAINTEXT: lost vector backslash ecx is restored and wrapped',
+        json: "{\"q\":\"Given ecx = (2, -1), sketch the vector.\"}",
+        expect: { qContains: ['\\(\\vec{x} = (2, -1)\\)'], qNotContains: ['ecx'] }
+    },
+    {
         name: 'SCREENSHOT: math nested inside \\text{} must not break MathJax',
         json: String.raw`{"q":"In triangle ABC, given \\(\\text{$A = 40^\\circ$}\\), \\(\\text{$B = 60^\\circ$}\\), and side \\(\\text{$a = 10cm$}\\). Find side \\(\\text{$b$}\\)."}`,
         expect: { qContains: ['\\(A = 40^\\circ\\)', '\\(B = 60^\\circ\\)'], qNotContains: ['\\text{\\(', '\\(\\text{\\)'] }
