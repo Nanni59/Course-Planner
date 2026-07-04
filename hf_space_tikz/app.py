@@ -1793,7 +1793,7 @@ def _customize_template_and_render(req: GenerateReq, hit: tuple[str, str], sourc
     return rendered
 
 
-def _visual_prompt(req: GenerateReq, repair_log: str = "", previous_code: str = "") -> str:
+def _visual_prompt(req: GenerateReq, repair_log: str = "", previous_code: str = "", references: str | None = None) -> str:
     repair_block = ""
     if repair_log:
         repair_block = (
@@ -1862,7 +1862,7 @@ Rules:
 {target_rules}
 
 Reference patterns:
-{_example_blocks(req)}
+{references if references is not None else _example_blocks(req)}
 
 Subject: {req.subject[:160]}
 Title: {req.title[:240]}
@@ -2458,6 +2458,110 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
     return rendered if rendered.get("ok") else None
 
 
+def _format_reference_blocks(refs: list) -> str | None:
+    """Render catalog templates as structural references for the fallback prompt."""
+    if not refs:
+        return None
+    parts = [
+        "Use these catalog diagrams as the STRUCTURAL reference. Keep their style, "
+        "axis setup, cp styles, label placement, and answer-safety; ADAPT the "
+        "coordinates, values, and labels to the user's problem. Do not invent "
+        "unusual structure - stay close to whichever reference best fits."
+    ]
+    for r in refs:
+        parts.append(f"{r.get('caption', '')}\n{r.get('skeleton', '')}")
+    return "\n\n".join(parts)
+
+
+def _catalog_references(req: GenerateReq, k: int = 3) -> list:
+    if not CATALOG_ENABLED or tcatalog is None:
+        return []
+    try:
+        return tcatalog.route_top(_question_text(req), req.subject, k=k)
+    except Exception:
+        return []
+
+
+def _readiness_prompt(req: GenerateReq, tikz: str) -> str:
+    return f"""You are a strict readiness checker for a math worksheet diagram. Given the QUESTION and a proposed TikZ visual, decide if the visual is READY to show to a student.
+
+The Course Planner wrapper predefines the styles cp axis, cp line, cp dashed, cp fill, cp point, cp label. Do NOT flag those as undefined.
+
+Respond with EXACTLY "PASS" only if ALL of these hold:
+- Correct type: the diagram is the right kind of visual for the question and actually illustrates it (not a formula poster, not an unrelated shape).
+- Consistent: it agrees with the givens in the question (labels, counts, signs, angles, and quantities match).
+- Answer-safe: it does not reveal a value the student is asked to find - solved magnitudes, coordinate tuples, computed results, or final answers appear only as a symbol or ?.
+- Legible: labels are not degenerate - nothing tiny, collapsed, overlapping, or cramped into the origin.
+
+Otherwise respond with "FAIL: <one short reason>".
+
+QUESTION:
+{_raw_request_text(req)[:2200]}
+
+PROPOSED TikZ:
+{tikz[:5000]}
+""".strip()
+
+
+def _readiness_verdict(req: GenerateReq, tikz: str) -> tuple[str, str]:
+    """LLM gate for the reference-guided fallback: PASS -> show it, FAIL -> repair
+    or blank. If no verifier is available, PASS (do not blank everything on outage)."""
+    if not GEMINI_KEYS:
+        return "PASS", "verifier unavailable"
+    try:
+        out = _gemini(_readiness_prompt(req, tikz), as_json=False, temperature=0.0).strip()
+    except Exception as exc:
+        return "PASS", "verifier error: " + str(exc)[:120]
+    if out.upper().startswith("PASS"):
+        return "PASS", ""
+    return "FAIL", out[:220] or "readiness check failed"
+
+
+def _reference_generate(req: GenerateReq) -> dict | None:
+    """Reference-guided fallback for problems with no exact template. The catalog's
+    closest templates are handed to the model as the structural scaffold; the result
+    is compiled, then gated by the LLM readiness checker. Policy: repair once, then
+    blank (a verified-safe diagram or none - never a shaky one)."""
+    references = _format_reference_blocks(_catalog_references(req, k=3))
+    tikz = ""
+    caption = ""
+    repair_log = ""
+    for attempt in range(2):  # initial draft + one repair
+        try:
+            spec = _gemini(
+                _visual_prompt(req, repair_log=repair_log, previous_code=tikz, references=references),
+                as_json=True,
+                temperature=0.2,
+            )
+        except Exception as exc:
+            print(f"[reference] generation Gemini failure: {str(exc)[:180]}", flush=True)
+            return None
+        tikz = _strip_fence(str(spec.get("tikz", "")))
+        caption = str(spec.get("caption", caption)).strip()
+        if not tikz:
+            return None  # model judged the request non-visual
+        safe = _worksheet_answer_safe_tikz(req, tikz)
+        semantic_issue = _semantic_visual_issue(req, safe)
+        if semantic_issue:
+            repair_log = semantic_issue
+            continue
+        enlarged = _enlarge_visual_code(req, safe)
+        rendered = _render(RenderReq(code=enlarged, format=req.format, theme=req.theme, target=req.target))
+        if not rendered.get("ok"):
+            repair_log = rendered.get("log") or rendered.get("error") or "TikZ compile failed."
+            continue
+        verdict, reason = _readiness_verdict(req, enlarged)
+        if verdict == "PASS":
+            rendered["tikz"] = enlarged
+            rendered["caption"] = caption
+            rendered["customized"] = "reference-fallback"
+            print(f"[reference] PASS ({reason or 'ready'})", flush=True)
+            return rendered
+        print(f"[reference] readiness FAIL, {'repairing' if attempt == 0 else 'blanking'}: {reason}", flush=True)
+        repair_log = "The previous diagram failed the readiness check: " + reason
+    return None  # repair-once-then-blank: no verified diagram -> no diagram
+
+
 def _generate_visual_sync(req: GenerateReq) -> dict:
     try:
         # 0) Constrained catalog path (parallel rollout). Route -> fill declared
@@ -2496,35 +2600,17 @@ def _generate_visual_sync(req: GenerateReq) -> dict:
                 flush=True,
             )
 
-        # 2) Otherwise ask Gemini for bespoke TikZ. Any Gemini failure (exhausted
-        #    retries during a 503 storm, network timeout) is caught so we can still
-        #    fall back to a deterministic diagram instead of returning a bare 500.
-        rendered: dict = {"ok": False, "error": "No diagram was produced."}
+        # 2) No exact template matched. Reference-guided fallback: the catalog's
+        #    closest templates scaffold a bespoke diagram, which is then gated by the
+        #    LLM readiness checker (repair once, else blank - a verified diagram or
+        #    none, never a shaky one). Replaces the old unconstrained bespoke path.
+        reference_rendered = _reference_generate(req)
+        if reference_rendered and reference_rendered.get("ok"):
+            return reference_rendered
+
         tikz = ""
         caption = ""
-        try:
-            spec = _gemini(_visual_prompt(req), as_json=True, temperature=0.25)
-            tikz = _strip_fence(str(spec.get("tikz", "")))
-            caption = str(spec.get("caption", "")).strip()
-            if tikz:
-                rendered = _verified_render(req, tikz, source="bespoke-draft")
-                if not rendered.get("ok"):
-                    repaired = _gemini(
-                        _visual_prompt(req, repair_log=rendered.get("log") or rendered.get("error") or "", previous_code=tikz),
-                        as_json=True,
-                        temperature=0.15,
-                    )
-                    tikz = _strip_fence(str(repaired.get("tikz", tikz)))
-                    caption = str(repaired.get("caption", caption)).strip()
-                    rendered = _verified_render(req, tikz, source="bespoke-repair")
-        except Exception as gem_exc:
-            rendered = {"ok": False, "error": f"Gemini unavailable: {str(gem_exc)[:200]}"}
-            print(f"[generate] Gemini path failed, trying deterministic fallback: {str(gem_exc)[:180]}", flush=True)
-
-        if rendered.get("ok"):
-            rendered["tikz"] = rendered.get("tikz", tikz)
-            rendered["caption"] = caption
-            return rendered
+        rendered: dict = {"ok": False, "error": "No diagram was produced."}
 
         # 3) Last resort: retry a matched deterministic blueprint through the same
         #    customization loop. If no keyword-matched blueprint exists, leave the

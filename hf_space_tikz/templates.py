@@ -201,33 +201,58 @@ def _trigger_hit(keyword: str, text_low: str) -> bool:
     return re.search(left + re.escape(kw) + right, text_low) is not None
 
 
-def route(text: str, subject: str = "") -> dict | None:
-    """Keyword routing. Returns the best-matching template or None.
+def _relevance(template: dict, text_low: str, subj_tokens: set) -> float:
+    """Keyword-trigger score for one template, weighting multi-word phrases higher
+    (a specific "angle between" beats a bare "triangle") plus a subject-token
+    tiebreak. Subject is NOT part of the keyword haystack (folding it in made
+    "vectors" match every vector template)."""
+    score = 0.0
+    for kw in template["triggers"]:
+        if _trigger_hit(kw, text_low):
+            score += 1 + kw.count(" ")
+    tmpl_tokens = set(re.findall(r"[a-z]+", template.get("subject", "").lower()))
+    if subj_tokens & tmpl_tokens:
+        score += 0.25
+    return score
 
-    Score sums matched triggers, weighting multi-word phrases higher (a specific
-    "angle between" should beat a bare "triangle"), plus a small subject-token
-    tiebreak. Critically, the subject is NOT part of the match haystack - folding
-    it in made the word "vectors" match every vector template. None means "no
-    keyword hit"; the caller then decides whether to invoke the AI classifier.
+
+def route(text: str, subject: str = "") -> dict | None:
+    """Keyword routing for an EXACT match. Returns the best template or None.
+
+    None means "no keyword hit"; the caller then decides whether to fall through
+    to the reference-guided path (which uses route_top for structural examples).
     """
     text_low = str(text or "").lower()
     subj_tokens = set(re.findall(r"[a-z]+", str(subject or "").lower()))
     best: dict | None = None
     best_score = 0.0
     for t in TEMPLATES:
-        score = 0.0
-        for kw in t["triggers"]:
-            if _trigger_hit(kw, text_low):
-                score += 1 + kw.count(" ")  # phrase specificity
-        if not score:
-            continue
-        tmpl_tokens = set(re.findall(r"[a-z]+", t.get("subject", "").lower()))
-        if subj_tokens & tmpl_tokens:
-            score += 0.25
+        score = _relevance(t, text_low, subj_tokens)
         if score > best_score:
             best_score = score
             best = t
     return best
+
+
+def route_top(text: str, subject: str = "", k: int = 3) -> list[dict]:
+    """The k most relevant templates, for use as structural REFERENCES on the
+    reference-guided fallback (novel problems with no exact match). Always returns
+    up to k: keyword matches first, then padded by same-subject/leading templates
+    so the generator always has a few style exemplars to anchor on."""
+    text_low = str(text or "").lower()
+    subj_tokens = set(re.findall(r"[a-z]+", str(subject or "").lower()))
+    scored = sorted(
+        ((_relevance(t, text_low, subj_tokens), i, t) for i, t in enumerate(TEMPLATES)),
+        key=lambda x: (-x[0], x[1]),
+    )
+    picked = [t for s, _i, t in scored if s > 0][:k]
+    if len(picked) < k:
+        for _s, _i, t in scored:
+            if t not in picked:
+                picked.append(t)
+            if len(picked) >= k:
+                break
+    return picked
 
 
 def get(template_id: str) -> dict | None:
