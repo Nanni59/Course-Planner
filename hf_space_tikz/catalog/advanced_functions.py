@@ -190,8 +190,9 @@ templates = [
     xtick={-5,-4,-3,-2,-1,0,1,2,3,4,5}, ytick={-5,-4,-3,-2,-1,0,1,2,3,4,5},
     unbounded coords=jump,
 ]
-    % reciprocal function f(x) = COEFF/x
-    \addplot[cp line, samples=201, domain=-4.8:4.8] { __COEFF__/x };
+    % reciprocal function f(x) = COEFF/x (split domain to skip the x=0 asymptote)
+    \addplot[cp line, samples=100, domain=-4.8:-0.2] { __COEFF__/x };
+    \addplot[cp line, samples=100, domain=0.2:4.8] { __COEFF__/x };
     % vertical asymptote x=0
     \addplot[cp dashed] coordinates {(0,-5) (0,5)};
     % horizontal asymptote y=0

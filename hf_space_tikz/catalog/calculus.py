@@ -42,7 +42,7 @@ templates = [
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
   \addplot[cp line, samples=100, domain=-1:3.5]{x^2};
-  \addplot[only marks, cp point] coordinates {(__X1__, __Y1__), (__X2__, __Y2__)};
+  \addplot[only marks, cp point] coordinates {(__X1__, __Y1__) (__X2__, __Y2__)};
   \draw[cp line] (axis cs:__X1__,__Y1__) -- (axis cs:__X2__,__Y2__);
   \node[cp label, above right] at (axis cs:__X1__,__Y1__) {secant};
   \addplot[cp dashed, domain=-1:3.5]{__TAN_SLOPE__*x + __TAN_INTERCEPT__};
@@ -70,7 +70,7 @@ templates = [
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
   \addplot[cp line, samples=100, domain=-1:4]{x^2};
-  \path[cp fill] (axis cs:__A__,0) -- plot[cp line, samples=100, domain=__A__:__B__] {x^2} -- (axis cs:__B__,0) -- cycle;
+  \addplot[cp fill, draw=none, samples=100, domain=__A__:__B__] {x^2} \closedcycle;
   \node[cp label, above] at (axis cs:__AREA_LABEL_X__, __AREA_LABEL_Y__) {area};
 \end{axis}
 \end{tikzpicture}""",
@@ -168,7 +168,7 @@ templates = [
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
   \addplot[cp line, samples=200, domain=-2:2]{x^3 - 3*x};
-  \addplot[only marks, cp point] coordinates {(__MAX_X__, __MAX_Y__), (__MIN_X__, __MIN_Y__), (__INFLEX_X__, __INFLEX_Y__)};
+  \addplot[only marks, cp point] coordinates {(__MAX_X__, __MAX_Y__) (__MIN_X__, __MIN_Y__) (__INFLEX_X__, __INFLEX_Y__)};
   \node[cp label, above left] at (axis cs:__MAX_X__, __MAX_Y__) {max};
   \node[cp label, below right] at (axis cs:__MIN_X__, __MIN_Y__) {min};
   \node[cp label, above right] at (axis cs:__INFLEX_X__, __INFLEX_Y__) {inflection};

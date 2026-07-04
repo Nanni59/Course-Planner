@@ -82,9 +82,10 @@ def sanitize_label(value, default: str = "") -> str:
     value = repair_transport_escapes(str(value if value is not None else default))
     value = value.replace("\n", " ").replace("\r", " ").replace("\t", " ")
     value = re.sub(r"[;&]", " ", value)
-    # Allow % so an escaped \% (e.g. "68\%") survives; a bare % would only
-    # comment out the label and fail the compile, which the repair loop catches.
-    value = re.sub(r"[^A-Za-z0-9_+\-*/=.,:(){}\\^\s/|%°]", "", value)
+    # Allow % so an escaped \% survives, and $ so a label may carry its own math
+    # delimiters (many templates use a bare node {__LABEL__} with a "$...$" value).
+    # A bare/unbalanced % or $ only fails the compile, which the repair loop catches.
+    value = re.sub(r"[^A-Za-z0-9_+\-*/=.,:(){}\\^\s/|%$°]", "", value)
     value = re.sub(r"\s+", " ", value).strip()
     return value or default
 
