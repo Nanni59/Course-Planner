@@ -37,6 +37,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+try:
+    import templates as tcatalog  # constrained catalog engine (route/fill/ai_spec)
+except Exception as _cat_exc:  # keep /render and /health alive even if catalog breaks
+    tcatalog = None
+    print(f"[catalog] engine import failed, catalog path disabled: {_cat_exc}", flush=True)
+
 
 app = FastAPI(title="Course Planner TikZ Renderer")
 
@@ -82,6 +88,14 @@ jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", "3600"))
 TEMPLATE_REPAIR_ATTEMPTS = int(os.environ.get("TEMPLATE_REPAIR_ATTEMPTS", "3"))
+
+# Constrained catalog path (parallel rollout). Tried first; on no-match or render
+# failure it falls through to the legacy pipeline, so enabling it can only improve
+# on current behavior. Set TIKZ_USE_CATALOG=0 to force the legacy path only.
+CATALOG_AVAILABLE = tcatalog is not None
+CATALOG_ENABLED = CATALOG_AVAILABLE and os.environ.get(
+    "TIKZ_USE_CATALOG", "1"
+).strip().lower() not in ("0", "false", "no", "off")
 
 
 class RenderReq(BaseModel):
@@ -2214,13 +2228,18 @@ def _worksheet_answer_safe_tikz(req: GenerateReq, tikz: str) -> str:
     return out
 
 
-def _verified_render(req: GenerateReq, tikz: str, source: str = "draft") -> dict:
+def _verified_render(req: GenerateReq, tikz: str, source: str = "draft", run_critic: bool = True) -> dict:
     tikz = _worksheet_answer_safe_tikz(req, tikz)
     semantic_issue = _semantic_visual_issue(req, tikz)
     if semantic_issue:
         return {"ok": False, "error": semantic_issue, "log": semantic_issue}
     enlarged_tikz = _enlarge_visual_code(req, tikz)
-    checked_tikz, critic_note = _verify_visual_accuracy(req, enlarged_tikz, source=source)
+    # Catalog templates are structurally trusted (the model only filled values), so
+    # the model critic is skipped for them; bespoke Gemini TikZ still runs the critic.
+    if run_critic:
+        checked_tikz, critic_note = _verify_visual_accuracy(req, enlarged_tikz, source=source)
+    else:
+        checked_tikz, critic_note = enlarged_tikz, ""
     if checked_tikz != enlarged_tikz:
         checked_tikz = _worksheet_answer_safe_tikz(req, checked_tikz)
         checked_tikz = _enlarge_visual_code(req, checked_tikz)
@@ -2371,8 +2390,86 @@ def _deterministic_fallback(req: GenerateReq) -> dict | None:
     return None
 
 
+def _catalog_param_prompt(req: GenerateReq, spec: dict, repair_log: str = "", previous_params: dict | None = None) -> str:
+    return json.dumps({
+        "role": "Return only minified JSON. Do NOT return TikZ. Fill values for a fixed TikZ template.",
+        "question": _raw_request_text(req)[:2600],
+        "template": spec["template_id"],
+        "keys": spec["keys"],
+        "fields": spec["fields"],
+        "defaults": spec["defaults"],
+        "rules": [
+            "Return a flat JSON object using exactly these keys; every value is a string.",
+            "type 'number' -> a plain number as a string; type 'label' -> a short LaTeX label, preserving backslashes as JSON escapes (\\\\vec{u}, \\\\theta, \\\\circ); type 'tikz' -> only the specific lines the field describes, or an empty string.",
+            "Use only values given in the question or symbolic labels. Never place a solved final answer, computed magnitude, solved coordinate tuple, or equation result on a worksheet diagram; use ? or a symbol for any requested unknown.",
+            "No markdown fences and no commentary.",
+        ],
+        "previous_params": previous_params or {},
+        "repair_log": repair_log[:1200],
+    }, ensure_ascii=False)
+
+
+def _catalog_generate(req: GenerateReq) -> dict | None:
+    """Constrained path: route to a catalog template, let Gemini fill ONLY the
+    declared parameter values, assemble deterministically, then render (skipping
+    the model critic - structure is fixed). Returns None when no template matches
+    (caller falls through to the legacy/reference path) or when the matched
+    template ultimately fails to render, so this can only add coverage."""
+    if not CATALOG_ENABLED or tcatalog is None:
+        return None
+    tmpl = tcatalog.route(_question_text(req), req.subject)
+    if not tmpl:
+        return None
+    spec = tcatalog.ai_spec(tmpl)
+    caption = tmpl.get("caption", "")
+    params = dict(spec["defaults"])
+    repair_log = ""
+    rendered: dict = {"ok": False, "error": "catalog template did not render."}
+    for attempt in range(TEMPLATE_REPAIR_ATTEMPTS + 1):
+        try:
+            raw = _gemini(
+                _catalog_param_prompt(req, spec, repair_log=repair_log, previous_params=params),
+                as_json=True,
+                temperature=0.05,
+            )
+            if isinstance(raw, dict):
+                params.update({k: v for k, v in raw.items() if k in spec["defaults"]})
+        except Exception as exc:
+            print(f"[catalog] {tmpl['id']} param Gemini failure: {str(exc)[:200]}", flush=True)
+            if attempt == 0:
+                # Fall back to a deterministic default fill so the diagram still renders.
+                filled = tcatalog.fill(tmpl, {}, target=req.target)
+                rendered = _verified_render(req, filled, source=f"catalog-default:{tmpl['id']}", run_critic=False)
+                if rendered.get("ok"):
+                    rendered["tikz"] = rendered.get("tikz", filled)
+                    rendered["caption"] = caption
+                    rendered["customized"] = "catalog-default:" + tmpl["id"]
+                    return rendered
+                return None
+        filled = tcatalog.fill(tmpl, params, target=req.target)
+        print(f"[catalog] {tmpl['id']} params={json.dumps(params, ensure_ascii=False)[:1200]}", flush=True)
+        rendered = _verified_render(req, filled, source=f"catalog:{tmpl['id']}", run_critic=False)
+        if rendered.get("ok"):
+            rendered["tikz"] = rendered.get("tikz", filled)
+            rendered["caption"] = caption
+            rendered["customized"] = "catalog:" + tmpl["id"]
+            return rendered
+        repair_log = rendered.get("log") or rendered.get("error") or "TikZ render failed."
+    return rendered if rendered.get("ok") else None
+
+
 def _generate_visual_sync(req: GenerateReq) -> dict:
     try:
+        # 0) Constrained catalog path (parallel rollout). Route -> fill declared
+        #    params -> render. On no-match or failure, fall through to legacy.
+        if CATALOG_ENABLED:
+            try:
+                catalog_rendered = _catalog_generate(req)
+                if catalog_rendered and catalog_rendered.get("ok"):
+                    return catalog_rendered
+            except Exception as cat_exc:
+                print(f"[catalog] path errored, using legacy pipeline: {str(cat_exc)[:200]}", flush=True)
+
         # 1) Use a matching deterministic template as a structural blueprint, then let
         #    Gemini customize coordinates, numerical parameters, and labels to the
         #    exact worksheet question before compiling. This keeps proven layouts

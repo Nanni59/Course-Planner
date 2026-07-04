@@ -82,9 +82,10 @@ def sanitize_label(value, default: str = "") -> str:
     value = repair_transport_escapes(str(value if value is not None else default))
     value = value.replace("\n", " ").replace("\r", " ").replace("\t", " ")
     value = re.sub(r"[;&]", " ", value)
-    # Allow % so an escaped \% (e.g. "68\%") survives; a bare % would only
-    # comment out the label and fail the compile, which the repair loop catches.
-    value = re.sub(r"[^A-Za-z0-9_+\-*/=.,:(){}\\^\s/|%°]", "", value)
+    # Allow % so an escaped \% survives, and $ so a label may carry its own math
+    # delimiters (many templates use a bare node {__LABEL__} with a "$...$" value).
+    # A bare/unbalanced % or $ only fails the compile, which the repair loop catches.
+    value = re.sub(r"[^A-Za-z0-9_+\-*/=.,:(){}\\^\s/|%$°]", "", value)
     value = re.sub(r"\s+", " ", value).strip()
     return value or default
 
@@ -128,166 +129,14 @@ _SANITIZERS = {
 
 
 # ---------------------------------------------------------------------------
-# The catalog. Seed set spans every param type and three subjects so the schema
-# is proven before the remaining diagrams are migrated. Faithful to the old
-# blueprints, with the vector-angle label bug fixed (old blueprint emitted
-# "$..^\circ" with no closing $).
+# The catalog. Templates live in the per-subject modules under catalog/ (one
+# file per course, in the exact shape the sourcing agent emits). Edit those to
+# add or change diagrams; this module is the engine that routes and fills them.
 # ---------------------------------------------------------------------------
 
-TEMPLATES: list[dict] = [
-    {
-        "id": "triangle_general",
-        "subject": "Calculus & Vectors",
-        "triggers": [
-            "triangle", "law of sines", "law of cosines", "sine law", "cosine law",
-            "sas", "sss", "asa", "included angle", "angle of elevation",
-            "angle of depression", "line of sight",
-        ],
-        "caption": "Triangle with interior angle and side labels.",
-        "skeleton": r"""\begin{tikzpicture}[scale=.9]
-  \coordinate (A) at (0,0); \coordinate (B) at (4.2,0); \coordinate (C) at (1.35,2.35);
-  \draw[cp line] (A)--(B)--(C)--cycle;
-  \node[below left] at (A) {$__A__$};
-  \node[below right] at (B) {$__B__$};
-  \node[above] at (C) {$__C__$};
-  \node[below] at ($(A)!0.5!(B)$) {$__AB__$};
-  \node[left] at ($(A)!0.5!(C)$) {$__AC__$};
-  \node[right] at ($(B)!0.5!(C)$) {$__BC__$};
-  __ANGLE_LINES__
-\end{tikzpicture}""",
-        "params": {
-            "A": {"type": "label", "default": "A", "desc": "bottom-left vertex label"},
-            "B": {"type": "label", "default": "B", "desc": "bottom-right vertex label"},
-            "C": {"type": "label", "default": "C", "desc": "top vertex label"},
-            "AB": {"type": "label", "default": "c", "desc": "label on side A-B (given value or symbol)"},
-            "AC": {"type": "label", "default": "b", "desc": "label on side A-C (given value or symbol)"},
-            "BC": {"type": "label", "default": "a", "desc": "label on side B-C (given value or symbol)"},
-            "ANGLE_LINES": {
-                "type": "tikz", "default": "",
-                "desc": (
-                    "Zero or more interior angle pics, one per line. Vertex is the "
-                    "MIDDLE coordinate. At A use {angle=B--A--C}; at B use "
-                    "{angle=C--B--A}; at C use {angle=A--C--B}. Example: "
-                    "\\pic[draw=black,angle radius=5mm,\"$45^\\circ$\",angle "
-                    "eccentricity=1.35] {angle=B--A--C};"
-                ),
-            },
-        },
-    },
-    {
-        "id": "bearing_two_leg",
-        "subject": "Calculus & Vectors",
-        "triggers": ["bearing", "navigation", "heading", "compass", "due north", "due east"],
-        "caption": "Bearing diagram with north reference rays and travel vectors.",
-        "skeleton": r"""\begin{tikzpicture}[scale=.85]
-  \coordinate (O) at (0,0);
-  \coordinate (P) at (__A1__:2.45);
-  \coordinate (Q) at ($(P)+(__A2__:2.1)$);
-  \draw[cp axis,-Stealth] (O)--(0,2.4) node[above] {$N$};
-  \draw[cp axis,-Stealth] (O)--(2.3,0) node[right] {$E$};
-  \draw[cp line,-Stealth] (O)--(P) node[midway,above right] {$__L1__$};
-  \draw[cp line,-Stealth] (P)--(Q) node[midway,above] {$__L2__$};
-  \draw[cp dashed] (O)--(Q) node[midway,below] {$d$};
-  \draw[cp dashed] (90:.62) arc[start angle=90,end angle=__A1__,radius=.62];
-  \node at (__M1__:.88) {$__B1__^\circ$};
-  \draw[cp dashed] ($(P)+(0,.58)$) arc[start angle=90,end angle=__A2__,radius=.58];
-  \node at ($(P)+(__M2__:.84)$) {$__B2__^\circ$};
-\end{tikzpicture}""",
-        "params": {
-            "A1": {"type": "number", "default": "45", "desc": "first leg direction in standard math degrees = 90 - bearing1"},
-            "A2": {"type": "number", "default": "-25", "desc": "second leg direction = 90 - bearing2"},
-            "M1": {"type": "number", "default": "67.5", "desc": "midpoint angle for first bearing arc label = (90 + A1)/2"},
-            "M2": {"type": "number", "default": "32.5", "desc": "midpoint angle for second bearing arc label = (90 + A2)/2"},
-            "B1": {"type": "number", "default": "45", "desc": "first bearing value in degrees, as measured clockwise from north"},
-            "B2": {"type": "number", "default": "115", "desc": "second bearing value in degrees"},
-            "L1": {"type": "label", "default": "45^\\circ", "desc": "label on first leg (given distance with unit, else the bearing)"},
-            "L2": {"type": "label", "default": "115^\\circ", "desc": "label on second leg"},
-        },
-    },
-    {
-        "id": "vector_resultant",
-        "subject": "Calculus & Vectors",
-        "triggers": ["resultant", "parallelogram", "sum of two vectors", "add the vectors", "vector addition"],
-        "caption": "Vector resultant shown with a parallelogram construction.",
-        "skeleton": r"""\begin{tikzpicture}[scale=.82]
-  \coordinate (O) at (0,0); \coordinate (A) at (3.2,0); \coordinate (B) at (__ANGLE__:2.2); \coordinate (C) at ($(A)+(B)$);
-  \draw[cp dashed] (A)--(C)--(B);
-  \draw[cp line,-Stealth] (O)--(A) node[midway,below] {$__U__$};
-  \draw[cp line,-Stealth] (O)--(B) node[midway,left] {$__V__$};
-  \draw[cp line,-Stealth] (O)--(C) node[pos=.58,above] {$__R__$};
-  \pic[draw=black,angle radius=5mm,"$__ANGLE__^\circ$",angle eccentricity=1.35] {angle=A--O--B};
-  \fill (O) circle (1.3pt);
-\end{tikzpicture}""",
-        "params": {
-            "ANGLE": {"type": "number", "default": "55", "desc": "angle between the two vectors in degrees"},
-            "U": {"type": "label", "default": "\\vec{u}", "desc": "first vector label (optionally with given magnitude)"},
-            "V": {"type": "label", "default": "\\vec{v}", "desc": "second vector label"},
-            "R": {"type": "label", "default": "\\vec{u}+\\vec{v}", "answer_safe": False,
-                  "desc": "resultant label - use \\vec{R} or u+v symbolically, never a solved magnitude"},
-        },
-    },
-    {
-        "id": "vector_difference",
-        "subject": "Calculus & Vectors",
-        "triggers": ["difference of two vectors", "subtract the vectors", "vector subtraction", "u-v", "p-q"],
-        "caption": "Vector subtraction shown head-to-tail as the difference of the two vectors.",
-        "skeleton": r"""\begin{tikzpicture}[scale=.9]
-  \coordinate (O) at (0,0); \coordinate (A) at (3.3,0.5); \coordinate (B) at (1.1,2.2);
-  \draw[cp line,-Stealth] (O)--(A) node[midway,below right] {$__U__$};
-  \draw[cp line,-Stealth] (O)--(B) node[midway,above left] {$__V__$};
-  \draw[cp dashed,-Stealth] (B)--(A) node[midway,above] {$__D__$};
-  \fill (O) circle (1.3pt) node[below left] {$O$};
-\end{tikzpicture}""",
-        "params": {
-            "U": {"type": "label", "default": "\\vec{u}", "desc": "first vector label"},
-            "V": {"type": "label", "default": "\\vec{v}", "desc": "second vector label"},
-            "D": {"type": "label", "default": "\\vec{u}-\\vec{v}", "answer_safe": False,
-                  "desc": "difference label - symbolic (u-v), never a solved vector"},
-        },
-    },
-    {
-        "id": "normal_distribution",
-        "subject": "Data Management",
-        "triggers": [
-            "normal distribution", "normally distributed", "bell curve",
-            "standard deviation", "z-score", "empirical rule", "gaussian",
-        ],
-        "caption": "Normal distribution curve with the central one-standard-deviation region shaded.",
-        "skeleton": r"""\begin{tikzpicture}[declare function={gauss(\x,\m,\s)=1/(\s*sqrt(2*pi))*exp(-((\x-\m)^2)/(2*\s^2));}]
-\begin{axis}[width=6.4cm,height=3.5cm,axis lines=middle,xlabel={$x$},ylabel={density},xmin=-3.6,xmax=3.6,ymin=0,ymax=0.45,samples=120,ytick=\empty,xtick={-2,-1,0,1,2},xticklabels={$-2\sigma$,$-\sigma$,$__CENTER_LABEL__$,$\sigma$,$2\sigma$}]
-  \addplot[cp fill,draw=none,domain=-1:1] {gauss(x,0,1)} \closedcycle;
-  \addplot[cp line,domain=-3.5:3.5] {gauss(x,0,1)};
-  \node at (axis cs:0,0.13) {\small $__SHADE_LABEL__$};
-\end{axis}
-\end{tikzpicture}""",
-        "params": {
-            "CENTER_LABEL": {"type": "label", "default": "\\mu", "desc": "label under the centre tick (usually \\mu or the given mean)"},
-            "SHADE_LABEL": {"type": "label", "default": "68\\%", "desc": "label inside the shaded central region"},
-        },
-    },
-    {
-        "id": "boxplot",
-        "subject": "Data Management",
-        "triggers": [
-            "box plot", "boxplot", "box-and-whisker", "box and whisker", "quartile",
-            "interquartile", "iqr", "five-number", "median and quartiles",
-        ],
-        "caption": "Box-and-whisker plot with quartiles and median marked.",
-        "skeleton": r"""\begin{tikzpicture}
-\begin{axis}[width=6.4cm,height=2.8cm,boxplot/draw direction=x,xmin=0,xmax=100,ytick={1},yticklabels={data},xlabel={Value}]
-  \addplot[boxplot prepared={median=__MEDIAN__,lower quartile=__Q1__,upper quartile=__Q3__,lower whisker=__MIN__,upper whisker=__MAX__},draw=black,fill=gray!20] coordinates {};
-\end{axis}
-\end{tikzpicture}""",
-        "params": {
-            "MIN": {"type": "number", "default": "15", "desc": "minimum / lower whisker value"},
-            "Q1": {"type": "number", "default": "35", "desc": "first quartile"},
-            "MEDIAN": {"type": "number", "default": "55", "desc": "median"},
-            "Q3": {"type": "number", "default": "75", "desc": "third quartile"},
-            "MAX": {"type": "number", "default": "95", "desc": "maximum / upper whisker value"},
-        },
-    },
-]
+from catalog import ALL as _CATALOG_ALL
 
+TEMPLATES: list[dict] = list(_CATALOG_ALL)
 
 _TEMPLATES_BY_ID = {t["id"]: t for t in TEMPLATES}
 _SLOT_RE = re.compile(r"__([A-Z0-9_]+)__")
@@ -335,22 +184,46 @@ def catalog_errors() -> list[str]:
     return errors
 
 
+_INFLECTION = r"(?:s|es|ed|ing|ly)?"
+
+
+def _trigger_hit(keyword: str, text_low: str) -> bool:
+    """Whole-word/phrase match that tolerates common inflectional suffixes.
+
+    Letter-boundaries are applied only on the sides where the keyword starts or
+    ends with a letter, so 'angle' still won't fire inside 'triangle' yet a
+    symbol-edged trigger like '^x' can match 'e^x' (whose 'e' would otherwise
+    trip a blanket left boundary). The optional suffix lets 'normal' match
+    'normally' and 'quartile' match 'quartiles' without matching 'planet'."""
+    kw = keyword.lower()
+    left = r"(?<![a-z])" if kw[:1].isalpha() else ""
+    right = (_INFLECTION + r"(?![a-z])") if kw[-1:].isalpha() else ""
+    return re.search(left + re.escape(kw) + right, text_low) is not None
+
+
 def route(text: str, subject: str = "") -> dict | None:
     """Keyword routing. Returns the best-matching template or None.
 
-    Score = number of distinct triggers present in the text, +0.5 if the
-    request subject matches the template's subject. None means "no keyword hit"
-    - the caller then decides whether to invoke the AI-classifier fallback.
+    Score sums matched triggers, weighting multi-word phrases higher (a specific
+    "angle between" should beat a bare "triangle"), plus a small subject-token
+    tiebreak. Critically, the subject is NOT part of the match haystack - folding
+    it in made the word "vectors" match every vector template. None means "no
+    keyword hit"; the caller then decides whether to invoke the AI classifier.
     """
-    low = " ".join([str(subject or ""), str(text or "")]).lower()
-    subject_low = str(subject or "").lower()
+    text_low = str(text or "").lower()
+    subj_tokens = set(re.findall(r"[a-z]+", str(subject or "").lower()))
     best: dict | None = None
     best_score = 0.0
     for t in TEMPLATES:
-        hits = sum(1 for kw in t["triggers"] if kw in low)
-        if not hits:
+        score = 0.0
+        for kw in t["triggers"]:
+            if _trigger_hit(kw, text_low):
+                score += 1 + kw.count(" ")  # phrase specificity
+        if not score:
             continue
-        score = hits + (0.5 if t.get("subject", "*").lower() in subject_low and subject_low else 0.0)
+        tmpl_tokens = set(re.findall(r"[a-z]+", t.get("subject", "").lower()))
+        if subj_tokens & tmpl_tokens:
+            score += 0.25
         if score > best_score:
             best_score = score
             best = t
