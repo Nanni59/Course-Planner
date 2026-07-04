@@ -145,29 +145,21 @@ templates = [
         "triggers": ['angle between', 'angle between vectors', 'angle between two vectors'],
         "caption": 'Two vectors with the marked angle between them.',
         "skeleton": r"""\begin{tikzpicture}[scale=1]
-  % coordinate axes
   \draw[cp axis] (-0.5,0) -- (4.5,0) node[cp label,anchor=west] {$x$};
   \draw[cp axis] (0,-0.5) -- (0,4.0) node[cp label,anchor=south] {$y$};
-
   \coordinate (O) at (0,0);
-  \coordinate (A) at (__A1__,__A2__);
-  \coordinate (B) at (__B1__,__B2__);
-
-  % vectors
-  \draw[cp line,->] (O) -- (A) node[cp label,anchor=south east] {$__ALAB__$};
+  % fixed geometry: first vector on the x-axis, second at the given angle
+  \coordinate (A) at (3.4,0);
+  \coordinate (B) at (__ANG__:3.2);
+  \draw[cp line,->] (O) -- (A) node[cp label,anchor=north] {$__ALAB__$};
   \draw[cp line,->] (O) -- (B) node[cp label,anchor=south west] {$__BLAB__$};
-
-  % marked angle using an angle pic (vertex is the middle coordinate)
-  \pic [cp dashed, angle radius=0.6cm, "$__ANGLAB__$"{cp label,anchor=west}] {angle=B--O--A};
+  \pic [draw=black, angle radius=0.7cm, "$__ANGLAB__$"] {angle=A--O--B};
 \end{tikzpicture}""",
         "params": {
-            'A1': {'type': 'number', 'default': '3', 'desc': 'x-component of the first vector'},
-            'A2': {'type': 'number', 'default': '1', 'desc': 'y-component of the first vector'},
-            'B1': {'type': 'number', 'default': '1.5', 'desc': 'x-component of the second vector'},
-            'B2': {'type': 'number', 'default': '2.4', 'desc': 'y-component of the second vector'},
-            'ALAB': {'type': 'label', 'default': '\\vec{a}', 'desc': 'label for the first vector'},
-            'BLAB': {'type': 'label', 'default': '\\vec{b}', 'desc': 'label for the second vector'},
-            'ANGLAB': {'type': 'label', 'default': '\\theta', 'desc': 'label for the angle between the vectors'},
+            'ANG': {'type': 'number', 'default': '55', 'desc': 'angle between the vectors in degrees; drives the drawing. Use the given angle, or ~55 if the angle is the unknown being solved'},
+            'ALAB': {'type': 'label', 'default': '\\vec{a}', 'desc': 'first vector label; include its given magnitude if provided, e.g. \\vec{u}=5'},
+            'BLAB': {'type': 'label', 'default': '\\vec{b}', 'desc': 'second vector label; include its given magnitude if provided, e.g. \\vec{v}=3'},
+            'ANGLAB': {'type': 'label', 'default': '\\theta', 'desc': 'label for the angle: a given value like 60^\\circ, or \\theta / ? if the angle is the unknown'},
         },
     },
     {

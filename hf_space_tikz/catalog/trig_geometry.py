@@ -25,7 +25,9 @@ templates = [
   \node[below] at ($(A)!0.5!(B)$) {$__AB__$};
   \node[left] at ($(A)!0.5!(C)$) {$__AC__$};
   \node[right] at ($(B)!0.5!(C)$) {$__BC__$};
-  __ANGLE_LINES__
+  \pic[draw=black,angle radius=6mm,"$__ANG_A__$",angle eccentricity=1.4]{angle=B--A--C};
+  \pic[draw=black,angle radius=6mm,"$__ANG_B__$",angle eccentricity=1.4]{angle=C--B--A};
+  \pic[draw=black,angle radius=6mm,"$__ANG_C__$",angle eccentricity=1.4]{angle=A--C--B};
 \end{tikzpicture}""",
         "params": {
             "A": {"type": "label", "default": "A", "desc": "bottom-left vertex label"},
@@ -34,16 +36,11 @@ templates = [
             "AB": {"type": "label", "default": "c", "desc": "label on side A-B (given value or symbol)"},
             "AC": {"type": "label", "default": "b", "desc": "label on side A-C (given value or symbol)"},
             "BC": {"type": "label", "default": "a", "desc": "label on side B-C (given value or symbol)"},
-            "ANGLE_LINES": {
-                "type": "tikz", "default": "",
-                "desc": (
-                    "Zero or more interior angle pics, one per line. Vertex is the "
-                    "MIDDLE coordinate. At A use {angle=B--A--C}; at B use "
-                    "{angle=C--B--A}; at C use {angle=A--C--B}. Example: "
-                    "\\pic[draw=black,angle radius=5mm,\"$45^\\circ$\",angle "
-                    "eccentricity=1.35] {angle=B--A--C};"
-                ),
-            },
+            # All three angle arcs are always drawn; the ANG_* value only sets the
+            # arc's label. Empty => an unlabeled arc at that vertex (not a hidden one).
+            "ANG_A": {"type": "label", "default": "", "desc": "label for the angle arc at vertex A: a given value like 40^\\circ, ? if this angle is the unknown, or empty for an unlabeled arc"},
+            "ANG_B": {"type": "label", "default": "", "desc": "label for the angle arc at vertex B: given value like 60^\\circ, ?, or empty for an unlabeled arc"},
+            "ANG_C": {"type": "label", "default": "", "desc": "label for the angle arc at vertex C: given value, ?, or empty for an unlabeled arc"},
         },
     },
     {
