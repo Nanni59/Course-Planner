@@ -36,9 +36,11 @@ templates = [
             "AB": {"type": "label", "default": "c", "desc": "label on side A-B (given value or symbol)"},
             "AC": {"type": "label", "default": "b", "desc": "label on side A-C (given value or symbol)"},
             "BC": {"type": "label", "default": "a", "desc": "label on side B-C (given value or symbol)"},
-            "ANG_A": {"type": "label", "default": "", "desc": "angle to show at vertex A: a given value like 40^\\circ, ? if this angle is the unknown being solved, or empty if not shown"},
-            "ANG_B": {"type": "label", "default": "", "desc": "angle at vertex B: given value like 60^\\circ, ?, or empty"},
-            "ANG_C": {"type": "label", "default": "", "desc": "angle at vertex C: given value, ?, or empty"},
+            # All three angle arcs are always drawn; the ANG_* value only sets the
+            # arc's label. Empty => an unlabeled arc at that vertex (not a hidden one).
+            "ANG_A": {"type": "label", "default": "", "desc": "label for the angle arc at vertex A: a given value like 40^\\circ, ? if this angle is the unknown, or empty for an unlabeled arc"},
+            "ANG_B": {"type": "label", "default": "", "desc": "label for the angle arc at vertex B: given value like 60^\\circ, ?, or empty for an unlabeled arc"},
+            "ANG_C": {"type": "label", "default": "", "desc": "label for the angle arc at vertex C: given value, ?, or empty for an unlabeled arc"},
         },
     },
     {
