@@ -3138,7 +3138,28 @@
         .vid-mode-btn.on { color:#fff; background:var(--color-study); box-shadow:0 6px 16px rgba(88,166,92,.28); }
         .vid-mode-pane { display:none; }
         .vid-mode-pane.active { display:block; }
-        .vid-part-actions { display:flex; justify-content:flex-end; margin-top:8px; }
+        /* Scan (left) and Add part (right) share the row under the Parts textarea. Both are
+           plain .st-btn.st-btn-ghost so they match in height and type size by default. */
+        .vid-part-actions { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:8px; flex-wrap:wrap; }
+        .vid-q-scan svg { flex:0 0 auto; }
+        .vid-q-scan.busy { pointer-events:none; }
+        /* Flash the button when a pasted screenshot is picked up, so the scan is visibly
+           attributed to the paste rather than appearing to happen at random. */
+        .vid-q-scan.pasted { box-shadow: 0 0 0 3px rgba(88,166,92,0.30), var(--clay-shadow-card); }
+
+        /* Rendered LaTeX preview of the two question fields. --clay-field-bg is already
+           redefined for dark mode, so only the text colours need overriding below. */
+        .vid-q-preview { margin:0 0 18px; padding:14px 16px; border-radius:14px;
+            background: var(--clay-field-bg); box-shadow: var(--clay-shadow-field-inset); }
+        .vid-q-preview[hidden] { display:none; }
+        .vid-q-preview-head { font-size:11px; font-weight:700; letter-spacing:.5px; text-transform:uppercase;
+            color:#9097a6; margin-bottom:9px; }
+        /* pre-wrap keeps the parts on their own lines, matching the textarea above. */
+        .vid-qpv-q { font-size:14px; font-weight:600; color:#2c3340; line-height:1.75; white-space:pre-wrap; }
+        .vid-qpv-p { font-size:13.5px; color:#3f4654; line-height:1.9; white-space:pre-wrap; }
+        .vid-qpv-q + .vid-qpv-p { margin-top:10px; padding-top:10px; border-top:1px solid rgba(128,140,170,0.18); }
+        /* Long equations scroll inside the panel instead of widening the card. */
+        .vid-q-preview-body { overflow-x:auto; }
 
         /* Toggle pill (LaTeX / math formatting) */
         .st-toggle-pill { display:flex; align-items:center; gap:12px; width:100%; font-family:inherit; font-size:13.5px; font-weight:600;
@@ -3531,7 +3552,10 @@
         body.dark-mode .st-dropzone .st-dz-types,
         body.dark-mode .st-srcchip .st-sc-sz,
         body.dark-mode .st-saved-row .st-sr-sub,
+        body.dark-mode .vid-q-preview-head,
         body.dark-mode .st-empty { color: #8b94a6; }
+        body.dark-mode .vid-qpv-q { color: #e4e8f0; }
+        body.dark-mode .vid-qpv-p { color: #cdd4e1; }
         body.dark-mode .st-field > label,
         body.dark-mode .st-toggle-pill,
         body.dark-mode .st-chip,
@@ -5721,6 +5745,11 @@
                 cpConfirmAction = null;
                 if (cpConfirmModal) cpConfirmModal.classList.remove('open');
             }
+
+            // Study Tools runs in its own <script> scope and can't see this directly. Export it
+            // so that scope reuses this one confirm modal rather than growing a second dialog —
+            // same direction as the window.cpStudy* exports going the other way.
+            window.cpConfirm = showAppConfirm;
 
             // **NEW FUNCTIONS:** Custom Link Management
             function getCustomLinks() {
@@ -12725,6 +12754,7 @@
             arrow: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
             upload: '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
             file: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+            scan: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8"/><path d="M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8"/><path d="M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16"/><path d="M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/><line x1="7" y1="12" x2="17" y2="12"/></svg>',
             yt: '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M23 12s0-3.8-.5-5.6a2.9 2.9 0 0 0-2-2C18.7 4 12 4 12 4s-6.7 0-8.5.4a2.9 2.9 0 0 0-2 2C1 8.2 1 12 1 12s0 3.8.5 5.6a2.9 2.9 0 0 0 2 2C5.3 20 12 20 12 20s6.7 0 8.5-.4a2.9 2.9 0 0 0 2-2C23 15.8 23 12 23 12zM10 15.5v-7l6 3.5z"/></svg>',
             x: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
             check: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
@@ -12917,6 +12947,29 @@
                 cards: { type: 'array', items: { type: 'object', properties: { front: { type: 'string' }, back: { type: 'string' }, tikz: { type: 'string' }, tikzSvg: { type: 'string' } }, required: ['front', 'back'], propertyOrdering: ['front', 'back', 'tikz', 'tikzSvg'] } }
             },
             required: ['deckTitle', 'cards'], propertyOrdering: ['deckTitle', 'cards']
+        };
+        // Shape for "Scan question": `question` fills #vidQuestionName, and each
+        // "Part <label>: <text>" block fills #vidQuestion. `label` is bare ("A"), not "Part A".
+        // There is no separate heading field: the tool only ever handles one question, so the
+        // question number and mark allocation are noise (stripQuestionLabel removes any the
+        // model emits anyway). `question` therefore carries the instruction/setup text that
+        // applies to all parts — without a home of its own that shared stem gets dropped, and
+        // the parts lose the context they depend on.
+        // `parts` is required (may be empty) so the model doesn't quietly omit the array.
+        const Q_OCR_SCHEMA = {
+            type: 'object',
+            properties: {
+                question: { type: 'string' },
+                parts: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: { label: { type: 'string' }, text: { type: 'string' } },
+                        required: ['text'], propertyOrdering: ['label', 'text']
+                    }
+                }
+            },
+            required: ['question', 'parts'], propertyOrdering: ['question', 'parts']
         };
         function nonStemExampleRules(subject, topic) {
             const label = ((subject || '') + ' ' + (topic || '')).toLowerCase();
@@ -13172,6 +13225,45 @@
                 '- Keep the brief under 1200 words. Plain text only.'
             ].filter(Boolean).join('\n');
         }
+        // "Scan question" transcribes a photo/scan/document into the Question + Parts fields.
+        // Unlike videoQuestionBriefPrompt this must NOT solve, summarise or rephrase anything —
+        // it is a transcription pass, and inventing content here would silently put words in the
+        // student's question before they ever see it.
+        function questionOcrPrompt() {
+            return [
+                'You are transcribing ONE homework/exam question from the attached image or document.',
+                'This is a transcription task, not a comprehension task. Copy the wording EXACTLY as printed,',
+                'word for word, including every sentence, clause, instruction and bracketed aside.',
+                'Do NOT solve, answer, explain, correct, shorten, paraphrase, tidy up, or re-order anything.',
+                'If the wording is awkward or contains a typo, reproduce it as-is.',
+                '',
+                'Split the question into two fields:',
+                '- question: the instruction and setup text that applies to ALL parts — the task wording,',
+                '  scenario, given values, conditions and any diagram note. This is everything before the',
+                '  first lettered part. Copy it in full.',
+                '  EXCLUDE the question number and any mark allocation: drop leading labels like "Q2.",',
+                '  "Question 2:" or "3)", and drop bracketed marks like "[2 marks each]" or "(3 marks)".',
+                '  So "Q2. [2 marks each] Determine whether the following limits exist." becomes exactly',
+                '  "Determine whether the following limits exist." Never invent a question number.',
+                '- parts: one entry per lettered/numbered sub-part, in the order printed.',
+                '  - label: the bare part letter/number ONLY — "a", "B", "iii", "2". Never include the word "Part".',
+                '  - text: that sub-part\'s complete text, verbatim.',
+                '  If the question has no sub-parts at all, return an empty parts array and put the whole',
+                '  question body in question. Never merge several parts into one entry, and never stop early —',
+                '  if the page shows parts (a) through (e), return all five.',
+                '',
+                'Formatting rules:',
+                '- Write every mathematical expression as LaTeX delimited with $…$ (inline) or $$…$$ (display).',
+                '- Preserve exact numbers, units, variable names, subscripts, superscripts and capitalisation.',
+                '  Never change "5m" to "5 m" or otherwise re-space the printed text.',
+                '- Keep the line breaks that carry meaning (e.g. a list of given values), as real newlines.',
+                '- Describe an accompanying diagram only if it carries information the text does not, as a',
+                '  short bracketed note, e.g. "[Diagram: right triangle, legs 3 and 4, right angle at C.]".',
+                '- Transcribe only this one question. Ignore page headers, footers, page numbers, student names,',
+                '  mark allocations, printed answers, worked solutions, and any other question on the page.',
+                '- If the attachment contains no legible question, return an empty title, empty intro, no parts.'
+            ].join('\n');
+        }
 
         /* ---------- LaTeX (MathJax 3, lazy-loaded) ----------
            Same loading mechanism as the Formulae app: configure window.MathJax
@@ -13296,6 +13388,10 @@
                 '<p><strong>Click to upload</strong> or drag &amp; drop</p>' +
                 '<div class="st-dz-types">PDF · Word · PowerPoint · Markdown · TXT · MP3 · Images</div>' +
                 '<input type="file" data-file multiple style="display:none" accept=".pdf,.docx,.pptx,.txt,.md,.markdown,.csv,.json,.mp3,.wav,.m4a,.png,.jpg,.jpeg,.webp,.gif"></div>';
+        }
+        // Mac reports "MacIntel"/"Macintosh"; everything else gets the Ctrl form.
+        function pasteKeyLabel() {
+            return /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent || '') ? '⌘V' : 'Ctrl+V';
         }
         function ytRowHTML() {
             return '<div class="st-yt-row"><input type="text" class="st-input" data-yt placeholder="Paste a YouTube link… (separate multiple with commas)"><button type="button" class="st-btn st-btn-ghost" data-ytadd>Add</button></div>';
@@ -13438,10 +13534,20 @@
             dropzoneHTML() +
             '<div class="st-source-list" data-srclist></div></div></div>' +
             '<div class="vid-mode-pane" data-vidpane="question">' +
-            '<div class="st-field"><label>Question</label><input class="st-input" id="vidQuestionName" placeholder="e.g. Question 2: Find the tangent line"></div>' +
+            '<div class="st-field">' +
+            '<label for="vidQuestionName">Question</label>' +
+            '<input class="st-input" id="vidQuestionName" placeholder="e.g. Find the tangent line to the curve at x = 2">' +
+            '</div>' +
             '<div class="st-field"><label>Parts <span style="color:#9097a6;font-weight:400">(optional)</span></label>' +
             '<textarea class="st-textarea" id="vidQuestion" placeholder="Add Part A, Part B, or extra details here."></textarea>' +
-            '<div class="vid-part-actions"><button type="button" class="st-btn st-btn-ghost" data-vidaddpart>Add part</button></div></div>' +
+            '<div class="vid-part-actions">' +
+            // The hint text is gone, so the tooltip is the only place paste is advertised.
+            '<button type="button" class="st-btn st-btn-ghost vid-q-scan" id="vidOcrBtn" title="Upload or paste (' + pasteKeyLabel() + ') a photo, screenshot, PDF or Word file of the question">' +
+            I.scan + '<span data-ocrlabel>Scan question</span></button>' +
+            '<button type="button" class="st-btn st-btn-ghost" data-vidaddpart>Add part</button>' +
+            '<input type="file" id="vidOcrFile" style="display:none" accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.docx"></div></div>' +
+            '<div class="vid-q-preview" id="vidQPreview" hidden><div class="vid-q-preview-head">Preview</div>' +
+            '<div class="vid-q-preview-body" data-qpv></div></div>' +
             '<div class="st-field" id="vidQuestionSrc"><label>Question source materials <span style="color:#9097a6;font-weight:400">(optional)</span></label>' +
             dropzoneHTML() +
             '<div class="st-source-list" data-srclist></div></div></div>' +
@@ -13719,7 +13825,176 @@
             const label = String.fromCharCode(65 + Math.min(existing, 25));
             q.value = (q.value.trim() ? q.value.trim() + '\n\n' : '') + 'Part ' + label + ': ';
             q.focus();
+            // Setting .value programmatically fires no 'input' event — refresh by hand.
+            scheduleQuestionPreview();
         });
+
+        /* ---------- Scan question (OCR) ----------
+           Gemini is already multimodal and already holds the user's key, so a scan is just another
+           vision call through gemini()/fileToPart() — no second API, key or CORS surface. The result
+           only fills the two form fields; the user reviews and edits before anything is generated. */
+        // Scanned text is a VERBATIM transcription, so it must not go through
+        // normalizeGeneratedString: that pipeline is built for rendered output and rewrites
+        // wording (collapses newlines, spaces "5m" into "5 m", strips \text{} around ordinary
+        // words, wraps prose in \(…\)). Reuse only the escape/glyph repair layer, which undoes
+        // real corruption — JSON turning "\theta" into TAB+"heta", protectLatexJsonEscapes
+        // doubling backslashes, Gemini's ⅑/⅒ vector glyphs — and stop before the display rules.
+        function normalizeScannedText(s) {
+            return normalizeLatexBackslashes(repairParsedLatexEscapes(repairVectorGlyphs(balanceDollarMath(String(s == null ? '' : s))))).trim();
+        }
+        // Parts render as "Part A: …" blocks so the existing [data-vidaddpart] counter — which
+        // counts /\bPart\s+[A-Z]/gi — keeps numbering correctly after a scan.
+        function scannedPartsText(parts) {
+            const rows = (Array.isArray(parts) ? parts : [])
+                .map(p => ({ label: String((p && p.label) || '').trim().replace(/^part\s+/i, '').replace(/[.:)\]]+$/, ''), text: String((p && p.text) || '').trim() }))
+                .filter(p => p.text);
+            if (!rows.length) return '';
+            // A lone unlabelled part is just the question body — don't invent a "Part A" for it.
+            if (rows.length === 1 && !rows[0].label) return rows[0].text;
+            return rows.map((p, i) => {
+                const label = p.label || String.fromCharCode(65 + Math.min(i, 25));
+                return 'Part ' + label + ': ' + p.text;
+            }).join('\n\n');
+        }
+        // The Question field holds the instruction/stem only — no question number, no marks.
+        // The prompt asks for that too, but a prompt is advisory: Gemini kept "[2 marks each]"
+        // even when told to ignore mark allocations, so strip deterministically as well.
+        // #vidQuestionName is a single-line <input> and cannot display newlines at all, so
+        // collapse whitespace here rather than leave the browser to mangle it silently.
+        function stripQuestionLabel(s) {
+            return String(s == null ? '' : s)
+                // "Question 2:", "Question #2" — the word is unambiguous, so the delimiter is optional.
+                .replace(/^\s*questions?\s*#?\s*\d{1,3}\s*[.):\-–—]?\s*/i, '')
+                // "Q2.", "Q 2)" — a delimiter is REQUIRED here so a question opening with a real
+                // variable ("Q1 is the charge on…") keeps its first two characters.
+                .replace(/^\s*Q\s*#?\s*\d{1,3}\s*[.):\-–—]\s*/i, '')
+                // "2. " / "3) " — bare number, so demand a delimiter AND a space, otherwise this
+                // would eat the "16 - " out of a stem starting "16 - x is…".
+                .replace(/^\s*\d{1,3}\s*[.)]\s+/, '')
+                // "[2 marks each]", "(3 marks)", "[5 pts]" — anywhere in the line.
+                .replace(/[\[(]\s*\d+(?:\.\d+)?\s*(?:marks?|mks?|pts?|points?)(?:\s+each)?\s*[\])]/gi, '')
+                .replace(/\s+/g, ' ').trim();
+        }
+        function setOcrBusy(btn, busy) {
+            const label = btn.querySelector('[data-ocrlabel]');
+            btn.disabled = busy;
+            btn.classList.toggle('busy', busy);
+            if (label) label.textContent = busy ? 'Scanning…' : 'Scan question';
+        }
+        // The app-wide confirm modal lives in the planner's script scope and is exported there as
+        // window.cpConfirm, so Study Tools reuses the same dialog. It is callback-based rather
+        // than blocking like confirm(), hence the gate/work split below: on cancel nothing runs.
+        // The native dialog stays only as a fallback if that export ever goes missing.
+        function askReplaceQuestion(onConfirm) {
+            const msg = 'Scanning will replace what you have typed in Question and Parts.';
+            if (typeof window.cpConfirm === 'function') {
+                window.cpConfirm(msg, onConfirm, {
+                    title: 'Replace the question?', confirmText: 'Replace', cancelText: 'Keep mine'
+                });
+                return;
+            }
+            if (window.confirm(msg)) onConfirm();
+        }
+        function scanQuestionFile(file) {
+            const btn = document.getElementById('vidOcrBtn');
+            const nameEl = document.getElementById('vidQuestionName');
+            const partsEl = document.getElementById('vidQuestion');
+            if (!btn || !nameEl || !partsEl) return;
+            // A scan overwrites both fields, so never silently discard typed work.
+            if (nameEl.value.trim() || partsEl.value.trim()) {
+                askReplaceQuestion(() => runQuestionScan(file, btn, nameEl, partsEl));
+                return;
+            }
+            runQuestionScan(file, btn, nameEl, partsEl);
+        }
+        async function runQuestionScan(file, btn, nameEl, partsEl) {
+            setOcrBusy(btn, true);
+            try {
+                const part = await fileToPart(file);
+                const data = (await gemini([{ text: questionOcrPrompt() }, part], Q_OCR_SCHEMA)) || {};
+                const title = stripQuestionLabel(normalizeScannedText(data.question));
+                const body = normalizeScannedText(scannedPartsText(data.parts));
+                if (!title && !body) { toast('No question found in that file. Try a clearer or closer photo.', 'err'); return; }
+                nameEl.value = title;
+                partsEl.value = body;
+                renderQuestionPreview();
+                const n = (body.match(/^Part\s+\S+:/gm) || []).length;
+                toast(n ? 'Scanned the question and ' + n + ' part' + (n === 1 ? '' : 's') + '. Check it before generating.'
+                        : 'Scanned the question. Check it before generating.');
+            } catch (err) {
+                console.warn('[Study Tools] Question scan failed.', err);
+                toast(geminiErr(err), 'err');
+            } finally {
+                setOcrBusy(btn, false);
+            }
+        }
+        const vidOcrBtn = root.querySelector('#vidOcrBtn');
+        const vidOcrFile = root.querySelector('#vidOcrFile');
+        if (vidOcrBtn && vidOcrFile) {
+            vidOcrBtn.addEventListener('click', () => vidOcrFile.click());
+            vidOcrFile.addEventListener('change', e => {
+                const file = e.target.files && e.target.files[0];
+                vidOcrFile.value = ''; // reset so re-picking the same file still fires `change`
+                if (file) scanQuestionFile(file);
+            });
+        }
+        // Paste a screenshot straight in (Ctrl/⌘+V) — no file dialog. Bound to the document
+        // because a screenshot is usually pasted without focusing any particular field; the
+        // guards below keep it from hijacking paste anywhere else in the app.
+        function clipboardImage(e) {
+            const items = Array.from((e.clipboardData && e.clipboardData.items) || []);
+            const hit = items.find(i => i.kind === 'file' && /^image\//i.test(i.type || ''));
+            if (!hit) return null;
+            const file = hit.getAsFile();
+            if (!file) return null;
+            // Clipboard files can arrive unnamed; fileToPart reads the extension off the name,
+            // so give it one that matches the MIME type it reported.
+            if (file.name) return file;
+            const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+            return new File([file], 'pasted-screenshot.' + ext, { type: file.type });
+        }
+        document.addEventListener('paste', e => {
+            const pane = root.querySelector('[data-vidpane="question"]');
+            // Only when the question pane is actually on screen, and not mid-scan.
+            if (!pane || !pane.classList.contains('active') || !pane.getClientRects().length) return;
+            if (vidOcrBtn && vidOcrBtn.disabled) return;
+            // The pane stays visible behind an open dialog — don't stack a second confirm on it.
+            if (document.querySelector('.st-modal-ov.open')) return;
+            const file = clipboardImage(e);
+            if (!file) return; // plain text paste — leave it alone so the fields still work
+            e.preventDefault();
+            if (vidOcrBtn) { vidOcrBtn.classList.add('pasted'); setTimeout(() => vidOcrBtn.classList.remove('pasted'), 700); }
+            scanQuestionFile(file);
+        });
+
+        /* ---------- LaTeX preview ----------
+           The fields hold verbatim text using $…$ math, but Study Tools' MathJax is configured
+           with \(…\) as the ONLY inline delimiter (single-$ is deliberately excluded so stray
+           dollar signs in prose aren't swallowed into math). Convert for the preview with the
+           same normalizeMathDelimiters every other rendered surface uses — the fields
+           themselves are never rewritten. Verbatim in the field, display pipeline in the preview. */
+        function renderQuestionPreview() {
+            const box = root.querySelector('#vidQPreview');
+            const body = box && box.querySelector('[data-qpv]');
+            const nameEl = document.getElementById('vidQuestionName');
+            const partsEl = document.getElementById('vidQuestion');
+            if (!box || !body || !nameEl || !partsEl) return;
+            const q = (nameEl.value || '').trim();
+            const p = (partsEl.value || '').trim();
+            if (!q && !p) { box.hidden = true; body.innerHTML = ''; return; }
+            box.hidden = false;
+            body.innerHTML =
+                (q ? '<div class="vid-qpv-q">' + esc(normalizeMathDelimiters(q)) + '</div>' : '') +
+                (p ? '<div class="vid-qpv-p">' + esc(normalizeMathDelimiters(p)) + '</div>' : '');
+            renderMath(body);
+        }
+        let vidQpvT;
+        function scheduleQuestionPreview() { clearTimeout(vidQpvT); vidQpvT = setTimeout(renderQuestionPreview, 300); }
+        ['vidQuestionName', 'vidQuestion'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', scheduleQuestionPreview);
+        });
+        renderQuestionPreview();
 
         /* ---------- generation progress ---------- */
         function createProgress(genEl, steps) {
