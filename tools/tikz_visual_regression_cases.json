@@ -1,0 +1,298 @@
+[
+  {
+    "id": "calc_tangent_runner",
+    "branch": "Calculus",
+    "subject": "Calculus",
+    "title": "Runner's Distance Tangent",
+    "brief": "A runner's distance from the start is modeled by s(t)=t^2 on 0 <= t <= 4. Draw the curve and the tangent at t=2 to represent instantaneous velocity.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "calc_secant_temperature",
+    "branch": "Calculus",
+    "subject": "Calculus",
+    "title": "Average Rate Of Cooling",
+    "brief": "A cup of tea cools according to a decreasing curve T(t). Show a secant line from t=1 to t=4 to represent average rate of change.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "calc_integral_flow",
+    "branch": "Calculus",
+    "subject": "Calculus",
+    "title": "Water Flow Accumulation",
+    "brief": "Water flows into a tank at rate r(t). Draw a rate curve and shade the area from t=2 to t=6 to show total water added.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "calc_riemann_sales",
+    "branch": "Calculus",
+    "subject": "Calculus",
+    "title": "Store Traffic Estimate",
+    "brief": "A store estimates customer traffic using left endpoint rectangles under a rate curve. Show four left rectangles under an increasing curve.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "calc_optimization_fence",
+    "branch": "Calculus",
+    "subject": "Calculus",
+    "title": "Fencing A Pen",
+    "brief": "A farmer uses 80 m of fencing to enclose a rectangular pen along a barn wall. Draw the rectangle, barn wall, and label the variable sides for optimization.",
+    "kind": "word_problem_divergent"
+  },
+  {
+    "id": "calc_related_rates_ladder",
+    "branch": "Calculus",
+    "subject": "Calculus",
+    "title": "Sliding Ladder",
+    "brief": "A 10 ft ladder leans against a wall while its base slides away. Draw the right triangle with the wall, floor, ladder, and changing distances x and y.",
+    "kind": "word_problem_divergent"
+  },
+  {
+    "id": "adv_quad_projectile",
+    "branch": "Advanced Functions",
+    "subject": "Advanced Functions",
+    "title": "Ball Height Parabola",
+    "brief": "A ball is thrown upward and its height follows a parabola. Sketch the height-time graph, mark the vertex as maximum height, and show the ground intercepts.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "adv_exp_bacteria",
+    "branch": "Advanced Functions",
+    "subject": "Advanced Functions",
+    "title": "Bacteria Growth",
+    "brief": "A bacteria culture doubles every hour. Sketch an exponential growth curve with a horizontal asymptote and label time and population.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "adv_log_sound",
+    "branch": "Advanced Functions",
+    "subject": "Advanced Functions",
+    "title": "Sound Level Log Model",
+    "brief": "Sound intensity is modeled with a logarithmic function. Sketch a log curve with its vertical asymptote and label intensity on the x-axis.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "adv_sinusoid_tide",
+    "branch": "Advanced Functions",
+    "subject": "Advanced Functions",
+    "title": "Tide Height",
+    "brief": "The height of a tide varies sinusoidally over a day. Sketch a sinusoid and mark amplitude, period, and midline.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "adv_rational_medicine",
+    "branch": "Advanced Functions",
+    "subject": "Advanced Functions",
+    "title": "Medicine Concentration",
+    "brief": "A medicine concentration model has a vertical asymptote and a horizontal asymptote. Sketch a rational function that shows both asymptotes.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "adv_piecewise_taxi",
+    "branch": "Advanced Functions",
+    "subject": "Advanced Functions",
+    "title": "Taxi Fare Piecewise",
+    "brief": "A taxi fare has one rate for the first kilometer and another rate after that. Sketch a piecewise linear fare graph with an open and closed endpoint at the break.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "geo_law_cosines_lake",
+    "branch": "Geometry And Trigonometry",
+    "subject": "Calculus and Vectors",
+    "title": "Distance Across A Lake",
+    "brief": "Two survey points A and B are 120 m apart. A tree C is seen from A and B with included angle A = 42 degrees. Draw triangle ABC for a law of cosines setup.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "geo_law_sines_tower",
+    "branch": "Geometry And Trigonometry",
+    "subject": "Calculus and Vectors",
+    "title": "Tower From Two Angles",
+    "brief": "In triangle ABC, angle A = 38 degrees, angle B = 71 degrees, and side AB = 45 m. Draw a triangle for a sine law setup.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "geo_bearing_hikers",
+    "branch": "Geometry And Trigonometry",
+    "subject": "Calculus and Vectors",
+    "title": "Two-Leg Hike Bearing",
+    "brief": "A hiker walks 6 km on a bearing of 040 degrees, then 9 km on a bearing of 115 degrees. Draw the two travel vectors and the displacement from the start.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "geo_angle_elevation_tree",
+    "branch": "Geometry And Trigonometry",
+    "subject": "Calculus and Vectors",
+    "title": "Tree Height",
+    "brief": "A surveyor stands 18 m from a tree and measures an angle of elevation of 32 degrees to the top. Draw the right triangle with distance, height, and angle.",
+    "kind": "word_problem_divergent"
+  },
+  {
+    "id": "geo_circle_sector",
+    "branch": "Geometry And Trigonometry",
+    "subject": "Geometry",
+    "title": "Pizza Sector",
+    "brief": "A pizza slice is a sector with radius 10 cm and central angle 60 degrees. Draw the sector and label the radius and central angle.",
+    "kind": "word_problem_divergent"
+  },
+  {
+    "id": "vec_airplane_wind",
+    "branch": "Vectors",
+    "subject": "Calculus and Vectors",
+    "title": "Airplane Wind",
+    "brief": "An airplane has airspeed 500 km/h on a bearing N30E. Wind from the West is 80 km/h. Draw the air velocity, wind velocity, and ground velocity resultant.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "vec_boat_current",
+    "branch": "Vectors",
+    "subject": "Calculus and Vectors",
+    "title": "Boat Crossing River",
+    "brief": "A boat heads directly across a river at 4 m/s while the current flows downstream at 3 m/s. Draw the velocity vectors and the resultant path.",
+    "kind": "word_problem_divergent"
+  },
+  {
+    "id": "vec_forces_crate",
+    "branch": "Vectors",
+    "subject": "Calculus and Vectors",
+    "title": "Two Forces On A Crate",
+    "brief": "Two forces F1 = 20 N and F2 = 30 N act on a crate with an angle of 110 degrees between them. Draw the resultant force vector.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "vec_projection_ramp",
+    "branch": "Vectors",
+    "subject": "Calculus and Vectors",
+    "title": "Projection Onto A Ramp",
+    "brief": "A force vector is applied near a ramp. Show the projection of vector u onto vector v along the ramp and the perpendicular drop.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "vec_midpoint_median",
+    "branch": "Vectors",
+    "subject": "Calculus and Vectors",
+    "title": "Median Vector Proof",
+    "brief": "In triangle ABC, M is the midpoint of side BC. Draw vectors AB, AC, and AM to support the proof AB + AC = 2AM.",
+    "kind": "textbook_problem"
+  },
+  {
+    "id": "vec_3d_drone",
+    "branch": "Vectors",
+    "subject": "Vectors / Linear Algebra",
+    "title": "Drone Displacement",
+    "brief": "A drone moves 2 km east, 1.5 km north, and 1 km upward. Draw a 3D vector with x, y, and z components.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "lin_transform_unit_square",
+    "branch": "Linear Algebra",
+    "subject": "Linear Algebra",
+    "title": "Matrix Transformation",
+    "brief": "A matrix transforms the unit square into a slanted parallelogram. Draw the original unit square and the transformed parallelogram with basis vectors.",
+    "kind": "word_problem_divergent"
+  },
+  {
+    "id": "lin_plane_normal",
+    "branch": "Linear Algebra",
+    "subject": "Vectors / Linear Algebra",
+    "title": "Plane Normal",
+    "brief": "A plane in 3D has normal vector n. Draw the plane and a normal vector perpendicular to it.",
+    "kind": "textbook_problem"
+  },
+  {
+    "id": "lin_orthogonal_signals",
+    "branch": "Linear Algebra",
+    "subject": "Vectors / Linear Algebra",
+    "title": "Orthogonal Signals",
+    "brief": "Two signal vectors are orthogonal. Draw two perpendicular vectors with a right angle marker.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "data_histogram_scores",
+    "branch": "Data Management",
+    "subject": "Data Management",
+    "title": "Quiz Score Histogram",
+    "brief": "A class records grouped quiz scores. Draw a histogram for grouped frequency data.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "data_boxplot_sprints",
+    "branch": "Data Management",
+    "subject": "Data Management",
+    "title": "Sprint Times Boxplot",
+    "brief": "A coach summarizes sprint times with a five-number summary. Draw a box-and-whisker plot.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "data_scatter_ad_sales",
+    "branch": "Data Management",
+    "subject": "Data Management",
+    "title": "Advertising And Sales",
+    "brief": "A store compares advertising spending and sales revenue. Draw a scatter plot with a positive trend line.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "data_normal_bottles",
+    "branch": "Data Management",
+    "subject": "Data Management",
+    "title": "Bottle Fill Amounts",
+    "brief": "Bottle fill amounts are approximately normal. Draw a normal curve and shade within one standard deviation of the mean.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "prob_tree_defective",
+    "branch": "Probability",
+    "subject": "Data Management",
+    "title": "Two-Stage Defective Test",
+    "brief": "A factory part is selected, then tested. Draw a two-stage probability tree with branch probabilities for pass/fail outcomes.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "prob_venn_clubs",
+    "branch": "Probability",
+    "subject": "Data Management",
+    "title": "Students In Clubs",
+    "brief": "Some students join music club, some join robotics club, and some join both. Draw a two-set Venn diagram.",
+    "kind": "word_problem"
+  },
+  {
+    "id": "prob_combinations_committee",
+    "branch": "Combinatorics",
+    "subject": "Data Management",
+    "title": "Committee Selection",
+    "brief": "A committee is selected from a group of students. Draw a simple branching or grouping diagram to represent combinations without listing every outcome.",
+    "kind": "word_problem_divergent"
+  },
+  {
+    "id": "discrete_graph_shortest_path",
+    "branch": "Discrete Math",
+    "subject": "Discrete Math",
+    "title": "Shortest Path Network",
+    "brief": "A delivery driver compares routes between five towns connected by roads. Draw a weighted network graph with nodes and edge weights.",
+    "kind": "word_problem_divergent"
+  },
+  {
+    "id": "discrete_mod_clock",
+    "branch": "Number Theory",
+    "subject": "Number Theory",
+    "title": "Modulo Clock",
+    "brief": "Show arithmetic modulo 12 on a clock diagram. Mark starting at 9 and moving forward 5 hours.",
+    "kind": "word_problem_divergent"
+  },
+  {
+    "id": "seq_arithmetic_stairs",
+    "branch": "Sequences",
+    "subject": "Advanced Functions",
+    "title": "Arithmetic Sequence Staircase",
+    "brief": "A staircase has 3 blocks on the first step, 5 on the second, and 7 on the third. Draw the first few terms as a growing arithmetic pattern.",
+    "kind": "word_problem_divergent"
+  },
+  {
+    "id": "finance_compound_growth",
+    "branch": "Financial Math",
+    "subject": "Advanced Functions",
+    "title": "Compound Interest Growth",
+    "brief": "An investment grows by 6 percent each year. Sketch an exponential growth graph with time on the x-axis and account value on the y-axis.",
+    "kind": "word_problem"
+  }
+]

@@ -1,0 +1,26 @@
+# Local Claude Code config (not part of the website)
+.claude/
+
+# Local dev-server / scratch files (the site is static — no server needed)
+server.js
+server.bat
+start-server.ps1
+*.vbs
+*.lnk
+*.log
+server_log.txt
+cloud-handoff.jsonl
+tiny.js
+
+# Local TikZ backend tooling
+.venv-tikz/
+.local-tools/
+.local-gemini-keys.txt
+tmp/
+
+# Python build artifacts (should never be committed)
+__pycache__/
+*.pyc
+
+# Local backend launcher (contains local paths / not part of the deployed site)
+start-local-tikz-backend.bat
