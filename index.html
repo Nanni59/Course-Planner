@@ -3305,7 +3305,7 @@
 
         /* Buttons */
         .st-btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; font-family:inherit; font-size:14px; font-weight:600; letter-spacing:.2px;
-            padding:13px 28px; border:none; border-radius:12px; cursor:pointer; color:#fff;
+            padding:13px 28px; border:none; border-radius:12px; cursor:pointer; color:#fff; text-decoration:none;
             background: linear-gradient(135deg, #6cc070, #4f9e54);
             box-shadow: 0 4px 12px rgba(88,166,92,0.28), inset 0 1px 0 rgba(255,255,255,0.30);
             transition: transform .18s cubic-bezier(.4,0,.2,1), box-shadow .18s ease, filter .18s ease; }
@@ -4115,7 +4115,9 @@
 
         /* Player head actions + saved state */
         .vid-head-actions { display:flex; gap:8px; flex-wrap:wrap; }
-        .vid-head-actions .st-btn.is-saved { color:var(--color-study); border-color:rgba(88,166,92,.5); cursor:default; }
+        /* Not scoped to .vid-head-actions: every generator's Save shares this saved state, and the
+           worksheet/guide/deck/set ones sit in .st-actions rows instead. */
+        .st-btn.is-saved { color:var(--color-study); border-color:rgba(88,166,92,.5); cursor:default; }
         .vid-head-actions .st-btn.is-on { color:var(--color-study); border-color:rgba(88,166,92,.5); }
 
         /* Narration-speed control as a compact custom dropdown (matches site dropdowns) */
@@ -4125,11 +4127,32 @@
             background-image:none !important;
             box-shadow:none !important;
         }
-        .vid-player:fullscreen .vid-controls .st-dd-list, .vid-player.vid-fs .vid-controls .st-dd-list {
+        .vid-player:fullscreen .vid-controls .st-dd-list, .vid-player.vid-fs .vid-controls .st-dd-list,
+        .vid-player.vid-fs-fallback .vid-controls .st-dd-list {
             top:auto; bottom:calc(100% + 8px); z-index:20; transform:translateY(6px);
-            background:#fff; box-shadow:0 18px 50px rgba(0,0,0,.42); }
+            background:#1b212b; box-shadow:0 18px 50px rgba(0,0,0,.42); }
         .vid-player:fullscreen .vid-controls .st-dd.open .st-dd-list,
-        .vid-player.vid-fs .vid-controls .st-dd.open .st-dd-list { transform:none; }
+        .vid-player.vid-fs .vid-controls .st-dd.open .st-dd-list,
+        .vid-player.vid-fs-fallback .vid-controls .st-dd.open .st-dd-list { transform:none; }
+        /* Full screen: the speed dropdown joins the dark control bar. The light chrome above is for
+           the in-page player, which sits on a white card; over the video it has to read like .vid-cbtn.
+           The !important tracks the one on .vid-controls .st-dd-head above — it can't be outspecified. */
+        .vid-player:fullscreen .vid-controls .st-dd-head, .vid-player.vid-fs .vid-controls .st-dd-head,
+        .vid-player.vid-fs-fallback .vid-controls .st-dd-head {
+            background:rgba(255,255,255,.14) !important; color:#fff; border-color:transparent; }
+        .vid-player:fullscreen .vid-controls .st-dd-head:hover, .vid-player.vid-fs .vid-controls .st-dd-head:hover,
+        .vid-player.vid-fs-fallback .vid-controls .st-dd-head:hover,
+        .vid-player:fullscreen .vid-controls .st-dd.open .st-dd-head, .vid-player.vid-fs .vid-controls .st-dd.open .st-dd-head,
+        .vid-player.vid-fs-fallback .vid-controls .st-dd.open .st-dd-head {
+            background:rgba(255,255,255,.24) !important; border-color:transparent; box-shadow:none !important; }
+        .vid-player:fullscreen .vid-controls .st-dd-chev, .vid-player.vid-fs .vid-controls .st-dd-chev,
+        .vid-player.vid-fs-fallback .vid-controls .st-dd-chev { color:#fff; }
+        .vid-player:fullscreen .vid-controls .st-dd-opt, .vid-player.vid-fs .vid-controls .st-dd-opt,
+        .vid-player.vid-fs-fallback .vid-controls .st-dd-opt { color:#e8ebf2; }
+        .vid-player:fullscreen .vid-controls .st-dd-opt:hover, .vid-player.vid-fs .vid-controls .st-dd-opt:hover,
+        .vid-player.vid-fs-fallback .vid-controls .st-dd-opt:hover { background:rgba(255,255,255,.12); }
+        .vid-player:fullscreen .vid-controls .st-dd-opt.on, .vid-player.vid-fs .vid-controls .st-dd-opt.on,
+        .vid-player.vid-fs-fallback .vid-controls .st-dd-opt.on { background:var(--color-study); color:#fff; }
 
         /* Dark-mode chrome (the stage itself stays dark by design) */
         body.dark-mode .vid-player-head h3 { color:#e8ebf2; }
@@ -14838,7 +14861,7 @@
                 toast('Could not export feedback: ' + ((e && e.message) || e), 'err');
             }
         }
-        function renderWorksheet(d, targetEl) {
+        function renderWorksheet(d, alreadySaved, targetEl) {
             d = normalizeGeneratedContent(d || {});
             WS_DATA = d;
             const res = targetEl || document.getElementById('wsResult');
@@ -14858,7 +14881,9 @@
                 '</div>' +
                 '<div class="st-actions">' +
                 '<button class="st-btn st-btn-ghost" data-wsfeedback title="Download a JSON bundle (your prompt + every question + its rendered visual) to attach in the Claude chat — no PDF needed">' + I.warn + ' Report issue</button>' +
-                '<button class="st-btn st-btn-ghost" data-wssave>' + I.save + ' Save</button>' +
+                (alreadySaved
+                    ? '<button class="st-btn st-btn-ghost is-saved" disabled>' + I.check + ' Saved</button>'
+                    : '<button class="st-btn st-btn-ghost" data-wssave>' + I.save + ' Save</button>') +
                 '<button class="st-btn st-btn-ghost" data-wsprint="key">' + I.dl + ' Answer Key PDF</button>' +
                 '<button class="st-btn" data-wsprint="sheet">' + I.dl + ' Download PDF</button>' +
                 '</div></div><div class="st-a4-scroll" data-wssheet></div>';
@@ -14922,9 +14947,11 @@
                 WS_DIAGRAMS = b.getAttribute('data-wsdiagrams') === 'on';
                 draw(); syncToggles();
             }));
-            res.querySelector('[data-wssave]').addEventListener('click', e => {
+            const wssave = res.querySelector('[data-wssave]');   // absent once saved
+            if (wssave) wssave.addEventListener('click', e => {
                 saveItem('ws', { id: 'w' + Date.now(), createdAt: Date.now(), data: d });
                 e.currentTarget.disabled = true; e.currentTarget.innerHTML = I.check + ' Saved';
+                e.currentTarget.classList.add('is-saved');
                 clearDirty();
                 toast('Worksheet saved on this device.', 'ok');
             });
@@ -15127,8 +15154,8 @@
                 '<div class="st-actions" style="margin-bottom:18px; align-items:center">' +
                 '<div class="st-ws-opt"><span>Topic</span><input type="text" class="st-input st-ws-subject" data-gtitle placeholder="Topic" value="' + esc(g.title || '') + '"></div>' +
                 (alreadySaved
-                    ? '<button class="st-btn st-btn-ghost" disabled>' + I.check + ' Saved</button>'
-                    : '<button class="st-btn" data-gsave>' + I.save + ' Save guide</button>') + '</div>' +
+                    ? '<button class="st-btn st-btn-ghost is-saved" disabled>' + I.check + ' Saved</button>'
+                    : '<button class="st-btn st-btn-ghost" data-gsave>' + I.save + ' Save</button>') + '</div>' +
                 '<div class="st-guide-head"><h2>' + esc(g.title || 'Study Guide') + '</h2><div class="st-guide-meta">' +
                 (g.course ? '<span>' + I.book + ' ' + esc(g.course) + '</span>' : '') +
                 (g.readTime ? '<span>' + I.clock + ' ' + esc(g.readTime) + '</span>' : '') + '</div></div>';
@@ -15165,6 +15192,7 @@
             if (gsave) gsave.addEventListener('click', e => {
                 saveItem('guide', { id: 'g' + Date.now(), createdAt: Date.now(), data: g });
                 e.currentTarget.disabled = true; e.currentTarget.innerHTML = I.check + ' Saved';
+                e.currentTarget.classList.add('is-saved');
                 clearDirty();
                 toast('Study guide saved on this device.', 'ok');
             });
@@ -15289,8 +15317,8 @@
                 '<div class="st-ws-opt"><span>Topic</span><input type="text" class="st-input st-ws-subject" data-ftitle placeholder="Topic" value="' + esc(deck.deckTitle || '') + '"></div>' +
                 '<button class="st-btn st-btn-ghost" data-fshuffle>' + I.shuffle + ' Shuffle</button>' +
                 (alreadySaved
-                    ? '<button class="st-btn st-btn-ghost" disabled>' + I.check + ' Saved</button>'
-                    : '<button class="st-btn" data-fsave>' + I.save + ' Save deck</button>') + '</div>' +
+                    ? '<button class="st-btn st-btn-ghost is-saved" disabled>' + I.check + ' Saved</button>'
+                    : '<button class="st-btn st-btn-ghost" data-fsave>' + I.save + ' Save</button>') + '</div>' +
                 '<div class="st-deck-top"><div class="st-deck-title" data-decktitle></div><div class="st-deck-counter" data-deckcount></div></div>' +
                 '<div class="st-flip" data-flip><div class="st-flip-inner">' +
                 '<div class="st-flip-face st-flip-front"><span class="st-face-tag">Term</span><div class="st-face-text" data-front></div><div class="st-flip-hint">Click to flip</div></div>' +
@@ -15307,6 +15335,7 @@
             if (fsave) fsave.addEventListener('click', e => {
                 saveDeck(deck);
                 e.currentTarget.disabled = true; e.currentTarget.innerHTML = I.check + ' Saved';
+                e.currentTarget.classList.add('is-saved');
                 clearDirty();
                 toast('Flashcard deck saved on this device.', 'ok');
             });
@@ -15462,7 +15491,7 @@
             res.innerHTML =
                 '<div class="st-guide-head"><h2>Your study set is ready</h2>' +
                 '<div class="st-guide-meta"><span>Switch between the four below — each can be reviewed, tweaked and saved.</span></div></div>' +
-                '<div class="st-actions" style="justify-content:flex-end;margin:0 0 12px"><button class="st-btn" data-aiosave>' + I.save + ' Save study set</button></div>' +
+                '<div class="st-actions" style="justify-content:flex-end;margin:0 0 12px"><button class="st-btn st-btn-ghost" data-aiosave>' + I.save + ' Save</button></div>' +
                 '<div class="st-ws-toggle st-aio-tabs">' +
                 '<button data-aiotab="ws" class="on">Worksheet</button>' +
                 '<button data-aiotab="guide">Study Guide</button>' +
@@ -15473,7 +15502,7 @@
                 '<div class="st-aio-pane" data-aiopane="guide" style="display:none"></div>' +
                 '<div class="st-aio-pane" data-aiopane="deck" style="display:none"></div>' +
                 '<div class="st-aio-pane" data-aiopane="slides" style="display:none"></div>';
-            renderWorksheet(AIO.ws, res.querySelector('[data-aiopane="ws"]'));
+            renderWorksheet(AIO.ws, false, res.querySelector('[data-aiopane="ws"]'));
             renderGuide(AIO.guide, false, res.querySelector('[data-aiopane="guide"]'));
             showDeck(AIO.deck, false, res.querySelector('[data-aiopane="deck"]'));
             res.querySelectorAll('[data-wssave], [data-gsave], [data-fsave]').forEach(btn => btn.remove());
@@ -15663,7 +15692,7 @@
                 return;
             }
             if (kind === 'deck') { setScreen('flashcards'); setStage(screenEl('flashcards'), 'result'); showDeck(it, true); }
-            else if (kind === 'ws') { setScreen('worksheet'); setStage(screenEl('worksheet'), 'result'); renderWorksheet(it.data); }
+            else if (kind === 'ws') { setScreen('worksheet'); setStage(screenEl('worksheet'), 'result'); renderWorksheet(it.data, true); }
             else if (kind === 'slides') { setScreen('slides'); setStage(screenEl('slides'), 'result'); const m = document.getElementById('sdResult'); m._subj = it.subj || ''; buildSlidePlayer(it.data, m, true); }
             else { setScreen('guide'); setStage(screenEl('guide'), 'result'); renderGuide(it.data, true); }
         }
@@ -15997,7 +16026,7 @@
                 await vidIdbPut(id, blob);
                 saveItem('video', { id, topic: topic || 'Video lesson', captions: captions || [], createdAt: Date.now() });
                 clearDirty();
-                if (btn) { btn.innerHTML = I.check + ' Saved'; }
+                if (btn) { btn.innerHTML = I.check + ' Saved'; btn.classList.add('is-saved'); }
                 toast('Video saved on this device.', 'ok');
             } catch (e) {
                 console.error('[video] save failed', e);
@@ -16017,7 +16046,7 @@
             vidStop();
             const cues = (captions || []).filter(c => c && c.text);
             const timed = cues.length > 0 && cues[0].start != null;  // SRT timeline vs sequential
-            const speeds = [{ v: '0.8', label: '0.8Ã—' }, { v: '0.9', label: '0.9Ã—' }, { v: '1', label: '1Ã—' }, { v: '1.1', label: '1.1Ã—' }, { v: '1.25', label: '1.25Ã—' }];
+            const speeds = [{ v: '0.8', label: '0.8x' }, { v: '0.9', label: '0.9x' }, { v: '1', label: '1x' }, { v: '1.1', label: '1.1x' }, { v: '1.25', label: '1.25x' }];
 
             mount.innerHTML =
                 '<div class="vid-player">' +
@@ -16025,7 +16054,7 @@
                 '<div class="vid-head-actions">' +
                 '<a class="st-btn st-btn-ghost" download="manim-lesson.mp4" href="' + url + '">' + I.dl + ' Download</a>' +
                 (opts.saved
-                    ? '<button class="st-btn st-btn-ghost" disabled>' + I.check + ' Saved</button>'
+                    ? '<button class="st-btn st-btn-ghost is-saved" disabled>' + I.check + ' Saved</button>'
                     : '<button class="st-btn st-btn-ghost" data-vidsave>' + I.save + ' Save</button>') +
                 '</div></div>' +
                 '<div class="vid-stage">' +
