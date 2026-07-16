@@ -1689,6 +1689,110 @@
             box-shadow: none;
         }
 
+        /* Background-generation badge on the Study Tools footer button: a progress
+           ring with the live percentage inside, sitting left of the label.
+           At 22px it cannot fit inside the button's 18px padding, so unlike a bare
+           dot it HAS to claim layout — .has-badge below widens the button while a
+           job runs. That moves every button to its right, which strands the sliding
+           thumb (positionToggleThumb sizes it from offsetWidth/offsetLeft), so
+           stRenderBadge re-snaps the thumb whenever it toggles .has-badge. The width
+           change is instant: .footer-tracker-toggle button transitions `color` only,
+           so the buttons and the thumb re-lay out together in one frame. */
+        .st-fbadge {
+            position: absolute;
+            top: 50%;
+            left: 6px;
+            width: 22px;
+            height: 22px;
+            margin-top: -11px;
+            border-radius: 50%;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0;
+            transform: scale(0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* Track colour shows wherever the arc has not reached yet.
+               --st-fbadge-pct is a bare number (0-100) set from JS. */
+            background-color: var(--st-fbadge-track, #d4dbe8);
+            background-image: conic-gradient(var(--color-tracker-green) calc(var(--st-fbadge-pct, 0) * 1%), transparent 0);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .st-fbadge.on {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Hidden while Study Tools is the open tab: the generator screen already
+           shows a full progress ring, so the badge would be redundant — and it would
+           read as a pale disc stranded on the green active thumb. This badge exists
+           for progress the user CANNOT otherwise see. */
+        .footer-tracker-toggle button.active .st-fbadge {
+            opacity: 0;
+            transform: scale(0.5);
+        }
+
+        /* 6px + 22px dot + 8px gap. Only applied while the badge is shown, so the
+           pill keeps its natural width at rest. */
+        .footer-tracker-toggle button.has-badge {
+            padding-left: 36px;
+        }
+
+        /* ...and the badge is hidden while Study Tools is open, so the space it
+           reserved must go back too — otherwise the pill keeps a lopsided 36px/18px
+           padding and the label sits off-centre. switchDay() re-snaps the thumb after
+           toggling .active, so the width change here is already accounted for. */
+        .footer-tracker-toggle button.active.has-badge {
+            padding-left: 18px;
+        }
+
+        /* The hole in the ring, carrying the percentage. Its fill must match what is
+           behind the badge — the toggle pill, not the footer: rgba(120,140,180,0.10)
+           over #fff resolves to ~#f2f4f8. A white fill here reads as a halo.
+           `color: inherit` tracks the footer button's own light/dark colour, so the
+           digits need no separate dark-mode rule. */
+        .st-fbadge-num {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--st-fbadge-bg, #f2f4f8);
+            font-size: 8px;
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: -0.2px;
+            font-variant-numeric: tabular-nums;
+            color: inherit;
+        }
+
+        /* Finished / failed: the ring fills in solid and the hole goes transparent,
+           leaving a white tick (done) or a plain dot (error) on the disc. */
+        .st-fbadge.done {
+            background-color: var(--color-tracker-green);
+            background-image: none;
+            animation: stBadgePulse 2s ease-in-out infinite;
+        }
+
+        .st-fbadge.err {
+            background-color: #d1584f;
+            background-image: none;
+        }
+
+        .st-fbadge.done .st-fbadge-num,
+        .st-fbadge.err .st-fbadge-num {
+            background-color: transparent;
+            color: #ffffff;
+        }
+
+        @keyframes stBadgePulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(88, 166, 92, 0.45); }
+            50%      { box-shadow: 0 0 0 5px rgba(88, 166, 92, 0); }
+        }
+
         .main-footer,
         .main-footer button,
         .footer-tracker-toggle,
@@ -3489,6 +3593,9 @@
             box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.45), inset -2px -2px 5px rgba(255, 255, 255, 0.03);
         }
         body.dark-mode .footer-tracker-toggle { background-color: #242c38; }
+        /* Badge ring/centre must match whatever sits behind it, so it re-points at
+           the dark footer pill rather than the light surface. */
+        body.dark-mode .st-fbadge { --st-fbadge-bg: #242c38; --st-fbadge-track: #3a4557; }
 
         /* Modal headings/inputs that hard-code light-on-light colours.
            Note: course/tracker card headings stay accent-coloured (still legible
@@ -5291,7 +5398,7 @@
             <!-- Tracker Toggle (segmented pill) -->
             <div class="footer-tracker-toggle">
                 <span class="toggle-thumb" aria-hidden="true"></span>
-                <button id="studyToolsBtn">Study Tools</button>
+                <button id="studyToolsBtn"><span class="st-fbadge" id="stFooterBadge" aria-hidden="true"><span class="st-fbadge-num" data-badge-num></span></span>Study Tools</button>
                 <button id="calendarBtn">Calendar</button>
                 <button id="lessonTrackerBtn">Lesson Tracker</button>
                 <button id="assignmentTrackerBtn">Assignment Tracker</button>
@@ -6212,6 +6319,10 @@
                 positionToggleThumb(document.querySelector('.tab-nav'), animate);
                 positionToggleThumb(document.querySelector('.footer-tracker-toggle'), animate);
             }
+            // Exposed for the Study Tools script: its footer progress badge widens the
+            // Study Tools button while a generation runs, which shifts every button to
+            // its right and would otherwise leave the thumb parked at stale geometry.
+            window.cpUpdateToggleThumbs = updateToggleThumbs;
 
             // Reposition (without animating) when layout changes can shift button widths.
             window.addEventListener('resize', () => updateToggleThumbs(false));
@@ -12775,6 +12886,7 @@
             generated: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/><path d="M7 12h10"/><path d="M7 15h7"/></svg>',
             vid: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5"/><polygon points="10 8.5 16 12 10 15.5 10 8.5" fill="currentColor" stroke="none"/></svg>',
             slides: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M12 16v4"/><path d="M8 21h8"/><path d="M7.5 11l2.5-2.5 2 2L16 7"/></svg>',
+            bell: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
         };
         const sectionIco = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
 
@@ -13662,9 +13774,12 @@
         function hideLeaveModal() { leaveCb = null; if (leaveModal) leaveModal.classList.remove('open'); }
 
         // Native browser dialog for closing / reloading the tab (custom modals
-        // can't run on unload). Only armed while there is unsaved generated work.
+        // can't run on unload). Armed while there is unsaved generated work, and
+        // also while a generation is still running: background progress and
+        // notifications both depend on this tab staying open, so closing it would
+        // silently throw the work away.
         window.addEventListener('beforeunload', e => {
-            if (stDirty) { e.preventDefault(); e.returnValue = ''; return ''; }
+            if (stDirty || stJobs.summary().status === 'running') { e.preventDefault(); e.returnValue = ''; return ''; }
         });
 
         let stBackTarget = 'hub';
@@ -13996,8 +14111,216 @@
         });
         renderQuestionPreview();
 
+        /* =========================================================
+           BACKGROUND JOBS — footer badge + notifications
+           Generations already survive leaving Study Tools (switchDay only toggles
+           an `active` class; this DOM is never torn down), but until now the only
+           progress readout lived on the generator screen, so walking away meant
+           flying blind. Every generator now also reports into this registry, which
+           drives three things visible from anywhere: the badge on the Study Tools
+           footer button, the browser tab title, and an optional notification when a
+           job lands.
+
+           createJobRegistry() is deliberately DOM-free and self-contained so
+           tools/study_progress_test.js can drive the state machine in Node.
+           ========================================================= */
+        function createJobRegistry() {
+            const jobs = [];
+            let seq = 0;
+            let onChange = null;
+            const clampPct = p => Math.max(0, Math.min(100, Math.round(Number(p) || 0)));
+            const find = id => jobs.find(j => j.id === id) || null;
+            const copy = j => ({ id: j.id, tool: j.tool, label: j.label, pct: j.pct, status: j.status });
+            function summary() {
+                const running = jobs.filter(j => j.status === 'running');
+                if (running.length) {
+                    // More than one generation can be in flight (start a worksheet, go
+                    // back to the hub, start a video). There is only one badge, so it
+                    // carries the mean and names them all in the tooltip.
+                    return {
+                        status: 'running',
+                        count: running.length,
+                        pct: clampPct(running.reduce((a, j) => a + j.pct, 0) / running.length),
+                        label: running.length === 1
+                            ? running[0].label
+                            : running.length + ' generations running',
+                        detail: running.map(j => j.label + ' ' + j.pct + '%').join(' · ')
+                    };
+                }
+                const settled = jobs.filter(j => j.status !== 'running');
+                if (settled.length) {
+                    // A failure outranks a success: a missed error is worse than
+                    // opening Study Tools to find work that was already fine.
+                    const failed = settled.filter(j => j.status === 'error');
+                    if (failed.length) return {
+                        status: 'error',
+                        count: failed.length,
+                        pct: 100,
+                        label: failed.length === 1
+                            ? failed[0].label + ' couldn’t finish'
+                            : failed.length + ' generations failed',
+                        detail: failed.map(j => j.label).join(' · ')
+                    };
+                    return {
+                        status: 'done',
+                        count: settled.length,
+                        pct: 100,
+                        label: settled.length === 1
+                            ? settled[0].label + ' is ready'
+                            : settled.length + ' generations are ready',
+                        detail: settled.map(j => j.label).join(' · ')
+                    };
+                }
+                return { status: 'idle', count: 0, pct: 0, label: '', detail: '' };
+            }
+            const emit = () => { if (onChange) onChange(summary()); };
+            return {
+                start(tool, label) {
+                    const id = ++seq;
+                    jobs.push({ id: id, tool: tool, label: label || tool, pct: 0, status: 'running' });
+                    emit();
+                    return id;
+                },
+                update(id, pct) {
+                    const j = find(id);
+                    if (!j || j.status !== 'running') return;
+                    const next = clampPct(pct);
+                    if (next === j.pct) return;          // no repaint for a no-op
+                    j.pct = next;
+                    emit();
+                },
+                finish(id, ok) {
+                    const j = find(id);
+                    if (!j || j.status !== 'running') return;
+                    j.status = ok ? 'done' : 'error';
+                    j.pct = 100;
+                    emit();
+                },
+                // Cancelled by the user — leaves no trace to acknowledge.
+                drop(id) {
+                    const i = jobs.findIndex(j => j.id === id);
+                    if (i < 0) return;
+                    jobs.splice(i, 1);
+                    emit();
+                },
+                // The user has seen the outcome. Clears settled jobs; anything still
+                // running keeps its badge.
+                ack() {
+                    const before = jobs.length;
+                    for (let i = jobs.length - 1; i >= 0; i--) {
+                        if (jobs[i].status !== 'running') jobs.splice(i, 1);
+                    }
+                    if (jobs.length !== before) emit();
+                },
+                get(id) { const j = find(id); return j ? copy(j) : null; },
+                summary: summary,
+                subscribe(fn) { onChange = fn; }
+            };
+        }
+
+        const stJobs = createJobRegistry();
+        const ST_TOOL_LABEL = {
+            worksheet: 'Worksheet', guide: 'Study guide', flashcards: 'Flashcard deck',
+            allinone: 'Study set', video: 'Video lesson', slides: 'Slide deck'
+        };
+        const ST_NOTIFY_STORE = 'cp_st_notify';
+        const stBadgeEl = document.getElementById('stFooterBadge');
+        const stBadgeNumEl = stBadgeEl && stBadgeEl.querySelector('[data-badge-num]');
+        const stNavBtnEl = document.getElementById('studyToolsBtn');
+        const ST_BASE_TITLE = document.title;
+        const stNotifySupported = () => 'Notification' in window;
+        const stNotifyEnabled = () =>
+            localStorage.getItem(ST_NOTIFY_STORE) === '1' &&
+            stNotifySupported() && Notification.permission === 'granted';
+        // True when the result is not already in front of the user: the browser tab is
+        // hidden (another site or app), or the planner is showing another view.
+        const stAway = () => document.hidden || !root.classList.contains('active');
+
+        function stRenderBadge(s) {
+            const show = s.status !== 'idle';
+            if (stBadgeEl) {
+                stBadgeEl.classList.toggle('on', show);
+                stBadgeEl.classList.toggle('done', s.status === 'done');
+                stBadgeEl.classList.toggle('err', s.status === 'error');
+                stBadgeEl.style.setProperty('--st-fbadge-pct', String(s.pct));
+            }
+            if (stBadgeNumEl) {
+                if (s.status === 'running') stBadgeNumEl.textContent = String(s.pct);
+                else if (s.status === 'done') stBadgeNumEl.innerHTML = I.check;
+                else stBadgeNumEl.textContent = '';
+            }
+            if (stNavBtnEl) {
+                // Showing the badge widens the button, shifting every button to its
+                // right; the thumb was positioned against the old geometry, so re-snap
+                // it. Only on a real show/hide — never on a percentage tick, which
+                // must not move the pill. animate:false because the width change is
+                // instant, so thumb and buttons settle in the same frame.
+                if (stNavBtnEl.classList.contains('has-badge') !== show) {
+                    stNavBtnEl.classList.toggle('has-badge', show);
+                    if (typeof window.cpUpdateToggleThumbs === 'function') window.cpUpdateToggleThumbs(false);
+                }
+                // The badge is glanceable; the full picture (every running job, or
+                // which one failed) lives in the tooltip, which is also what a pointer
+                // hover and a screen reader get.
+                if (!show) stNavBtnEl.removeAttribute('title');
+                else stNavBtnEl.title = s.status === 'running' ? s.detail : s.label;
+            }
+            // The tab title is the only progress readable from another website when
+            // notifications are off or denied, so it tracks the same state.
+            if (s.status === 'running') document.title = '(' + s.pct + '%) ' + ST_BASE_TITLE;
+            else if (s.status === 'done') document.title = '✓ ' + ST_BASE_TITLE;
+            else if (s.status === 'error') document.title = '⚠ ' + ST_BASE_TITLE;
+            else document.title = ST_BASE_TITLE;
+        }
+        stJobs.subscribe(stRenderBadge);
+
+        function stOpenJob(job) {
+            stJobs.ack();
+            try { if (typeof window.cpSwitchDay === 'function') window.cpSwitchDay('studyTools'); } catch (e) { }
+            if (job && job.tool && screenEl(job.tool)) { stBackTarget = 'hub'; setScreen(job.tool); }
+        }
+
+        function stNotify(job) {
+            if (!stNotifyEnabled() || !stAway()) return;
+            const ok = job.status === 'done';
+            try {
+                const n = new Notification(ok ? 'Study Tools — ready' : 'Study Tools — couldn’t finish', {
+                    body: ok
+                        ? job.label + ' has finished generating.'
+                        : job.label + ' couldn’t be generated. Open Study Tools to try again.',
+                    tag: 'cp-study-' + job.id
+                });
+                n.onclick = () => {
+                    try { window.focus(); } catch (e) { }
+                    n.close();
+                    stOpenJob(job);
+                };
+            } catch (e) {
+                // Some browsers (notably Chrome on Android) only permit notifications
+                // via a service worker and throw on the constructor. The badge and the
+                // tab title still carry the result, so this stays non-fatal.
+                console.warn('[Study Tools] notification blocked', e);
+            }
+        }
+
+        // Settle a job and tell the user, unless they are already watching it land.
+        function stJobFinish(id, ok) {
+            const job = stJobs.get(id);
+            if (!job || job.status !== 'running') return;   // already settled or cancelled
+            stJobs.finish(id, ok);
+            if (stAway()) stNotify({ id: job.id, tool: job.tool, label: job.label, status: ok ? 'done' : 'error' });
+            else stJobs.ack();                              // watched it finish — nothing to flag
+        }
+
+        // Coming back to the browser tab while Study Tools is already open counts as
+        // seeing the result; the class-based path is handled by the MutationObserver
+        // that watches `root` further down.
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && root.classList.contains('active')) stJobs.ack();
+        });
+
         /* ---------- generation progress ---------- */
-        function createProgress(genEl, steps) {
+        function createProgress(genEl, steps, jobId) {
             const container = genEl && genEl.querySelector('.st-gensteps');
             const countEl = genEl && genEl.querySelector('[data-count]');
             const subEl = genEl && genEl.querySelector('.st-gen-sub');
@@ -14018,6 +14341,10 @@
             };
             const setPct = p => {
                 targetPct = Math.max(0, Math.min(100, Math.round(p || 0)));
+                // The registry gets the TRUE target rather than the eased display
+                // value: rAF is frozen while the browser tab is hidden, which is
+                // precisely when the badge and the tab title are all the user has.
+                if (jobId) stJobs.update(jobId, targetPct);
                 if (targetPct < curPct) curPct = targetPct;  // a reset snaps immediately
                 if (pctRaf === null) pctRaf = requestAnimationFrame(tickPct);
             };
@@ -14076,10 +14403,12 @@
             const scr = screenEl(name);
             setStage(scr, 'gen');
             const genEl = scr.querySelector('[data-stage="gen"]');
-            const progress = createProgress(genEl, steps);
+            const jobId = stJobs.start(name, ST_TOOL_LABEL[name] || name);
+            const progress = createProgress(genEl, steps, jobId);
             try {
                 await task(progress);
                 progress.finishAll();
+                stJobFinish(jobId, true);
                 await wait(600);
                 setStage(scr, 'result');
                 // The result was typeset while the gen stage was visible (so this
@@ -14094,6 +14423,7 @@
                 }
             } catch (e) {
                 progress.stop();
+                stJobFinish(jobId, false);
                 console.error('[Study Tools]', e);
                 setStage(scr, 'setup');
                 toast(geminiErr(e), 'err');
@@ -15369,6 +15699,12 @@
             '<div class="st-field"><label>AI model</label>' +
             ddHTML('stModelInput', ST_MODELS.map(m => ({ v: m.id, label: m.label })), getModel()) +
             '<div class="st-panel-hint" style="margin-top:8px">On the free tier, pick <strong>Gemini 3 Flash</strong> — it writes the best video-lesson animations at no cost. <strong>2.5 Flash</strong> is the most reliable free fallback. Models marked “paid tier” need billing enabled on your Google account.</div></div>' +
+            '<div class="st-field"><label>Notifications</label>' +
+            '<button type="button" class="st-toggle-pill" id="stNotifyToggle">' +
+            '<span class="st-tp-ico">' + I.bell + '</span>' +
+            '<span class="st-tp-label">Tell me when a generation finishes</span>' +
+            '<span class="st-tp-state">Off</span></button>' +
+            '<div class="st-panel-hint" style="margin-top:8px">Generations keep running while you use the rest of the planner — the Study Tools button shows a live progress ring. Switch this on and your browser will also notify you when one lands, even while you’re on another site or app. This tab has to stay open: closing it stops the generation.</div></div>' +
             '<div class="st-actions"><button class="st-btn" id="stKeySave">Save settings</button>' +
             '<button class="st-btn st-btn-ghost" id="stKeyClear">Clear key</button>' +
             '<button class="st-btn st-btn-ghost" id="stKeyCancel">Cancel</button></div>' +
@@ -15378,9 +15714,48 @@
         initDD(modal);
         const keyInput = modal.querySelector('#stKeyInput');
         const modelInput = modal.querySelector('#stModelInput');
+
+        // Notification opt-in. The permission prompt is fired only by this toggle —
+        // never on load — so it always follows a deliberate click. This pill lives in
+        // the modal rather than `root`, so the shared [data-latex]/[data-visuals]
+        // handler does not reach it and it binds its own.
+        const notifyToggle = modal.querySelector('#stNotifyToggle');
+        function setNotifyToggleUI(on) {
+            if (!notifyToggle) return;
+            notifyToggle.classList.toggle('on', on);
+            const state = notifyToggle.querySelector('.st-tp-state');
+            if (state) state.textContent = on ? 'On' : 'Off';
+        }
+        if (notifyToggle) notifyToggle.addEventListener('click', () => {
+            if (notifyToggle.classList.contains('on')) {
+                localStorage.setItem(ST_NOTIFY_STORE, '0');
+                setNotifyToggleUI(false);
+                return;
+            }
+            if (!stNotifySupported()) { toast('This browser doesn’t support notifications.', 'err'); return; }
+            // Resolves immediately when the answer is already known. Wrapped because
+            // the permission is per-origin: a previous "block" can only be undone in
+            // the browser's own site settings, so say that rather than failing mutely.
+            Promise.resolve(Notification.requestPermission()).then(perm => {
+                if (perm !== 'granted') {
+                    setNotifyToggleUI(false);
+                    toast(perm === 'denied'
+                        ? 'Notifications are blocked for this site — allow them in your browser’s site settings, then try again.'
+                        : 'Notifications weren’t enabled.', 'err');
+                    return;
+                }
+                localStorage.setItem(ST_NOTIFY_STORE, '1');
+                setNotifyToggleUI(true);
+                toast('You’ll be notified when a generation finishes.', 'ok');
+            }).catch(() => setNotifyToggleUI(false));
+        });
+
         function openApiModal() {
             keyInput.value = (localStorage.getItem(ST_KEY_STORE) || '');
             modelInput.value = getModel();
+            // Reads the live permission too, so revoking it in the browser is
+            // reflected here instead of leaving the toggle stuck On.
+            setNotifyToggleUI(stNotifyEnabled());
             modal.classList.add('open');
             setTimeout(() => keyInput.focus(), 50);
         }
@@ -15468,9 +15843,31 @@
             try { if (st.setPlayIcon) st.setPlayIcon(false); } catch (e) { }
         }
         // Canceller for an in-flight /status poll loop; set while a render is being polled,
-        // called when the user navigates away so we stop hitting the Space.
+        // called when the user explicitly backs out of the video screen. Navigating to
+        // another tab deliberately does NOT cancel: a Manim render takes minutes, and
+        // being able to walk away and get told when it lands is the point.
         let vidPollCancel = null;
         function vidStopPoll() { if (vidPollCancel) { try { vidPollCancel(); } catch (e) { } vidPollCancel = null; } }
+        // wait(), but it also returns the moment the browser tab is shown again.
+        // Background tabs clamp timers hard (~1/min under Chrome's intensive
+        // throttling), so a plain wait(3000) would leave a stale percentage on screen
+        // for up to a minute after the user comes back. Returning early costs one extra
+        // poll per tab-show and makes the ring correct as soon as it is looked at.
+        function vidPollWait(ms) {
+            return new Promise(resolve => {
+                let settled = false;
+                const finish = () => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    document.removeEventListener('visibilitychange', onVis);
+                    resolve();
+                };
+                const onVis = () => { if (!document.hidden) finish(); };
+                const timer = setTimeout(finish, ms);
+                document.addEventListener('visibilitychange', onVis);
+            });
+        }
         // Stop narration if the tab is being closed/hidden (speech keeps going otherwise).
         window.addEventListener('pagehide', () => { try { if (TTS_OK) window.speechSynthesis.cancel(); } catch (e) { } });
 
@@ -15987,10 +16384,16 @@
             const h3 = genEl ? genEl.querySelector('h3') : null;
             const countEl = genEl ? genEl.querySelector('[data-count]') : null;
             const setSub = m => { if (sub) sub.textContent = m; };
+            // NB: named stJobId, not jobId — further down, inside the try block, the
+            // Space's own render-job id is bound as `const jobId`, which would shadow
+            // this for the whole poll loop and completion path.
+            const stJobId = stJobs.start('video', ST_TOOL_LABEL.video);
             // Ease the percentage toward each real progress value (like the other generators'
             // ring) instead of snapping the text, so it counts up smoothly between polls.
             const pctAnim = vidAnimateCount(countEl);
-            const setPct = p => pctAnim.set(p);
+            // The registry takes the real polled value, not the eased one — see setPct
+            // in createProgress for why the two must not be conflated.
+            const setPct = p => { pctAnim.set(p); stJobs.update(stJobId, p); };
             if (h3) h3.textContent = 'Rendering your Manim video…';
             setPct(0);
             // Stage checklist (same look as the other generators) but driven by the REAL backend
@@ -16012,9 +16415,12 @@
             // Human-readable label per backend status; >=95% shows "Finalising video…".
             const STATUS_LABEL = { pending: 'Generating lesson content…', planning: 'Planning the lesson…', rendering: 'Rendering animations…', captioning: 'Writing captions…' };
             let polling = true;
-            vidPollCancel = () => { polling = false; };
+            // Cancelling is an explicit user action (the back arrow), so the job is
+            // dropped outright rather than reported as a failure.
+            vidPollCancel = () => { polling = false; stJobs.drop(stJobId); };
             function showErr(msg) {
                 polling = false; vidPollCancel = null; pctAnim.stop();
+                stJobFinish(stJobId, false);
                 resultEl.innerHTML =
                     '<div class="vid-error"><div class="vid-error-ico">' + I.warn + '</div>' +
                     '<h3>Couldn’t render this video</h3><p>' + esc(msg) + '</p>' +
@@ -16081,9 +16487,8 @@
                 // Poll /status every 3s for live progress until done/error, the user leaves, or we time out.
                 const startedAt = Date.now();
                 while (polling) {
-                    await wait(3000);
-                    if (!polling) return; // cancelled (navigated away)
-                    if (!root.classList.contains('active')) { polling = false; vidPollCancel = null; return; }
+                    await vidPollWait(3000);
+                    if (!polling) return; // cancelled (back arrow)
                     let st = null;
                     try {
                         const sres = await fetch(HF_SPACE_URL + '/status/' + jobId, { cache: 'no-store' });
@@ -16117,13 +16522,22 @@
                             const r = await fetch(videoUrl, { cache: 'force-cache' });
                             if (r.ok) { const b = await r.blob(); if (b && b.size) { blob = b; playUrl = URL.createObjectURL(b); } }
                         } catch (e) { console.warn('[video] blob fetch failed — streaming instead', e); }
-                        // Let the ring visibly settle at 100% before swapping in the player.
+                        // Let the ring visibly settle at 100% before swapping in the
+                        // player — but ONLY if someone is watching it. wait() is a
+                        // setTimeout, which a hidden tab throttles to ~1/min (and a
+                        // frozen background tab may not run at all), so leaving this on
+                        // the critical path stalled the job at 100% and pushed
+                        // stJobFinish past the point of being useful: the timer tended
+                        // to fire only once the user came back, by which time stAway()
+                        // was false and the completion was acked instead of announced.
+                        // A cosmetic delay must never gate a background job finishing.
                         setSub('Done!');
-                        await wait(700);
+                        if (!stAway()) await wait(700);
                         console.log('[video] render done — captions:', captions.length, '| source:', blob ? 'local blob' : 'stream');
                         vidBuildMp4(playUrl, videoTitle, resultEl, captions, { blob: blob });
                         setStage(scr, 'result');
                         markDirty();
+                        stJobFinish(stJobId, true);
                         return;
                     }
                     if (st.status === 'error') { showErr(friendlyRenderError(st.error)); return; }
@@ -17829,9 +18243,14 @@
 
         // Stop narration if the user leaves Study Tools entirely (its .tab-content
         // loses the `active` class when another view is shown via switchDay()).
+        // An in-flight render is deliberately NOT stopped here any more — it keeps
+        // polling in the background and reports through the footer badge. Coming
+        // back the other way clears a finished badge: the user has now seen it.
         try {
-            new MutationObserver(() => { if (!root.classList.contains('active')) { vidPauseExternal(); vidStopPoll(); sdStop(); } })
-                .observe(root, { attributes: true, attributeFilter: ['class'] });
+            new MutationObserver(() => {
+                if (root.classList.contains('active')) { stJobs.ack(); return; }
+                vidPauseExternal(); sdStop();
+            }).observe(root, { attributes: true, attributeFilter: ['class'] });
         } catch (e) { }
 
         /* ---------- init ---------- */
