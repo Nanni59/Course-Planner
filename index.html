@@ -1374,7 +1374,9 @@
         }
 
         .day-card-subtasks {
-            margin-top: 4px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
         }
 
         .day-card-subtasks-title {
@@ -4926,12 +4928,12 @@
         .cal-subtask-hover { pointer-events:auto; max-height:min(360px,calc(100vh - 24px)); overflow:auto; }
         .cal-subtask-hover input, .cal-subtask-quick input { font-family:inherit; }
         .cal-subtask-hover-progress { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; color:var(--cal-ink-soft); font-size:11px; font-weight:700; }
-        .cal-subtask-hover-row { display:flex; align-items:center; gap:8px; padding:5px 3px; color:var(--cal-ink-soft); font-size:11px; cursor:pointer; }
+        .cal-subtask-hover-row { display:flex; align-items:center; gap:8px; padding:5px 3px; color:var(--cal-ink-soft); font-family:'Century Gothic','Futura','Montserrat',sans-serif; font-size:11px; font-weight:600; cursor:pointer; }
         .cal-subtask-hover-row:hover { color:var(--cal-ink); background:var(--cal-hover); border-radius:8px; }
         .cal-subtask-hover-check { flex:none; pointer-events:auto; opacity:1; }
         .cal-subtask-hover-row.done { color:var(--cal-ink-mute); }
         .cal-subtask-hover-row.done .cal-subtask-hover-title { text-decoration:line-through; }
-        .cal-subtask-hover-hint { margin-top:7px; padding-top:7px; border-top:1px solid var(--cal-border); color:var(--cal-ink-mute); font-size:9px; }
+        .cal-subtask-hover-hint { margin-top:7px; padding-top:7px; border-top:1px solid var(--cal-border); color:var(--cal-ink-mute); font-family:'Century Gothic','Futura','Montserrat',sans-serif; font-size:9px; font-weight:600; }
         .cal-subtask-quick { padding:8px; }
         .cal-quick-subtask { display:grid; grid-template-columns:30px 1fr; gap:9px; align-items:center; min-height:44px; padding:7px 9px; border-radius:12px; }
         .cal-quick-subtask:hover { background:var(--cal-hover); }

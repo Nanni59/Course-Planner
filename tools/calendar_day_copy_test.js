@@ -31,6 +31,8 @@ const calendarAutofillHelper = slice('    window.cpGetCalendarTasksForDate=dateK
 const calendarInteractions = slice('    let subtaskHoverCloseTimer=null;', '\n    function bindMonthDrag');
 const calendarPickers = slice('    let calendarPickerOutside=null', '\n    function bindCalendarLinkPreviews');
 const calendarSettings = slice('    function settings()', '\n    function reminderStrip');
+const daySubtaskStyles = slice('        .day-card-subtasks {', '\n        .day-card-subtasks-title {');
+const hoverChecklistStyles = slice('        .cal-subtask-hover, .cal-subtask-quick {', '\n        .cal-subtask-quick { padding:8px; }');
 const helperWindow = {};
 new Function('window', 'date', 'expand', 'courses', calendarAutofillHelper)(
     helperWindow,
@@ -58,6 +60,7 @@ check('Day data persists copied subtasks', saveDay.includes('subtasks: subtasks'
 check('Day data restores copied subtasks', loadDay.includes('renderDayCardSubtasks(card, courseData.subtasks || [])'));
 check('subtask rows use independent card checkboxes', daySubtasks.includes('day-card-subtask-checkbox') && !daySubtasks.includes('task-checkbox day-card-subtask-checkbox'));
 check('copied subtask section is labeled Tasks:', daySubtasks.includes("${index ? '' : 'Tasks:'}</div>"));
+check('Day-card Tasks section is separated from Assignment', daySubtaskStyles.includes('border-top: 1px solid #eee;') && daySubtaskStyles.includes('padding-top: 10px;'));
 check('copied task names use editable Day-card fields', daySubtasks.includes('<textarea class="day-card-subtask-title"') && daySubtasks.includes("?.value.trim()"));
 check('copied tasks reuse the Lesson/Assignment three-column layout', daySubtasks.includes('class="task-main day-card-subtask-row') && daySubtasks.includes('<div class="task-name-wrapper">'));
 check('Day-card task edits sync to Calendar', html.includes('window.cpUpdateCalendarSubtask(row.dataset.subtaskId, { title: target.value })'));
@@ -80,6 +83,7 @@ check('Calendar picker controls use Century Gothic longhands', html.includes(".c
 check('dark Calendar fields do not erase checkbox ticks', html.includes('body.dark-mode .cal-field input:not([type="checkbox"])') && html.includes('body.dark-mode .cal-square-check:checked {') && html.includes('stroke=\'white\''));
 check('all Calendar form checkboxes receive the canonical style', html.includes("scope.querySelectorAll('input[type=\"checkbox\"]')") && html.includes("classList.add('cal-square-check')"));
 check('hover checklist uses the canonical checkbox style', calendarInteractions.includes('class="cal-square-check cal-subtask-hover-check"'));
+check('hover checklist text uses semi-bold Century Gothic', hoverChecklistStyles.includes(".cal-subtask-hover-row { display:flex") && hoverChecklistStyles.includes("font-family:'Century Gothic','Futura','Montserrat',sans-serif; font-size:11px; font-weight:600;") && hoverChecklistStyles.includes(".cal-subtask-hover-hint {") && hoverChecklistStyles.includes("font-size:9px; font-weight:600;"));
 check('legacy circular Calendar checkbox styling was removed', !html.includes('.cal-quick-subtask input[type="checkbox"]'));
 check('hover checklist updates Calendar subtasks directly', calendarInteractions.includes("updateOccurrence(p.dataset.id,p.dataset.occ,{subtasks:subs},true)"));
 check('Calendar item single-click opens details', calendarInteractions.includes("editor(find(e.dataset.id,e.dataset.occ))") && !calendarInteractions.includes("addEventListener('dblclick'"));
