@@ -61,7 +61,8 @@ check('Day data persists copied subtasks', saveDay.includes('subtasks: subtasks'
 check('Day data restores copied subtasks', loadDay.includes('renderDayCardSubtasks(card, courseData.subtasks || [])'));
 check('subtask rows use independent card checkboxes', daySubtasks.includes('day-card-subtask-checkbox') && !daySubtasks.includes('task-checkbox day-card-subtask-checkbox'));
 check('copied subtask section is labeled Tasks:', daySubtasks.includes("${index ? '' : 'Tasks:'}</div>"));
-check('Day-card Tasks divider appears only after coursework', daySubtaskStyles.includes('.day-card-subtasks.has-preceding-coursework {') && daySubtaskStyles.includes('border-top: 1px solid #eee;') && fieldVisibility.includes("classList.toggle('has-preceding-coursework', !!lessonVal || hasAnyAssignment)"));
+check('Day-card Tasks divider appears only after coursework', daySubtaskStyles.includes('.day-card-subtasks.has-preceding-coursework {') && daySubtaskStyles.includes('border-top: 1px solid #eee;') && fieldVisibility.includes("classList.toggle('has-preceding-coursework', hasPrecedingCoursework)"));
+check('task-only cards suppress both possible dividers', html.includes('.course-card.tasks-only .day-card-subtasks {') && html.includes('.course-card.tasks-only .task-lesson-main + hr {') && fieldVisibility.includes("card.classList.toggle('tasks-only', hasSubtasks && !hasPrecedingCoursework)"));
 check('copied task names use editable Day-card fields', daySubtasks.includes('<textarea class="day-card-subtask-title"') && daySubtasks.includes("?.value.trim()"));
 check('copied tasks reuse the Lesson/Assignment three-column layout', daySubtasks.includes('class="task-main day-card-subtask-row') && daySubtasks.includes('<div class="task-name-wrapper">'));
 check('Day-card task edits sync to Calendar', html.includes('window.cpUpdateCalendarSubtask(row.dataset.subtaskId, { title: target.value })'));
@@ -94,6 +95,7 @@ check('expanded task names proxy to the Day card', expandedCard.includes("realIn
 check('expanded task checkboxes proxy to the Day card', expandedCard.includes("syncType === 'subtask'") && expandedCard.includes("realRow?.querySelector('.day-card-subtask-checkbox')"));
 check('repeated copies deduplicate by subtask id', daySubtasks.includes('const ids = new Set') && daySubtasks.includes('!ids.has(subtaskId)'));
 check('subtask-only cards hide empty lesson/assignment controls', html.includes('if (hasSubtasks && !lessonVal && !hasAnyAssignment)'));
+check('reload re-normalizes Day-card field visibility after restore', loadDay.includes('updateCardFieldVisibility(card);'));
 check('Course filter was removed', !slice('    function filterUI()', '\n    function itemHTML').includes('data-filter="course"'));
 
 console.log(failures ? `\n${failures} DAY-COPY CASE(S) FAILED` : '\nALL DAY-COPY CASES PASS');

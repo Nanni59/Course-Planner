@@ -1383,6 +1383,18 @@
             border-top: 1px solid #eee;
         }
 
+        /* Reload-safe task-only state. This also suppresses the original
+           Lesson/Assignment separator if another restore step exposes it. */
+        .course-card.tasks-only .day-card-subtasks {
+            margin-top: 4px;
+            padding-top: 0;
+            border-top: 0;
+        }
+
+        .course-card.tasks-only .task-lesson-main + hr {
+            display: none !important;
+        }
+
         .day-card-subtasks-title {
             color: var(--active-color);
             font-size: 14px;
@@ -7899,10 +7911,12 @@
                 const hr = li.querySelector('.task-lesson-main + hr');
                 const hasSubtasks = !!li.querySelector('.day-card-subtask-row');
                 const subtaskSection = li.querySelector('.day-card-subtasks');
+                const hasPrecedingCoursework = !!lessonVal || hasAnyAssignment;
 
                 // A task-only card starts the card's content, so it has nothing to
                 // separate from. Add the divider only when coursework precedes it.
-                subtaskSection?.classList.toggle('has-preceding-coursework', !!lessonVal || hasAnyAssignment);
+                subtaskSection?.classList.toggle('has-preceding-coursework', hasPrecedingCoursework);
+                card.classList.toggle('tasks-only', hasSubtasks && !hasPrecedingCoursework);
 
                 if (hasSubtasks && !lessonVal && !hasAnyAssignment) {
                     if (lessonRow) lessonRow.style.display = 'none';
@@ -8415,6 +8429,10 @@
                             updateDayCardSplitProgress(card, courseTitle, val);
                         }
                     });
+
+                    // Normalize Lesson/Assignment/Tasks visibility after every
+                    // persisted field and dynamic row has finished restoring.
+                    updateCardFieldVisibility(card);
                 });
             }
 
