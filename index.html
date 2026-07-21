@@ -1374,6 +1374,10 @@
         }
 
         .day-card-subtasks {
+            margin-top: 4px;
+        }
+
+        .day-card-subtasks.has-preceding-coursework {
             margin-top: 10px;
             padding-top: 10px;
             border-top: 1px solid #eee;
@@ -3807,7 +3811,7 @@
         /* Notes / link values have no !important on their base rule — a lift is enough. */
         body.dark-mode .course-card .task-notes,
         body.dark-mode .course-card .task-link { color: #e8ebf2; }
-        body.dark-mode .day-card-subtasks { border-top-color: var(--clay-border); }
+        body.dark-mode .day-card-subtasks.has-preceding-coursework { border-top-color: var(--clay-border); }
         /* The "X of Y finished (Z%)" summary line under each tracker title. */
         body.dark-mode .tracker-summary { color: #aab2c2; }
 
@@ -7894,6 +7898,11 @@
                 const assignmentsContainer = li.querySelector('.task-assignments-container');
                 const hr = li.querySelector('.task-lesson-main + hr');
                 const hasSubtasks = !!li.querySelector('.day-card-subtask-row');
+                const subtaskSection = li.querySelector('.day-card-subtasks');
+
+                // A task-only card starts the card's content, so it has nothing to
+                // separate from. Add the divider only when coursework precedes it.
+                subtaskSection?.classList.toggle('has-preceding-coursework', !!lessonVal || hasAnyAssignment);
 
                 if (hasSubtasks && !lessonVal && !hasAnyAssignment) {
                     if (lessonRow) lessonRow.style.display = 'none';

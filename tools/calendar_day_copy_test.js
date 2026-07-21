@@ -33,6 +33,7 @@ const calendarPickers = slice('    let calendarPickerOutside=null', '\n    funct
 const calendarSettings = slice('    function settings()', '\n    function reminderStrip');
 const daySubtaskStyles = slice('        .day-card-subtasks {', '\n        .day-card-subtasks-title {');
 const hoverChecklistStyles = slice('        .cal-subtask-hover, .cal-subtask-quick {', '\n        .cal-subtask-quick { padding:8px; }');
+const fieldVisibility = slice('            function updateCardFieldVisibility(card)', '\n            // Delegated input listener for Day A and Day B');
 const helperWindow = {};
 new Function('window', 'date', 'expand', 'courses', calendarAutofillHelper)(
     helperWindow,
@@ -60,7 +61,7 @@ check('Day data persists copied subtasks', saveDay.includes('subtasks: subtasks'
 check('Day data restores copied subtasks', loadDay.includes('renderDayCardSubtasks(card, courseData.subtasks || [])'));
 check('subtask rows use independent card checkboxes', daySubtasks.includes('day-card-subtask-checkbox') && !daySubtasks.includes('task-checkbox day-card-subtask-checkbox'));
 check('copied subtask section is labeled Tasks:', daySubtasks.includes("${index ? '' : 'Tasks:'}</div>"));
-check('Day-card Tasks section is separated from Assignment', daySubtaskStyles.includes('border-top: 1px solid #eee;') && daySubtaskStyles.includes('padding-top: 10px;'));
+check('Day-card Tasks divider appears only after coursework', daySubtaskStyles.includes('.day-card-subtasks.has-preceding-coursework {') && daySubtaskStyles.includes('border-top: 1px solid #eee;') && fieldVisibility.includes("classList.toggle('has-preceding-coursework', !!lessonVal || hasAnyAssignment)"));
 check('copied task names use editable Day-card fields', daySubtasks.includes('<textarea class="day-card-subtask-title"') && daySubtasks.includes("?.value.trim()"));
 check('copied tasks reuse the Lesson/Assignment three-column layout', daySubtasks.includes('class="task-main day-card-subtask-row') && daySubtasks.includes('<div class="task-name-wrapper">'));
 check('Day-card task edits sync to Calendar', html.includes('window.cpUpdateCalendarSubtask(row.dataset.subtaskId, { title: target.value })'));
