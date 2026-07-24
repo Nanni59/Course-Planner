@@ -274,6 +274,227 @@
             text-align: left;
         }
 
+        /* Course roster editor inside the Backup tab. Unlike the export/import
+           panels above it (which are inline-styled and light-only) these rules
+           carry explicit body.dark-mode counterparts. */
+        .course-manager {
+            margin-top: 34px;
+            padding-top: 30px;
+            border-top: 1px solid var(--clay-border);
+        }
+
+        .course-manager .cm-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: #2c3340;
+            margin-bottom: 8px;
+        }
+
+        .course-manager .cm-intro {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 22px;
+            line-height: 1.6;
+            max-width: 640px;
+        }
+
+        .cm-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .cm-empty {
+            font-size: 13px;
+            color: #6b7280;
+            font-style: italic;
+            padding: 14px 2px;
+        }
+
+        .cm-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            padding: 12px 16px;
+            border-radius: 14px;
+            background: #f6f8fc;
+            box-shadow: inset 2px 2px 6px rgba(80, 100, 140, 0.10), inset -2px -2px 6px rgba(255, 255, 255, 0.9);
+            transition: background-color 0.15s ease;
+        }
+
+        .cm-row:hover {
+            background: #f1f5fb;
+        }
+
+        .cm-name {
+            flex: 1;
+            min-width: 160px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3340;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 9px;
+            padding: 7px 10px;
+            font-family: inherit;
+        }
+
+        .cm-name:hover {
+            border-color: rgba(80, 100, 140, 0.20);
+        }
+
+        .cm-name:focus {
+            outline: none;
+            background: #ffffff;
+            border-color: #3b82f6;
+        }
+
+        .cm-day-toggles {
+            display: flex;
+            gap: 12px;
+        }
+
+        .cm-day {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4b5563;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* Label follows its own checkbox's colour, so Day A reads blue and Day B
+           orange exactly like the tab bar. Falls back to the grey above wherever
+           :has() is unsupported. */
+        .cm-day:has(> [data-day="dayA"]) { color: var(--color-day-a); }
+        .cm-day:has(> [data-day="dayB"]) { color: var(--color-day-b); }
+
+        /* The day toggles reuse the Calendar's .cal-square-check (geometry, the
+           white SVG tick and both theme states come from there). Only the accent
+           is re-pointed, per day, so a ticked box matches the Day A / Day B colour
+           used by the tab bar and the trackers. Overriding --cal-accent rather
+           than background-color keeps the :checked rule — and its dark-mode
+           counterpart — as the single source of the tick. */
+        .cm-day .cal-square-check[data-day="dayA"] { --cal-accent: var(--color-day-a); }
+        .cm-day .cal-square-check[data-day="dayB"] { --cal-accent: var(--color-day-b); }
+        .cm-day .cal-square-check[data-day="dayA"]:checked {
+            box-shadow: 0 4px 8px rgba(52, 152, 219, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        }
+        .cm-day .cal-square-check[data-day="dayB"]:checked {
+            box-shadow: 0 4px 8px rgba(237, 125, 49, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        }
+
+        .cm-btn {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 9px 16px;
+            border: none;
+            border-radius: 11px;
+            cursor: pointer;
+        }
+
+        /* Same green primary as .cal-btn.primary and the Backup export/import pair. */
+        .cm-btn-add {
+            background: linear-gradient(145deg, var(--color-tracker-green), #4a9152);
+            color: #ffffff;
+            box-shadow: 0 7px 15px rgba(74, 150, 83, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+        }
+
+        .cm-btn-remove {
+            background: #fdecea;
+            color: #c0392b;
+        }
+
+        .cm-btn-remove:hover {
+            background: #f8d7d3;
+        }
+
+        .cm-add {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px dashed rgba(80, 100, 140, 0.28);
+        }
+
+        .cm-input {
+            flex: 1;
+            min-width: 180px;
+            font-family: inherit;
+            font-size: 14px;
+            color: #2c3340;
+            padding: 9px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(80, 100, 140, 0.20);
+            background: #ffffff;
+        }
+
+        .cm-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .cm-error {
+            margin-top: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #c0392b;
+        }
+
+        /* The Export/Import panels above the roster carry their palette in inline
+           style attributes (light-mode literals), which no normal rule can beat —
+           hence !important, scoped to dark mode only. Light mode keeps the exact
+           inline values, so nothing there changes. */
+        body.dark-mode .bk-title { color: #e4e8f0 !important; }
+        body.dark-mode .bk-intro,
+        body.dark-mode .bk-panel-text { color: var(--color-text-gray) !important; }
+        body.dark-mode .bk-panel-title { color: #e4e8f0 !important; }
+        body.dark-mode .bk-panel {
+            background: #232c38 !important;
+            box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.38), inset -2px -2px 6px rgba(255, 255, 255, 0.03) !important;
+        }
+        body.dark-mode .bk-icon {
+            background: #24352c !important;
+            color: #8fd39a !important;
+            box-shadow: 3px 3px 7px rgba(0, 0, 0, 0.34), -3px -3px 7px rgba(255, 255, 255, 0.03) !important;
+        }
+
+        body.dark-mode .course-manager .cm-title { color: #e4e8f0; }
+        body.dark-mode .course-manager .cm-intro,
+        body.dark-mode .cm-empty { color: var(--color-text-gray); }
+        body.dark-mode .cm-row {
+            background: #232c38;
+            box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.38), inset -2px -2px 6px rgba(255, 255, 255, 0.03);
+        }
+        body.dark-mode .cm-row:hover { background: #283242; }
+        body.dark-mode .cm-name { color: #e4e8f0; }
+        body.dark-mode .cm-name:hover { border-color: rgba(255, 255, 255, 0.16); }
+        body.dark-mode .cm-name:focus {
+            background: var(--clay-field-bg);
+            border-color: #4f93f0;
+        }
+        body.dark-mode .cm-day { color: #c2cad8; }
+        /* Lifted off the light-mode hues so they stay legible on the dark row. */
+        body.dark-mode .cm-day:has(> [data-day="dayA"]) { color: #6fb9e8; }
+        body.dark-mode .cm-day:has(> [data-day="dayB"]) { color: #f0975c; }
+        body.dark-mode .cm-add { border-color: rgba(255, 255, 255, 0.16); }
+        body.dark-mode .cm-input {
+            background: var(--clay-field-bg);
+            border-color: rgba(255, 255, 255, 0.14);
+            color: #e4e8f0;
+        }
+        body.dark-mode .cm-input:focus { border-color: #4f93f0; }
+        body.dark-mode .cm-btn-remove { background: #3a2320; color: #f0938a; }
+        body.dark-mode .cm-btn-remove:hover { background: #4a2b27; }
+        body.dark-mode .cm-error { color: #f0938a; }
+
         .progress-bar-label {
             font-size: 16px;
             font-weight: 600;
@@ -4365,8 +4586,11 @@
            overlays below are listed explicitly: toast, subtask hover, subtask
            quick-list and colour picker are appended to document.body, NOT into
            #calendarTab, so a #calendarTab-only scope leaves them with
-           unresolved var()s. Add any future body-appended layer here too. */
-        #calendarTab, .cal-toast, .cal-subtask-hover, .cal-subtask-quick, .cal-color-picker, .cal-picker {
+           unresolved var()s. Add any future body-appended layer here too.
+           .course-manager is the same situation for a different reason: it lives in
+           #backupTab but reuses .cal-square-check, so it needs the tokens as well. */
+        #calendarTab, .cal-toast, .cal-subtask-hover, .cal-subtask-quick, .cal-color-picker, .cal-picker,
+        .course-manager {
             --cal-surface: var(--clay-surface);        /* panels, modal, popover */
             --cal-raised: var(--clay-surface);         /* buttons and chips: white + outer shadow */
             /* --cal-track vs --cal-field is a REAL distinction, not a duplicate:
@@ -4397,7 +4621,8 @@
                                                           still separates from --cal-hover above */
         }
         body.dark-mode #calendarTab, body.dark-mode .cal-toast, body.dark-mode .cal-subtask-hover,
-        body.dark-mode .cal-subtask-quick, body.dark-mode .cal-color-picker, body.dark-mode .cal-picker {
+        body.dark-mode .cal-subtask-quick, body.dark-mode .cal-color-picker, body.dark-mode .cal-picker,
+        body.dark-mode .course-manager {
             /* The green tint is a light-mode characteristic: --color-tracker-tint
                re-points to a dark green-black (#18221a) in dark mode, which would make
                the calendar greener AND darker than every other screen. So dark keeps a
@@ -5235,412 +5460,11 @@
 
     <main id="mainContent">
         <div id="dayA" class="tab-content active">
-            <div class="course-grid">
-                <div class="course-card" data-course-name="Calculus & Vectors" data-day="dayA">
-                    <h3>Calculus & Vectors</h3>
-                    <button class="delete-course-card-btn" data-course="Calculus & Vectors" data-day="dayA"
-                        title="Clear all tasks in this card">
-                        &times;
-                    </button>
-                    <div class="course-content-scroll-area">
-                        <ul class="task-list">
-                            <li>
-                                <div class="task-main task-lesson-main">
-                                    <div class="task-type-label">Lesson:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name"
-                                            placeholder="Lesson Name"></textarea>
-                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                                </div>
-
-                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-
-                                <div class="task-main task-assignment-main">
-                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name"
-                                            placeholder="Assignment Name"></textarea>
-                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                                </div>
-
-                                <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
-                                </div>
-                                <div class="link-list-container">
-                                    <div class="link-input-row">
-                                        <input type="text" class="task-link" placeholder="Paste link here...">
-                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
-                                            <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
-                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                        stroke-linejoin="round">
-                                                        <circle cx="12" cy="12" r="10"></circle>
-                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
-                                                        <path
-                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
-                                                        </path>
-                                                    </svg></div>
-                                                <span class="inline-link-text"></span>
-                                            </div>
-                                            <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
-                                                    </path>
-                                                </svg>
-                                            </button>
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        </ul>
-                        <div class="course-embed-container"></div>
-                    </div>
-                </div>
-
-                <div class="course-card" data-course-name="English" data-day="dayA">
-                    <h3>English</h3>
-                    <button class="delete-course-card-btn" data-course="English" data-day="dayA"
-                        title="Clear all tasks in this card">
-                        &times;
-                    </button>
-                    <div class="course-content-scroll-area">
-                        <ul class="task-list">
-                            <li>
-                                <div class="task-main task-lesson-main">
-                                    <div class="task-type-label">Lesson:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name"
-                                            placeholder="Lesson Name"></textarea>
-                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                                </div>
-
-                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-
-                                <div class="task-main task-assignment-main">
-                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name"
-                                            placeholder="Assignment Name"></textarea>
-                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                                </div>
-
-                                <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
-                                </div>
-                                <div class="link-list-container">
-                                    <div class="link-input-row">
-                                        <input type="text" class="task-link" placeholder="Paste link here...">
-                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
-                                            <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
-                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                        stroke-linejoin="round">
-                                                        <circle cx="12" cy="12" r="10"></circle>
-                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
-                                                        <path
-                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
-                                                        </path>
-                                                    </svg></div>
-                                                <span class="inline-link-text"></span>
-                                            </div>
-                                            <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
-                                                    </path>
-                                                </svg>
-                                            </button>
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        </ul>
-                        <div class="course-embed-container"></div>
-                    </div>
-                </div>
-
-
-                <div class="course-card" data-course-name="Media Arts" data-day="dayA">
-                    <h3>Media Arts</h3>
-                    <button class="delete-course-card-btn" data-course="Media Arts" data-day="dayA"
-                        title="Clear all tasks in this card">
-                        &times;
-                    </button>
-                    <div class="course-content-scroll-area">
-                        <ul class="task-list">
-                            <li>
-                                <div class="task-main task-lesson-main">
-                                    <div class="task-type-label">Lesson:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name"
-                                            placeholder="Lesson Name"></textarea>
-                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                                </div>
-
-                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-
-                                <div class="task-main task-assignment-main">
-                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name"
-                                            placeholder="Assignment Name"></textarea>
-                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                                </div>
-
-                                <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
-                                </div>
-                                <div class="link-list-container">
-                                    <div class="link-input-row">
-                                        <input type="text" class="task-link" placeholder="Paste link here...">
-                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
-                                            <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
-                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                        stroke-linejoin="round">
-                                                        <circle cx="12" cy="12" r="10"></circle>
-                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
-                                                        <path
-                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
-                                                        </path>
-                                                    </svg></div>
-                                                <span class="inline-link-text"></span>
-                                            </div>
-                                            <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
-                                                    </path>
-                                                </svg>
-                                            </button>
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        </ul>
-                        <div class="course-embed-container"></div>
-                    </div>
-                </div>
-
-            </div>
+            <div class="course-grid"></div>
         </div>
 
         <div id="dayB" class="tab-content">
-            <div class="course-grid">
-                <div class="course-card" data-course-name="Calculus & Vectors" data-day="dayB">
-                    <h3>Calculus & Vectors</h3>
-                    <button class="delete-course-card-btn" data-course="Calculus & Vectors" data-day="dayB"
-                        title="Clear all tasks in this card">
-                        &times;
-                    </button>
-                    <div class="course-content-scroll-area">
-                        <ul class="task-list">
-                            <li>
-                                <div class="task-main task-lesson-main">
-                                    <div class="task-type-label">Lesson:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name"
-                                            placeholder="Lesson Name"></textarea>
-                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                                </div>
-
-                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-
-                                <div class="task-main task-assignment-main">
-                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name"
-                                            placeholder="Assignment Name"></textarea>
-                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                                </div>
-
-                                <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
-                                </div>
-                                <div class="link-list-container">
-                                    <div class="link-input-row">
-                                        <input type="text" class="task-link" placeholder="Paste link here...">
-                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
-                                            <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
-                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                        stroke-linejoin="round">
-                                                        <circle cx="12" cy="12" r="10"></circle>
-                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
-                                                        <path
-                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
-                                                        </path>
-                                                    </svg></div>
-                                                <span class="inline-link-text"></span>
-                                            </div>
-                                            <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
-                                                    </path>
-                                                </svg>
-                                            </button>
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        </ul>
-                        <div class="course-embed-container"></div>
-                    </div>
-                </div>
-
-                <div class="course-card" data-course-name="English" data-day="dayB">
-                    <h3>English</h3>
-                    <button class="delete-course-card-btn" data-course="English" data-day="dayB"
-                        title="Clear all tasks in this card">
-                        &times;
-                    </button>
-                    <div class="course-content-scroll-area">
-                        <ul class="task-list">
-                            <li>
-                                <div class="task-main task-lesson-main">
-                                    <div class="task-type-label">Lesson:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name"
-                                            placeholder="Lesson Name"></textarea>
-                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                                </div>
-
-                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-
-                                <div class="task-main task-assignment-main">
-                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name"
-                                            placeholder="Assignment Name"></textarea>
-                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                                </div>
-
-                                <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
-                                </div>
-                                <div class="link-list-container">
-                                    <div class="link-input-row">
-                                        <input type="text" class="task-link" placeholder="Paste link here...">
-                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
-                                            <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
-                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                        stroke-linejoin="round">
-                                                        <circle cx="12" cy="12" r="10"></circle>
-                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
-                                                        <path
-                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
-                                                        </path>
-                                                    </svg></div>
-                                                <span class="inline-link-text"></span>
-                                            </div>
-                                            <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
-                                                    </path>
-                                                </svg>
-                                            </button>
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        </ul>
-                        <div class="course-embed-container"></div>
-                    </div>
-                </div>
-
-                <div class="course-card" data-course-name="Business Leadership" data-day="dayB">
-                    <h3>Business Leadership</h3>
-                    <button class="delete-course-card-btn" data-course="Business Leadership" data-day="dayB"
-                        title="Clear all tasks in this card">
-                        &times;
-                    </button>
-                    <div class="course-content-scroll-area">
-                        <ul class="task-list">
-                            <li>
-                                <div class="task-main task-lesson-main">
-                                    <div class="task-type-label">Lesson:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-lesson-name"
-                                            placeholder="Lesson Name"></textarea>
-                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
-                                </div>
-
-                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-
-                                <div class="task-main task-assignment-main">
-                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
-                                    <div class="task-name-wrapper">
-                                        <textarea class="task-name task-assignment-name"
-                                            placeholder="Assignment Name"></textarea>
-                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
-                                    </div>
-                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
-                                </div>
-
-                                <div class="task-notes-row">
-                                    <textarea class="task-notes" placeholder="Notes"></textarea>
-                                </div>
-                                <div class="link-list-container">
-                                    <div class="link-input-row">
-                                        <input type="text" class="task-link" placeholder="Paste link here...">
-                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
-                                            <div class="inline-link-content">
-                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
-                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                        stroke-linejoin="round">
-                                                        <circle cx="12" cy="12" r="10"></circle>
-                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
-                                                        <path
-                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
-                                                        </path>
-                                                    </svg></div>
-                                                <span class="inline-link-text"></span>
-                                            </div>
-                                            <button class="inline-link-edit" type="button" title="Edit Link">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
-                                                    </path>
-                                                </svg>
-                                            </button>
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        </ul>
-                        <div class="course-embed-container"></div>
-                    </div>
-                </div>
-
-
-
-            </div>
+            <div class="course-grid"></div>
         </div>
 
         <div id="lessonTracker" class="tab-content">
@@ -5666,18 +5490,18 @@
         <div id="backupTab" class="tab-content">
             <div style="max-width: 900px; margin: 0 auto; padding: 40px 20px;">
                 <div class="backup-container">
-                    <h2 style="font-size: 26px; font-weight: 700; color: #2c3340; margin-bottom: 10px;">Backup &amp;
+                    <h2 class="bk-title" style="font-size: 26px; font-weight: 700; color: #2c3340; margin-bottom: 10px;">Backup &amp;
                         Restore</h2>
-                    <p style="font-size: 15px; color: #6b7280; margin-bottom: 30px; line-height: 1.6;">Protect your data
+                    <p class="bk-intro" style="font-size: 15px; color: #6b7280; margin-bottom: 30px; line-height: 1.6;">Protect your data
                         by exporting a complete snapshot of your planner to a JSON file. You can restore your data anytime
                         using the import feature.</p>
 
                     <div style="display: flex; gap: 24px; flex-wrap: wrap;">
                         <!-- Export Section -->
-                        <div
+                        <div class="bk-panel"
                             style="flex: 1; min-width: 300px; padding: 28px; border-radius: 18px; background: #f6f8fc; box-shadow: inset 2px 2px 6px rgba(80,100,140,0.10), inset -2px -2px 6px rgba(255,255,255,0.9);">
                             <div
-                                style="width:46px; height:46px; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; background:#e8f0fe; color:#3b82f6; box-shadow:3px 3px 7px rgba(80,100,140,0.10), -3px -3px 7px rgba(255,255,255,0.9);">
+                                class="bk-icon" style="width:46px; height:46px; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; background:#e4f2e6; color:#3f7d47; box-shadow:3px 3px 7px rgba(80,100,140,0.10), -3px -3px 7px rgba(255,255,255,0.9);">
                                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -5685,13 +5509,13 @@
                                     <line x1="12" y1="15" x2="12" y2="3"></line>
                                 </svg>
                             </div>
-                            <h3 style="font-size: 17px; font-weight: 600; color: #2c3340; margin-bottom: 8px;">Export Data
+                            <h3 class="bk-panel-title" style="font-size: 17px; font-weight: 600; color: #2c3340; margin-bottom: 8px;">Export Data
                             </h3>
-                            <p style="font-size: 13px; color: #6b7280; margin-bottom: 22px; line-height: 1.6;">Download
+                            <p class="bk-panel-text" style="font-size: 13px; color: #6b7280; margin-bottom: 22px; line-height: 1.6;">Download
                                 your current data as a JSON file. This includes all tasks, tracker items, and settings.
                             </p>
                             <button id="exportJsonBtn"
-                                style="display:inline-flex; align-items:center; gap:8px; font-family: inherit; font-size: 14px; font-weight: 600; padding: 11px 22px; background: linear-gradient(135deg, #4f93f0, #3b82f6); color: white; border: none; border-radius: 12px; cursor: pointer; box-shadow:0 4px 12px rgba(59,130,246,0.30);">
+                                style="display:inline-flex; align-items:center; gap:8px; font-family: inherit; font-size: 14px; font-weight: 600; padding: 11px 22px; background: linear-gradient(145deg, #58A65C, #4a9152); color: white; border: none; border-radius: 12px; cursor: pointer; box-shadow:0 7px 15px rgba(74,150,83,0.30), inset 0 1px 0 rgba(255,255,255,0.28);">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -5703,10 +5527,10 @@
                         </div>
 
                         <!-- Import Section -->
-                        <div
+                        <div class="bk-panel"
                             style="flex: 1; min-width: 300px; padding: 28px; border-radius: 18px; background: #f6f8fc; box-shadow: inset 2px 2px 6px rgba(80,100,140,0.10), inset -2px -2px 6px rgba(255,255,255,0.9);">
                             <div
-                                style="width:46px; height:46px; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; background:#fdeee2; color:#e67e22; box-shadow:3px 3px 7px rgba(80,100,140,0.10), -3px -3px 7px rgba(255,255,255,0.9);">
+                                class="bk-icon" style="width:46px; height:46px; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; background:#e4f2e6; color:#3f7d47; box-shadow:3px 3px 7px rgba(80,100,140,0.10), -3px -3px 7px rgba(255,255,255,0.9);">
                                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -5714,13 +5538,13 @@
                                     <line x1="12" y1="3" x2="12" y2="15"></line>
                                 </svg>
                             </div>
-                            <h3 style="font-size: 17px; font-weight: 600; color: #2c3340; margin-bottom: 8px;">Import Data
+                            <h3 class="bk-panel-title" style="font-size: 17px; font-weight: 600; color: #2c3340; margin-bottom: 8px;">Import Data
                             </h3>
-                            <p style="font-size: 13px; color: #6b7280; margin-bottom: 22px; line-height: 1.6;">Restore
+                            <p class="bk-panel-text" style="font-size: 13px; color: #6b7280; margin-bottom: 22px; line-height: 1.6;">Restore
                                 your data from a JSON backup file. This will <strong>overwrite</strong> all current data.
                             </p>
                             <button id="importJsonBtn"
-                                style="display:inline-flex; align-items:center; gap:8px; font-family: inherit; font-size: 14px; font-weight: 600; padding: 11px 22px; background: linear-gradient(135deg, #f0974f, #e67e22); color: white; border: none; border-radius: 12px; cursor: pointer; box-shadow:0 4px 12px rgba(230,126,34,0.30);">
+                                style="display:inline-flex; align-items:center; gap:8px; font-family: inherit; font-size: 14px; font-weight: 600; padding: 11px 22px; background: linear-gradient(145deg, #58A65C, #4a9152); color: white; border: none; border-radius: 12px; cursor: pointer; box-shadow:0 7px 15px rgba(74,150,83,0.30), inset 0 1px 0 rgba(255,255,255,0.28);">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -5731,6 +5555,29 @@
                             </button>
                             <input type="file" id="importFile" accept=".json" style="display: none;">
                         </div>
+                    </div>
+
+                    <!-- Course roster editor. Rows are built by renderCourseManager(). -->
+                    <div class="course-manager">
+                        <h3 class="cm-title">Your Courses</h3>
+                        <p class="cm-intro">Add the courses you are taking and pick the days each one
+                            meets. Changes apply everywhere at once — Day A and Day B cards, both
+                            trackers, the Calendar subject list and the Study Tools subject menus.</p>
+
+                        <div class="cm-list" id="courseManagerList"></div>
+
+                        <form class="cm-add" id="courseAddForm" autocomplete="off">
+                            <input class="cm-input" id="courseAddName" type="text" maxlength="60"
+                                placeholder="New course name" aria-label="New course name">
+                            <div class="cm-day-toggles" role="group" aria-label="Days this course meets">
+                                <label class="cm-day"><input class="cal-square-check" type="checkbox"
+                                        id="courseAddDayA" data-day="dayA" checked> Day A</label>
+                                <label class="cm-day"><input class="cal-square-check" type="checkbox"
+                                        id="courseAddDayB" data-day="dayB"> Day B</label>
+                            </div>
+                            <button class="cm-btn cm-btn-add" type="submit">Add course</button>
+                        </form>
+                        <p class="cm-error" id="courseAddError" role="alert" hidden></p>
                     </div>
                 </div>
             </div>
@@ -5777,6 +5624,78 @@
             <button id="saveBtn">Save</button>
         </div>
     </footer>
+
+    <!-- Blueprint for one Day A/B course card. renderCourseCards() clones this
+         once per course per day; the roster itself lives in localStorage so
+         courses can be added or removed from the Backup tab without editing
+         any markup. Keep the inner structure in sync with saveData/loadDay. -->
+    <template id="courseCardTemplate">
+                <div class="course-card" data-course-name="" data-day="">
+                    <h3></h3>
+                    <button class="delete-course-card-btn" data-course="" data-day=""
+                        title="Clear all tasks in this card">
+                        &times;
+                    </button>
+                    <div class="course-content-scroll-area">
+                        <ul class="task-list">
+                            <li>
+                                <div class="task-main task-lesson-main">
+                                    <div class="task-type-label">Lesson:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-lesson-name"
+                                            placeholder="Lesson Name"></textarea>
+                                        <ul class="search-suggestions task-lesson-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-lesson-checkbox">
+                                </div>
+
+                                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+
+                                <div class="task-main task-assignment-main">
+                                    <div class="task-type-label"><span class="task-type-text">Assignment</span>:</div>
+                                    <div class="task-name-wrapper">
+                                        <textarea class="task-name task-assignment-name"
+                                            placeholder="Assignment Name"></textarea>
+                                        <ul class="search-suggestions task-assignment-suggestions"></ul>
+                                    </div>
+                                    <input type="checkbox" class="task-checkbox task-assignment-checkbox">
+                                </div>
+
+                                <div class="task-notes-row">
+                                    <textarea class="task-notes" placeholder="Notes"></textarea>
+                                </div>
+                                <div class="link-list-container">
+                                    <div class="link-input-row">
+                                        <input type="text" class="task-link" placeholder="Paste link here...">
+                                        <a href="#" target="_blank" rel="noopener noreferrer" class="inline-link-chip">
+                                            <div class="inline-link-content">
+                                                <div class="inline-link-icon"><svg viewBox="0 0 24 24" fill="none"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                        stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                        <path
+                                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                                        </path>
+                                                    </svg></div>
+                                                <span class="inline-link-text"></span>
+                                            </div>
+                                            <button class="inline-link-edit" type="button" title="Edit Link">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z">
+                                                    </path>
+                                                </svg>
+                                            </button>
+                                        </a>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="course-embed-container"></div>
+                    </div>
+                </div>
+    </template>
 
     <div id="trackerContextMenu" class="context-menu" style="display: none;">
         <div class="context-menu-item" id="pauseUnpauseBtn"></div>
@@ -6071,13 +5990,257 @@
             const LS_SPLIT_ASSIGNMENTS_KEY = 'split_assignments'; // NEW: Split assignments progress data
             const LS_LESSON_LINKS_KEY = 'lesson_links'; // NEW: Lesson links storage
             const LS_PRIORITIES_KEY = 'course_priorities'; // NEW: Course prioritization storage
-            const ALL_COURSE_NAMES = [
-                "Calculus & Vectors", "English", "Media Arts", "Business Leadership"
+            const LS_COURSES_KEY = 'cp_courses_v1'; // NEW: user-editable course roster
+
+            /* --- Course roster -------------------------------------------------
+               Courses used to be six hard-coded .course-card blocks in the markup,
+               so finishing a course meant editing the file. The roster now lives in
+               localStorage and #courseCardTemplate is cloned per entry, which lets
+               the Backup tab add, rename and remove courses at runtime. Everything
+               downstream (Day A/B cards, both trackers, the Calendar subject list
+               and the Study Tools subject dropdowns) reads from here.
+
+               Shape: [{ name: string, days: ['dayA'] | ['dayB'] | ['dayA','dayB'] }]
+               A course with two days gets a card on both — the old
+               isCourseOnBothDays() special case, generalised.                     */
+            const DEFAULT_COURSES = [
+                { name: 'Calculus & Vectors', days: ['dayA', 'dayB'] },
+                { name: 'English', days: ['dayA', 'dayB'] },
+                { name: 'Media Arts', days: ['dayA'] },
+                { name: 'Business Leadership', days: ['dayB'] }
             ];
 
-            function isCourseOnBothDays(courseName) {
-                return courseName === 'Calculus & Vectors' || courseName === 'English';
+            // '::' joins course to item in the lesson_links / split_assignments keys,
+            // so a name containing it would make those keys ambiguous.
+            const COURSE_NAME_SEPARATOR = '::';
+
+            function isValidCourseName(name) {
+                const trimmed = String(name == null ? '' : name).trim();
+                return !!trimmed && !trimmed.includes(COURSE_NAME_SEPARATOR);
             }
+
+            // Returns a clean roster, or null when `raw` isn't an array at all.
+            // A deliberately emptied roster ([]) is valid and must survive as [].
+            function normalizeCourseList(raw) {
+                if (!Array.isArray(raw)) return null;
+                const seen = new Set();
+                const out = [];
+                raw.forEach(entry => {
+                    const name = String((entry && entry.name) || '').trim();
+                    if (!isValidCourseName(name) || seen.has(name)) return;
+                    const days = ['dayA', 'dayB'].filter(d =>
+                        entry && Array.isArray(entry.days) && entry.days.includes(d));
+                    if (!days.length) return; // a course on neither day has no card
+                    seen.add(name);
+                    out.push({ name: name, days: days });
+                });
+                return out;
+            }
+
+            function getCourses() {
+                let raw = null;
+                try { raw = JSON.parse(localStorage.getItem(LS_COURSES_KEY)); } catch (e) { }
+                const normalized = normalizeCourseList(raw);
+                if (normalized) return normalized;
+                // Key absent or corrupt: seed the original four so existing installs
+                // keep every card and all of its saved data.
+                return DEFAULT_COURSES.map(c => ({ name: c.name, days: c.days.slice() }));
+            }
+
+            function setCourses(list) {
+                localStorage.setItem(LS_COURSES_KEY,
+                    JSON.stringify(normalizeCourseList(list) || []));
+            }
+
+            function getCourseDays(courseName) {
+                const course = getCourses().find(c => c.name === courseName);
+                return course ? course.days.slice() : [];
+            }
+
+            // Rebuilt on every roster change; other modules read it synchronously.
+            let ALL_COURSE_NAMES = getCourses().map(c => c.name);
+
+            function isCourseOnBothDays(courseName) {
+                return getCourseDays(courseName).length === 2;
+            }
+
+            // Builds every Day A/B card from the roster. Runs before any per-card
+            // setup (priority badges, delegated listeners, loadData) so the rest of
+            // the app sees exactly what the static markup used to provide.
+            function renderCourseCards() {
+                const template = document.getElementById('courseCardTemplate');
+                if (!template) return;
+                const courses = getCourses();
+
+                ['dayA', 'dayB'].forEach(dayId => {
+                    const grid = document.querySelector('#' + dayId + ' .course-grid');
+                    if (!grid) return;
+                    grid.innerHTML = '';
+                    courses.filter(c => c.days.includes(dayId)).forEach(course => {
+                        const card = template.content.firstElementChild.cloneNode(true);
+                        card.setAttribute('data-course-name', course.name);
+                        card.setAttribute('data-day', dayId);
+                        card.querySelector('h3').textContent = course.name;
+                        const clearBtn = card.querySelector('.delete-course-card-btn');
+                        if (clearBtn) {
+                            clearBtn.setAttribute('data-course', course.name);
+                            clearBtn.setAttribute('data-day', dayId);
+                        }
+                        grid.appendChild(card);
+                    });
+                });
+            }
+
+            /* Rewrites (newName set) or erases (newName null) one course across
+               every store that keys data by course name. Adding a course needs
+               nothing here — the app treats missing entries as empty. */
+            function rewriteCourseInStorage(oldName, newName) {
+                const rename = newName !== null;
+
+                const readObject = key => {
+                    let value = null;
+                    try { value = JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
+                    return (value && typeof value === 'object' && !Array.isArray(value)) ? value : null;
+                };
+
+                // dayA_data / dayB_data and the flat { [courseName]: value } stores
+                ['dayA_data', 'dayB_data', LS_MOVED_COURSES_KEY, LS_COURSE_CUSTOM_LINKS_KEY]
+                    .forEach(key => {
+                        const data = readObject(key);
+                        if (!data || !Object.prototype.hasOwnProperty.call(data, oldName)) return;
+                        const value = data[oldName];
+                        delete data[oldName];
+                        if (rename) data[newName] = value;
+                        localStorage.setItem(key, JSON.stringify(data));
+                    });
+
+                // tracker_lessons / tracker_assignments: [{ course, ... }]
+                [LS_LESSONS_KEY, LS_ASSIGNMENTS_KEY].forEach(key => {
+                    let data = null;
+                    try { data = JSON.parse(localStorage.getItem(key)); } catch (e) { return; }
+                    if (!Array.isArray(data)) return;
+                    const next = rename
+                        ? data.map(item => (item && item.course === oldName
+                            ? Object.assign({}, item, { course: newName })
+                            : item))
+                        : data.filter(item => !item || item.course !== oldName);
+                    if (next.length !== data.length || rename) {
+                        localStorage.setItem(key, JSON.stringify(next));
+                    }
+                });
+
+                // tracker_paused_courses: { lesson: [names], assignment: [names] }
+                const paused = getPausedCourses();
+                ['lesson', 'assignment'].forEach(type => {
+                    const list = paused[type] || [];
+                    paused[type] = rename
+                        ? list.map(n => (n === oldName ? newName : n))
+                        : list.filter(n => n !== oldName);
+                });
+                localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(paused));
+
+                // lesson_links / split_assignments: { "Course::Item": value }
+                [LS_LESSON_LINKS_KEY, LS_SPLIT_ASSIGNMENTS_KEY].forEach(key => {
+                    const data = readObject(key);
+                    if (!data) return;
+                    const next = {};
+                    let changed = false;
+                    Object.keys(data).forEach(k => {
+                        const sep = k.indexOf(COURSE_NAME_SEPARATOR);
+                        const course = sep < 0 ? k : k.slice(0, sep);
+                        if (course !== oldName) { next[k] = data[k]; return; }
+                        changed = true;
+                        if (rename) next[newName + (sep < 0 ? '' : k.slice(sep))] = data[k];
+                    });
+                    if (changed) localStorage.setItem(key, JSON.stringify(next));
+                });
+
+                // course_priorities: { "dayA_Course": n }
+                const priorities = readObject(LS_PRIORITIES_KEY);
+                if (priorities) {
+                    const next = {};
+                    let changed = false;
+                    Object.keys(priorities).forEach(k => {
+                        const match = /^(dayA|dayB)_([\s\S]*)$/.exec(k);
+                        if (!match || match[2] !== oldName) { next[k] = priorities[k]; return; }
+                        changed = true;
+                        if (rename) next[match[1] + '_' + newName] = priorities[k];
+                    });
+                    if (changed) localStorage.setItem(LS_PRIORITIES_KEY, JSON.stringify(next));
+                }
+            }
+
+            // Drops the per-day data a course leaves behind when it stops meeting on
+            // that day, so re-adding the day later starts from a clean card.
+            function dropCourseDayData(courseName, dayId) {
+                let data = null;
+                try { data = JSON.parse(localStorage.getItem(dayId + '_data')); } catch (e) { data = null; }
+                if (data && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, courseName)) {
+                    delete data[courseName];
+                    localStorage.setItem(dayId + '_data', JSON.stringify(data));
+                }
+
+                let priorities = null;
+                try { priorities = JSON.parse(localStorage.getItem(LS_PRIORITIES_KEY)); } catch (e) { priorities = null; }
+                const key = dayId + '_' + courseName;
+                if (priorities && typeof priorities === 'object' && priorities[key] !== undefined) {
+                    delete priorities[key];
+                    localStorage.setItem(LS_PRIORITIES_KEY, JSON.stringify(priorities));
+                }
+
+                // A move only makes sense while the course has one day; clear it so
+                // applyMovedCourses() can't strand the card in the wrong grid.
+                const moved = (function () {
+                    try { return JSON.parse(localStorage.getItem(LS_MOVED_COURSES_KEY)) || {}; }
+                    catch (e) { return {}; }
+                })();
+                if (moved[courseName]) {
+                    delete moved[courseName];
+                    localStorage.setItem(LS_MOVED_COURSES_KEY, JSON.stringify(moved));
+                }
+            }
+
+            /* The one way the roster changes. Persists in-flight Day A/B edits
+               first, runs `mutate` (which rewrites storage), then rebuilds every
+               view that lists courses. */
+            function applyCourseRosterChange(mutate) {
+                if (typeof saveData === 'function') {
+                    ['dayA', 'dayB'].forEach(dayId => {
+                        if (document.querySelector('#' + dayId + ' .course-card')) saveData(dayId);
+                    });
+                }
+
+                mutate();
+
+                ALL_COURSE_NAMES = getCourses().map(c => c.name);
+                renderCourseCards();
+
+                if (typeof initPriorityBadges === 'function') initPriorityBadges();
+                if (typeof populateCourseDropdowns === 'function') populateCourseDropdowns();
+                if (typeof loadData === 'function') loadData();
+                if (typeof updateInlineExpandButtons === 'function') updateInlineExpandButtons();
+                if (typeof renderTracker === 'function') {
+                    renderTracker('lesson');
+                    renderTracker('assignment');
+                }
+                if (typeof calculateAndRenderOverallProgress === 'function') {
+                    calculateAndRenderOverallProgress('lesson');
+                    calculateAndRenderOverallProgress('assignment');
+                }
+                // Calendar subject lists and Study Tools subject dropdowns.
+                if (typeof window.cpSyncCourseRoster === 'function') window.cpSyncCourseRoster();
+                if (typeof window.cpSyncStudySubjects === 'function') window.cpSyncStudySubjects();
+
+                renderCourseManager();
+            }
+
+            // Read-only view of the roster for the Calendar engine, which is a
+            // separate script and cannot see these bindings.
+            window.cpGetCourseNames = () => getCourses().map(c => c.name);
+
+            // Persist the seeded default roster on first run so it travels in backups.
+            if (localStorage.getItem(LS_COURSES_KEY) === null) setCourses(getCourses());
+            renderCourseCards();
 
             // Define colors for JavaScript use
             const COLOR_DEFAULT_GRAY = '#767676';
@@ -9015,6 +9178,194 @@
                 document.getElementById('importFile').click();
             });
             document.getElementById('importFile').addEventListener('change', importData);
+
+            /* ---------------- Course roster editor (Backup tab) ----------------
+               Rows are built with DOM APIs rather than innerHTML because course
+               names are free text and must never be parsed as markup. */
+            const courseManagerList = document.getElementById('courseManagerList');
+            const courseAddForm = document.getElementById('courseAddForm');
+            const courseAddName = document.getElementById('courseAddName');
+            const courseAddDayA = document.getElementById('courseAddDayA');
+            const courseAddDayB = document.getElementById('courseAddDayB');
+            const courseAddError = document.getElementById('courseAddError');
+
+            function showCourseError(message) {
+                if (!courseAddError) return;
+                courseAddError.textContent = message || '';
+                courseAddError.hidden = !message;
+            }
+
+            // Shared by add and rename. `ignoreName` is the row's own current name,
+            // so re-saving a row unchanged isn't reported as a duplicate.
+            function validateCourseName(rawName, ignoreName) {
+                const name = String(rawName || '').trim();
+                if (!name) return { ok: false, message: 'Enter a course name.' };
+                if (name.includes(COURSE_NAME_SEPARATOR)) {
+                    return { ok: false, message: 'Course names cannot contain "' + COURSE_NAME_SEPARATOR + '".' };
+                }
+                const clash = getCourses().some(c =>
+                    c.name !== ignoreName && c.name.toLowerCase() === name.toLowerCase());
+                if (clash) return { ok: false, message: '"' + name + '" is already in your courses.' };
+                return { ok: true, name: name };
+            }
+
+            function renderCourseManager() {
+                if (!courseManagerList) return;
+                const courses = getCourses();
+                courseManagerList.innerHTML = '';
+
+                if (!courses.length) {
+                    const empty = document.createElement('p');
+                    empty.className = 'cm-empty';
+                    empty.textContent = 'No courses yet. Add one below to get your Day A and Day B cards back.';
+                    courseManagerList.appendChild(empty);
+                    return;
+                }
+
+                courses.forEach(course => {
+                    const row = document.createElement('div');
+                    row.className = 'cm-row';
+                    row.dataset.course = course.name;
+
+                    const nameInput = document.createElement('input');
+                    nameInput.type = 'text';
+                    nameInput.className = 'cm-name';
+                    nameInput.value = course.name;
+                    nameInput.maxLength = 60;
+                    nameInput.setAttribute('aria-label', 'Course name');
+                    row.appendChild(nameInput);
+
+                    const toggles = document.createElement('div');
+                    toggles.className = 'cm-day-toggles';
+                    [['dayA', 'Day A'], ['dayB', 'Day B']].forEach(([dayId, label]) => {
+                        const wrap = document.createElement('label');
+                        wrap.className = 'cm-day';
+                        const box = document.createElement('input');
+                        box.type = 'checkbox';
+                        box.className = 'cal-square-check'; // Calendar checkbox system
+                        box.checked = course.days.includes(dayId);
+                        box.dataset.day = dayId;
+                        wrap.appendChild(box);
+                        wrap.appendChild(document.createTextNode(' ' + label));
+                        toggles.appendChild(wrap);
+                    });
+                    row.appendChild(toggles);
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'cm-btn cm-btn-remove';
+                    removeBtn.dataset.action = 'remove';
+                    removeBtn.textContent = 'Remove';
+                    row.appendChild(removeBtn);
+
+                    courseManagerList.appendChild(row);
+                });
+            }
+
+            function renameCourse(oldName, rawName) {
+                const result = validateCourseName(rawName, oldName);
+                if (!result.ok) {
+                    showCourseError(result.message);
+                    renderCourseManager();
+                    return;
+                }
+                if (result.name === oldName) { showCourseError(''); return; }
+                showCourseError('');
+                applyCourseRosterChange(() => {
+                    rewriteCourseInStorage(oldName, result.name);
+                    setCourses(getCourses().map(c =>
+                        (c.name === oldName ? { name: result.name, days: c.days } : c)));
+                });
+            }
+
+            function setCourseDays(courseName, dayId, enabled) {
+                const current = getCourseDays(courseName);
+                const nextDays = enabled
+                    ? (current.includes(dayId) ? current : current.concat(dayId))
+                    : current.filter(d => d !== dayId);
+
+                if (!nextDays.length) {
+                    showCourseError('A course has to meet on Day A, Day B, or both. Remove it instead.');
+                    renderCourseManager();
+                    return;
+                }
+                showCourseError('');
+                applyCourseRosterChange(() => {
+                    if (!enabled) dropCourseDayData(courseName, dayId);
+                    setCourses(getCourses().map(c =>
+                        (c.name === courseName
+                            ? { name: c.name, days: ['dayA', 'dayB'].filter(d => nextDays.includes(d)) }
+                            : c)));
+                });
+            }
+
+            function removeCourse(courseName) {
+                showAppConfirm(
+                    'Remove "' + courseName + '"? Its Day A/B cards and all of its lessons, ' +
+                    'assignments, links and notes will be deleted. Calendar items are not touched.',
+                    () => {
+                        showCourseError('');
+                        applyCourseRosterChange(() => {
+                            rewriteCourseInStorage(courseName, null);
+                            setCourses(getCourses().filter(c => c.name !== courseName));
+                        });
+                    },
+                    { title: 'Remove this course?', confirmText: 'Remove' });
+            }
+
+            if (courseManagerList) {
+                courseManagerList.addEventListener('change', event => {
+                    const row = event.target.closest('.cm-row');
+                    if (!row) return;
+                    const courseName = row.dataset.course;
+                    if (event.target.classList.contains('cm-name')) {
+                        renameCourse(courseName, event.target.value);
+                    } else if (event.target.matches('input[type="checkbox"][data-day]')) {
+                        setCourseDays(courseName, event.target.dataset.day, event.target.checked);
+                    }
+                });
+
+                // Enter should commit a rename without waiting for the field to blur.
+                courseManagerList.addEventListener('keydown', event => {
+                    if (event.key === 'Enter' && event.target.classList.contains('cm-name')) {
+                        event.preventDefault();
+                        event.target.blur();
+                    }
+                });
+
+                courseManagerList.addEventListener('click', event => {
+                    const btn = event.target.closest('[data-action="remove"]');
+                    if (!btn) return;
+                    const row = btn.closest('.cm-row');
+                    if (row) removeCourse(row.dataset.course);
+                });
+            }
+
+            if (courseAddForm) {
+                courseAddForm.addEventListener('submit', event => {
+                    event.preventDefault();
+                    const result = validateCourseName(courseAddName.value, null);
+                    if (!result.ok) { showCourseError(result.message); return; }
+
+                    const days = ['dayA', 'dayB'].filter(d =>
+                        (d === 'dayA' ? courseAddDayA : courseAddDayB).checked);
+                    if (!days.length) {
+                        showCourseError('Pick at least one day for this course.');
+                        return;
+                    }
+
+                    showCourseError('');
+                    applyCourseRosterChange(() => {
+                        setCourses(getCourses().concat([{ name: result.name, days: days }]));
+                    });
+
+                    courseAddName.value = '';
+                    courseAddDayA.checked = true;
+                    courseAddDayB.checked = false;
+                });
+            }
+
+            renderCourseManager();
 
             mainContent.addEventListener('focusout', (event) => {
                 if (event.target.classList.contains('task-link')) {
@@ -12847,7 +13198,14 @@
     const K={items:'cp_calendar_items_v1',cats:'cp_calendar_categories_v1',prefs:'cp_calendar_preferences_v1',reminded:'cp_calendar_reminded_v1',exceptions:'cp_calendar_exceptions_v1'};
     const defaults={weekStart:0,timeFormat:'auto',startHour:7,endHour:22,slotMinutes:30,defaultDuration:60,defaultView:'month',lastView:'month',density:'comfortable',showWeekends:true,hideCompleted:false,notifications:false};
     const baseCats=[['coursework','Coursework','#4f8fd8'],['assignment','Assignment','#d97a55'],['study','Study','#7c68c8'],['personal','Personal','#4fa56a'],['other','Other','#77828f']].map((x,i)=>({id:x[0],name:x[1],color:x[2],order:i}));
-    const courses=['Calculus & Vectors','English','Media Arts','Business Leadership'];
+    /* Subject presets mirror the planner's course roster (Backup tab). This engine
+       is a separate script that runs before the main one, so it reads the roster
+       straight from storage and the planner calls cpSyncCourseRoster on changes. */
+    let courses=[];
+    function syncCourses(){let r=null;try{r=JSON.parse(localStorage.getItem('cp_courses_v1'))}catch(e){}
+      courses=Array.isArray(r)?r.map(c=>String((c&&c.name)||'').trim()).filter(Boolean)
+        :['Calculus & Vectors','English','Media Arts','Business Leadership']}
+    syncCourses(); window.cpSyncCourseRoster=syncCourses;
     let S={items:[],cats:[],prefs:{},cursor:new Date(),view:'month',filters:{q:'',type:'',cat:'',priority:'',status:''},shown:[],drag:null};
     const pad=n=>String(n).padStart(2,'0'), id=()=>`cal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,9)}`;
     const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -13563,6 +13921,9 @@
                 dd.value = opts.some(o => o.v === cur) ? cur : '';
             });
         }
+        // Lets the Backup tab's course editor refresh these immediately instead of
+        // waiting for the next time Study Tools is opened.
+        window.cpSyncStudySubjects = syncSubjectOptions;
         const wait = ms => new Promise(r => setTimeout(r, ms));
         const hasKey = () => !!(localStorage.getItem(ST_KEY_STORE) || '').trim();
 

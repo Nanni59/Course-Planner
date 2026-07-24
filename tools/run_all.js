@@ -20,6 +20,7 @@ const SUITES = [
     { cmd: 'node', args: ['tools/calendar_color_test.js'] },
     { cmd: 'node', args: ['tools/calendar_day_copy_test.js'] },
     { cmd: 'node', args: ['tools/tracker_day_sync_test.js'] },
+    { cmd: 'node', args: ['tools/course_roster_test.js'] },
     { cmd: 'node', args: ['tools/question_ocr_test.js'] },
     { cmd: 'node', args: ['tools/study_progress_test.js'] },
     { cmd: 'python', args: ['tools/worksheet_visual_route_test.py'], fallbackCmd: 'python3' },
