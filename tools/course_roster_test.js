@@ -85,7 +85,7 @@ function build(ls) {
     const body = store + '\n' + rewrite + '\n' + validate + '\n' +
         'return { normalizeCourseList, getCourses, setCourses, getCourseDays, ' +
         'isCourseOnBothDays, isValidCourseName, rewriteCourseInStorage, ' +
-        'dropCourseDayData, validateCourseName, ALL_COURSE_NAMES };';
+        'dropCourseDayData, validateCourseName, getDaysInUse, ALL_COURSE_NAMES };';
     const args = ['localStorage', 'getPausedCourses'].concat(KEY_NAMES);
     const fn = new Function(...args, body);
     return fn(ls, getPausedCourses, ...KEY_NAMES.map(k => KEYS[k]));
@@ -274,6 +274,19 @@ function bystanderIntact(ls) {
         api.validateCourseName('  Chemistry ', null).name === 'Chemistry');
 }
 
+// ---- 8b. days in use (drives the collapsing header pill) --------------------
+{
+    const days = seed => [...build(makeLocalStorage({ cp_courses_v1: seed })).getDaysInUse()].sort();
+    check('both days in use when courses span them',
+        days([{ name: 'A', days: ['dayA', 'dayB'] }]).join(',') === 'dayA,dayB');
+    check('only Day A in use when every course is Day A',
+        days([{ name: 'A', days: ['dayA'] }, { name: 'B', days: ['dayA'] }]).join(',') === 'dayA');
+    check('only Day B in use when every course is Day B',
+        days([{ name: 'A', days: ['dayB'] }]).join(',') === 'dayB');
+    check('an empty roster puts no day in use',
+        days([]).length === 0);
+}
+
 // ---- 9. the markup is template-driven --------------------------------------
 check('a single course-card template drives both days',
     html.includes('<template id="courseCardTemplate">')
@@ -332,6 +345,21 @@ check('no blue or orange button gradients remain in the Backup tab',
 check('the light-only Backup panels gained dark-mode counterparts',
     html.includes('body.dark-mode .bk-panel {') && html.includes('body.dark-mode .bk-title {')
     && html.includes('class="bk-panel"') && html.includes('class="bk-icon"'));
+
+// ---- 12. the header pill collapses to a single active day ------------------
+check('switchDay redirects away from a day with no courses',
+    html.includes('if (!inUse.has(dayId) && inUse.has(other)) { switchDay(other, historyMode); return; }'));
+check('switchDay refreshes tab availability before positioning the thumb',
+    /updateDayTabAvailability\(\);\r?\n\s*updateToggleThumbs\(toggleThumbsReady\);/.test(html));
+check('an empty day tab is hidden only when the other day is in use',
+    html.includes("aBtn.hidden = !inUse.has('dayA') && inUse.has('dayB');")
+    && html.includes("bBtn.hidden = !inUse.has('dayB') && inUse.has('dayA');"));
+check('the single-day pill state is flagged for CSS',
+    html.includes("nav.classList.toggle('single-day', aBtn.hidden || bBtn.hidden)"));
+check('a hidden day tab is dropped from the pill layout',
+    html.includes('.tab-nav button[hidden] {'));
+check('tab availability is set once before the first paint',
+    html.includes('updateDayTabAvailability(); // set the pill before the first paint'));
 
 console.log(failures ? `\n${failures} COURSE ROSTER CASE(S) FAILED` : '\nALL COURSE ROSTER CASES PASS');
 process.exit(failures ? 1 : 0);

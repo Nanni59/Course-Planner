@@ -199,6 +199,13 @@
             background-color: transparent;
         }
 
+        /* When every course meets on one day, updateDayTabAvailability() hides the
+           other day's button; this drops it out of the flex row so the fit-content
+           pill collapses cleanly to the single remaining segment. */
+        .tab-nav button[hidden] {
+            display: none;
+        }
+
         /* Sliding pill indicator shared by the Day A/B nav and the footer tracker toggle.
            Position/size are set in JS (positionToggleThumb); it glides between segments. */
         .toggle-thumb {
@@ -6064,6 +6071,30 @@
                 return getCourseDays(courseName).length === 2;
             }
 
+            // The set of days at least one course meets on. A day not in this set has
+            // no cards, so its header tab is pointless.
+            function getDaysInUse() {
+                const inUse = new Set();
+                getCourses().forEach(c => c.days.forEach(d => inUse.add(d)));
+                return inUse;
+            }
+
+            /* Collapses the Day A/B header pill to just the active day when every
+               course lives on one day: the empty day's tab is hidden and the pill
+               (width:fit-content) shrinks to the single remaining segment, so there
+               is nothing left to toggle. Both tabs stay visible while both days are
+               in use — and while the roster is empty, so the app never hides both. */
+            function updateDayTabAvailability() {
+                const aBtn = document.querySelector('.tab-link[data-tab="dayA"]');
+                const bBtn = document.querySelector('.tab-link[data-tab="dayB"]');
+                if (!aBtn || !bBtn) return;
+                const inUse = getDaysInUse();
+                aBtn.hidden = !inUse.has('dayA') && inUse.has('dayB');
+                bBtn.hidden = !inUse.has('dayB') && inUse.has('dayA');
+                const nav = aBtn.closest('.tab-nav');
+                if (nav) nav.classList.toggle('single-day', aBtn.hidden || bBtn.hidden);
+            }
+
             // Builds every Day A/B card from the roster. Runs before any per-card
             // setup (priority badges, delegated listeners, loadData) so the rest of
             // the app sees exactly what the static markup used to provide.
@@ -6241,6 +6272,7 @@
             // Persist the seeded default roster on first run so it travels in backups.
             if (localStorage.getItem(LS_COURSES_KEY) === null) setCourses(getCourses());
             renderCourseCards();
+            updateDayTabAvailability(); // set the pill before the first paint
 
             // Define colors for JavaScript use
             const COLOR_DEFAULT_GRAY = '#767676';
@@ -6958,6 +6990,14 @@
                     window.cpStudyConfirmLeave(() => window.cpSwitchDay(dayId));
                     return;
                 }
+                // Guard: a day with no courses has no cards. If it is targeted while the
+                // other day is in use (e.g. a stale saved tab, or a /day-b deep link after
+                // every course moved to Day A), redirect to the day that has content.
+                if (dayId === 'dayA' || dayId === 'dayB') {
+                    const inUse = getDaysInUse();
+                    const other = dayId === 'dayA' ? 'dayB' : 'dayA';
+                    if (!inUse.has(dayId) && inUse.has(other)) { switchDay(other, historyMode); return; }
+                }
                 // 1. Update localStorage for user preference + reflect the tab in the URL.
                 if (VALID_MAIN_TABS.includes(dayId)) localStorage.setItem(LAST_ACTIVE_TAB_KEY, dayId);
                 // historyMode: 'push' (default, user navigation), 'replace' (initial load),
@@ -7017,8 +7057,10 @@
                     if (btn) btn.classList.toggle('active', footerNavMap[dayId] === id);
                 });
 
-                // Slide the segmented-toggle indicators to their new active segment.
+                // Reflect the current roster in the header pill (hide an empty day),
+                // then slide the segmented-toggle indicators to their active segment.
                 // First switch (on load) snaps into place; later switches animate.
+                updateDayTabAvailability();
                 updateToggleThumbs(toggleThumbsReady);
                 toggleThumbsReady = true;
 
