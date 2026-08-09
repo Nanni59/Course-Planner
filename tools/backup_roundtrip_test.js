@@ -147,6 +147,8 @@ function seed(ls) {
     ls.setItem('cp_theme', 'dark');                       // plain string, not JSON
     ls.setItem('selectedDay', 'dayB');                    // plain string
     ls.setItem('cp_calendar_items_v1', JSON.stringify([{ id: 'cal_x', title: 'Quiz', startDate: '2026-07-14', type: 'task' }]));
+    ls.setItem('cp_satPrep_v1', JSON.stringify({ schemaVersion: 1, settings: { targetTotal: 1510 }, errors: [{ id: 'sat-e1', notes: '<safe text>' }] }));
+    ls.setItem('cp_ieltsPrep_v1', JSON.stringify({ schemaVersion: 1, settings: { targetOverall: 8 }, mocks: [{ id: 'ielts-m1', scores: { Listening: 8, Reading: 8, Writing: 7.5, Speaking: 7.5 } }] }));
     ls.setItem('someFutureFeatureKey', JSON.stringify({ nested: { deep: [1, 2, 3] } })); // unrelated/unknown key
     // exportData() deliberately injects lesson_links:{} when absent (index.html
     // "Ensure lesson_links is included in export"), so seed it for identity checks;
@@ -182,6 +184,8 @@ function seed(ls) {
     check('round trip preserves every key/value pair', snapshotsEqual(original, restored),
         JSON.stringify({ original, restored }).slice(0, 300));
     check('unrelated key survives the round trip', ls.getItem('someFutureFeatureKey') === JSON.stringify({ nested: { deep: [1, 2, 3] } }));
+    check('SAT Prep survives the round trip byte-for-byte', ls.getItem('cp_satPrep_v1') === original.find(x => x[0] === 'cp_satPrep_v1')[1]);
+    check('IELTS Prep survives the round trip byte-for-byte', ls.getItem('cp_ieltsPrep_v1') === original.find(x => x[0] === 'cp_ieltsPrep_v1')[1]);
     check('pre-import residue is fully replaced', ls.getItem('residueKey') === null);
 }
 

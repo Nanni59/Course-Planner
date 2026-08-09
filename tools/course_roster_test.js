@@ -313,7 +313,7 @@ check('the Backup tab hosts the course editor',
 // :root would freeze light-mode values). .course-manager therefore has to appear
 // in BOTH token scopes or the boxes lose their fill and their white tick.
 check('.course-manager joins the light --cal-* token scope',
-    /#calendarTab, \.cal-toast[^{]*\.cal-picker,\r?\n\s*\.course-manager \{/.test(html));
+    /#calendarTab,[^{]*\.cal-picker,\r?\n\s*\.course-manager \{/.test(html));
 check('.course-manager joins the dark --cal-* token scope',
     /body\.dark-mode \.cal-picker,\r?\n\s*body\.dark-mode \.course-manager \{/.test(html));
 check('rendered day toggles carry the Calendar checkbox class',

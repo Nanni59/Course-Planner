@@ -78,6 +78,13 @@ check('Calendar uses one canonical square checkbox style', html.includes('.cal-s
 check('Calendar field styling preserves canonical checkbox geometry', html.includes('.cal-field input:not([type="checkbox"])') && !html.includes('.cal-field input, .cal-field select'));
 check('Calendar modals use a dedicated scrolling body', editor.includes('class="cal-modal-body"') && calendarSettings.includes('class="cal-modal-body"') && html.includes('.cal-modal-body::-webkit-scrollbar'));
 check('Calendar modal header and footer share the themed surface', html.includes('body.dark-mode .cal-modal-head, body.dark-mode .cal-modal-actions { background:var(--cal-surface)'));
+check('dark-mode current-day week column preserves hourly grid lines',
+    html.includes('body.dark-mode .cal-time-col.today { background-color:var(--cal-accent-tint); }')
+    && html.includes('body.dark-mode .cal-time-col { background-image:repeating-linear-gradient'));
+check('Calendar editor places Completed in the left footer group',
+    editor.includes('<div class="cal-modal-actions"><div class="left">${o.type!==\'event\'?`<label class="cal-check-row"><input name="completed"'));
+check('Calendar editor aligns the add-subtask action to the right',
+    html.includes('#calAddSub { display:flex; margin-left:auto; }'));
 check('Calendar date and time fields avoid native browser pickers', editor.includes('data-cal-picker="date"') && editor.includes('data-cal-picker="time"') && !editor.includes('type="date"') && !editor.includes('type="time"'));
 check('Calendar provides themed date and time picker dialogs', calendarPickers.includes("openCalendarDatePicker(input)") && calendarPickers.includes("openCalendarTimePicker(input)") && html.includes('cal-date-picker') && html.includes('cal-time-picker'));
 check('Calendar picker receives dark-mode color tokens', html.includes('body.dark-mode .cal-color-picker, body.dark-mode .cal-picker'));
