@@ -2720,6 +2720,65 @@
             margin: 8px 0 16px;
         }
 
+        /* Read-only exam-prep summary shown on a connected course's expanded page.
+           Reuses the expand-card field typography; accent switches SAT/IELTS. */
+        .expand-card-exam-summary {
+            margin: 0 0 22px;
+            padding: 16px 18px;
+            border: 1px solid var(--clay-border);
+            border-radius: 14px;
+            background: #f7f9fc;
+        }
+        .expand-card-exam-summary .ecs-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .expand-card-exam-summary .ecs-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #2c3340;
+            margin: 0;
+        }
+        .expand-card-exam-summary .ecs-open {
+            flex-shrink: 0;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+            background: var(--ecs-accent, #2474b5);
+            border: none;
+            border-radius: 999px;
+            padding: 7px 14px;
+            cursor: pointer;
+        }
+        .expand-card-exam-summary .ecs-open:hover { filter: brightness(1.07); }
+        .expand-card-exam-summary .ecs-open:focus-visible { outline: 2px solid var(--ecs-accent, #2474b5); outline-offset: 2px; }
+        .expand-card-exam-summary .ecs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px 16px;
+        }
+        .expand-card-exam-summary .ecs-cell .expand-card-field-label { margin-bottom: 3px; }
+        .expand-card-exam-summary .ecs-cell .expand-card-field-value { font-size: 14px; }
+        .expand-card-exam-summary .ecs-upcoming { margin-top: 16px; }
+        .expand-card-exam-summary .ecs-up-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 13px;
+            color: #333;
+            padding: 6px 0;
+            border-top: 1px solid var(--clay-border);
+        }
+        .expand-card-exam-summary .ecs-up-item .ecs-up-date { color: #777; flex-shrink: 0; }
+        body.dark-mode .expand-card-exam-summary { background: #232a36; border-color: #38414f; }
+        body.dark-mode .expand-card-exam-summary .ecs-title { color: #e8ecf3; }
+        body.dark-mode .expand-card-exam-summary .ecs-up-item { color: #d5dbe6; border-top-color: #38414f; }
+        body.dark-mode .expand-card-exam-summary .ecs-up-item .ecs-up-date { color: #9aa4b2; }
+
         .expand-card-videos {
             flex: 1;
             padding: 28px 32px;
@@ -6254,20 +6313,36 @@
                 return !!trimmed && !trimmed.includes(COURSE_NAME_SEPARATOR);
             }
 
+            // A stable, opaque course identity. Course NAMES are user-editable and
+            // must never key a durable relationship (exam-to-course links, Calendar
+            // course association), so every normalized course carries a persisted id.
+            function newCourseId() {
+                return 'crs_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
+            }
+
             // Returns a clean roster, or null when `raw` isn't an array at all.
             // A deliberately emptied roster ([]) is valid and must survive as [].
+            // Each entry becomes { id, name, days }: a valid existing id is kept (ids
+            // must survive rename and day changes), while a missing, blank or
+            // duplicate id is (re)generated so the set stays unique. Names are
+            // de-duplicated case-insensitively so "English"/"english" can't co-exist.
             function normalizeCourseList(raw) {
                 if (!Array.isArray(raw)) return null;
-                const seen = new Set();
+                const seenNames = new Set();
+                const seenIds = new Set();
                 const out = [];
                 raw.forEach(entry => {
                     const name = String((entry && entry.name) || '').trim();
-                    if (!isValidCourseName(name) || seen.has(name)) return;
+                    const nameKey = name.toLowerCase();
+                    if (!isValidCourseName(name) || seenNames.has(nameKey)) return;
                     const days = ['dayA', 'dayB'].filter(d =>
                         entry && Array.isArray(entry.days) && entry.days.includes(d));
                     if (!days.length) return; // a course on neither day has no card
-                    seen.add(name);
-                    out.push({ name: name, days: days });
+                    let id = (entry && typeof entry.id === 'string') ? entry.id.trim() : '';
+                    if (!id || seenIds.has(id)) { do { id = newCourseId(); } while (seenIds.has(id)); }
+                    seenNames.add(nameKey);
+                    seenIds.add(id);
+                    out.push({ id: id, name: name, days: days });
                 });
                 return out;
             }
@@ -6278,8 +6353,9 @@
                 const normalized = normalizeCourseList(raw);
                 if (normalized) return normalized;
                 // Key absent or corrupt: seed the original four so existing installs
-                // keep every card and all of its saved data.
-                return DEFAULT_COURSES.map(c => ({ name: c.name, days: c.days.slice() }));
+                // keep every card and all of its saved data (ids minted here).
+                return normalizeCourseList(
+                    DEFAULT_COURSES.map(c => ({ name: c.name, days: c.days.slice() }))) || [];
             }
 
             function setCourses(list) {
@@ -6398,8 +6474,11 @@
                 });
                 localStorage.setItem(LS_PAUSED_COURSES_KEY, JSON.stringify(paused));
 
-                // lesson_links / split_assignments: { "Course::Item": value }
-                [LS_LESSON_LINKS_KEY, LS_SPLIT_ASSIGNMENTS_KEY].forEach(key => {
+                // lesson_links / split_assignments / tracker_lesson_assignments_map:
+                // all keyed by the "Course::Item" composite, so a rename must rewrite
+                // the course half of every key (tracker_lesson_assignments_map maps a
+                // "Course::Lesson" to its linked assignment names).
+                [LS_LESSON_LINKS_KEY, LS_SPLIT_ASSIGNMENTS_KEY, 'tracker_lesson_assignments_map'].forEach(key => {
                     const data = readObject(key);
                     if (!data) return;
                     const next = {};
@@ -6412,6 +6491,16 @@
                         if (rename) next[newName + (sep < 0 ? '' : k.slice(sep))] = data[k];
                     });
                     if (changed) localStorage.setItem(key, JSON.stringify(next));
+                });
+
+                // expandFolders_<courseName> / expandOrder_<courseName>: the course
+                // name is baked into the key itself (custom link folders and their
+                // ordering in the expanded course card), so move or drop the whole key.
+                ['expandFolders_', 'expandOrder_'].forEach(prefix => {
+                    const value = localStorage.getItem(prefix + oldName);
+                    if (value === null) return;
+                    localStorage.removeItem(prefix + oldName);
+                    if (rename) localStorage.setItem(prefix + newName, value);
                 });
 
                 // course_priorities: { "dayA_Course": n }
@@ -6497,8 +6586,58 @@
             // separate script and cannot see these bindings.
             window.cpGetCourseNames = () => getCourses().map(c => c.name);
 
-            // Persist the seeded default roster on first run so it travels in backups.
-            if (localStorage.getItem(LS_COURSES_KEY) === null) setCourses(getCourses());
+            // Richer read-only accessor for new integration code (exam-to-course
+            // links, Calendar course association). Returns stable { id, name, days }.
+            window.cpGetCourses = () => getCourses().map(c => ({ id: c.id, name: c.name, days: c.days.slice() }));
+
+            /* Normalizes course-related payloads in a backup BEFORE the destructive
+               import write: an old { name, days } roster is migrated to stable ids,
+               and the exam-course links are validated so a link can only point at a
+               course that actually exists in the same backup (dangling links drop to
+               null). Idempotent; a backup that never had these keys is left alone. */
+            window.cpNormalizeCourseBackup = (data) => {
+                if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+                const courseIds = new Set();
+                if (Object.prototype.hasOwnProperty.call(data, LS_COURSES_KEY)) {
+                    const normalized = normalizeCourseList(data[LS_COURSES_KEY]);
+                    if (normalized) {
+                        data[LS_COURSES_KEY] = normalized;
+                        normalized.forEach(c => courseIds.add(c.id));
+                    } // corrupt/non-array: leave it for the app's default fallback
+                }
+                const linksKey = 'cp_exam_course_links_v1';
+                if (Object.prototype.hasOwnProperty.call(data, linksKey)) {
+                    const raw = data[linksKey];
+                    const pick = v => {
+                        const id = v && typeof v === 'object' && typeof v.courseId === 'string' ? v.courseId : null;
+                        return id && courseIds.has(id) ? id : null;
+                    };
+                    const links = { schemaVersion: 1, sat: { courseId: null }, ielts: { courseId: null } };
+                    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+                        links.sat.courseId = pick(raw.sat);
+                        links.ielts.courseId = pick(raw.ielts);
+                        if (links.sat.courseId && links.sat.courseId === links.ielts.courseId) links.ielts.courseId = null;
+                    }
+                    data[linksKey] = links;
+                }
+                return data;
+            };
+
+            // Persist the seeded default roster on first run so it travels in backups,
+            // and run a ONE-TIME id migration: a legacy roster stored { name, days }
+            // with no stable id gets freshly-minted ids persisted once, so ids never
+            // churn on later loads. An empty roster stays empty; a corrupt roster is
+            // left to its in-memory default fallback (it self-heals on the next edit).
+            (function persistRosterIdsOnce() {
+                const rawStr = localStorage.getItem(LS_COURSES_KEY);
+                if (rawStr === null) { setCourses(getCourses()); return; }
+                let raw = null;
+                try { raw = JSON.parse(rawStr); } catch (e) { return; }
+                if (Array.isArray(raw) && raw.length &&
+                    raw.some(c => !c || typeof c.id !== 'string' || !c.id.trim())) {
+                    setCourses(getCourses());
+                }
+            })();
             renderCourseCards();
             updateDayTabAvailability(); // set the pill before the first paint
 
@@ -9400,6 +9539,11 @@
                                 if (typeof window.cpNormalizeCalendarBackup === 'function') {
                                     window.cpNormalizeCalendarBackup(importedData);
                                 }
+                                // Migrate roster ids and validate exam-course links
+                                // before exam-prep normalization touches the same keys.
+                                if (typeof window.cpNormalizeCourseBackup === 'function') {
+                                    window.cpNormalizeCourseBackup(importedData);
+                                }
                                 if (typeof window.cpNormalizeExamPrepBackup === 'function') {
                                     window.cpNormalizeExamPrepBackup(importedData);
                                 }
@@ -9565,9 +9709,14 @@
                 showCourseError('');
                 applyCourseRosterChange(() => {
                     rewriteCourseInStorage(oldName, result.name);
+                    // Keep the stable id so exam connections and Calendar course
+                    // associations survive the rename untouched.
                     setCourses(getCourses().map(c =>
-                        (c.name === oldName ? { name: result.name, days: c.days } : c)));
+                        (c.name === oldName ? { id: c.id, name: result.name, days: c.days } : c)));
                 });
+                // Refresh the denormalized course label on any linked exam's
+                // Calendar records; the id-keyed connection itself is unchanged.
+                if (typeof window.cpRefreshExamCourseLabels === 'function') window.cpRefreshExamCourseLabels();
             }
 
             function setCourseDays(courseName, dayId, enabled) {
@@ -9584,23 +9733,41 @@
                 showCourseError('');
                 applyCourseRosterChange(() => {
                     if (!enabled) dropCourseDayData(courseName, dayId);
+                    // Preserve the stable id so a day change never re-mints it.
                     setCourses(getCourses().map(c =>
                         (c.name === courseName
-                            ? { name: c.name, days: ['dayA', 'dayB'].filter(d => nextDays.includes(d)) }
+                            ? { id: c.id, name: c.name, days: ['dayA', 'dayB'].filter(d => nextDays.includes(d)) }
                             : c)));
                 });
             }
 
             function removeCourse(courseName) {
+                const course = getCourses().find(c => c.name === courseName);
+                const removedId = course ? course.id : '';
+                let connectedExam = '';
+                if (removedId && typeof window.cpGetExamCourseLinks === 'function') {
+                    const links = window.cpGetExamCourseLinks();
+                    if (links && links.sat && links.sat.courseId === removedId) connectedExam = 'SAT';
+                    else if (links && links.ielts && links.ielts.courseId === removedId) connectedExam = 'IELTS';
+                }
+                const extra = connectedExam
+                    ? ' It is connected to ' + connectedExam + ' Prep; that connection will be removed, but your '
+                      + connectedExam + ' Prep history and its Calendar records are kept.'
+                    : '';
                 showAppConfirm(
                     'Remove "' + courseName + '"? Its Day A/B cards and all of its lessons, ' +
-                    'assignments, links and notes will be deleted. Calendar items are not touched.',
+                    'assignments, links and notes will be deleted. Other Calendar items are not touched.' + extra,
                     () => {
                         showCourseError('');
                         applyCourseRosterChange(() => {
                             rewriteCourseInStorage(courseName, null);
                             setCourses(getCourses().filter(c => c.name !== courseName));
                         });
+                        // Drop only the exam that pointed at this course; exam-prep
+                        // history and the generated Calendar records are preserved.
+                        if (removedId && typeof window.cpDisconnectCourseIfLinked === 'function') {
+                            window.cpDisconnectCourseIfLinked(removedId);
+                        }
                     },
                     { title: 'Remove this course?', confirmText: 'Remove' });
             }
@@ -10179,11 +10346,23 @@
                 const hasLink = hasCustomLink(courseName);
                 removeLinkBtn.style.display = hasLink ? 'block' : 'none';
 
-                // Show "Expand Card" only if the card has a link (inline or custom)
+                // Show "Expand Card" if the card has a link (inline or custom) OR the
+                // course is connected to SAT/IELTS Prep — a connected course must be
+                // able to open its expanded page to read its live exam summary even
+                // when it has no links yet.
                 const card = document.querySelector(`.course-card[data-course-name="${courseName}"][data-day="${dayId}"]`);
                 const inlineLinkArray = card ? Array.from(card.querySelectorAll('.task-link')).map(inp => inp.value.trim()).filter(v => v !== '') : [];
                 const inlineLink = inlineLinkArray.join(',');
-                const hasAnyLink = hasLink || inlineLink !== '';
+                let examConnected = false;
+                if (typeof window.cpGetCourses === 'function' && typeof window.cpGetExamCourseLinks === 'function') {
+                    const cObj = window.cpGetCourses().find(c => c.name === courseName);
+                    if (cObj) {
+                        const links = window.cpGetExamCourseLinks();
+                        examConnected = !!(links && ((links.sat && links.sat.courseId === cObj.id)
+                            || (links.ielts && links.ielts.courseId === cObj.id)));
+                    }
+                }
+                const hasAnyLink = hasLink || inlineLink !== '' || examConnected;
                 expandCardBtn.style.display = hasAnyLink ? 'block' : 'none';
 
                 // Set Prioritize/Unprioritize text and color dynamically
@@ -10312,6 +10491,125 @@
             window.currentExpandActiveTabId = null;
             window.currentExpandCourseDay = null;
             window.expandGroupStates = window.expandGroupStates || {};
+
+            /* Read-only exam-prep summary for a connected course's expanded page.
+               Derives everything live from the authoritative SAT/IELTS prep state
+               (never a copy) and this course's own generated Calendar records. An
+               ordinary, unconnected course renders nothing here. Prepended to the
+               expand-card body so it reads before the course's own content, and is
+               identical whether the card was opened from Day A or Day B. */
+            function renderExpandExamSummary(courseName) {
+                const prior = expandCardBody.querySelector('.expand-card-exam-summary');
+                if (prior) prior.remove();
+                if (typeof window.cpGetCourses !== 'function'
+                    || typeof window.cpGetCourseExamContext !== 'function') return;
+                const course = (window.cpGetCourses() || []).find(c => c.name === courseName);
+                if (!course) return;
+                const ctx = window.cpGetCourseExamContext(course.id);
+                if (!ctx) return; // ordinary course: no exam summary
+                const s = ctx.summary, exam = ctx.exam;
+
+                const wrap = document.createElement('div');
+                wrap.className = 'expand-card-exam-summary';
+                wrap.style.setProperty('--ecs-accent', exam === 'sat' ? '#2474b5' : '#d7193f');
+
+                const head = document.createElement('div');
+                head.className = 'ecs-head';
+                const title = document.createElement('h4');
+                title.className = 'ecs-title';
+                title.textContent = exam === 'sat' ? 'SAT Preparation' : 'IELTS Preparation';
+                const openBtn = document.createElement('button');
+                openBtn.type = 'button';
+                openBtn.className = 'ecs-open';
+                openBtn.textContent = exam === 'sat' ? 'Open SAT Prep' : 'Open IELTS Prep';
+                openBtn.addEventListener('click', () => {
+                    closeExpandCard();
+                    if (typeof window.cpSwitchDay === 'function') window.cpSwitchDay(exam === 'sat' ? 'satPrep' : 'ieltsPrep');
+                });
+                head.appendChild(title);
+                head.appendChild(openBtn);
+                wrap.appendChild(head);
+
+                const grid = document.createElement('div');
+                grid.className = 'ecs-grid';
+                const cell = (label, value) => {
+                    const c = document.createElement('div');
+                    c.className = 'ecs-cell';
+                    const l = document.createElement('div');
+                    l.className = 'expand-card-field-label';
+                    l.textContent = label;
+                    const v = document.createElement('div');
+                    v.className = 'expand-card-field-value';
+                    v.textContent = value;
+                    c.appendChild(l);
+                    c.appendChild(v);
+                    grid.appendChild(c);
+                };
+                if (exam === 'sat') {
+                    cell('Exam date', s.examDateLabel + ' · ' + s.countdownDays + (s.countdownDays === 1 ? ' day left' : ' days left'));
+                    cell('Target', s.targetTotal + '+ (R&W ' + s.targetRW + '+, Math ' + s.targetMathMin + '–' + s.targetMathMax + ')');
+                    cell('Current phase', s.phaseTitle);
+                    cell('Next session', s.nextSession ? s.nextSession.title + ' · ' + s.nextSession.dateLabel : 'None scheduled');
+                    cell('Sessions', s.sessionsCompleted + ' of ' + s.sessionsPlanned + ' completed');
+                    cell('Latest test', s.latestTest ? s.latestTest.total + ' (R&W ' + s.latestTest.rw + ' · Math ' + s.latestTest.math + ') · ' + s.latestTest.dateLabel : 'No score yet');
+                    cell('Latest-two average', s.average == null ? 'Need test data' : String(s.average));
+                    cell('Redos due', String(s.dueRedos));
+                    cell('Readiness', s.readiness);
+                } else {
+                    cell('Test', s.testType);
+                    cell('Test date', s.testDateLabel + (s.countdownDays != null ? ' · ' + s.countdownDays + (s.countdownDays === 1 ? ' day left' : ' days left') : ''));
+                    cell('Overall target', String(s.targetOverall));
+                    cell('Mode', s.mode);
+                    cell('Next session', s.nextSession ? s.nextSession.title + ' · ' + s.nextSession.dateLabel : 'None scheduled');
+                    cell('Sessions', s.sessionsCompleted + ' of ' + s.sessionsPlanned + ' completed');
+                    cell('Latest mock', s.latestMock && s.latestMock.overall != null
+                        ? 'Overall ' + s.latestMock.overall + ' (' + s.latestMock.sections.map(x => x.section[0] + ' ' + (x.band == null ? '—' : x.band)).join(' · ') + ')'
+                        : 'No mock yet');
+                    cell('Weakest section', s.weakest || 'Need practice data');
+                    cell('Readiness', s.readiness);
+                }
+                wrap.appendChild(grid);
+
+                if (typeof window.cpGetCourseCalendarUpcoming === 'function') {
+                    const upcoming = window.cpGetCourseCalendarUpcoming(course.id, 5) || [];
+                    if (upcoming.length) {
+                        const up = document.createElement('div');
+                        up.className = 'ecs-upcoming';
+                        const l = document.createElement('div');
+                        l.className = 'expand-card-field-label';
+                        l.textContent = 'Upcoming on Calendar';
+                        up.appendChild(l);
+                        upcoming.forEach(item => {
+                            const row = document.createElement('div');
+                            row.className = 'ecs-up-item';
+                            const t = document.createElement('span');
+                            t.textContent = item.title;
+                            const d = document.createElement('span');
+                            d.className = 'ecs-up-date';
+                            d.textContent = item.startDate;
+                            row.appendChild(t);
+                            row.appendChild(d);
+                            up.appendChild(row);
+                        });
+                        wrap.appendChild(up);
+                    }
+                }
+
+                expandCardBody.insertBefore(wrap, expandCardBody.firstChild);
+            }
+
+            // Refresh the connected-course summary in place when the exam prep
+            // state, Calendar, or a connection changes while the card is open.
+            function refreshOpenExamSummary() {
+                if (!expandCardOverlay.classList.contains('active') || !window.cpExpandOpenCourse) return;
+                renderExpandExamSummary(window.cpExpandOpenCourse);
+            }
+            window.addEventListener('cp-calendar-exam-sync', refreshOpenExamSummary);
+            window.addEventListener('storage', event => {
+                if (event && ['cp_satPrep_v1', 'cp_ieltsPrep_v1', 'cp_exam_course_links_v1', 'cp_calendar_items_v1'].includes(event.key)) {
+                    refreshOpenExamSummary();
+                }
+            });
 
             function openExpandCard(courseName, dayId) {
                 const card = document.querySelector(`.course-card[data-course-name="${courseName}"][data-day="${dayId}"]`);
@@ -11486,6 +11784,10 @@
                     rightPanel.innerHTML = '<div style="padding: 28px 32px; color: #999; font-style: italic;">No linked resources available.</div>';
                 }
 
+                // Read-only exam-prep summary for a connected course (no-op otherwise).
+                window.cpExpandOpenCourse = courseName;
+                renderExpandExamSummary(courseName);
+
                 // Focus management: save previous focus, show dialog, focus close button only on first open
                 const wasAlreadyOpen = expandCardOverlay.classList.contains('active');
                 if (!wasAlreadyOpen) expandCardPreviousFocus = document.activeElement;
@@ -11511,6 +11813,7 @@
                     rightPanel._tabCaches = new Map();
                 }
                 window.currentExpandCourseDay = null;
+                window.cpExpandOpenCourse = null;
                 window.expandGroupStates = {};
 
                 // Restore previous focus
@@ -13493,10 +13796,11 @@
     /* Subject presets mirror the planner's course roster (Backup tab). This engine
        is a separate script that runs before the main one, so it reads the roster
        straight from storage and the planner calls cpSyncCourseRoster on changes. */
-    let courses=[];
+    let courses=[], courseById={};
     function syncCourses(){let r=null;try{r=JSON.parse(localStorage.getItem('cp_courses_v1'))}catch(e){}
-      courses=Array.isArray(r)?r.map(c=>String((c&&c.name)||'').trim()).filter(Boolean)
-        :['Calculus & Vectors','English','Media Arts','Business Leadership']}
+      let list=Array.isArray(r)?r.map(c=>({id:String((c&&c.id)||'').trim(),name:String((c&&c.name)||'').trim()})).filter(c=>c.name)
+        :[{id:'',name:'Calculus & Vectors'},{id:'',name:'English'},{id:'',name:'Media Arts'},{id:'',name:'Business Leadership'}];
+      courses=list.map(c=>c.name);courseById={};list.forEach(c=>{if(c.id)courseById[c.id]=c.name})}
     syncCourses(); window.cpSyncCourseRoster=syncCourses;
     let S={items:[],cats:[],prefs:{},cursor:new Date(),view:'month',filters:{q:'',type:'',cat:'',priority:'',status:''},shown:[],drag:null};
     const pad=n=>String(n).padStart(2,'0'), id=()=>`cal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,9)}`;
@@ -13536,9 +13840,34 @@
     window.cpUpsertExamCalendarItems=records=>{if(!Array.isArray(records))return{added:0,updated:0};load();let added=0,updated=0,exam='';records.forEach(raw=>{if(!raw||!raw.examLink||typeof raw.examLink.id!=='string'||!raw.examLink.id)return;let item=normalize(raw);if(!item)return;exam=raw.examLink.exam||exam;let i=S.items.findIndex(x=>x.examLink&&x.examLink.id===raw.examLink.id);if(i<0){item.id=raw.id||('cal_'+raw.examLink.id.replace(/[^a-z0-9_-]/gi,'_'));item.createdAt=raw.createdAt||new Date().toISOString();S.items.push(item);added++}else{let old=S.items[i];S.items[i]=Object.assign({},old,item,{id:old.id,createdAt:old.createdAt,exceptions:old.exceptions||{}});updated++}});if(added||updated){save();if(root.classList.contains('active'))render();notifyExamCalendar(exam)}return{added,updated}};
     window.cpPatchExamCalendarItem=(linkId,patch)=>{load();let item=S.items.find(x=>x.examLink&&x.examLink.id===linkId);if(!item)return false;let safe={};['startDate','startTime','endTime','allDay','completed','completedAt','notes','title'].forEach(k=>{if(Object.prototype.hasOwnProperty.call(patch||{},k))safe[k]=patch[k]});Object.assign(item,safe,{updatedAt:new Date().toISOString()});save();if(root.classList.contains('active'))render();notifyExamCalendar(item.examLink.exam);return true};
     window.cpRemoveExamCalendarItems=exam=>{load();let before=S.items.length;S.items=S.items.filter(x=>!x.examLink||x.examLink.exam!==exam);if(S.items.length!==before){save();if(root.classList.contains('active'))render();notifyExamCalendar(exam)}return before-S.items.length};
+    // Reload the persisted Calendar into memory. Used after a failed exam
+    // reconciliation restores the stored strings, so S matches disk again.
+    window.cpCalendarReload=()=>{load();if(root.classList.contains('active'))render()};
+    // Stamp (or clear, with '') the denormalized course association on every
+    // generated record of ONE exam. Metadata only — never adds, removes or
+    // reschedules a record, and never touches the other exam. courseId is
+    // authoritative; course is a backward-compatible display label.
+    window.cpSetExamCalendarCourse=(exam,courseId,courseName)=>{load();let id=courseId||'',nm=courseName||'',changed=false;S.items.forEach(x=>{if(x.examLink&&x.examLink.exam===exam&&(x.courseId!==id||x.course!==nm)){x.courseId=id;x.course=nm;x.updatedAt=new Date().toISOString();changed=true}});if(changed){save();if(root.classList.contains('active'))render();notifyExamCalendar(exam)}return changed};
+    // Refresh only the denormalized display label after a course rename; resolves
+    // by stable courseId so identical labels in other courses are never touched.
+    window.cpRefreshExamCalendarCourseName=(courseId,courseName)=>{if(!courseId)return 0;load();let nm=courseName||'',n=0;S.items.forEach(x=>{if(x.examLink&&x.courseId===courseId&&x.course!==nm){x.course=nm;x.updatedAt=new Date().toISOString();n++}});if(n){save();if(root.classList.contains('active'))render()}return n};
+    // Scoped reconciliation for ONE exam. Upserts `records` by stable examLink.id;
+    // an update keeps every Calendar-owned field (id, createdAt, url, subtasks,
+    // reminders, recurrence, exceptions, times, and the after-creation date/status/
+    // notes reached through pullback) and takes only exam-owned metadata (title,
+    // type, category, priority, examLink, course association) from the record.
+    // Prunes only THIS exam's records whose link id is absent from validLinkIds
+    // (its source row is gone). The other exam and all non-exam items are never
+    // inspected. Returns {added,updated,removed,unchanged}; throws on a storage
+    // failure so the caller can roll the affected keys back.
+    window.cpReconcileExamCalendar=(exam,records,validLinkIds)=>{load();if(!Array.isArray(records))records=[];let valid=new Set(Array.isArray(validLinkIds)?validLinkIds:[]),added=0,updated=0,removed=0,unchanged=0;records.forEach(raw=>{if(!raw||!raw.examLink||raw.examLink.exam!==exam||typeof raw.examLink.id!=='string'||!raw.examLink.id)return;let desired=normalize(raw);if(!desired)return;let i=S.items.findIndex(x=>x.examLink&&x.examLink.id===raw.examLink.id);if(i<0){desired.id=raw.id||('cal_'+raw.examLink.id.replace(/[^a-z0-9_-]/gi,'_'));desired.createdAt=raw.createdAt||new Date().toISOString();desired.courseId=raw.courseId||'';desired.course=raw.course||'';S.items.push(desired);added++}else{let old=S.items[i],merged=Object.assign({},old,{title:desired.title,type:desired.type,categoryId:desired.categoryId,priority:desired.priority,examLink:desired.examLink,courseId:desired.courseId||'',course:desired.course||''}),a=Object.assign({},old),b=Object.assign({},merged);delete a.updatedAt;delete b.updatedAt;if(JSON.stringify(a)===JSON.stringify(b))unchanged++;else{merged.updatedAt=new Date().toISOString();S.items[i]=merged;updated++}}});S.items=S.items.filter(x=>{if(x.examLink&&x.examLink.exam===exam&&!valid.has(x.examLink.id)){removed++;return false}return true});if(added||updated||removed){save();if(root.classList.contains('active'))render();notifyExamCalendar(exam)}return{added,updated,removed,unchanged}};
+    // Upcoming generated records for a connected course page: this course's own
+    // exam records (identified by stable courseId + examLink), not yet completed,
+    // dated today or later, soonest first. Read-only projection.
+    window.cpGetCourseCalendarUpcoming=(courseId,limit)=>{load();if(!courseId)return[];let today=ds(new Date());return S.items.filter(x=>x.examLink&&x.courseId===courseId&&!x.completed&&String(x.startDate||'')>=today).sort((a,b)=>String(a.startDate).localeCompare(String(b.startDate))).slice(0,limit||6).map(x=>({title:x.title,startDate:x.startDate,kind:x.examLink.kind,exam:x.examLink.exam}))};
     // Day A/B Autofill asks for course-matched subtasks on one local calendar
     // date. Recurring occurrences and moved exceptions are resolved by expand().
-    window.cpGetCalendarTasksForDate=dateKey=>{let target=date(dateKey),grouped={};expand(target,target).filter(o=>o.displayDate===dateKey&&!o.completed&&o.type!=='event'&&courses.includes(o.title)).forEach(o=>{let list=grouped[o.title]||(grouped[o.title]=[]),ids=new Set(list.map(s=>String(s.id)));(o.subtasks||[]).forEach(s=>{let sid=String(s?.id||'');if(sid&&String(s?.title||'').trim()&&!ids.has(sid)){list.push({id:sid,title:String(s.title).trim(),completed:!!s.completed});ids.add(sid)}})});return grouped};
+    window.cpGetCalendarTasksForDate=dateKey=>{let target=date(dateKey),grouped={};expand(target,target).forEach(o=>{if(o.displayDate!==dateKey||o.completed||o.type==='event')return;let cn=(o.courseId&&typeof courseById!=='undefined'&&courseById[o.courseId])||(o.course&&courses.includes(o.course)&&o.course)||(courses.includes(o.title)&&o.title)||'';if(!cn)return;let list=grouped[cn]||(grouped[cn]=[]),ids=new Set(list.map(s=>String(s.id)));(o.subtasks||[]).forEach(s=>{let sid=String(s?.id||'');if(sid&&String(s?.title||'').trim()&&!ids.has(sid)){list.push({id:sid,title:String(s.title).trim(),completed:!!s.completed});ids.add(sid)}})});return grouped};
     function month(r){let names=[];for(let i=0;i<7;i++)names.push(add(new Date(2024,0,7+S.prefs.weekStart),i).toLocaleDateString(undefined,{weekday:'short'}));let html=`<div class="cal-month"><div class="cal-weekdays">${names.map(n=>`<div class="cal-weekday">${esc(n)}</div>`).join('')}</div><div class="cal-month-grid">`;for(let i=0;i<42;i++){let d=add(r[0],i),key=ds(d),a=S.shown.filter(o=>o.displayDate===key),max=S.prefs.density==='compact'?4:3;html+=`<div class="cal-day ${d.getMonth()!==S.cursor.getMonth()?'outside ':''}${ds(d)===ds(new Date())?'today':''}" data-date="${key}"><div class="cal-day-num">${d.getDate()}</div>${a.slice(0,max).map(itemHTML).join('')}${a.length>max?`<button class="cal-more" data-more="${key}">+${a.length-max} more</button>`:''}</div>`}document.getElementById('calViewHost').innerHTML=html+'</div></div>';bindMonthDrag()}
     function timedLayout(items){let a=[...items].sort((x,y)=>mins(x.startTime)-mins(y.startTime));return a.map(o=>{let os=a.filter(x=>mins(x.startTime)<mins(o.endTime||tm(mins(o.startTime)+S.prefs.defaultDuration))&&mins(x.endTime||tm(mins(x.startTime)+S.prefs.defaultDuration))>mins(o.startTime));return Object.assign({},o,{_col:os.indexOf(o),_cols:os.length})})}
     /* The timeline always renders the FULL 24h — startHour/endHour no longer clip it.
@@ -13862,6 +14191,33 @@
     function normalizeSat(raw){let d=defaultSat(),s=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{},q=s.settings&&typeof s.settings==='object'&&!Array.isArray(s.settings)?s.settings:{};d.settings=Object.assign(d.settings,q);if(!validDate(d.settings.examDate))d.settings.examDate='2026-10-03';d.settings.timezone=txt(d.settings.timezone,'Asia/Riyadh');['targetTotal','targetRW','targetMathMin','targetMathMax','dailyMinutes'].forEach(k=>d.settings[k]=num(d.settings[k],defaultSat().settings[k]));d.settings.studyDays=Array.isArray(d.settings.studyDays)?d.settings.studyDays.map(Number).filter(x=>x>=0&&x<=6):[0,1,2,3,4];d.weeks=rowArray(s.weeks,d.weeks,(x,i)=>x&&typeof x==='object'&&validDate(x.start)&&validDate(x.end)?{id:txt(x.id,'sat-week-'+(i+1)),start:x.start,end:x.end,title:txt(x.title,'SAT plan period'),focus:txt(x.focus)}:null);d.sessions=rowArray(s.sessions,d.sessions,(x,i)=>{if(!x||typeof x!=='object')return null;let original=validDate(x.originalDate)?x.originalDate:(validDate(x.date)?x.date:null);if(!original)return null;return{id:txt(x.id,'sat-session-'+original+'-'+i),originalDate:original,date:validDate(x.date)?x.date:original,title:txt(x.title,'SAT study session'),details:txt(x.details),durationMinutes:clamp(num(x.durationMinutes,180),15,600),status:['pending','completed','skipped'].includes(x.status)?x.status:'pending',notes:txt(x.notes),calendarLinked:!!x.calendarLinked}});d.deadlines=rowArray(s.deadlines,d.deadlines,(x,i)=>x&&typeof x==='object'&&validDate(x.date)?{id:txt(x.id,'sat-deadline-'+i),date:x.date,endDate:validDate(x.endDate)?x.endDate:'',title:txt(x.title,'SAT deadline'),priority:['high','medium','low'].includes(x.priority)?x.priority:'high'}:null);d.practiceTests=rowArray(s.practiceTests,d.practiceTests,(x,i)=>x&&typeof x==='object'&&validDate(x.date)?{id:txt(x.id,'sat-test-'+i),name:txt(x.name,'Practice attempt'),date:x.date,rw:num(x.rw),math:num(x.math),forcedGuesses:num(x.forcedGuesses),officialTiming:!!x.officialTiming,reviewStatus:txt(x.reviewStatus,'planned'),notes:txt(x.notes)}:null);d.errors=rowArray(s.errors,d.errors,(x,i)=>{if(!x||typeof x!=='object'||!validDate(x.date))return null;let section=txt(x.section,'Reading and Writing'),domain=[...RW_DOMAINS,...MATH_DOMAINS].includes(x.domain)?x.domain:(section==='Math'?MATH_DOMAINS[0]:RW_DOMAINS[0]);return{id:txt(x.id,'sat-error-'+i),date:x.date,source:txt(x.source),section,domain,difficulty:['easy','medium','hard'].includes(x.difficulty)?x.difficulty:'medium',result:['correct','incorrect','guessed'].includes(x.result)?x.result:'incorrect',learnerAnswer:txt(x.learnerAnswer),correctAnswer:txt(x.correctAnswer),cause:txt(x.cause,'concept gap'),preventionRule:txt(x.preventionRule),notes:txt(x.notes),mastery:txt(x.mastery,'learning'),redos:rowArray(x.redos,[],r=>r&&validDate(r.due)?{due:r.due,completed:!!r.completed,correctNoHelp:r.correctNoHelp===true?true:r.correctNoHelp===false?false:null,completedAt:txt(r.completedAt)||null}:null)}});d.orderTrials=rowArray(s.orderTrials,d.orderTrials,(x,i)=>x&&typeof x==='object'?{id:txt(x.id,'sat-trial-'+i),module:[1,2].includes(+x.module)?+x.module:1,strategy:['standard','grammar-first'].includes(x.strategy)?x.strategy:'standard',accuracy:num(x.accuracy),completionMinutes:num(x.completionMinutes),remainingMinutes:num(x.remainingMinutes),notes:txt(x.notes)}:null);d.resources=rowArray(s.resources,d.resources,(x,i)=>normalizeResource(x,i,'sat'));d.lockedStrategy=['standard','grammar-first'].includes(s.lockedStrategy)?s.lockedStrategy:'';d.schemaVersion=1;return d}
     function normalizeIelts(raw){let d=defaultIelts(),s=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{},q=s.settings&&typeof s.settings==='object'&&!Array.isArray(s.settings)?s.settings:{};d.settings=Object.assign(d.settings,q);d.settings.testType=txt(d.settings.testType,'IELTS Academic');d.settings.testDate=validDate(d.settings.testDate)?d.settings.testDate:'';d.settings.targetOverall=num(d.settings.targetOverall,7.5);if(!validDate(d.settings.transitionDate))d.settings.transitionDate='2026-10-03';if(!validDate(d.settings.intensiveStart))d.settings.intensiveStart='2026-10-04';let targets=q.targetSections&&typeof q.targetSections==='object'?q.targetSections:{};d.settings.targetSections=Object.fromEntries(IELTS_SECTIONS.map(k=>[k,num(targets[k])]));let session=(x,i,prefix)=>{if(!x||typeof x!=='object')return null;let start=validDate(x.start)?x.start:(validDate(x.date)?x.date:null);if(!start)return null;return{id:txt(x.id,prefix+'-'+i),week:num(x.week),originalDate:validDate(x.originalDate)?x.originalDate:start,start,end:validDate(x.end)?x.end:start,date:validDate(x.date)?x.date:undefined,title:txt(x.title,prefix==='ielts-maint'?'IELTS maintenance':'IELTS intensive'),focus:txt(x.focus),durationMinutes:x.durationMinutes==null?undefined:clamp(num(x.durationMinutes,30),10,600),status:['pending','completed','skipped'].includes(x.status)?x.status:'pending',notes:txt(x.notes),calendarLinked:!!x.calendarLinked}};d.maintenance=rowArray(s.maintenance,d.maintenance,(x,i)=>session(x,i,'ielts-maint'));d.intensive=rowArray(s.intensive,d.intensive,(x,i)=>session(x,i,'ielts-intensive'));d.mocks=rowArray(s.mocks,d.mocks,(x,i)=>x&&typeof x==='object'&&validDate(x.date)?{id:txt(x.id,'ielts-mock-'+i),date:x.date,scores:Object.fromEntries(IELTS_SECTIONS.map(k=>[k,num(x.scores&&x.scores[k])])),timing:txt(x.timing,'Full official timing'),notes:txt(x.notes)}:null);d.practices=rowArray(s.practices,d.practices,(x,i)=>x&&typeof x==='object'&&validDate(x.date)?{id:txt(x.id,'ielts-practice-'+i),type:txt(x.type,'Listening practice'),section:txt(x.section),date:x.date,score:num(x.score),duration:num(x.duration),reference:txt(x.reference),notes:txt(x.notes)}:null);d.resources=rowArray(s.resources,d.resources,(x,i)=>normalizeResource(x,i,'ielts'));d.intensiveActive=!!s.intensiveActive;d.schemaVersion=1;return d}
     let SAT=read(SAT_KEY,defaultSat,normalizeSat),IELTS=read(IELTS_KEY,defaultIelts,normalizeIelts);
+
+    /* ---- Exam ↔ course connections ------------------------------------------
+       A normalized, versioned store linking each exam to at most one roster
+       course by STABLE courseId (never the editable name). Missing or corrupt
+       data fails safe to "no connections"; one course can never hold both exams.
+       This store is authoritative for the relationship — the prep states below
+       stay authoritative for all SAT/IELTS content. */
+    const LINKS_KEY='cp_exam_course_links_v1';
+    function defaultLinks(){return{schemaVersion:1,sat:{courseId:null},ielts:{courseId:null}}}
+    function normalizeLinks(raw){let s=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{},cid=v=>{let x=v&&typeof v==='object'?v.courseId:null;return typeof x==='string'&&x?x:null},d=defaultLinks();d.sat.courseId=cid(s.sat);d.ielts.courseId=cid(s.ielts);if(d.sat.courseId&&d.sat.courseId===d.ielts.courseId)d.ielts.courseId=null;return d}
+    function readLinks(){let raw=null;try{raw=JSON.parse(localStorage.getItem(LINKS_KEY))}catch(e){}return normalizeLinks(raw)}
+    function writeLinks(l){localStorage.setItem(LINKS_KEY,JSON.stringify(normalizeLinks(l)))}
+    function rosterCourses(){let list=typeof window.cpGetCourses==='function'?window.cpGetCourses():null;return Array.isArray(list)?list:[]}
+    function rosterCourseById(id){return id?rosterCourses().find(c=>c.id===id)||null:null}
+    function connectedCourse(exam){return rosterCourseById(readLinks()[exam].courseId)}
+    window.cpGetExamCourseLink=exam=>{let l=readLinks();return l[exam]?l[exam].courseId:null};
+    window.cpGetExamCourseLinks=()=>clone(readLinks());
+    // Connect / change / disconnect one exam. courseId '' or null disconnects.
+    // Enforces one-exam-per-course and stamps the exam's Calendar records with the
+    // new association (metadata only). Transactional over the keys it touches.
+    window.cpSetExamCourseLink=(exam,courseId)=>{if(exam!=='sat'&&exam!=='ielts')return{ok:false,message:'Unknown exam.'};let id=typeof courseId==='string'&&courseId?courseId:null;if(id){if(!rosterCourseById(id))return{ok:false,message:'That course no longer exists.'};let other=exam==='sat'?'ielts':'sat';if(readLinks()[other].courseId===id)return{ok:false,message:'That course is already connected to '+(other==='sat'?'SAT':'IELTS')+' Prep.'}}let keys=[LINKS_KEY,CAL_KEY,'cp_calendar_exceptions_v1'],snap=keys.map(k=>[k,localStorage.getItem(k)]);try{let links=readLinks();links[exam].courseId=id;writeLinks(links);let c=id?rosterCourseById(id):null;if(typeof window.cpSetExamCalendarCourse==='function')window.cpSetExamCalendarCourse(exam,id||'',c?c.name:'')}catch(e){snap.forEach(([k,v])=>{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)});if(typeof window.cpCalendarReload==='function')window.cpCalendarReload();return{ok:false,message:'Could not save the connection.'}}return{ok:true,courseId:id}};
+    // A course was removed from the roster: drop only the exam that pointed at it
+    // and clear the course tag from its Calendar records (records are kept).
+    window.cpDisconnectCourseIfLinked=courseId=>{if(!courseId)return false;let links=readLinks(),touched=false;['sat','ielts'].forEach(e=>{if(links[e].courseId===courseId){links[e].courseId=null;touched=true;writeLinks(links);if(typeof window.cpSetExamCalendarCourse==='function')window.cpSetExamCalendarCourse(e,'','')}});return touched};
+    // A course was renamed: the connection is id-keyed so it survives untouched;
+    // only the denormalized Calendar label needs refreshing to the new name.
+    window.cpRefreshExamCourseLabels=()=>{['sat','ielts'].forEach(e=>{let c=connectedCourse(e);if(c&&typeof window.cpRefreshExamCalendarCourseName==='function')window.cpRefreshExamCalendarCourseName(c.id,c.name)})};
     function satCompleteTests(){return SAT.practiceTests.filter(x=>num(x.rw)!=null&&num(x.math)!=null).sort((a,b)=>a.date.localeCompare(b.date))}
     function latestTwoAverage(tests){let a=(tests||[]).filter(x=>num(x.rw)!=null&&num(x.math)!=null).sort((x,y)=>String(x.date).localeCompare(String(y.date))).slice(-2);return a.length?Math.round(a.reduce((sum,x)=>sum+num(x.rw,0)+num(x.math,0),0)/a.length):null}
     function satDomainStats(errors){let all=[...RW_DOMAINS,...MATH_DOMAINS];return all.map(domain=>{let rows=(errors||[]).filter(x=>x.domain===domain),correct=rows.filter(x=>x.result==='correct').length,accuracy=rows.length?Math.round(correct/rows.length*100):null,recent=rows.slice().sort((a,b)=>a.date.localeCompare(b.date)),half=Math.max(1,Math.floor(recent.length/2)),old=recent.slice(0,half),fresh=recent.slice(half),acc=a=>a.length?Math.round(a.filter(x=>x.result==='correct').length/a.length*100):null,trend=fresh.length&&old.length?acc(fresh)-acc(old):null;return{domain,total:rows.length,correct,accuracy,trend}})}
@@ -13873,11 +14229,35 @@
     function dueRedos(){let n=today(),out=[];(SAT.errors||[]).forEach(error=>(error.redos||[]).forEach((redo,i)=>{if(!redo.completed&&redo.due<=n)out.push({error,redo,index:i,overdue:redo.due<n})}));return out.sort((a,b)=>a.redo.due.localeCompare(b.redo.due))}
     const redoSchedule=date=>[{due:addLocalDays(date,2),completed:false,correctNoHelp:null,completedAt:null},{due:addLocalDays(date,7),completed:false,correctNoHelp:null,completedAt:null}];
     function pullCalendar(exam){if(typeof window.cpGetExamCalendarItems!=='function')return;let items=window.cpGetExamCalendarItems(exam),state=exam==='sat'?SAT:IELTS,changed=false,collections=exam==='sat'?[state.sessions]:[state.maintenance,state.intensive];items.forEach(item=>{let link=item.examLink;if(!link||!link.localId)return;collections.some(list=>{let row=list.find(x=>x.id===link.localId);if(!row)return false;let status=item.completed?(row.status==='skipped'?'skipped':'completed'):(row.status==='skipped'?'skipped':'pending');if(row.date!==item.startDate||row.status!==status||row.notes!==(item.notes||'')){row.date=item.startDate;row.status=status;row.notes=item.notes||'';changed=true}row.calendarLinked=true;return true})});if(changed)save(exam==='sat'?SAT_KEY:IELTS_KEY,state)}
-    function calendarBase(exam,kind,row,type,title){return{id:'cal_'+row.id.replace(/[^a-z0-9_-]/gi,'_'),schemaVersion:1,type:type||'task',title:title||row.title,categoryId:'study',course:'',startDate:row.date||row.start,allDay:true,startTime:'',endTime:'',priority:type==='deadline'?'high':'medium',notes:row.notes||'',url:'',completed:row.status==='completed'||row.status==='skipped',completedAt:row.status==='completed'?new Date().toISOString():null,subtasks:[],reminders:type==='deadline'?[1440]:[],recurrence:null,exceptions:{},trackerLink:null,examLink:{exam,kind,localId:row.id,id:exam+':'+kind+':'+row.id},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}}
+    function calendarBase(exam,kind,row,type,title){let cc=connectedCourse(exam)||{id:'',name:''};return{id:'cal_'+row.id.replace(/[^a-z0-9_-]/gi,'_'),schemaVersion:1,type:type||'task',title:title||row.title,categoryId:'study',course:cc.name||'',courseId:cc.id||'',startDate:row.date||row.start,allDay:true,startTime:'',endTime:'',priority:type==='deadline'?'high':'medium',notes:row.notes||'',url:'',completed:row.status==='completed'||row.status==='skipped',completedAt:row.status==='completed'?new Date().toISOString():null,subtasks:[],reminders:type==='deadline'?[1440]:[],recurrence:null,exceptions:{},trackerLink:null,examLink:{exam,kind,localId:row.id,id:exam+':'+kind+':'+row.id},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}}
     function satCalendarRecords(){let rows=SAT.sessions.map(x=>calendarBase('sat','session',x,'task')),deadlines=SAT.deadlines.map(x=>calendarBase('sat','deadline',x,'deadline')),tests=SAT.practiceTests.map(x=>calendarBase('sat','practice',Object.assign({},x,{title:x.name}),'event',x.name)),real=calendarBase('sat','exam',{id:'sat-exam',date:SAT.settings.examDate,title:'SAT'},'event','SAT');return rows.concat(deadlines,tests,[real])}
     function ieltsCalendarRecords(includeIntensive){let rows=IELTS.maintenance.map(x=>calendarBase('ielts','maintenance',x,'task'));if(includeIntensive)rows=rows.concat(IELTS.intensive.map(x=>calendarBase('ielts','intensive',x,'task','IELTS intensive — '+x.focus)));return rows}
     function pushCalendar(exam,includeIntensive){let records=exam==='sat'?satCalendarRecords():ieltsCalendarRecords(includeIntensive);if(typeof window.cpUpsertExamCalendarItems!=='function')return;let result=window.cpUpsertExamCalendarItems(records);let state=exam==='sat'?SAT:IELTS;(exam==='sat'?[state.sessions]:[state.maintenance,...(includeIntensive?[state.intensive]:[])]).forEach(x=>x.calendarLinked=true);save(exam==='sat'?SAT_KEY:IELTS_KEY,state);toast((result.added||0)+' added, '+(result.updated||0)+' synchronized. No duplicates created.')}
     function patchCalendar(exam,kind,row){if(!row.calendarLinked||typeof window.cpPatchExamCalendarItem!=='function')return;window.cpPatchExamCalendarItem(exam+':'+kind+':'+row.id,{startDate:row.date||row.start,completed:row.status==='completed'||row.status==='skipped',completedAt:row.status==='completed'?new Date().toISOString():null,notes:row.notes||''})}
+    /* ---- Scoped Calendar reconciliation -------------------------------------
+       Which Calendar-owned fields each generated kind can round-trip back into
+       its source row. Date always round-trips; status/notes only where the
+       source model has those fields (a deadline has neither, so its Calendar
+       notes stay Calendar-owned and are never wiped by a reconcile). */
+    const KIND_CAPS={'sat:session':{status:true,notes:true},'sat:deadline':{status:false,notes:false},'sat:practice':{status:false,notes:true},'sat:exam':{status:false,notes:false},'ielts:maintenance':{status:true,notes:true},'ielts:intensive':{status:true,notes:true}};
+    function applyPull(row,item,caps){let changed=false;if(validDate(item.startDate)){let field='date'in row?'date':'start';if(row[field]!==item.startDate){row[field]=item.startDate;changed=true}}if(caps.status){let status=item.completed?(row.status==='skipped'?'skipped':'completed'):(row.status==='skipped'?'skipped':'pending');if(row.status!==status){row.status=status;changed=true}}if(caps.notes){let notes=item.notes||'';if((row.notes||'')!==notes){row.notes=notes;changed=true}}return changed}
+    // Pull supported Calendar edits back into the matching exam rows BEFORE
+    // reconciling, for every linked kind (nothing is silently ignored).
+    function pullbackExam(exam){if(typeof window.cpGetExamCalendarItems!=='function')return;let items=window.cpGetExamCalendarItems(exam),changed=false;items.forEach(item=>{let link=item.examLink;if(!link||!link.kind||!link.localId)return;let caps=KIND_CAPS[exam+':'+link.kind]||{status:false,notes:false};if(exam==='sat'){if(link.kind==='exam'){if(validDate(item.startDate)&&SAT.settings.examDate!==item.startDate){SAT.settings.examDate=item.startDate;changed=true}return}let list=link.kind==='deadline'?SAT.deadlines:link.kind==='practice'?SAT.practiceTests:SAT.sessions,row=list.find(x=>x.id===link.localId);if(row&&applyPull(row,item,caps))changed=true}else{let list=link.kind==='intensive'?IELTS.intensive:IELTS.maintenance,row=list.find(x=>x.id===link.localId);if(row&&applyPull(row,item,caps))changed=true}});if(changed)save(exam==='sat'?SAT_KEY:IELTS_KEY,exam==='sat'?SAT:IELTS)}
+    // Every stable link id that still has a live source row. Prune uses this, so a
+    // record is removed only when its source is gone — NOT merely absent from the
+    // records currently being upserted (maintenance-only keeps active intensives).
+    function examValidLinkIds(exam){let out=[];if(exam==='sat'){SAT.sessions.forEach(x=>out.push('sat:session:'+x.id));SAT.deadlines.forEach(x=>out.push('sat:deadline:'+x.id));SAT.practiceTests.forEach(x=>out.push('sat:practice:'+x.id));out.push('sat:exam:sat-exam')}else{IELTS.maintenance.forEach(x=>out.push('ielts:maintenance:'+x.id));IELTS.intensive.forEach(x=>out.push('ielts:intensive:'+x.id))}return out}
+    // Recompute calendarLinked from actual Calendar existence (never a stale flag).
+    function recomputeLinked(exam){if(typeof window.cpGetExamCalendarItems!=='function')return;let ids=new Set(window.cpGetExamCalendarItems(exam).map(x=>x.examLink&&x.examLink.id).filter(Boolean)),state=exam==='sat'?SAT:IELTS,pairs=exam==='sat'?[['session',state.sessions]]:[['maintenance',state.maintenance],['intensive',state.intensive]],changed=false;pairs.forEach(([kind,list])=>list.forEach(row=>{let linked=ids.has(exam+':'+kind+':'+row.id);if(row.calendarLinked!==linked){row.calendarLinked=linked;changed=true}}));if(changed)save(exam==='sat'?SAT_KEY:IELTS_KEY,state)}
+    function reconcileOne(exam,options){pullbackExam(exam);let includeIntensive=exam==='ielts'&&(options.includeIntensive===undefined?IELTS.intensiveActive:!!options.includeIntensive),records=exam==='sat'?satCalendarRecords():ieltsCalendarRecords(includeIntensive),valid=examValidLinkIds(exam),result=typeof window.cpReconcileExamCalendar==='function'?window.cpReconcileExamCalendar(exam,records,valid):{added:0,updated:0,removed:0,unchanged:0};recomputeLinked(exam);return result}
+    // Public, explicit, scoped Calendar synchronization. `scope` is required and
+    // validated: 'sat' and 'ielts' each touch only their own state, connection and
+    // examLink records; 'both' is the deterministic SAT-then-IELTS pair. The whole
+    // operation is transactional over the keys it writes — any failure restores
+    // their exact prior strings, and never calls localStorage.clear().
+    function reconcileExamCalendar(scope,options){options=options||{};if(scope!=='sat'&&scope!=='ielts'&&scope!=='both')throw new Error('reconcileExamCalendar: scope must be "sat", "ielts" or "both"');let exams=scope==='both'?['sat','ielts']:[scope],keys=[CAL_KEY,'cp_calendar_exceptions_v1'];exams.forEach(e=>keys.push(e==='sat'?SAT_KEY:IELTS_KEY));let snap=keys.map(k=>[k,localStorage.getItem(k)]),report={};try{exams.forEach(e=>{report[e]=reconcileOne(e,options)})}catch(err){snap.forEach(([k,v])=>{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)});SAT=read(SAT_KEY,defaultSat,normalizeSat);IELTS=read(IELTS_KEY,defaultIelts,normalizeIelts);if(typeof window.cpCalendarReload==='function')window.cpCalendarReload();throw err}return report}
+    window.cpReconcileExam=reconcileExamCalendar;
     function toast(message){document.querySelector('.exam-toast')?.remove();let t=h('div','exam-toast',titleCaseText(message));t.setAttribute('role','status');document.body.appendChild(t);requestAnimationFrame(()=>t.classList.add('show'));setTimeout(()=>t.remove(),3800)}
     function formDialog(root,title,fields,onSave){root.querySelector('.exam-dialog')?.remove();let ov=h('div','exam-dialog'),card=h('form','exam-dialog-card'),head=h('div','exam-card-head'),titleEl=h('h3','',title),titleId=uid('exam-dialog-title');titleEl.id=titleId;ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-labelledby',titleId);head.append(titleEl,action('Close',()=>ov.remove(),'small'));let grid=h('div','exam-form-grid cols-3');fields.forEach(f=>{let wrap=h('div','exam-field'+(f.full?' full':'')),label=h('label','',f.label),input;if(f.type==='textarea'){input=h('textarea','exam-textarea');input.rows=3}else if(f.type==='select'){input=h('select','exam-select');(f.options||[]).forEach(o=>{let option=h('option','',Array.isArray(o)?o[1]:o);option.value=Array.isArray(o)?o[0]:o;input.appendChild(option)})}else if(f.type==='checkbox'){wrap.className='exam-field';label.className='exam-check';input=document.createElement('input');input.type='checkbox';input.className='cal-square-check';label.textContent='';label.append(input,document.createTextNode(f.label));wrap.appendChild(label);input.checked=!!f.value;input.name=f.name;grid.appendChild(wrap);return}else{input=h('input','exam-input');if(f.type==='date'){input.type='text';input.readOnly=true;input.dataset.calPicker='date';input.placeholder='Choose date';input.autocomplete='off'}else input.type=f.type||'text';if(f.min!=null)input.min=f.min;if(f.max!=null)input.max=f.max;if(f.step!=null)input.step=f.step}let fieldId=uid('exam-field');input.id=fieldId;label.htmlFor=fieldId;input.name=f.name;input.value=f.value==null?'':f.value;if(f.required)input.required=true;if(f.maxLength)input.maxLength=f.maxLength;if(f.type==='date'){let control=h('div','cal-picker-control'),trigger=h('button','cal-picker-trigger');trigger.type='button';trigger.dataset.pickerTarget=f.name;trigger.dataset.pickerKind='date';trigger.setAttribute('aria-label','Choose '+f.label.toLowerCase());control.append(input,trigger);wrap.append(label,control)}else wrap.append(label,input);grid.appendChild(wrap)});let actions=h('div','exam-actions');actions.style.marginTop='18px';actions.append(action('Cancel',()=>ov.remove()),action('Save',()=>{},'primary'));card.append(head,grid,actions);card.addEventListener('submit',e=>{e.preventDefault();let data={};fields.forEach(f=>{let el=card.elements[f.name];data[f.name]=f.type==='checkbox'?el.checked:el.value});if(onSave(data)!==false)ov.remove()});actions.lastChild.type='submit';ov.appendChild(card);root.appendChild(ov);card.querySelectorAll('select').forEach(select=>window.cpThemeSelect?.(select));window.cpBindCalendarPickers?.(card);applyExamTitleCase(ov);card.querySelector('input:not([type="hidden"]),textarea,.cp-dd-head')?.focus()}
     function makeCard(title,subtitle){let c=h('section','exam-card'),head=h('div','exam-card-head'),left=h('div');left.appendChild(h('h3','',title));if(subtitle)left.appendChild(h('p','exam-muted',subtitle));head.appendChild(left);c.appendChild(head);c._head=head;return c}
@@ -13890,10 +14270,17 @@
         action('Reschedule / notes',()=>formDialog(root,'Update session',[{name:'date',label:'Date',type:'date',value:row.date||row.start,required:true},{name:'notes',label:'Notes',type:'textarea',value:row.notes||'',full:true,maxLength:2000}],d=>{row.date=d.date;row.notes=d.notes.trim();rerender()}),'small')
     ]}
     function renderSession(row,exam,kind,root){let duration=row.durationMinutes?row.durationMinutes+' minutes · ':'',note=[row.details||row.focus||'',row.notes?'Notes: '+row.notes:''].filter(Boolean).join('\n');let e=entry(row.title,fmtDate(row.date||row.start)+' · '+duration+row.status,note,root);e.classList.add('exam-session-status-'+row.status);e._top.appendChild(badge(row.status,row.status==='pending'?'neutral':''));sessionActions(exam,kind,row,root).forEach(b=>e._actions.appendChild(b));return e}
-    function renderSat(){pullCalendar('sat');let shell=setupShell(satRoot,'sat','SAT','A focused path to October 3, with official practice, deliberate review and an editable local plan.'),n=today(),remaining=daysRemainingLocal(SAT.settings.examDate,n),week=activeWeek(SAT.weeks,n),tests=satCompleteTests(),avg=latestTwoAverage(tests),latest=tests[tests.length-1],readiness=satReadiness(),summary=shell.querySelector('.exam-summary-grid'),count=shell.querySelector('.exam-countdown');count.append(h('strong','',remaining),document.createTextNode(remaining===1?' day remaining':' days remaining'));stat(summary,'Active week',week?week.title:'Plan complete');stat(summary,'Latest score',latest?num(latest.rw,0)+num(latest.math,0):'No score yet');stat(summary,'Latest-two average',avg==null?'Need test data':avg);stat(summary,'1500+ readiness',readiness?'On track':'Building');renderSatOverview(shell.querySelector('[data-panel="overview"]'),week,readiness);renderSatPlan(shell.querySelector('[data-panel="plan"]'),week);renderSatTests(shell.querySelector('[data-panel="tests"]'));renderSatErrors(shell.querySelector('[data-panel="errors"]'));renderSatStrategy(shell.querySelector('[data-panel="strategy"]'));renderResources(shell.querySelector('[data-panel="resources"]'),'sat');applyExamTitleCase(satRoot)}
+    function renderSat(){pullCalendar('sat');let shell=setupShell(satRoot,'sat','SAT','A focused path to October 3, with official practice, deliberate review and an editable local plan.'),n=today(),remaining=daysRemainingLocal(SAT.settings.examDate,n),week=activeWeek(SAT.weeks,n),tests=satCompleteTests(),avg=latestTwoAverage(tests),latest=tests[tests.length-1],readiness=satReadiness(),summary=shell.querySelector('.exam-summary-grid'),count=shell.querySelector('.exam-countdown');count.append(h('strong','',remaining),document.createTextNode(remaining===1?' day remaining':' days remaining'));stat(summary,'Active week',week?week.title:'Plan complete');stat(summary,'Latest score',latest?num(latest.rw,0)+num(latest.math,0):'No score yet');stat(summary,'Latest-two average',avg==null?'Need test data':avg);stat(summary,'1500+ readiness',readiness?'On track':'Building');renderSatOverview(shell.querySelector('[data-panel="overview"]'),week,readiness);renderSatPlan(shell.querySelector('[data-panel="plan"]'),week);renderSatTests(shell.querySelector('[data-panel="tests"]'));renderSatErrors(shell.querySelector('[data-panel="errors"]'));renderSatStrategy(shell.querySelector('[data-panel="strategy"]'));renderResources(shell.querySelector('[data-panel="resources"]'),'sat');satRoot.querySelectorAll('select:not([data-cp-themed])').forEach(s=>{if(typeof window.cpThemeSelect==='function')window.cpThemeSelect(s)});applyExamTitleCase(satRoot)}
     function renderSatOverview(host,week,readiness){let layout=h('div','exam-layout'),main=h('div','exam-stack'),side=h('div','exam-stack'),n=today(),todaySession=SAT.sessions.find(x=>x.date===n&&x.status==='pending')||SAT.sessions.find(x=>x.date>=n&&x.status==='pending'),due=dueRedos(),next=[...SAT.deadlines.map(x=>({date:x.date,title:x.title})),...SAT.practiceTests.map(x=>({date:x.date,title:x.name}))].filter(x=>x.date>=n).sort((a,b)=>a.date.localeCompare(b.date))[0],todayCard=makeCard(todaySession&&todaySession.date===n?'Today’s session':'Next scheduled session',week?'Current focus: '+week.focus:'');if(todaySession)todayCard.appendChild(renderSession(todaySession,'sat','session',satRoot));else todayCard.appendChild(empty('No scheduled SAT preparation today. Friday and Saturday remain unscheduled.'));let review=makeCard('Due for review',due.length?due.length+' redo'+(due.length===1?'':'s')+' ready':'No redos due');if(due.length)due.slice(0,4).forEach(x=>{let e=entry(x.error.domain,x.redo.overdue?'Overdue since '+fmtDate(x.redo.due):'Due '+fmtDate(x.redo.due),x.error.preventionRule||x.error.notes);e.classList.add(x.redo.overdue?'exam-overdue':'exam-due');e._actions.appendChild(action('Record redo',()=>redoDialog(x.error,x.index),'small primary'));review.appendChild(e)});else review.appendChild(empty('Missed or guessed questions will appear here about 48 hours and one week after logging.'));let status=makeCard(readiness?'On track for 1500+':'Readiness is still building','Advisory only — practice accuracy never becomes a made-up scaled score.');let progress=testsProgress(),bar=h('div','exam-progress');bar.style.setProperty('--progress',progress+'%');status.append(bar,h('p','exam-muted',(next?'Next: '+next.title+' on '+fmtDate(next.date)+'. ':'')+'Readiness requires a latest-two average of '+SAT.settings.targetTotal+'+, Math '+SAT.settings.targetMathMin+'–'+SAT.settings.targetMathMax+', R&W '+SAT.settings.targetRW+'+, and controlled timing guesses.'));let rec=makeCard('Study recommendations');let list=h('div','exam-recommendations');satRecommendations(SAT).forEach(x=>list.appendChild(h('div','exam-recommendation',x)));rec.appendChild(list);main.append(todayCard,review);side.append(status,rec);layout.append(main,side);host.appendChild(layout)}
     function testsProgress(){let tests=satCompleteTests();return clamp(tests.length/Math.max(1,SAT.practiceTests.length)*100,0,100)}
-    function renderSatPlan(host,week){let layout=h('div','exam-layout'),main=h('div','exam-stack'),side=h('div','exam-stack'),settings=makeCard('Plan settings','Defaults are editable; day calculations use local calendar dates.');settings._head.appendChild(action('Edit settings',satSettingsDialog,'small'));settings.appendChild(h('p','exam-muted','Exam '+fmtDate(SAT.settings.examDate)+' · '+SAT.settings.timezone+' · '+SAT.settings.dailyMinutes+' minutes Sunday–Thursday · target '+SAT.settings.targetTotal+'+ (R&W '+SAT.settings.targetRW+'+, Math '+SAT.settings.targetMathMin+'–'+SAT.settings.targetMathMax+'). Until the SAT, the intended weekly split is about 14 SAT hours and 1 IELTS hour.'));let weeks=makeCard('Eight-week progression','Every focus and date range can be revised.');SAT.weeks.forEach(w=>{let e=entry(w.title,fmtDate(w.start)+(w.end!==w.start?' – '+fmtDate(w.end):''),w.focus);if(w===week)e.classList.add('exam-week');e._actions.appendChild(action('Edit',()=>weekDialog(w),'small'));weeks.appendChild(e)});let sessions=makeCard('Study sessions',showAllSessions.sat?'All scheduled sessions':'Current preparation week');sessions._head.appendChild(action(showAllSessions.sat?'Show current week':'Show all',()=>{showAllSessions.sat=!showAllSessions.sat;renderSat()},'small'));let rows=showAllSessions.sat?SAT.sessions:SAT.sessions.filter(x=>week&&x.originalDate>=week.start&&x.originalDate<=week.end);if(!rows.length)sessions.appendChild(empty('No scheduled sessions in this range.'));rows.forEach(x=>sessions.appendChild(renderSession(x,'sat','session',satRoot)));let deadlines=makeCard('Deadlines and test-day reminders','High-priority dates stay editable.');deadlines._head.appendChild(action('Add deadline',()=>deadlineDialog(),'small'));SAT.deadlines.sort((a,b)=>a.date.localeCompare(b.date)).forEach(x=>{let e=entry(x.title,fmtDate(x.date)+(x.endDate?' – '+fmtDate(x.endDate):''),x.priority+' priority');e._actions.append(action('Edit',()=>deadlineDialog(x),'small'),action('Delete',()=>{SAT.deadlines=SAT.deadlines.filter(y=>y.id!==x.id);save(SAT_KEY,SAT);renderSat()},'small danger'));deadlines.appendChild(e)});let calendar=makeCard('Calendar integration','Nothing is added automatically. Stable namespaced links make repeated insertion idempotent.');calendar.appendChild(action('Add / synchronize SAT plan',()=>pushCalendar('sat'),'primary'));let reset=makeCard('Reset SAT Prep','This resets only SAT Prep. It does not touch IELTS, courses, trackers or other Calendar records. Linked SAT Calendar records will be removed.');reset.appendChild(action('Reset SAT Prep data',()=>window.cpConfirm?window.cpConfirm('Reset SAT Prep to its editable defaults and remove its linked Calendar records?',()=>{localStorage.removeItem(SAT_KEY);window.cpRemoveExamCalendarItems?.('sat');SAT=read(SAT_KEY,defaultSat,normalizeSat);renderSat()},{title:'Reset SAT Prep?',confirmText:'Reset'}):null,'danger'));main.append(settings,weeks);side.append(calendar,deadlines,reset);layout.append(main,side);host.appendChild(layout)}
+    // Runs a scoped reconcile, reports per-exam counts, and re-renders the page in
+    // view. Success is only claimed when the transactional operation succeeded.
+    function runReconcile(scope,options,current){let ok=true,r=null;try{r=reconcileExamCalendar(scope,options)}catch(e){ok=false}if(ok){let parts=(scope==='both'?['sat','ielts']:[scope]).map(e=>{let c=r[e]||{};return(e==='sat'?'SAT':'IELTS')+' — '+(c.added||0)+' added, '+(c.updated||0)+' updated, '+(c.removed||0)+' removed'});toast(parts.join(' · ')+'. No duplicates created.')}else toast('Update failed. Nothing was changed.');renderExam(current)}
+    // Course-connection control for a Plan area. Selects from the live roster,
+    // supports connect / change / disconnect, and points at Your Courses when the
+    // roster is empty rather than duplicating that manager.
+    function courseConnectionCard(exam){let card=makeCard('Connected course','Link this workspace to a course in Your Courses. Its expanded course page then shows a live '+(exam==='sat'?'SAT':'IELTS')+' summary, and updates here tag that course on the Calendar.'),roster=rosterCourses();if(!roster.length){card.appendChild(empty('You have no courses yet. Create one in Your Courses, then come back to connect it.'));card.appendChild(action('Open Your Courses',()=>window.cpSwitchDay?.('backupTab'),'small'));return card}let otherId=readLinks()[exam==='sat'?'ielts':'sat'].courseId,current=connectedCourse(exam);card.appendChild(h('p','exam-muted',current?'Connected to '+current.name+'.':'Not connected to a course.'));let field=h('div','exam-field'),label=h('label','','Course'),select=h('select','exam-select'),none=h('option','','Not connected');none.value='';select.appendChild(none);roster.forEach(c=>{let o=h('option','',c.name+(c.id===otherId?' — connected to '+(exam==='sat'?'IELTS':'SAT'):''));o.value=c.id;if(c.id===otherId)o.disabled=true;if(current&&c.id===current.id)o.selected=true;select.appendChild(o)});let fid=uid('exam-course');select.id=fid;label.htmlFor=fid;field.append(label,select);card.appendChild(field);select.addEventListener('change',()=>{let res=window.cpSetExamCourseLink(exam,select.value||null);if(!res||!res.ok){toast(res&&res.message||'Could not connect.');renderExam(exam);return}toast(select.value?'Course connected.':'Course disconnected. Exam history and Calendar records are kept.');renderExam(exam)});if(current)card.appendChild(action('Disconnect',()=>{window.cpSetExamCourseLink(exam,null);toast('Course disconnected. Exam history and Calendar records are kept.');renderExam(exam)},'small danger'));return card}
+    function renderSatPlan(host,week){let layout=h('div','exam-layout'),main=h('div','exam-stack'),side=h('div','exam-stack'),settings=makeCard('Plan settings','Defaults are editable; day calculations use local calendar dates.');settings._head.appendChild(action('Edit settings',satSettingsDialog,'small'));settings.appendChild(h('p','exam-muted','Exam '+fmtDate(SAT.settings.examDate)+' · '+SAT.settings.timezone+' · '+SAT.settings.dailyMinutes+' minutes Sunday–Thursday · target '+SAT.settings.targetTotal+'+ (R&W '+SAT.settings.targetRW+'+, Math '+SAT.settings.targetMathMin+'–'+SAT.settings.targetMathMax+'). Until the SAT, the intended weekly split is about 14 SAT hours and 1 IELTS hour.'));let weeks=makeCard('Eight-week progression','Every focus and date range can be revised.');SAT.weeks.forEach(w=>{let e=entry(w.title,fmtDate(w.start)+(w.end!==w.start?' – '+fmtDate(w.end):''),w.focus);if(w===week)e.classList.add('exam-week');e._actions.appendChild(action('Edit',()=>weekDialog(w),'small'));weeks.appendChild(e)});let sessions=makeCard('Study sessions',showAllSessions.sat?'All scheduled sessions':'Current preparation week');sessions._head.appendChild(action(showAllSessions.sat?'Show current week':'Show all',()=>{showAllSessions.sat=!showAllSessions.sat;renderSat()},'small'));let rows=showAllSessions.sat?SAT.sessions:SAT.sessions.filter(x=>week&&x.originalDate>=week.start&&x.originalDate<=week.end);if(!rows.length)sessions.appendChild(empty('No scheduled sessions in this range.'));rows.forEach(x=>sessions.appendChild(renderSession(x,'sat','session',satRoot)));let deadlines=makeCard('Deadlines and test-day reminders','High-priority dates stay editable.');deadlines._head.appendChild(action('Add deadline',()=>deadlineDialog(),'small'));SAT.deadlines.sort((a,b)=>a.date.localeCompare(b.date)).forEach(x=>{let e=entry(x.title,fmtDate(x.date)+(x.endDate?' – '+fmtDate(x.endDate):''),x.priority+' priority');e._actions.append(action('Edit',()=>deadlineDialog(x),'small'),action('Delete',()=>{SAT.deadlines=SAT.deadlines.filter(y=>y.id!==x.id);save(SAT_KEY,SAT);renderSat()},'small danger'));deadlines.appendChild(e)});let calendar=makeCard('Calendar integration','Nothing is added automatically. Updates are idempotent: current sessions, deadlines, tests and test day are upserted, rows you deleted are pruned, and your own Calendar edits are kept.');let satCalRow=h('div','exam-actions');satCalRow.append(action('Update SAT',()=>runReconcile('sat',{},'sat'),'primary'),action('Update SAT & IELTS',()=>runReconcile('both',{},'sat'),'small'));calendar.appendChild(satCalRow);let reset=makeCard('Reset SAT Prep','This resets only SAT Prep. It does not touch IELTS, courses, trackers or other Calendar records. Linked SAT Calendar records will be removed.');reset.appendChild(action('Reset SAT Prep data',()=>window.cpConfirm?window.cpConfirm('Reset SAT Prep to its editable defaults and remove its linked Calendar records?',()=>{localStorage.removeItem(SAT_KEY);window.cpRemoveExamCalendarItems?.('sat');SAT=read(SAT_KEY,defaultSat,normalizeSat);renderSat()},{title:'Reset SAT Prep?',confirmText:'Reset'}):null,'danger'));main.append(settings,weeks);side.append(courseConnectionCard('sat'),calendar,deadlines,reset);layout.append(main,side);host.appendChild(layout)}
     function satSettingsDialog(){let s=SAT.settings;formDialog(satRoot,'SAT plan settings',[{name:'examDate',label:'Exam date',type:'date',value:s.examDate,required:true},{name:'timezone',label:'Time zone',value:s.timezone,required:true},{name:'targetTotal',label:'Total target',type:'number',value:s.targetTotal,min:400,max:1600},{name:'targetRW',label:'R&W minimum',type:'number',value:s.targetRW,min:200,max:800},{name:'targetMathMin',label:'Math minimum',type:'number',value:s.targetMathMin,min:200,max:800},{name:'targetMathMax',label:'Math maximum',type:'number',value:s.targetMathMax,min:200,max:800},{name:'dailyMinutes',label:'Daily minutes',type:'number',value:s.dailyMinutes,min:15,max:600}],d=>{Object.assign(s,{examDate:d.examDate,timezone:d.timezone.trim(),targetTotal:num(d.targetTotal,1500),targetRW:num(d.targetRW,720),targetMathMin:num(d.targetMathMin,790),targetMathMax:num(d.targetMathMax,800),dailyMinutes:num(d.dailyMinutes,180)});save(SAT_KEY,SAT);renderSat()})}
     function weekDialog(w){formDialog(satRoot,'Edit plan period',[{name:'title',label:'Title',value:w.title,required:true},{name:'start',label:'Start date',type:'date',value:w.start,required:true},{name:'end',label:'End date',type:'date',value:w.end,required:true},{name:'focus',label:'Focus',type:'textarea',value:w.focus,full:true,maxLength:3000}],d=>{Object.assign(w,{title:d.title.trim(),start:d.start,end:d.end,focus:d.focus.trim()});save(SAT_KEY,SAT);renderSat()})}
     function deadlineDialog(row){let x=row||{id:uid('sat-deadline'),title:'',date:today(),endDate:'',priority:'high'};formDialog(satRoot,row?'Edit deadline':'Add deadline',[{name:'title',label:'Title',value:x.title,required:true},{name:'date',label:'Date',type:'date',value:x.date,required:true},{name:'endDate',label:'End date (optional)',type:'date',value:x.endDate||''},{name:'priority',label:'Priority',type:'select',value:x.priority,options:['high','medium','low']}],d=>{Object.assign(x,{title:d.title.trim(),date:d.date,endDate:d.endDate,priority:d.priority});if(!row)SAT.deadlines.push(x);save(SAT_KEY,SAT);renderSat()})}
@@ -13907,20 +14294,29 @@
     function trialDialog(row){let x=row||{id:uid('sat-trial'),module:1,strategy:'standard',accuracy:null,completionMinutes:null,remainingMinutes:null,notes:''};formDialog(satRoot,row?'Edit order trial':'Add order trial',[{name:'module',label:'Trial module',type:'select',value:x.module,options:[[1,'Module 1'],[2,'Module 2']]},{name:'strategy',label:'Strategy',type:'select',value:x.strategy,options:[['standard','Standard question order'],['grammar-first','Grammar/Expression first']]},{name:'accuracy',label:'Accuracy (%)',type:'number',value:x.accuracy,min:0,max:100,step:.1},{name:'completionMinutes',label:'Completion time (minutes)',type:'number',value:x.completionMinutes,min:0,max:60,step:.1},{name:'remainingMinutes',label:'Remaining time (minutes)',type:'number',value:x.remainingMinutes,min:0,max:60,step:.1},{name:'notes',label:'Notes',type:'textarea',value:x.notes,full:true,maxLength:2000}],d=>{Object.assign(x,{module:num(d.module,1),strategy:d.strategy,accuracy:num(d.accuracy,0),completionMinutes:num(d.completionMinutes,0),remainingMinutes:num(d.remainingMinutes,0),notes:d.notes.trim()});if(!row)SAT.orderTrials.push(x);save(SAT_KEY,SAT);renderSat()})}
     function renderResources(host,exam){let state=exam==='sat'?SAT:IELTS,key=exam==='sat'?SAT_KEY:IELTS_KEY,card=makeCard('Resources','Editable outbound links. Internet access is only required when opening a resource.');card._head.appendChild(action('Add resource',()=>resourceDialog(exam),'small primary'));if(exam==='ielts')card.appendChild(h('div','exam-recommendation','Check each university’s required overall band and every individual-section minimum. The Saudi booking price was reported as SAR 1,636, last verified August 9, 2026; confirm the current price before paying.'));state.resources.forEach(x=>{let row=h('div','exam-resource'),body=h('div'),url=safeUrl(x.url),link=url?h('a','exam-resource-link',x.title):h('span','exam-resource-link',x.title);if(url){link.href=url;link.target='_blank';link.rel='noopener noreferrer'}body.appendChild(link);if(x.note)body.appendChild(h('small','',x.note));let acts=h('div','exam-resource-actions');acts.append(action('Edit',()=>resourceDialog(exam,x),'small'),action('Delete',()=>{state.resources=state.resources.filter(y=>y.id!==x.id);save(key,state);renderExam(exam)},'small danger'));row.append(body,acts);card.appendChild(row)});host.appendChild(card)}
     function resourceDialog(exam,row){let state=exam==='sat'?SAT:IELTS,key=exam==='sat'?SAT_KEY:IELTS_KEY,root=exam==='sat'?satRoot:ieltsRoot,x=row||{id:uid(exam+'-resource'),title:'',url:'',note:'',completed:false};formDialog(root,row?'Edit resource':'Add resource',[{name:'title',label:'Title',value:x.title,required:true},{name:'url',label:'URL',type:'url',value:x.url,required:true},{name:'note',label:'Note',type:'textarea',value:x.note,full:true,maxLength:2000}],d=>{if(!safeUrl(d.url)){toast('Use a valid http or https URL.');return false}Object.assign(x,{title:d.title.trim(),url:safeUrl(d.url),note:d.note.trim()});if(!row)state.resources.push(x);save(key,state);renderExam(exam)})}
-    function renderIelts(){pullCalendar('ielts');let shell=setupShell(ieltsRoot,'ielts','IELTS','Maintenance before the SAT, then an editable six-week intensive plan when you are ready.'),n=today(),status=IELTS.intensiveActive?'Six-week intensive':(n<=IELTS.settings.transitionDate?'Maintenance':'Ready to activate intensive'),summary=shell.querySelector('.exam-summary-grid'),count=shell.querySelector('.exam-countdown'),mocks=IELTS.mocks.slice().sort((a,b)=>a.date.localeCompare(b.date)),latest=mocks[mocks.length-1],overall=latest?ieltsOverallBand(latest.scores):null,trend=ieltsTrends();count.append(h('strong','',IELTS.settings.testDate?daysRemainingLocal(IELTS.settings.testDate,n):'—'),document.createTextNode(IELTS.settings.testDate?' days to IELTS':' test not booked'));stat(summary,'Current status',status);stat(summary,'Overall target',IELTS.settings.targetOverall);stat(summary,'Latest mock',overall==null?'No mock yet':overall);stat(summary,'Weakest section',trend.weakest||'Need practice data');renderIeltsOverview(shell.querySelector('[data-panel="overview"]'),status,trend);renderIeltsPlan(shell.querySelector('[data-panel="plan"]'));renderIeltsPerformance(shell.querySelector('[data-panel="performance"]'),trend);renderResources(shell.querySelector('[data-panel="resources"]'),'ielts');applyExamTitleCase(ieltsRoot)}
+    function renderIelts(){pullCalendar('ielts');let shell=setupShell(ieltsRoot,'ielts','IELTS','Maintenance before the SAT, then an editable six-week intensive plan when you are ready.'),n=today(),status=IELTS.intensiveActive?'Six-week intensive':(n<=IELTS.settings.transitionDate?'Maintenance':'Ready to activate intensive'),summary=shell.querySelector('.exam-summary-grid'),count=shell.querySelector('.exam-countdown'),mocks=IELTS.mocks.slice().sort((a,b)=>a.date.localeCompare(b.date)),latest=mocks[mocks.length-1],overall=latest?ieltsOverallBand(latest.scores):null,trend=ieltsTrends();count.append(h('strong','',IELTS.settings.testDate?daysRemainingLocal(IELTS.settings.testDate,n):'—'),document.createTextNode(IELTS.settings.testDate?' days to IELTS':' test not booked'));stat(summary,'Current status',status);stat(summary,'Overall target',IELTS.settings.targetOverall);stat(summary,'Latest mock',overall==null?'No mock yet':overall);stat(summary,'Weakest section',trend.weakest||'Need practice data');renderIeltsOverview(shell.querySelector('[data-panel="overview"]'),status,trend);renderIeltsPlan(shell.querySelector('[data-panel="plan"]'));renderIeltsPerformance(shell.querySelector('[data-panel="performance"]'),trend);renderResources(shell.querySelector('[data-panel="resources"]'),'ielts');ieltsRoot.querySelectorAll('select:not([data-cp-themed])').forEach(s=>{if(typeof window.cpThemeSelect==='function')window.cpThemeSelect(s)});applyExamTitleCase(ieltsRoot)}
     function ieltsTrends(){let points=Object.fromEntries(IELTS_SECTIONS.map(s=>[s,[]]));IELTS.mocks.forEach(m=>IELTS_SECTIONS.forEach(s=>{let v=num(m.scores&&m.scores[s]);if(v!=null)points[s].push({date:m.date,value:v})}));IELTS.practices.forEach(p=>{let section=p.section||({'Writing Task 1':'Writing','Writing Task 2':'Writing','Speaking recording':'Speaking','Listening practice':'Listening','Reading practice':'Reading'}[p.type]);let v=num(p.score);if(section&&v!=null)points[section].push({date:p.date,value:v})});let stats={};IELTS_SECTIONS.forEach(s=>{let a=points[s].sort((x,y)=>x.date.localeCompare(y.date)).slice(-3),avg=a.length?Math.round(a.reduce((sum,x)=>sum+x.value,0)/a.length*10)/10:null;stats[s]={average:avg,recent:a}});let weakest=IELTS_SECTIONS.filter(s=>stats[s].average!=null).sort((a,b)=>stats[a].average-stats[b].average)[0]||'';return{stats,weakest}}
     function ieltsReady(){let mocks=IELTS.mocks.slice().sort((a,b)=>a.date.localeCompare(b.date)),latest=mocks[mocks.length-1];if(!latest)return false;let overall=ieltsOverallBand(latest.scores);if(overall<IELTS.settings.targetOverall)return false;return IELTS_SECTIONS.every(s=>IELTS.settings.targetSections[s]==null||num(latest.scores[s],0)>=num(IELTS.settings.targetSections[s]))}
     function renderIeltsOverview(host,status,trend){let layout=h('div','exam-layout'),main=h('div','exam-stack'),side=h('div','exam-stack'),n=today(),rows=IELTS.intensiveActive?IELTS.intensive:IELTS.maintenance,next=rows.find(x=>x.date?x.date>=n&&x.status==='pending':x.start>=n&&x.status==='pending'),todayCard=makeCard(next&&(next.date||next.start)===n?'Today’s IELTS session':'Next IELTS session',status);if(next)todayCard.appendChild(renderSession(next,'ielts',IELTS.intensiveActive?'intensive':'maintenance',ieltsRoot));else todayCard.appendChild(empty('No pending IELTS session is scheduled.'));let readiness=makeCard(ieltsReady()?'IELTS target currently met':'IELTS readiness is building','Overall and optional section minimums are evaluated separately.');readiness.appendChild(h('p','exam-muted','Target overall '+IELTS.settings.targetOverall+'. '+IELTS_SECTIONS.map(s=>s+' '+(IELTS.settings.targetSections[s]==null?'not set':IELTS.settings.targetSections[s]+'+')).join(' · ')));let trends=makeCard('Recent section trends','Latest three scored records per section.');let grid=h('div','exam-domain-grid');IELTS_SECTIONS.forEach(s=>{let x=h('div','exam-domain'),d=trend.stats[s];x.append(h('strong','',s),h('span','',d.average==null?'No scored practice':'Recent average '+d.average+' · '+d.recent.map(v=>v.value).join(' → ')));grid.appendChild(x)});trends.appendChild(grid);main.append(todayCard,trends);side.append(readiness);layout.append(main,side);host.appendChild(layout)}
-    function renderIeltsPlan(host){let layout=h('div','exam-layout'),main=h('div','exam-stack'),side=h('div','exam-stack'),settings=makeCard('IELTS settings','The test date may stay not booked.');settings._head.appendChild(action('Edit settings',ieltsSettingsDialog,'small'));settings.appendChild(h('p','exam-muted',IELTS.settings.testType+' · overall target '+IELTS.settings.targetOverall+' · test '+(IELTS.settings.testDate?fmtDate(IELTS.settings.testDate):'not booked')+'. Before '+fmtDate(IELTS.settings.transitionDate)+': maintenance. After it: activate an intensive start date when ready.'));let maintenance=makeCard('Pre-SAT maintenance','One hour weekly: 30 minutes Tuesday and 30 minutes Thursday, alternating skills.');IELTS.maintenance.filter(x=>showAllSessions.ielts||x.date>=today()).slice(0,showAllSessions.ielts?999:8).forEach(x=>maintenance.appendChild(renderSession(x,'ielts','maintenance',ieltsRoot)));maintenance._head.appendChild(action(showAllSessions.ielts?'Show upcoming':'Show all',()=>{showAllSessions.ielts=!showAllSessions.ielts;renderIelts()},'small'));let intensive=makeCard('Post-SAT six-week plan','Activation uses the selected start date; it never assumes October 4.');if(!IELTS.intensiveActive){intensive.appendChild(action('Activate six-week plan',activateIeltsDialog,'primary'))}else{IELTS.intensive.forEach(x=>intensive.appendChild(renderSession(x,'ielts','intensive',ieltsRoot)));intensive.appendChild(action('Add / synchronize intensive plan',()=>pushCalendar('ielts',true),'primary'))}let calendar=makeCard('Calendar integration','Add maintenance now; intensive weeks are optional and added after activation.');calendar.append(action('Add / synchronize maintenance',()=>pushCalendar('ielts',false),'primary'));let reset=makeCard('Reset IELTS','This resets only IELTS and removes linked IELTS Calendar records. SAT and all other planner data stay intact.');reset.appendChild(action('Reset IELTS data',()=>window.cpConfirm?window.cpConfirm('Reset IELTS to its defaults and remove its linked Calendar records?',()=>{localStorage.removeItem(IELTS_KEY);window.cpRemoveExamCalendarItems?.('ielts');IELTS=read(IELTS_KEY,defaultIelts,normalizeIelts);renderIelts()},{title:'Reset IELTS?',confirmText:'Reset'}):null,'danger'));main.append(settings,maintenance,intensive);side.append(calendar,reset);layout.append(main,side);host.appendChild(layout)}
+    function renderIeltsPlan(host){let layout=h('div','exam-layout'),main=h('div','exam-stack'),side=h('div','exam-stack'),settings=makeCard('IELTS settings','The test date may stay not booked.');settings._head.appendChild(action('Edit settings',ieltsSettingsDialog,'small'));settings.appendChild(h('p','exam-muted',IELTS.settings.testType+' · overall target '+IELTS.settings.targetOverall+' · test '+(IELTS.settings.testDate?fmtDate(IELTS.settings.testDate):'not booked')+'. Before '+fmtDate(IELTS.settings.transitionDate)+': maintenance. After it: activate an intensive start date when ready.'));let maintenance=makeCard('Pre-SAT maintenance','One hour weekly: 30 minutes Tuesday and 30 minutes Thursday, alternating skills.');IELTS.maintenance.filter(x=>showAllSessions.ielts||x.date>=today()).slice(0,showAllSessions.ielts?999:8).forEach(x=>maintenance.appendChild(renderSession(x,'ielts','maintenance',ieltsRoot)));maintenance._head.appendChild(action(showAllSessions.ielts?'Show upcoming':'Show all',()=>{showAllSessions.ielts=!showAllSessions.ielts;renderIelts()},'small'));let intensive=makeCard('Post-SAT six-week plan','Activation uses the selected start date; it never assumes October 4.');if(!IELTS.intensiveActive){intensive.appendChild(action('Activate six-week plan',activateIeltsDialog,'primary'))}else{IELTS.intensive.forEach(x=>intensive.appendChild(renderSession(x,'ielts','intensive',ieltsRoot)));intensive.appendChild(action('Update intensive plan',()=>runReconcile('ielts',{includeIntensive:true},'ielts'),'primary'))}let calendar=makeCard('Calendar integration','Maintenance updates on request; intensive weeks are included only after activation and only when you ask. Updates are idempotent and keep your Calendar edits.');let ieltsCalRow=h('div','exam-actions');ieltsCalRow.append(action('Update IELTS maintenance',()=>runReconcile('ielts',{includeIntensive:false},'ielts'),'primary'),action('Update SAT & IELTS',()=>runReconcile('both',{},'ielts'),'small'));calendar.append(ieltsCalRow);let reset=makeCard('Reset IELTS','This resets only IELTS and removes linked IELTS Calendar records. SAT and all other planner data stay intact.');reset.appendChild(action('Reset IELTS data',()=>window.cpConfirm?window.cpConfirm('Reset IELTS to its defaults and remove its linked Calendar records?',()=>{localStorage.removeItem(IELTS_KEY);window.cpRemoveExamCalendarItems?.('ielts');IELTS=read(IELTS_KEY,defaultIelts,normalizeIelts);renderIelts()},{title:'Reset IELTS?',confirmText:'Reset'}):null,'danger'));main.append(settings,maintenance,intensive);side.append(courseConnectionCard('ielts'),calendar,reset);layout.append(main,side);host.appendChild(layout)}
     function ieltsSettingsDialog(){let s=IELTS.settings,ts=s.targetSections;formDialog(ieltsRoot,'IELTS settings',[{name:'testType',label:'Test',type:'select',value:s.testType,options:['IELTS Academic']},{name:'testDate',label:'Test date (optional)',type:'date',value:s.testDate},{name:'targetOverall',label:'Overall target',type:'number',value:s.targetOverall,min:0,max:9,step:.5},{name:'Listening',label:'Listening minimum (optional)',type:'number',value:ts.Listening,min:0,max:9,step:.5},{name:'Reading',label:'Reading minimum (optional)',type:'number',value:ts.Reading,min:0,max:9,step:.5},{name:'Writing',label:'Writing minimum (optional)',type:'number',value:ts.Writing,min:0,max:9,step:.5},{name:'Speaking',label:'Speaking minimum (optional)',type:'number',value:ts.Speaking,min:0,max:9,step:.5},{name:'transitionDate',label:'SAT transition date',type:'date',value:s.transitionDate,required:true},{name:'intensiveStart',label:'Preferred intensive start',type:'date',value:s.intensiveStart,required:true}],d=>{Object.assign(s,{testType:d.testType,testDate:d.testDate,targetOverall:num(d.targetOverall,7.5),transitionDate:d.transitionDate,intensiveStart:d.intensiveStart});IELTS_SECTIONS.forEach(x=>ts[x]=num(d[x]));save(IELTS_KEY,IELTS);renderIelts()})}
-    function activateIeltsDialog(){formDialog(ieltsRoot,'Activate six-week IELTS plan',[{name:'start',label:'Start date',type:'date',value:IELTS.settings.intensiveStart||addLocalDays(IELTS.settings.transitionDate,1),required:true},{name:'addCalendar',label:'Add plan to Calendar after activation',type:'checkbox',value:false}],d=>{IELTS.settings.intensiveStart=d.start;IELTS.intensive=intensiveWeeks(d.start);IELTS.intensiveActive=true;save(IELTS_KEY,IELTS);if(d.addCalendar)pushCalendar('ielts',true);renderIelts()})}
+    function activateIeltsDialog(){formDialog(ieltsRoot,'Activate six-week IELTS plan',[{name:'start',label:'Start date',type:'date',value:IELTS.settings.intensiveStart||addLocalDays(IELTS.settings.transitionDate,1),required:true},{name:'addCalendar',label:'Add plan to Calendar after activation',type:'checkbox',value:false}],d=>{IELTS.settings.intensiveStart=d.start;IELTS.intensive=intensiveWeeks(d.start);IELTS.intensiveActive=true;save(IELTS_KEY,IELTS);if(d.addCalendar)runReconcile('ielts',{includeIntensive:true},'ielts');renderIelts()})}
     function renderIeltsPerformance(host,trend){let layout=h('div','exam-layout'),main=h('div','exam-stack'),side=h('div','exam-stack'),mocks=makeCard('IELTS mock tests','Overall band follows official half-band rounding from all four sections.');mocks._head.appendChild(action('Add mock',()=>mockDialog(),'small primary'));if(!IELTS.mocks.length)mocks.appendChild(empty('No full mocks recorded yet.'));IELTS.mocks.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach(x=>{let overall=ieltsOverallBand(x.scores),e=entry('Overall '+(overall==null?'—':overall),fmtDate(x.date)+' · '+x.timing,x.notes);e.appendChild(h('div','exam-entry-meta',IELTS_SECTIONS.map(s=>s+' '+x.scores[s]).join(' · ')));e._actions.append(action('Edit',()=>mockDialog(x),'small'),action('Delete',()=>{IELTS.mocks=IELTS.mocks.filter(y=>y.id!==x.id);save(IELTS_KEY,IELTS);renderIelts()},'small danger'));mocks.appendChild(e)});let practice=makeCard('Section practice','Store metadata, notes or a reference only — no audio or media files are saved.');practice._head.appendChild(action('Add practice',()=>ieltsPracticeDialog(),'small primary'));IELTS.practices.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach(x=>{let e=entry(x.type,fmtDate(x.date)+(x.score!=null&&x.score!==''?' · '+x.score:'')+(x.duration?' · '+x.duration+' min':''),(x.reference?'Reference: '+x.reference+'\n':'')+(x.notes||''));e._actions.append(action('Edit',()=>ieltsPracticeDialog(x),'small'),action('Delete',()=>{IELTS.practices=IELTS.practices.filter(y=>y.id!==x.id);save(IELTS_KEY,IELTS);renderIelts()},'small danger'));practice.appendChild(e)});let trends=makeCard('Readiness summary',ieltsReady()?'Targets met on the latest full mock':'Continue building toward the selected targets.');let grid=h('div','exam-domain-grid');IELTS_SECTIONS.forEach(s=>{let x=h('div','exam-domain'),target=IELTS.settings.targetSections[s],d=trend.stats[s];x.append(h('strong','',s),h('span','',(d.average==null?'No trend':('Recent '+d.average))+' · target '+(target==null?'not set':target)));grid.appendChild(x)});trends.appendChild(grid);main.append(mocks,practice);side.append(trends);layout.append(main,side);host.appendChild(layout)}
     function mockDialog(row){let x=row||{id:uid('ielts-mock'),date:today(),scores:{Listening:null,Reading:null,Writing:null,Speaking:null},timing:'Full official timing',notes:''};formDialog(ieltsRoot,row?'Edit IELTS mock':'Add IELTS mock',[{name:'date',label:'Test date',type:'date',value:x.date,required:true},...IELTS_SECTIONS.map(s=>({name:s,label:s+' band',type:'number',value:x.scores[s],min:0,max:9,step:.5,required:true})),{name:'timing',label:'Timing conditions',value:x.timing,required:true},{name:'notes',label:'Notes',type:'textarea',value:x.notes,full:true,maxLength:3000}],d=>{x.date=d.date;x.timing=d.timing.trim();x.notes=d.notes.trim();IELTS_SECTIONS.forEach(s=>x.scores[s]=num(d[s],0));if(!row)IELTS.mocks.push(x);save(IELTS_KEY,IELTS);renderIelts()})}
     function ieltsPracticeDialog(row){let x=row||{id:uid('ielts-practice'),type:'Writing Task 1',date:today(),score:null,duration:null,reference:'',notes:''};formDialog(ieltsRoot,row?'Edit section practice':'Add section practice',[{name:'type',label:'Practice type',type:'select',value:x.type,options:['Writing Task 1','Writing Task 2','Speaking recording','Listening practice','Reading practice']},{name:'date',label:'Date',type:'date',value:x.date,required:true},{name:'score',label:'Band / self-score (optional)',type:'number',value:x.score,min:0,max:9,step:.5},{name:'duration',label:'Minutes (optional)',type:'number',value:x.duration,min:0,max:600},{name:'reference',label:'Recording or source reference',value:x.reference,maxLength:500},{name:'notes',label:'Notes / self-review',type:'textarea',value:x.notes,full:true,maxLength:3000}],d=>{Object.assign(x,{type:d.type,date:d.date,score:num(d.score),duration:num(d.duration),reference:d.reference.trim(),notes:d.notes.trim()});if(!row)IELTS.practices.push(x);save(IELTS_KEY,IELTS);renderIelts()})}
     function renderExam(exam){if(exam==='sat')renderSat();else renderIelts()}
     window.cpExamPrepRender=tab=>renderExam(tab==='satPrep'?'sat':'ielts');
-    window.cpNormalizeExamPrepBackup=data=>{if(!data||typeof data!=='object'||Array.isArray(data))return data;if(Object.prototype.hasOwnProperty.call(data,SAT_KEY))data[SAT_KEY]=normalizeSat(data[SAT_KEY]);if(Object.prototype.hasOwnProperty.call(data,IELTS_KEY))data[IELTS_KEY]=normalizeIelts(data[IELTS_KEY]);return data};
-    window.cpExamPrepTest={daysRemainingLocal,addLocalDays,redoSchedule,latestTwoAverage,satDomainStats,satRecommendations,satReadinessFor,ieltsOverallBand,normalizeSat,normalizeIelts,satCalendarRecords,ieltsCalendarRecords,titleCaseText};
+    window.cpNormalizeExamPrepBackup=data=>{if(!data||typeof data!=='object'||Array.isArray(data))return data;if(Object.prototype.hasOwnProperty.call(data,SAT_KEY))data[SAT_KEY]=normalizeSat(data[SAT_KEY]);if(Object.prototype.hasOwnProperty.call(data,IELTS_KEY))data[IELTS_KEY]=normalizeIelts(data[IELTS_KEY]);if(Object.prototype.hasOwnProperty.call(data,LINKS_KEY))data[LINKS_KEY]=normalizeLinks(data[LINKS_KEY]);return data};
+    /* ---- Derived, read-only exam summaries for a connected course page --------
+       These NEVER write prep state; a course page renders straight from them, so
+       the authoritative prep stores stay the single source of truth. */
+    function satSummary(){let n=today(),tests=satCompleteTests(),avg=latestTwoAverage(tests),latest=tests[tests.length-1],best=tests.slice().sort((a,b)=>(num(b.rw,0)+num(b.math,0))-(num(a.rw,0)+num(a.math,0)))[0],week=activeWeek(SAT.weeks,n),next=SAT.sessions.find(x=>x.date>=n&&x.status==='pending')||null,completed=SAT.sessions.filter(x=>x.status==='completed').length;return{exam:'sat',examDate:SAT.settings.examDate,examDateLabel:fmtDate(SAT.settings.examDate),countdownDays:daysRemainingLocal(SAT.settings.examDate,n),targetTotal:SAT.settings.targetTotal,targetRW:SAT.settings.targetRW,targetMathMin:SAT.settings.targetMathMin,targetMathMax:SAT.settings.targetMathMax,phaseTitle:week?week.title:'Plan complete',phaseFocus:week?week.focus:'',nextSession:next?{title:next.title,dateLabel:fmtDate(next.date)}:null,sessionsCompleted:completed,sessionsPlanned:SAT.sessions.length,latestTest:latest?{name:latest.name,dateLabel:fmtDate(latest.date),total:num(latest.rw,0)+num(latest.math,0),rw:num(latest.rw,0),math:num(latest.math,0)}:null,bestTotal:best?num(best.rw,0)+num(best.math,0):null,average:avg,dueRedos:dueRedos().length,readiness:satReadiness()?'On track for 1500+':'Building'}}
+    function ieltsSummary(){let n=today(),trend=ieltsTrends(),mocks=IELTS.mocks.slice().sort((a,b)=>a.date.localeCompare(b.date)),latest=mocks[mocks.length-1],active=IELTS.intensiveActive?IELTS.intensive:IELTS.maintenance,next=active.find(x=>String(x.date||x.start)>=n&&x.status==='pending')||null,mode=IELTS.intensiveActive?'Six-week intensive':(n<=IELTS.settings.transitionDate?'Maintenance':'Ready to activate intensive'),completed=active.filter(x=>x.status==='completed').length;return{exam:'ielts',testType:IELTS.settings.testType,testDate:IELTS.settings.testDate||null,testDateLabel:IELTS.settings.testDate?fmtDate(IELTS.settings.testDate):'Not booked',countdownDays:IELTS.settings.testDate?daysRemainingLocal(IELTS.settings.testDate,n):null,targetOverall:IELTS.settings.targetOverall,targetSections:clone(IELTS.settings.targetSections),mode,nextSession:next?{title:next.title,dateLabel:fmtDate(next.date||next.start)}:null,sessionsCompleted:completed,sessionsPlanned:active.length,latestMock:latest?{dateLabel:fmtDate(latest.date),overall:ieltsOverallBand(latest.scores),sections:IELTS_SECTIONS.map(s=>({section:s,band:num(latest.scores[s])}))}:null,weakest:trend.weakest||null,readiness:ieltsReady()?'Target currently met':'Building'}}
+    window.cpGetExamSummary=exam=>exam==='sat'?satSummary():exam==='ielts'?ieltsSummary():null;
+    // Resolve a course id to its connected exam and a fresh derived summary, or
+    // null when the course is connected to neither exam.
+    window.cpGetCourseExamContext=courseId=>{if(!courseId)return null;let links=readLinks(),exam=links.sat.courseId===courseId?'sat':links.ielts.courseId===courseId?'ielts':'';return exam?{exam,summary:exam==='sat'?satSummary():ieltsSummary()}:null};
+    window.cpExamPrepTest={daysRemainingLocal,addLocalDays,redoSchedule,latestTwoAverage,satDomainStats,satRecommendations,satReadinessFor,ieltsOverallBand,normalizeSat,normalizeIelts,satCalendarRecords,ieltsCalendarRecords,titleCaseText,normalizeLinks,reconcileExamCalendar,examValidLinkIds,satSummary,ieltsSummary};
     window.addEventListener('cp-calendar-exam-sync',e=>{let exam=e.detail&&e.detail.exam;if((exam==='sat'&&satRoot.classList.contains('active'))||(exam==='ielts'&&ieltsRoot.classList.contains('active')))renderExam(exam)});
     window.addEventListener('storage',e=>{if(e.key===SAT_KEY){SAT=read(SAT_KEY,defaultSat,normalizeSat);if(satRoot.classList.contains('active'))renderSat()}if(e.key===IELTS_KEY){IELTS=read(IELTS_KEY,defaultIelts,normalizeIelts);if(ieltsRoot.classList.contains('active'))renderIelts()}});
     })();

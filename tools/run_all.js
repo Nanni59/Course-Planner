@@ -22,6 +22,8 @@ const SUITES = [
     { cmd: 'node', args: ['tools/tracker_day_sync_test.js'] },
     { cmd: 'node', args: ['tools/course_roster_test.js'] },
     { cmd: 'node', args: ['tools/exam_prep_test.js'] },
+    { cmd: 'node', args: ['tools/exam_course_link_test.js'] },
+    { cmd: 'node', args: ['tools/exam_calendar_reconcile_test.js'] },
     { cmd: 'node', args: ['tools/question_ocr_test.js'] },
     { cmd: 'node', args: ['tools/study_progress_test.js'] },
     { cmd: 'python', args: ['tools/worksheet_visual_route_test.py'], fallbackCmd: 'python3' },
