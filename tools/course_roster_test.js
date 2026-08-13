@@ -48,9 +48,6 @@ const rewrite = slice(
 const validate = slice(
     '            function validateCourseName(rawName, ignoreName) {',
     '            function renderCourseManager()');
-const backup = slice(
-    '            window.cpNormalizeCourseBackup = (data) => {',
-    '\n            // Persist the seeded default roster');
 
 // ---- stubs -----------------------------------------------------------------
 function makeLocalStorage(seed) {
@@ -85,15 +82,13 @@ function build(ls) {
         if (!paused.assignment) paused.assignment = [];
         return paused;
     };
-    const win = {};
-    const body = store + '\n' + rewrite + '\n' + validate + '\n' + backup + '\n' +
+    const body = store + '\n' + rewrite + '\n' + validate + '\n' +
         'return { normalizeCourseList, getCourses, setCourses, getCourseDays, ' +
         'isCourseOnBothDays, isValidCourseName, rewriteCourseInStorage, ' +
-        'dropCourseDayData, validateCourseName, getDaysInUse, ALL_COURSE_NAMES, ' +
-        'cpNormalizeCourseBackup: window.cpNormalizeCourseBackup };';
-    const args = ['localStorage', 'getPausedCourses', 'window'].concat(KEY_NAMES);
+        'dropCourseDayData, validateCourseName, getDaysInUse, ALL_COURSE_NAMES };';
+    const args = ['localStorage', 'getPausedCourses'].concat(KEY_NAMES);
     const fn = new Function(...args, body);
-    return fn(ls, getPausedCourses, win, ...KEY_NAMES.map(k => KEYS[k]));
+    return fn(ls, getPausedCourses, ...KEY_NAMES.map(k => KEYS[k]));
 }
 
 // ---- 1. seeding ------------------------------------------------------------
@@ -103,16 +98,12 @@ function build(ls) {
     check('absent roster falls back to the original four courses',
         names.join('|') === 'Calculus & Vectors|English|Media Arts|Business Leadership');
     check('seeded roster keeps the original day assignments',
-        JSON.stringify(api.getCourses().map(c => ({ name: c.name, days: c.days }))) === JSON.stringify([
+        JSON.stringify(api.getCourses()) === JSON.stringify([
             { name: 'Calculus & Vectors', days: ['dayA', 'dayB'] },
             { name: 'English', days: ['dayA', 'dayB'] },
             { name: 'Media Arts', days: ['dayA'] },
             { name: 'Business Leadership', days: ['dayB'] }
         ]));
-    check('every seeded course carries a unique non-empty stable id', (() => {
-        const ids = api.getCourses().map(c => c.id);
-        return ids.length === 4 && ids.every(id => typeof id === 'string' && id) && new Set(ids).size === 4;
-    })());
     check('ALL_COURSE_NAMES is derived from the roster, not a literal',
         api.ALL_COURSE_NAMES.length === 4 && api.ALL_COURSE_NAMES[0] === 'Calculus & Vectors');
 }
@@ -143,7 +134,7 @@ function build(ls) {
         { name: 'Art', days: ['dayA', 'bogus'] }          // unknown day filtered out
     ]);
     check('normalization trims names and orders days A then B',
-        cleaned[0].name === 'Physics' && JSON.stringify(cleaned[0].days) === JSON.stringify(['dayA', 'dayB']));
+        JSON.stringify(cleaned[0]) === JSON.stringify({ name: 'Physics', days: ['dayA', 'dayB'] }));
     check('normalization drops blank, "::", duplicate and dayless entries',
         cleaned.length === 2 && cleaned[1].name === 'Art');
     check('normalization keeps only real day ids',
@@ -152,37 +143,6 @@ function build(ls) {
         api.normalizeCourseList('x') === null && api.normalizeCourseList(null) === null);
     check('"::" is rejected as a course name',
         api.isValidCourseName('A::B') === false && api.isValidCourseName('Fine Name') === true);
-}
-
-// ---- 2b. stable ids survive rename, day changes and re-normalization ---------
-{
-    const api = build(makeLocalStorage({}));
-    const first = api.normalizeCourseList([{ name: 'Physics', days: ['dayA'] }]);
-    check('a legacy { name, days } entry gains a stable id',
-        typeof first[0].id === 'string' && !!first[0].id);
-    const again = api.normalizeCourseList(first);
-    check('normalizing an id-bearing roster preserves the id (no churn)',
-        again[0].id === first[0].id);
-    const renamed = api.normalizeCourseList([{ id: first[0].id, name: 'Advanced Physics', days: ['dayA', 'dayB'] }]);
-    check('a course id survives a rename and a day change',
-        renamed[0].id === first[0].id && renamed[0].name === 'Advanced Physics'
-        && JSON.stringify(renamed[0].days) === JSON.stringify(['dayA', 'dayB']));
-    const collide = api.normalizeCourseList([
-        { id: 'dupe', name: 'A', days: ['dayA'] },
-        { id: 'dupe', name: 'B', days: ['dayB'] }
-    ]);
-    check('duplicate ids are repaired to distinct ids',
-        collide[0].id === 'dupe' && collide[1].id !== 'dupe' && !!collide[1].id);
-    const variants = api.normalizeCourseList([
-        { name: 'English', days: ['dayA'] },
-        { name: 'english', days: ['dayB'] }
-    ]);
-    check('case-variant names collapse to a single course', variants.length === 1);
-    check('an empty roster normalizes to an empty roster with no ids',
-        JSON.stringify(api.normalizeCourseList([])) === '[]');
-    const seeded = build(makeLocalStorage({})).getCourses().map(c => c.name);
-    check('SAT and IELTS are not auto-added to the default roster',
-        !seeded.includes('SAT') && !seeded.includes('IELTS'));
 }
 
 // ---- 3. isCourseOnBothDays -------------------------------------------------
@@ -417,37 +377,6 @@ check('a hidden day tab is dropped from the pill layout',
     html.includes('.tab-nav button[hidden] {'));
 check('tab availability is set once before the first paint',
     html.includes('updateDayTabAvailability(); // set the pill before the first paint'));
-
-// ---- 13. backup normalization: roster ids + exam-link validation -----------
-{
-    const api = build(makeLocalStorage({}));
-    // A legacy { name, days } roster gains stable ids; a link naming no course drops.
-    const data = {
-        cp_courses_v1: [{ name: 'Chem', days: ['dayA'] }, { name: 'Bio', days: ['dayB'] }],
-        cp_exam_course_links_v1: { schemaVersion: 1, sat: { courseId: 'ghost' }, ielts: { courseId: null } }
-    };
-    api.cpNormalizeCourseBackup(data);
-    const ids = data.cp_courses_v1.map(c => c.id);
-    check('backup migrates a legacy roster to stable ids',
-        data.cp_courses_v1.every(c => typeof c.id === 'string' && c.id) && new Set(ids).size === 2);
-    check('backup drops a link that names no course in the same backup',
-        data.cp_exam_course_links_v1.sat.courseId === null);
-
-    const realId = data.cp_courses_v1[0].id;
-    const data2 = { cp_courses_v1: data.cp_courses_v1, cp_exam_course_links_v1: { sat: { courseId: realId }, ielts: { courseId: null } } };
-    api.cpNormalizeCourseBackup(data2);
-    check('backup keeps a link that names a real course', data2.cp_exam_course_links_v1.sat.courseId === realId);
-
-    const data3 = { something_else: 1 };
-    api.cpNormalizeCourseBackup(data3);
-    check('a backup without course/link keys is left untouched', JSON.stringify(data3) === JSON.stringify({ something_else: 1 }));
-
-    // Re-normalizing an already-migrated backup is idempotent (no id churn).
-    const migrated = JSON.parse(JSON.stringify(data));
-    api.cpNormalizeCourseBackup(migrated);
-    check('re-normalizing a migrated backup keeps the same ids',
-        JSON.stringify(migrated.cp_courses_v1.map(c => c.id)) === JSON.stringify(ids));
-}
 
 console.log(failures ? `\n${failures} COURSE ROSTER CASE(S) FAILED` : '\nALL COURSE ROSTER CASES PASS');
 process.exit(failures ? 1 : 0);
