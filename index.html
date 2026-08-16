@@ -8454,6 +8454,18 @@
                     if (scheduledTasks.length && typeof window.cpAppendDayCardSubtasks === 'function') {
                         window.cpAppendDayCardSubtasks(card, scheduledTasks);
                     }
+                    // Also copy any links from today's matched Calendar item(s) for
+                    // this course — autofill used to bring the tasks but not the links.
+                    // Dedup against links already on the card so repeat autofills don't
+                    // stack duplicates.
+                    const scheduledLinks = (scheduledTasks && scheduledTasks.links) || [];
+                    if (scheduledLinks.length && typeof window.cpAppendDayCardLinks === 'function') {
+                        const existingLinks = new Set(
+                            Array.from(card.querySelectorAll('.link-list-container .task-link'))
+                                .map(i => i.value.trim()).filter(Boolean));
+                        const newLinks = scheduledLinks.filter(u => !existingLinks.has(u));
+                        if (newLinks.length) window.cpAppendDayCardLinks(card, newLinks.join(','));
+                    }
 
                     // Dedup: get names already used in the other day for this course
                     const lessonExclude = getNamesUsedInOtherDay(courseName, 'lesson', dayId);
@@ -13551,7 +13563,7 @@
     window.cpRemoveExamCalendarItems=exam=>{load();let before=S.items.length;S.items=S.items.filter(x=>!x.examLink||x.examLink.exam!==exam);if(S.items.length!==before){save();if(root.classList.contains('active'))render();notifyExamCalendar(exam)}return before-S.items.length};
     // Day A/B Autofill asks for course-matched subtasks on one local calendar
     // date. Recurring occurrences and moved exceptions are resolved by expand().
-    window.cpGetCalendarTasksForDate=dateKey=>{let target=date(dateKey),grouped={};expand(target,target).filter(o=>o.displayDate===dateKey&&!o.completed&&o.type!=='event'&&courses.includes(o.title)).forEach(o=>{let list=grouped[o.title]||(grouped[o.title]=[]),ids=new Set(list.map(s=>String(s.id)));(o.subtasks||[]).forEach(s=>{let sid=String(s?.id||'');if(sid&&String(s?.title||'').trim()&&!ids.has(sid)){list.push({id:sid,title:String(s.title).trim(),completed:!!s.completed});ids.add(sid)}})});return grouped};
+    window.cpGetCalendarTasksForDate=dateKey=>{let target=date(dateKey),grouped={};expand(target,target).filter(o=>o.displayDate===dateKey&&!o.completed&&o.type!=='event'&&courses.includes(o.title)).forEach(o=>{let list=grouped[o.title]||(grouped[o.title]=[]);if(!list.links)list.links=[];let ids=new Set(list.map(s=>String(s.id)));(o.subtasks||[]).forEach(s=>{let sid=String(s?.id||'');if(sid&&String(s?.title||'').trim()&&!ids.has(sid)){list.push({id:sid,title:String(s.title).trim(),completed:!!s.completed});ids.add(sid)}});String(o.url||'').split(',').map(l=>l.trim()).filter(Boolean).forEach(u=>{if(!list.links.includes(u))list.links.push(u)})});return grouped};
     function month(r){let names=[];for(let i=0;i<7;i++)names.push(add(new Date(2024,0,7+S.prefs.weekStart),i).toLocaleDateString(undefined,{weekday:'short'}));let html=`<div class="cal-month"><div class="cal-weekdays">${names.map(n=>`<div class="cal-weekday">${esc(n)}</div>`).join('')}</div><div class="cal-month-grid">`;for(let i=0;i<42;i++){let d=add(r[0],i),key=ds(d),a=S.shown.filter(o=>o.displayDate===key),max=S.prefs.density==='compact'?4:3;html+=`<div class="cal-day ${d.getMonth()!==S.cursor.getMonth()?'outside ':''}${ds(d)===ds(new Date())?'today':''}" data-date="${key}"><div class="cal-day-num">${d.getDate()}</div>${a.slice(0,max).map(itemHTML).join('')}${a.length>max?`<button class="cal-more" data-more="${key}">+${a.length-max} more</button>`:''}</div>`}document.getElementById('calViewHost').innerHTML=html+'</div></div>';bindMonthDrag()}
     function timedLayout(items){let a=[...items].sort((x,y)=>mins(x.startTime)-mins(y.startTime));return a.map(o=>{let os=a.filter(x=>mins(x.startTime)<mins(o.endTime||tm(mins(o.startTime)+S.prefs.defaultDuration))&&mins(x.endTime||tm(mins(x.startTime)+S.prefs.defaultDuration))>mins(o.startTime));return Object.assign({},o,{_col:os.indexOf(o),_cols:os.length})})}
     /* The timeline always renders the FULL 24h — startHour/endHour no longer clip it.
