@@ -59,9 +59,24 @@ PNG requests return base64:
 
 Starts a background job. Supported, fully specified elementary setups (a named
 right triangle with two given legs, a two-point coordinate midpoint problem,
-an external circle tangent, and a block with four cardinal forces) use validated
+an external circle tangent, a block with four cardinal forces, and an explicitly
+bounded quadratic graph) use validated
 numerical geometry without Gemini. Unsupported setups use the existing catalog
 fit/parameter path, then reference-guided generation with one repair.
+
+Quadratics accept standard-form `y = ax^2 + bx + c` with finite integer/decimal
+coefficients, omitted terms, `x²` or `x^{2}`. Supply an explicit domain such as
+`-3 <= x <= 3` (also LaTeX `\le`), `domain [-3,3]`, or `x-axis from -3 to 3`,
+and `y-axis from -6 to 5`. Axis spans are limited to 40 units and absolute bounds
+to 1000. No arbitrary expressions are evaluated. Conflicting repeated givens,
+unsupported expressions or requested extra constructions fall back to the
+existing verified model path. Quadratic diagrams show no solved-point labels.
+
+Worksheet questions optionally carry `solutionSteps: string[]` alongside the
+required `answer`. New answer keys render each step separately and then the final
+answer; older answer-only worksheets remain supported. Feedback exports retain
+these steps without sending them to the diagram backend. Network failures are
+recorded as `model-network-error` events; a verifier outage remains a failure.
 
 Worksheet drawing instructions belong in `visualDescription` in the frontend's
 question data. The frontend sends them together with the question, never its answer.

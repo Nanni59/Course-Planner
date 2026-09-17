@@ -3694,6 +3694,8 @@
         .st-ws-subject { width:160px; padding:8px 12px; font-size:13px; }
         .st-q .st-answer { margin-top:9px; padding:10px 13px; border-radius:8px; background:#eef7f0; border-left:3px solid #3fbf6a; font-size:12.5px; color:#1f3a26; }
         .st-q .st-answer b { color:#1f3a26; }
+        .st-q .st-solution-steps { margin:0 0 10px; padding-left:22px; }
+        .st-q .st-solution-steps li { padding-left:4px; margin:0 0 7px; break-inside:avoid; overflow-wrap:anywhere; }
         .st-a4.is-key .st-q .st-worklines { display:none; }
 
         /* ---------- Study Guide ---------- */
@@ -14325,7 +14327,17 @@
             });
             return smoothInlineMath(flattenInlineMath(normalizeMathDelimiters(out + wrapPlain(t.slice(last))))).replace(/[ \t]{2,}/g, ' ').trim();
         }
+        function normalizeWorksheetStep(value) {
+            // Keep intentional LaTeX rows out of the prose/backslash repair pass.
+            const rows = [];
+            const protectedText = String(value).replace(/\\begin\{(aligned|align\*?|gathered|matrix|[pbvBV]matrix|cases)\}[\s\S]*?\\end\{\1\}/g,
+                block => block.replace(/\\\\/g, () => '\uE100' + (rows.push('\\\\') - 1) + '\uE101'));
+            return normalizeGeneratedString(protectedText).replace(/\uE100(\d+)\uE101/g, (m, i) => rows[Number(i)] || m);
+        }
         function normalizeGeneratedContent(value, key) {
+            if (key === 'solutionSteps') {
+                return Array.isArray(value) ? value.filter(v => typeof v === 'string' && v.trim()).map(normalizeWorksheetStep) : [];
+            }
             if (typeof value === 'string') {
                 if (/^(?:tikz|tikzSvg|tikzPng|svg|png|base64|mermaid|code|src|url)$/i.test(String(key || ''))) return value;
                 return normalizeGeneratedString(value);
@@ -14581,10 +14593,11 @@
                             visualDescription: { type: 'string' },
                             opts: { type: 'array', items: { type: 'string' } },
                             answer: { type: 'string' },
+                            solutionSteps: { type: 'array', items: { type: 'string' } },
                             tikz: { type: 'string' },
                             tikzSvg: { type: 'string' }
                         },
-                        required: ['type', 'q', 'answer'], propertyOrdering: ['type', 'q', 'visualDescription', 'opts', 'answer', 'tikz', 'tikzSvg']
+                        required: ['type', 'q', 'answer'], propertyOrdering: ['type', 'q', 'visualDescription', 'opts', 'solutionSteps', 'answer', 'tikz', 'tikzSvg']
                     }
                 }
             },
@@ -16295,7 +16308,7 @@
                     'Subject: ' + (subject || 'General') + '\nGrade / Level: ' + level + '\n' +
                     'Create exactly ' + count + ' questions. Use ONLY these question types: ' + types.join(', ') + '.\n' +
                     'Type meanings — mc: multiple choice, supply 4 entries in "opts" and put the correct option letter + a brief reason in "answer". ' +
-                    'short: short answer. work: a show-your-work problem with a full step-by-step solution in "answer". tf: true/false. fill: fill-in-the-blank (use ____ in the question).\n' +
+                    'short: short answer. work: a show-your-work problem. For worked solutions provide "solutionSteps" as an array of strings, one explanation or mathematical statement per step. Keep each step self-contained with balanced math delimiters; never concatenate equations. Put the final result in "answer". If solutionSteps is omitted, answer must contain the complete solution. tf: true/false. fill: fill-in-the-blank (use ____ in the question).\n' +
                     'Vary the difficulty. Every question MUST include a correct, complete "answer". ' +
                     'Also provide a descriptive "title", the "subject", a "unit" label, and a short student "instructions" line.' +
                     (visualsEnabled ? tikzPrompt('worksheet questions') : '') +
@@ -16346,7 +16359,10 @@
             } else if (q.type === 'short') {
                 body = '<div class="st-worklines">' + '<div></div>'.repeat(2) + '</div>';
             }
-            const ans = isKey ? '<div class="st-answer"><b>Answer:</b> ' + escMath(q.answer) + '</div>' : '';
+            const steps = Array.isArray(q.solutionSteps) ? q.solutionSteps.filter(s => typeof s === 'string' && s.trim()) : [];
+            const ans = isKey ? '<div class="st-answer">' +
+                (steps.length ? '<ol class="st-solution-steps">' + steps.map(s => '<li>' + escMath(s) + '</li>').join('') + '</ol>' : '') +
+                '<b>Answer:</b> ' + escMath(q.answer) + '</div>' : '';
             const visual = WS_DIAGRAMS ? worksheetTikzHTML(q) : '';
             const hasVisual = !!visual;
             return '<div class="st-q' + (hasVisual ? ' has-visual' : '') + '"><div class="st-q-head"><span class="st-q-num">' + (idx + 1) + '.</span>' +
@@ -16394,6 +16410,7 @@
                             visualStatus: visualStatus
                         };
                         if (q && q.visualDescription) out.visualDescription = q.visualDescription;
+                        if (q && Array.isArray(q.solutionSteps)) out.solutionSteps = q.solutionSteps.filter(s => typeof s === 'string' && s.trim());
                         if (q && q.visualDiagnostic) out.visualDiagnostic = q.visualDiagnostic;
                         if (q && q.opts) out.options = q.opts;
                         if (svg) out.tikzSvg = svg;
@@ -16974,7 +16991,7 @@
                     'Subject: ' + (subject || 'General') + '\nGrade / Level: ' + level + '\n' +
                     'Create exactly ' + count + ' questions. Use ONLY these question types: ' + types.join(', ') + '.\n' +
                     'Type meanings — mc: multiple choice, supply 4 entries in "opts" and put the correct option letter + a brief reason in "answer". ' +
-                    'short: short answer. work: a show-your-work problem with a full step-by-step solution in "answer". tf: true/false. fill: fill-in-the-blank (use ____ in the question).\n' +
+                    'short: short answer. work: a show-your-work problem. For worked solutions provide "solutionSteps" as an array of strings, one explanation or mathematical statement per step. Keep each step self-contained with balanced math delimiters; never concatenate equations. Put the final result in "answer". If solutionSteps is omitted, answer must contain the complete solution. tf: true/false. fill: fill-in-the-blank (use ____ in the question).\n' +
                     'Vary the difficulty. Every question MUST include a correct, complete "answer". ' +
                     'Also provide a descriptive "title", the "subject", a "unit" label, and a short student "instructions" line.' +
                     (visualsEnabled ? tikzPrompt('worksheet questions') : '') +

@@ -13,6 +13,7 @@ const SUITES = [
     { cmd: 'node', args: ['tools/worksheet_visual_gate_test.js'] },
     { cmd: 'node', args: ['tools/worksheet_visual_render_all_test.js'] },
     { cmd: 'node', args: ['tools/worksheet_diagnostics_test.js'] },
+    { cmd: 'node', args: ['tools/worksheet_solution_steps_test.js'] },
     { cmd: 'python', args: ['tools/tikz_elementary_test.py'], fallbackCmd: 'python3' },
     { cmd: 'node', args: ['tools/backup_roundtrip_test.js'] },
     { cmd: 'node', args: ['tools/saved_video_backup_test.js'] },

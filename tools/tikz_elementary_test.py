@@ -24,6 +24,7 @@ module = ast.Module(body=[ast.ImportFrom(module='__future__', names=[ast.alias(n
 ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, GEMINI_KEYS=['test-secret'],
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
+real_gemini = ns['_gemini']
 
 questions = [
     'Triangle ABC is right-angled at A. AB = 6 cm and AC = 8 cm. Find BC. Diagram: Draw AB vertically and AC horizontally, label the vertices, and label BC as x.',
@@ -131,3 +132,72 @@ ns['_run_generate_job']('next-job', req)
 assert ns['status']('next-job')['diagnostics'] == []
 assert ns['status']('next-job')['source'] == 'elementary:test'
 print('PASS elementary geometry, unsupported-input fallback, routing, and failure diagnostics')
+
+# The real frontend payloads, not just isolated question text.
+fixtures = json.loads((ROOT / 'tools/fixtures/worksheet_reliability.json').read_text(encoding='utf-8'))
+fixture_texts = [ns['_question_text'](SimpleNamespace(title=q['question']+'\nDiagram: '+q['visualDescription'])) for q in fixtures]
+fixture_hits = [generate(text) for text in fixture_texts]
+assert all(fixture_hits), [(i+1,t) for i,(t,h) in enumerate(zip(fixture_texts,fixture_hits)) if not h]
+assert [h['template'] for h in fixture_hits] == ['right_triangle_given_legs','coordinate_segment','quadratic_explicit_bounds','circle_external_tangent','block_four_forces']
+curve = fixture_hits[2]
+assert curve['parameters'] == dict(a=-1,b=0,c=4,domain=[-3,3],yrange=[-6,5])
+assert 'only marks' not in curve['tikz'] and r'\node' not in curve['tikz']
+assert 'domain=-3:3' in curve['tikz'] and 'ymin=-6,ymax=5' in curve['tikz']
+for text, hit in zip(fixture_texts, fixture_hits):
+    request = SimpleNamespace(title=text, brief='Question: '+text, subject='', equation='', target='worksheet')
+    assert ns['_semantic_visual_issue'](request, hit['tikz']) is None
+    assert ns['_worksheet_answer_safe_tikz'](request, hit['tikz']) == hit['tikz']
+
+suffix = '. Plot over -3 <= x <= 3. Show the y-axis from -6 to 5.'
+for equation, expected in [('x^2',(1,0,0)), ('2x^{2}-3x+1',(2,-3,1)), ('-.5x^2',(-.5,0,0)),
+                            ('-0.5*x^2+2x-1',(-.5,2,-1)), ('x²+4',(1,0,4)), ('x^2+x',(1,1,0))]:
+    hit = generate('Plot the quadratic y = '+equation+suffix)
+    if expected is None:
+        assert hit is None
+    else:
+        assert tuple(hit['parameters'][k] for k in ('a','b','c')) == expected
+for equation in ['x^3+4','x^2/2','sin(x)','x^2 cos(x)','x^2 z','x^2+2e3','x^2+4z','(x-1)^2','x^2+x+x','0x^2+4','x^2+4; y=x^2+5']:
+    assert generate('Plot y = '+equation+suffix) is None, equation
+assert generate('Plot y=x^2. Plot domain [-3,3]. Show the y-axis from -6 to 5.')
+assert generate(fixture_texts[2]+' Show the y-axis from -6.0 to 5.00.')
+for extra in [' Plot over -4 <= x <= 3.', ' Show the y-axis from -7 to 5.', ' Mark the vertex.', ' Draw a tangent line.']:
+    assert generate(fixture_texts[2]+extra) is None, extra
+assert generate('Plot y=x^2.') is None
+assert generate(questions[0]+' AB = 6.00 cm')['parameters'] == triangle['parameters']
+assert generate(questions[0]+' AB = 7 cm') is None
+assert generate(questions[0]+' Draw AB horizontally.') is None
+assert generate(questions[0].replace('AB vertically and AC horizontally','AB should be horizontal and AC should be vertical'))['parameters']['vertical'] == 8
+assert generate(questions[1]+' Show both axes from -6 to 5.') is None
+assert generate(questions[1]+' Show the x-axis from -6 to 5.') is None
+assert generate(questions[1]+' Show the x-axis from -5.0 to 5.00.')
+assert generate(questions[3]+' Label the upward arrow 11 N.') is None
+assert generate(questions[3]+' Label the rightward arrow 8.00 N.')
+assert generate(questions[2]+' OP = 13.0 cm and OT = 5.00 cm')['parameters'] == tangent['parameters']
+for extra in [' OP = 14 cm',' OT = 6 cm',' Radius 6 cm',' PT = z',' PT = 12 cm']:
+    assert generate(questions[2]+extra) is None, extra
+for q in [questions[0].replace('6 cm','12 cm').replace('8 cm','16 cm'),
+          questions[1].replace('P(-3, 2)','P(-2, 1)'),
+          questions[2].replace('5 cm','4 cm').replace('13 cm','10 cm'),
+          questions[3].replace('10 N','12 N').replace('8 N','11 N')]:
+    assert generate(q), q
+print('PASS five live fixtures, quadratic grammar/bounds, numerical variations and conflicting givens')
+
+# Network errors must be visible in the trace, distinct from HTTP quota errors.
+class OfflineError(Exception):
+    pass
+def offline_post(*args, **kwargs):
+    raise OfflineError('test-secret read timed out')
+ns.update(GEMINI_MAX_ATTEMPTS=1,GEMINI_MODELS=['fixture'],GEMINI_TIMEOUT=(1,1),GEMINI_DEADLINE=2,
+          _next_key_index=lambda:0,_available_models=lambda _:['fixture'],
+          requests=SimpleNamespace(post=offline_post,exceptions=SimpleNamespace(RequestException=OfflineError)),
+          time=SimpleNamespace(time=lambda:0,sleep=lambda _:None))
+ns['_job_trace'].events = []
+try:
+    real_gemini('fixture')
+    raise AssertionError('Network outage should fail')
+except RuntimeError:
+    pass
+events = ns['_job_trace'].events
+assert any(e['stage']=='model-network-error' for e in events)
+assert 'test-secret' not in json.dumps(events)
+del ns['_job_trace'].events

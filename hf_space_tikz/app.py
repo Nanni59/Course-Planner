@@ -416,6 +416,7 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
             )
         except requests.exceptions.RequestException as exc:
             last_err = f"Gemini network error: {str(exc)[:180]}"
+            _diagnostic("model-network-error", last_err, model=model, attempt=attempt + 1)
             print(f"[gemini] {last_err} - attempt {attempt + 1}/{attempts}, rotating key.", flush=True)
             key_idx = (key_idx + 1) % len(GEMINI_KEYS)
             time.sleep(backoff)

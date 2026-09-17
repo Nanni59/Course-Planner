@@ -150,6 +150,7 @@ function seed(ls) {
     ls.setItem('cp_satPrep_v1', JSON.stringify({ schemaVersion: 1, settings: { targetTotal: 1510 }, errors: [{ id: 'sat-e1', notes: '<safe text>' }] }));
     ls.setItem('cp_ieltsPrep_v1', JSON.stringify({ schemaVersion: 1, settings: { targetOverall: 8 }, mocks: [{ id: 'ielts-m1', scores: { Listening: 8, Reading: 8, Writing: 7.5, Speaking: 7.5 } }] }));
     ls.setItem('someFutureFeatureKey', JSON.stringify({ nested: { deep: [1, 2, 3] } })); // unrelated/unknown key
+    ls.setItem('cp_study_worksheets', JSON.stringify([{id:'structured-answer',data:{questions:[{q:'Find x.',answer:'3',solutionSteps:['x + 2 = 5','x = 3']}]}}]));
     // exportData() deliberately injects lesson_links:{} when absent (index.html
     // "Ensure lesson_links is included in export"), so seed it for identity checks;
     // the injection itself is asserted in its own case below.
@@ -183,6 +184,7 @@ function seed(ls) {
     const restored = ls._snapshot();
     check('round trip preserves every key/value pair', snapshotsEqual(original, restored),
         JSON.stringify({ original, restored }).slice(0, 300));
+    check('worksheet solution steps survive the real backup/import path', JSON.parse(ls.getItem('cp_study_worksheets'))[0].data.questions[0].solutionSteps.join('|') === 'x + 2 = 5|x = 3');
     check('unrelated key survives the round trip', ls.getItem('someFutureFeatureKey') === JSON.stringify({ nested: { deep: [1, 2, 3] } }));
     check('SAT Prep survives the round trip byte-for-byte', ls.getItem('cp_satPrep_v1') === original.find(x => x[0] === 'cp_satPrep_v1')[1]);
     check('IELTS Prep survives the round trip byte-for-byte', ls.getItem('cp_ieltsPrep_v1') === original.find(x => x[0] === 'cp_ieltsPrep_v1')[1]);
