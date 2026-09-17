@@ -161,6 +161,100 @@ def _tangent(text):
 \node[below left] at ({o}) {{${o}$}};\node[right] at ({p}) {{${p}$}};\node[above] at ({t}) {{${t}$}};''')
 
 
+def _circle_central_inscribed(text):
+    """Render the common central/inscribed-angle theorem without model geometry."""
+    if not re.search(r'circle|circumference', text, re.I):
+        return None
+    if re.search(r'exterior angle|reflex angle|major angle|tangent|secant|two circles|cyclic quadrilateral', text, re.I):
+        return None
+    centres = set(re.findall(r'(?i:cent(?:re|er))\s+([A-Z])\b', text))
+    if len(centres) != 1:
+        return None
+    centre = next(iter(centres))
+
+    point_sets = []
+    for clause in re.findall(
+        r'(?i:\bpoints?\b)\s+(.{1,100}?)\s+(?i:lie|are)\s+on\s+(?:the\s+)?(?i:circumference|circle)\b',
+        text,
+    ):
+        labels = frozenset(re.findall(r'\b([A-Z])\b', clause))
+        if labels:
+            point_sets.append(labels)
+    if not point_sets or len(set(point_sets)) != 1:
+        return None
+    circumference = set(point_sets[0])
+
+    angle_token = r'(?:∠|(?i:\bangle\b))\s*([A-Z]{3})'
+    given = re.findall(
+        angle_token + rf'\s*(?:=|(?i:is|measures?))\s*({NUM})\s*(?i:degrees?)?',
+        text,
+    )
+    central = [(name, value) for name, value in given if name[1] == centre]
+    if not central:
+        return None
+    endpoint_sets = {frozenset((name[0], name[2])) for name, _ in central}
+    value = _consistent([(number, '') for _, number in central])
+    if len(endpoint_sets) != 1 or value is None:
+        return None
+    endpoints = next(iter(endpoint_sets))
+    theta = float(value[0])
+    if len(endpoints) != 2 or not 20 <= theta <= 160:
+        return None
+
+    mentioned = set(re.findall(angle_token, text))
+    candidates = {
+        name for name in mentioned
+        if name[1] != centre
+        and frozenset((name[0], name[2])) == endpoints
+        and set(name) <= circumference
+    }
+    candidate_keys = {(name[1], frozenset((name[0], name[2]))) for name in candidates}
+    if len(candidate_keys) != 1 or not re.search(r'\b(?:find|determine|calculate|what)\b', text, re.I):
+        return None
+    vertex = next(iter(candidate_keys))[0]
+    allowed_keys = {
+        (centre, endpoints),
+        (vertex, endpoints),
+    }
+    if any((name[1], frozenset((name[0], name[2]))) not in allowed_keys for name in mentioned):
+        return None
+    if centre in circumference or not endpoints | {vertex} <= circumference:
+        return None
+
+    # Use the central angle's endpoint order to make both TikZ angle pics sweep
+    # through the smaller interior sector. Reversing an angle name's endpoints
+    # does not change the mathematical angle.
+    first_name = central[0][0]
+    first, second = first_name[0], first_name[2]
+    labels = set()
+    for name, label in re.findall(angle_token + r'\s*=\s*([a-z?])\b', text):
+        if name[1] == vertex and frozenset((name[0], name[2])) == endpoints:
+            labels.add(label)
+    if len(labels) > 1:
+        return None
+    unknown = next(iter(labels), '?')
+    radius = 2.45
+    half = theta / 2
+    return _result('circle_central_inscribed_angle', {
+        'centre': centre,
+        'endpoints': [first, second],
+        'inscribed_vertex': vertex,
+        'central_angle': theta,
+    }, rf'''
+\coordinate ({centre}) at (0,0);
+\coordinate ({first}) at ({_n(-half)}:{_n(radius)});
+\coordinate ({second}) at ({_n(half)}:{_n(radius)});
+\coordinate ({vertex}) at (180:{_n(radius)});
+\draw[cp line] ({centre}) circle[radius={_n(radius)}];
+\draw[cp line] ({centre})--({first}) ({centre})--({second});
+\draw[cp line] ({vertex})--({first}) ({vertex})--({second});
+\pic[draw=black,angle radius=6mm,"${_n(theta)}^\circ$",angle eccentricity=1.45] {{angle={first}--{centre}--{second}}};
+\pic[draw=black,angle radius=5mm,"${unknown}$",angle eccentricity=1.55] {{angle={first}--{vertex}--{second}}};
+\fill ({centre}) circle (1.2pt); \fill ({first}) circle (1.2pt); \fill ({second}) circle (1.2pt); \fill ({vertex}) circle (1.2pt);
+\node[below left] at ({centre}) {{${centre}$}};
+\node[below right] at ({first}) {{${first}$}}; \node[above right] at ({second}) {{${second}$}}; \node[left] at ({vertex}) {{${vertex}$}};''')
+
+
 def _forces(text):
     if not re.search(r'block',text,re.I) or not re.search(r'four forces',text,re.I):
         return None
@@ -255,7 +349,7 @@ tick label style={{font=\small}},grid=major,grid style={{gray!25,thin}},clip=tru
 def generate(text):
     """Return an exact supported numerical setup, otherwise leave custom generation intact."""
     text = text.replace('\u2212', '-').replace('\u2013', '-')
-    for parser in (_triangle, _points, _tangent, _forces, _quadratic):
+    for parser in (_triangle, _points, _tangent, _circle_central_inscribed, _forces, _quadratic):
         hit = parser(text)
         if hit:
             return hit

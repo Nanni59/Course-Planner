@@ -51,11 +51,17 @@ def _get_json(url: str, timeout: float = 20) -> dict[str, Any]:
 
 def _case_payload(case: dict[str, Any]) -> dict[str, Any]:
     brief = str(case["brief"])
+    question = str(case.get("question", brief)).strip()
+    # Match generateTikzVisual in the real worksheet frontend: routing receives
+    # the student question plus its model-authored visualDescription in title.
+    # Keeping the description only in `brief` made this harness under-report
+    # catalog matches because production deliberately routes from title alone.
+    title = question if brief.strip() == question else question + "\nDiagram: " + brief
     return {
         "subject": case.get("subject", "General"),
-        "title": case.get("question", brief),
+        "title": title,
         "brief": brief,
-        "question": brief,
+        "question": question,
         "equation": case.get("equation", ""),
         "format": "svg",
         "theme": case.get("theme", "green"),
@@ -68,6 +74,7 @@ def _run_backend_case(base_url: str, case: dict[str, Any], timeout_s: float) -> 
     payload = _case_payload(case)
     job = _post_json(base_url.rstrip("/") + "/generate", payload)
     job_id = job["job_id"]
+    print(f"    job={job_id}", flush=True)
     status_url = base_url.rstrip("/") + f"/status/{job_id}"
     last: dict[str, Any] = {"status": "pending", "svg": "", "error": ""}
     deadline = time.time() + timeout_s
@@ -209,6 +216,9 @@ def main() -> int:
         except (urllib.error.URLError, TimeoutError, RuntimeError, Exception) as exc:  # noqa: BLE001
             result = {**case, "ok": False, "status": "exception", "svg": "", "svg_len": 0, "error": str(exc)}
         results.append(result)
+        # Persist each completed case so a long remote run remains inspectable if
+        # the terminal or network session ends before the whole matrix finishes.
+        _write_outputs(results, out_dir)
         print(f"    {result.get('status')} svg={result.get('svg_len', 0)} {result.get('customized', '')}", flush=True)
 
     _write_outputs(results, out_dir)

@@ -50,31 +50,34 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[
     width=7cm, height=4cm,
-    xmin=-5, xmax=5,
-    ymin=-5, ymax=5,
+    xmin=__XMIN__, xmax=__XMAX__,
+    ymin=__YMIN__, ymax=__YMAX__,
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
-    xtick={-5,-4,-3,-2,-1,0,1,2,3,4,5}, ytick={-5,-4,-3,-2,-1,0,1,2,3,4,5},
     unbounded coords=jump,
 ]
     % rational function f(x) = A/(x - H) + K
-    \addplot[cp line, samples=201, domain=-4.8:4.8] { __A__/(x - __H__) + __K__ };
+    \addplot[cp line, samples=301, domain=__XMIN__:__XMAX__] { __A__/(x - __H__) + __K__ };
     % vertical asymptote x = H
-    \addplot[cp dashed] coordinates {(__H__,-5) (__H__,5)};
+    \addplot[cp dashed] coordinates {(__H__,__YMIN__) (__H__,__YMAX__)};
     % horizontal asymptote y = K
-    \addplot[cp dashed] coordinates {(-5,__K__) (5,__K__)};
+    \addplot[cp dashed] coordinates {(__XMIN__,__K__) (__XMAX__,__K__)};
     % labels for asymptotes
-    \node[cp label, anchor=south west] at (axis cs:__H__,5) {$x=__LABEL_H__$};
-    \node[cp label, anchor=north east] at (axis cs:-5,__K__) {$y=__LABEL_K__$};
+    \node[cp label, anchor=south west] at (axis cs:__H__,__YMAX__) {$x=__LABEL_H__$};
+    \node[cp label, anchor=north east] at (axis cs:__XMIN__,__K__) {$y=__LABEL_K__$};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
+            'XMIN': {'type': 'number', 'default': -5, 'desc': 'left axis bound far enough to show the left branch'},
+            'XMAX': {'type': 'number', 'default': 5, 'desc': 'right axis bound far enough to show the right branch'},
+            'YMIN': {'type': 'number', 'default': -5, 'desc': 'bottom axis bound'},
+            'YMAX': {'type': 'number', 'default': 5, 'desc': 'top axis bound'},
             'A': {'type': 'number', 'default': 1, 'desc': 'numerator coefficient in the rational function'},
             'H': {'type': 'number', 'default': 1, 'desc': 'x-value of the vertical asymptote'},
             'K': {'type': 'number', 'default': 0, 'desc': 'y-value of the horizontal asymptote'},
-            'LABEL_H': {'type': 'label', 'default': '1', 'desc': 'label for the vertical asymptote'},
-            'LABEL_K': {'type': 'label', 'default': '0', 'desc': 'label for the horizontal asymptote'},
+            'LABEL_H': {'type': 'label', 'default': '?', 'desc': 'symbolic label for the vertical asymptote; do not reveal it when the worksheet asks the student to identify it', 'answer_safe': False},
+            'LABEL_K': {'type': 'label', 'default': '?', 'desc': 'symbolic label for the horizontal asymptote; do not reveal it when the worksheet asks the student to identify it', 'answer_safe': False},
         },
     },
     {
@@ -104,7 +107,7 @@ templates = [
             'A': {'type': 'number', 'default': 1, 'desc': 'leading coefficient of the exponential function'},
             'B': {'type': 'number', 'default': 2, 'desc': 'base of the exponential function'},
             'K': {'type': 'number', 'default': 0, 'desc': 'vertical shift (horizontal asymptote)'},
-            'LABEL_K': {'type': 'label', 'default': '0', 'desc': 'label for the horizontal asymptote'},
+            'LABEL_K': {'type': 'label', 'default': '?', 'desc': 'symbolic label for the horizontal asymptote; do not reveal the value when it is requested', 'answer_safe': False},
         },
     },
     {
@@ -169,9 +172,9 @@ templates = [
         "params": {
             'AMPLITUDE_VALUE': {'type': 'number', 'default': 2, 'desc': 'amplitude of the sinusoid'},
             'MIDLINE_VALUE': {'type': 'number', 'default': 0, 'desc': 'vertical midline of the sinusoid'},
-            'AMPLITUDE_LABEL': {'type': 'label', 'default': '$A$', 'desc': 'label for the amplitude arrow'},
-            'MIDLINE_LABEL': {'type': 'label', 'default': 'midline', 'desc': 'label for the midline'},
-            'PERIOD_LABEL': {'type': 'label', 'default': '$2\\pi$', 'desc': 'label for the period arrow'},
+            'AMPLITUDE_LABEL': {'type': 'label', 'default': '$A$', 'desc': 'symbolic label for the amplitude arrow; never the requested numeric answer', 'answer_safe': False, 'unknown': '$A$'},
+            'MIDLINE_LABEL': {'type': 'label', 'default': 'midline', 'desc': 'symbolic midline label; never the requested equation', 'answer_safe': False, 'unknown': 'midline'},
+            'PERIOD_LABEL': {'type': 'label', 'default': '$P$', 'desc': 'symbolic label for the period arrow; never the requested numeric answer', 'answer_safe': False, 'unknown': '$P$'},
         },
     },
     {
@@ -312,7 +315,7 @@ templates = [
     {
         "id": 'piecewise_linear',
         "subject": 'Advanced Functions',
-        "triggers": ['piecewise', 'piecewise linear', 'open and closed circles', 'break point'],
+        "triggers": ['piecewise', 'piecewise linear', 'open and closed circles', 'open point', 'closed point', 'linear pieces', 'break point'],
         "caption": 'Piecewise linear function with distinct behaviour on either side of a break point.',
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[
@@ -367,12 +370,16 @@ templates = [
     \addplot[cp line, domain=0.1:4] { ln(x)/ln(__BASE__) };
     % line y = x as the mirror
     \addplot[cp dashed, domain=-2:4] { x };
+    \node[cp label, anchor=south east] at (axis cs:1.55,3.05) {__F_LABEL__};
+    \node[cp label, anchor=north west] at (axis cs:3,1.4) {__INV_LABEL__};
     % intersection point (1,1)
     \addplot[only marks, cp point] coordinates {(1,1)};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
             'BASE': {'type': 'number', 'default': 2, 'desc': 'base of the exponential function (and logarithm)'},
+            'F_LABEL': {'type': 'label', 'default': '$f$', 'desc': 'symbolic label for the function'},
+            'INV_LABEL': {'type': 'label', 'default': '$f^{-1}$', 'desc': 'symbolic label for the inverse function'},
         },
     },
     {

@@ -50,6 +50,49 @@ assert '12' not in tangent['tikz'] and '{$x$}' in tangent['tikz']
 assert forces['tikz'].count('cp line,->') == 4 and r'5\,' not in forces['tikz']
 assert generate(questions[0].replace('6 cm', '9 cm').replace('8 cm', '12 cm'))['parameters']['vertical'] == 9
 assert generate(questions[2].replace('5 cm', '3 cm').replace('13 cm', '8 cm'))['parameters']['radius'] == 3
+
+circle_question = (
+    'Points A, B, and C lie on the circumference of a circle with center O. '
+    'If angle AOB = 80 degrees, what is the measure of angle ACB?'
+)
+circle_angle = generate(circle_question)
+assert circle_angle and circle_angle['template'] == 'circle_central_inscribed_angle'
+assert circle_angle['parameters'] == {
+    'centre': 'O', 'endpoints': ['A', 'B'], 'inscribed_vertex': 'C', 'central_angle': 80
+}
+assert r'{angle=A--O--B}' in circle_angle['tikz']
+assert r'{angle=A--C--B}' in circle_angle['tikz']
+assert '80^\\circ' in circle_angle['tikz'] and '280' not in circle_angle['tikz']
+assert '"$?$"' in circle_angle['tikz'] and r'\draw' in circle_angle['tikz']
+circle_req = SimpleNamespace(title=circle_question, brief='', subject='Geometry', equation='', target='worksheet')
+assert ns['_semantic_visual_issue'](circle_req, circle_angle['tikz']) is None
+assert 'exterior 280-degree sector' in ns['_readiness_prompt'](circle_req, circle_angle['tikz'])
+
+circle_variation = (
+    'Points P, Q, and R lie on the circumference of a circle with centre M. '
+    'Angle PMQ = 120 degrees. Determine angle PRQ.'
+)
+varied_circle = generate(circle_variation)
+assert varied_circle and varied_circle['parameters']['central_angle'] == 120
+assert varied_circle['parameters']['centre'] == 'M' and varied_circle['parameters']['inscribed_vertex'] == 'R'
+assert generate(circle_question + ' Angle BOA = 80.0 degrees.')['parameters'] == circle_angle['parameters']
+for invalid_circle in [
+    circle_question + ' Angle BOA = 90 degrees.',
+    circle_question.replace('A, B, and C', 'A, B, and D'),
+    circle_question.replace('angle ACB', 'exterior angle ACB'),
+    circle_question.replace('80 degrees', '175 degrees'),
+    circle_question + ' Also determine angle ADB.',
+]:
+    assert generate(invalid_circle) is None, invalid_circle
+
+raw_arc_circle = r'''\begin{tikzpicture}
+\coordinate (O) at (0,0); \coordinate (A) at (0:2); \coordinate (B) at (80:2); \coordinate (C) at (200:2);
+\draw (O) circle (2); \draw (0:0.6) arc[start angle=0,end angle=280,radius=.6];
+\draw (C)--(A) (C)--(B);
+\end{tikzpicture}'''
+assert 'exterior 280-degree sector' in ns['_semantic_visual_issue'](circle_req, raw_arc_circle)
+wrong_vertex_circle = circle_angle['tikz'].replace('{angle=A--C--B}', '{angle=C--A--B}')
+assert 'Missing correct interior angle pic' in ns['_semantic_visual_issue'](circle_req, wrong_vertex_circle)
 for invalid in [questions[0].replace('6 cm','6 m'), questions[0].replace('6 cm','-6 cm'),
                 questions[2].replace('13 cm','4 cm'), questions[3].replace('3 N to the left','unknown force to the left'),
                 'Explain scalar and vector quantities.', 'Solve 3(2x-5)=21.']:
@@ -60,6 +103,64 @@ for q in questions[1:]:
     assert templates.route_top(q) == []
 assert templates.route('Draw a weighted graph with labelled vertices')['id'] == 'network_graph'
 assert templates.route('Draw a plane with a normal vector')['id'] == 'plane_with_normal'
+
+# Broad worksheet topics still arrive as specific generated questions plus an
+# internal Diagram description. Specific families must beat generic shared words
+# so routine visuals stay on the constrained catalog path instead of spending
+# several model calls on a reference-generated replacement.
+subject_routes = [
+    ('Evaluate the definite integral of x^2 + 1 from x = 0 to x = 2. Diagram: Draw y = x^2 + 1 and shade the area from x = 0 to x = 2.', 'Calculus', 'definite_integral_shaded'),
+    ('Use four left-endpoint rectangles to estimate the area under y = x + 1. Diagram: Draw exactly four left-endpoint rectangles.', 'Calculus', 'riemann_sum_rectangles'),
+    ('Describe these cumulative frequencies. Diagram: Plot an ogive through the stated upper-class boundaries.', 'Data Management', 'ogive'),
+    ('Describe the grouped frequencies. Diagram: Draw a histogram with five class intervals.', 'Data Management', 'histogram'),
+    ('Interpret the five-number summary. Diagram: Draw a horizontal box plot.', 'Data Management', 'boxplot'),
+    ('Describe the correlation. Diagram: Draw a scatter plot and a line of best fit.', 'Data Management', 'scatter_fit'),
+    ('Bottle fills are normally distributed. Diagram: Draw a normal distribution curve and shade one standard deviation.', 'Data Management', 'normal_curve'),
+    ('Describe the transformations of an exponential function and its horizontal asymptote.', 'Advanced Functions', 'exponential_asymptote'),
+    ('Identify the vertical and horizontal asymptotes of this rational function.', 'Advanced Functions', 'rational_asymptotes'),
+    ('Determine the amplitude and period of this sinusoidal function.', 'Advanced Functions', 'sinusoid_amplitude_period'),
+    ('Graph f(x)=x+2 for x<1 and f(x)=5-x for x>=1. Diagram: Use an open point and a closed point.', 'Advanced Functions', 'piecewise_linear'),
+    ('Explain how an exponential function and its logarithmic inverse are reflected across y=x.', 'Advanced Functions', 'function_inverse_reflection'),
+]
+for text, subject, expected in subject_routes:
+    routed = templates.route(text, subject)
+    assert routed and routed['id'] == expected, (expected, (routed or {}).get('id'))
+
+integral_tikz = templates.fill(templates.get('definite_integral_shaded'), {
+    'CURVE':'x^2+1', 'XMIN':'-1', 'XMAX':'3', 'YMIN':'0', 'YMAX':'11',
+    'A':'0', 'B':'2', 'A_LABEL':'$0$', 'B_LABEL':'$2$',
+    'AREA_LABEL_X':'1', 'AREA_LABEL_Y':'2', 'AREA_LABEL':'area',
+}, target='worksheet')
+assert '{x^2+1}' in integral_tikz and 'domain=0:2' in integral_tikz and '__' not in integral_tikz
+riemann_tikz = templates.fill(templates.get('riemann_sum_rectangles'), {
+    'CURVE':'x+1', 'XMIN':'0', 'XMAX':'4.5', 'YMIN':'0', 'YMAX':'6',
+    'X0':'0', 'X1':'1', 'X2':'2', 'X3':'3', 'X4':'4',
+    'H1':'1', 'H2':'2', 'H3':'3', 'H4':'4',
+}, target='worksheet')
+assert riemann_tikz.count(r'\path[cp fill]') == 4 and 'domain=0:4' in riemann_tikz
+histogram_tikz = templates.fill(templates.get('histogram'), {
+    'YMAX':'10', 'L1':'0--9', 'L2':'10--19', 'L3':'20--29', 'L4':'30--39', 'L5':'40--49',
+    'F1':'3', 'F2':'7', 'F3':'9', 'F4':'5', 'F5':'2',
+})
+assert 'xticklabels={0--9,10--19,20--29,30--39,40--49}' in histogram_tikz
+scatter_tikz = templates.fill(templates.get('scatter_fit'), {
+    'X1':'1','Y1':'2','X2':'2','Y2':'3','X3':'3','Y3':'5','X4':'4','Y4':'6','X5':'5','Y5':'8',
+})
+assert '(5, 8)' in scatter_tikz and scatter_tikz.count('__') == 0
+ogive_tikz = templates.fill(templates.get('ogive'), {
+    'XMIN':'0','XMAX':'55','YMAX':'35',
+    'X1':'10','C1':'2','X2':'20','C2':'8','X3':'30','C3':'17','X4':'40','C4':'24','X5':'50','C5':'30',
+})
+assert '(50, 30)' in ogive_tikz and 'xmax=55' in ogive_tikz
+rational_tikz = templates.fill(templates.get('rational_asymptotes'), {
+    'XMIN':'-5','XMAX':'7','YMIN':'-6','YMAX':'10',
+    'A':'7','H':'3','K':'2','LABEL_H':'?','LABEL_K':'?',
+}, target='worksheet')
+assert 'domain=-5:7' in rational_tikz and '(3,-6) (3,10)' in rational_tikz
+inverse_tikz = templates.fill(templates.get('function_inverse_reflection'), {
+    'BASE':'2','F_LABEL':'$f$','INV_LABEL':'$f^{-1}$',
+}, target='worksheet')
+assert '{$f$}' in inverse_tikz and '{$f^{-1}$}' in inverse_tikz
 assert not templates.catalog_errors()
 
 # Reproduce the September 17 worksheet's question + visualDescription payloads.

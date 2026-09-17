@@ -350,6 +350,31 @@ def route(text: str, subject: str = "") -> dict | None:
         hit = get("vector_linear_combination")
         if hit:
             return hit
+    # Prefer an explicitly named diagram family over a sum of broad shared
+    # keywords. Without these narrow overrides, "cumulative frequency ogive"
+    # tied the generic histogram, "exponential ... horizontal asymptote" chose
+    # the earlier rational template, and left-endpoint rectangles were treated
+    # as a generic shaded integral. The model fit-check could veto those routes,
+    # but doing so wastes calls and sends routine worksheets to the slow custom
+    # path.
+    specific_routes = (
+        (r"\briemann\b|\bleft[- ]endpoint\s+rectangles?\b", "riemann_sum_rectangles"),
+        (r"\bogive\b", "ogive"),
+        (r"\bhistogram\b", "histogram"),
+        (r"\bbox(?:-and-whisker|\s+and\s+whisker|\s*plot)\b", "boxplot"),
+        (r"\bscatter\s*plot\b|\bline of best fit\b", "scatter_fit"),
+        (r"\bnormal(?:ly)?\s+(?:distribution|distributed|curve|model)\b", "normal_curve"),
+        (r"\bpiecewise\b|(?:\bopen point\b.*\bclosed point\b|\bclosed point\b.*\bopen point\b)", "piecewise_linear"),
+        (r"\binverse\b.*\b(?:reflection|reflected|y\s*=\s*x|logarithm)", "function_inverse_reflection"),
+        (r"\bexponential\b", "exponential_asymptote"),
+        (r"\blogarithmic\b", "logarithmic_asymptote"),
+        (r"\b(?:sinusoid|sinusoidal)\b", "sinusoid_amplitude_period"),
+    )
+    for pattern, template_id in specific_routes:
+        if re.search(pattern, text_low, re.S):
+            hit = get(template_id)
+            if hit and _compatible(hit, text_low):
+                return hit
     if re.search(r"(?:∠|\\angle\b|\bangle\s+|\?)[A-Z]{3}\b", text_raw):
         hit = get("triangle_general")
         if hit:

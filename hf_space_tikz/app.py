@@ -2505,6 +2505,7 @@ Rules:
 - The diagram shows the SETUP of the problem using only given information.
 - Two vectors that span an angle, parallelogram, or cross product must be drawn clearly non-collinear (at least ~30 degrees apart on screen) so the shape does not collapse to a sliver.
 - For a cross-product result arrow, work out the true direction with the right-hand rule BEFORE placing it (e.g. j x i points along -z, i x j along +z); never draw it opposite.
+- In a named angle such as AOB, the middle letter O is the vertex. Unless the question explicitly says exterior, reflex, or major angle, plan the smaller interior angle between the two rays. In circle theorems, a stated angle AOB = 80 degrees means the 80-degree interior sector, never the 280-degree sector; an inscribed angle ACB must be marked between CA and CB inside the inscribed triangle.
 - No code, no commentary - JSON only.
 
 QUESTION:
@@ -2579,6 +2580,7 @@ Rules:
 - Preserve the problem's exact vertex labels. Do not use generic A/B/C labels for a triangle named PQR, XYZ, or any other label set. If the question states angle R, the angle marker must be at vertex R, not at a generic C vertex.
 - For any triangle angle mark, use TikZ angle pics, not raw arc paths: \\pic[draw=black,angle radius=5mm,"$60^\\circ$",angle eccentricity=1.35] {{angle=B--A--C}};. The vertex is the middle coordinate, so angle=B--A--C marks the angle at A. Never use \\draw (...) arc (...) for triangle angles, because it often creates exterior-looking arcs. Never draw exterior-looking angle arcs unless the question explicitly asks for an exterior angle.
 - Put triangle angle labels inside the measured angle, close to the vertex, with a small radius around 4mm to 6mm. If the angle is at C, use angle=A--C--B; if it is at B, use angle=A--B--C; if it is at A, use angle=B--A--C.
+- Apply the same rule to circle theorems: the middle letter is always the vertex, and ordinary named angles use the smaller interior sector. For angle AOB = 80 degrees, mark the 80-degree sector between OA and OB, not the exterior 280-degree sector. For angle ACB, put the mark between CA and CB inside the inscribed triangle. Use small \\pic angle marks; never hand-draw a loop or raw arc around O or C.
 - For bearing or navigation questions, draw short N/E reference rays and put clockwise bearing arcs inside the sector from North to the travel vector. Avoid large empty compass circles.
 - For parallelogram, diagonal, and vector-geometry questions, show the named diagonal or resultant, not just the outline. Put side/angle labels outside strokes and keep the interior crossing uncluttered.
 - For 3D geometry, planes, spheres, skew lines, projections, normals, and line-plane questions, use a sparse isometric sketch with x/y/z axes when helpful, one gray plane if needed, and labels outside intersections. Do not use red or blue labels unless color is explicitly requested.
@@ -2610,7 +2612,13 @@ Target: {req.target}
 def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
     original = _raw_request_text(req)
     hay = original.lower()
-    is_triangle = (
+    named_circle_angles = re.findall(r'(?:∠|(?i:\\angle\s*|\bangle\s+))([A-Z]{3})\b', original)
+    is_named_circle_theorem = (
+        bool(named_circle_angles)
+        and ('circle' in hay or 'circumference' in hay)
+        and any(term in hay for term in ('centre', 'center', 'inscribed', 'circumference'))
+    )
+    is_triangle = not is_named_circle_theorem and (
         _looks_like_triangle(original)
         or any(term in hay for term in ("triangle", "law of sines", "law of cosines"))
         or bool(re.search(r"\b(?:side|angle)\s+[abc]\b", hay))
@@ -2663,6 +2671,32 @@ def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
             radius_mm = value * 10 if unit == "cm" else value
             if radius_mm > 7:
                 return "Vector angle marks are too large. Use a small interior sector with angle radius between 4mm and 6mm."
+
+    if is_named_circle_theorem and not any(term in hay for term in ('exterior angle', 'reflex angle', 'major angle')):
+        if re.search(r'\\draw[^;\n]*\barc\s*(?:\[|\()', tikz):
+            return (
+                "Named circle-theorem angles must use small TikZ angle pics inside their two rays, not raw arc paths. "
+                "For angle AOB = 80 degrees mark the 80-degree interior sector, never the exterior 280-degree sector."
+            )
+        pic_keys = {
+            (middle, frozenset((first, last)))
+            for first, middle, last in re.findall(
+                r'\\pic\s*\[[^\]]*\]\s*\{angle=([A-Z])--([A-Z])--([A-Z])\}', tikz
+            )
+        }
+        missing = [
+            name for name in named_circle_angles
+            if (name[1], frozenset((name[0], name[2]))) not in pic_keys
+        ]
+        if missing:
+            return (
+                "Circle angle marks must use the named angle's middle letter as the vertex and stay inside the two rays. "
+                f"Missing correct interior angle pic(s): {', '.join(sorted(set(missing)))}."
+            )
+        for value, unit in re.findall(r'angle\s+radius\s*=\s*([0-9.]+)\s*(cm|mm)?', tikz, flags=re.IGNORECASE):
+            radius_mm = float(value) * (10 if (unit or 'cm').lower() == 'cm' else 1)
+            if radius_mm > 7:
+                return "Circle-theorem angle marks are too large. Use small interior angle pics with radius between 4mm and 7mm."
 
     if is_triangle:
         requested_labels: set[str] = set()
@@ -3600,6 +3634,7 @@ The Course Planner wrapper predefines the styles cp axis, cp line, cp dashed, cp
 Respond with EXACTLY "PASS" only if ALL of these hold:
 - Correct type: the diagram is the right kind of visual for the question and actually illustrates it (not a formula poster, not an unrelated shape).
 - Consistent: it agrees with the givens in the question (labels, counts, signs, angles, and quantities match). For cross products, the drawn result vector must obey the right-hand rule for the two drawn vectors (e.g. j x i points along -z, NOT +z); FAIL a cross-product arrow pointing the wrong way.
+- Interior angles: in a named angle XYZ, Y is the vertex. Unless the question explicitly asks for an exterior, reflex, or major angle, the mark and its label must lie in the smaller interior sector between YX and YZ. For circle theorems, FAIL angle AOB = 80 degrees if the diagram marks the exterior 280-degree sector, and FAIL angle ACB if its mark is outside the inscribed triangle rather than between CA and CB.
 - Answer-safe: it does not reveal a value the student is asked to find - solved magnitudes, coordinate tuples, computed results, or final answers appear only as a symbol or ?.
 - Legible: labels are not degenerate - nothing tiny, collapsed, overlapping, or cramped into the origin. FAIL a diagram whose supposedly independent vectors are drawn nearly collinear, or whose parallelogram/triangle collapses to a sliver.
 

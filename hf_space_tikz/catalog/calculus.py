@@ -84,47 +84,65 @@ templates = [
         "caption": 'Definite integral represented as shaded area under a curve between $x=a$ and $x=b$.',
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
-  xmin=-1, xmax=4, ymin=0, ymax=5,
+  xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
   grid=both, grid style={cp dashed},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
-  \addplot[cp line, samples=100, domain=-1:4]{x^2};
-  \addplot[cp fill, draw=none, samples=100, domain=__A__:__B__] {x^2} \closedcycle;
-  \node[cp label, above] at (axis cs:__AREA_LABEL_X__, __AREA_LABEL_Y__) {area};
+  \addplot[cp line, samples=120, domain=__XMIN__:__XMAX__]{__CURVE__};
+  \addplot[cp fill, draw=none, samples=120, domain=__A__:__B__] {__CURVE__} \closedcycle;
+  \node[cp label, below] at (axis cs:__A__,0) {__A_LABEL__};
+  \node[cp label, below] at (axis cs:__B__,0) {__B_LABEL__};
+  \node[cp label, above] at (axis cs:__AREA_LABEL_X__, __AREA_LABEL_Y__) {__AREA_LABEL__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
+            'CURVE': {'type': 'label', 'default': 'x^2', 'desc': "pgfplots expression for the given integrand/curve in x; write * for multiplication"},
+            'XMIN': {'type': 'number', 'default': '-1', 'desc': 'left axis bound, outside the shaded interval'},
+            'XMAX': {'type': 'number', 'default': '4', 'desc': 'right axis bound, outside the shaded interval'},
+            'YMIN': {'type': 'number', 'default': '0', 'desc': 'bottom axis bound; allow negative values for signed-area questions'},
+            'YMAX': {'type': 'number', 'default': '5', 'desc': 'top axis bound'},
             'A': {'type': 'number', 'default': '0.5', 'desc': 'lower limit of integration'},
             'B': {'type': 'number', 'default': '2', 'desc': 'upper limit of integration'},
+            'A_LABEL': {'type': 'label', 'default': '$a$', 'desc': 'short x-axis label for the lower bound, using the given value when stated'},
+            'B_LABEL': {'type': 'label', 'default': '$b$', 'desc': 'short x-axis label for the upper bound, using the given value when stated'},
             'AREA_LABEL_X': {'type': 'number', 'default': '1.3', 'desc': 'x-coordinate for the area label'},
             'AREA_LABEL_Y': {'type': 'number', 'default': '2', 'desc': 'y-coordinate for the area label'},
+            'AREA_LABEL': {'type': 'label', 'default': 'area', 'desc': 'short symbolic region label such as area or accumulated change; never the evaluated value'},
         },
     },
     {
         "id": 'riemann_sum_rectangles',
         "subject": 'Calculus',
-        "triggers": ['Riemann sum', 'rectangles', 'left endpoint'],
-        "caption": 'Riemann sum approximation using left-endpoint rectangles under a curve.',
+        "triggers": ['Riemann sum', 'rectangles', 'left endpoint', 'left-endpoint'],
+        "caption": 'Riemann sum approximation using four left-endpoint rectangles under a curve.',
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
-  xmin=0, xmax=1.6, ymin=0, ymax=2.5,
+  xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
   grid=both, grid style={cp dashed},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
-  \addplot[cp line, samples=100, domain=0:1.5]{x^2};
+  \addplot[cp line, samples=100, domain=__X0__:__X4__]{__CURVE__};
   \path[cp fill] (axis cs:__X0__,0) -- (axis cs:__X1__,0) -- (axis cs:__X1__, __H1__) -- (axis cs:__X0__, __H1__) -- cycle;
   \path[cp fill] (axis cs:__X1__,0) -- (axis cs:__X2__,0) -- (axis cs:__X2__, __H2__) -- (axis cs:__X1__, __H2__) -- cycle;
   \path[cp fill] (axis cs:__X2__,0) -- (axis cs:__X3__,0) -- (axis cs:__X3__, __H3__) -- (axis cs:__X2__, __H3__) -- cycle;
+  \path[cp fill] (axis cs:__X3__,0) -- (axis cs:__X4__,0) -- (axis cs:__X4__, __H4__) -- (axis cs:__X3__, __H4__) -- cycle;
 \end{axis}
 \end{tikzpicture}""",
         "params": {
+            'CURVE': {'type': 'label', 'default': 'x^2', 'desc': "pgfplots expression for the given function; write * for multiplication"},
+            'XMIN': {'type': 'number', 'default': '0', 'desc': 'left axis bound'},
+            'XMAX': {'type': 'number', 'default': '2.1', 'desc': 'right axis bound, just beyond X4'},
+            'YMIN': {'type': 'number', 'default': '0', 'desc': 'bottom axis bound'},
+            'YMAX': {'type': 'number', 'default': '4.5', 'desc': 'top axis bound above the curve and rectangles'},
             'X0': {'type': 'number', 'default': '0', 'desc': 'left endpoint of the first rectangle'},
             'X1': {'type': 'number', 'default': '0.5', 'desc': 'right endpoint of the first rectangle and left endpoint of the second'},
             'X2': {'type': 'number', 'default': '1', 'desc': 'right endpoint of the second rectangle and left endpoint of the third'},
             'X3': {'type': 'number', 'default': '1.5', 'desc': 'right endpoint of the third rectangle'},
+            'X4': {'type': 'number', 'default': '2', 'desc': 'right endpoint of the fourth rectangle'},
             'H1': {'type': 'number', 'default': '0', 'desc': 'height of the first rectangle'},
             'H2': {'type': 'number', 'default': '0.25', 'desc': 'height of the second rectangle'},
             'H3': {'type': 'number', 'default': '1', 'desc': 'height of the third rectangle'},
+            'H4': {'type': 'number', 'default': '2.25', 'desc': 'height of the fourth rectangle'},
         },
     },
     {

@@ -16,11 +16,11 @@ templates = [
     height=4cm,
     ybar,
     ymin=0,
-    ymax=10,
+    ymax=__YMAX__,
     xmin=0.5,
     xmax=5.5,
     xtick={1,2,3,4,5},
-    xticklabels={1,2,3,4,5},
+    xticklabels={__L1__,__L2__,__L3__,__L4__,__L5__},
     xlabel={Class Interval},
     ylabel={Frequency},
     bar width=0.6cm,
@@ -38,6 +38,12 @@ templates = [
 \end{axis}
 \end{tikzpicture}""",
         "params": {
+            'YMAX': {'type': 'number', 'default': '10', 'desc': 'top frequency-axis bound above the tallest bar'},
+            'L1': {'type': 'label', 'default': '1', 'desc': 'first class-interval label'},
+            'L2': {'type': 'label', 'default': '2', 'desc': 'second class-interval label'},
+            'L3': {'type': 'label', 'default': '3', 'desc': 'third class-interval label'},
+            'L4': {'type': 'label', 'default': '4', 'desc': 'fourth class-interval label'},
+            'L5': {'type': 'label', 'default': '5', 'desc': 'fifth class-interval label'},
             'F1': {'type': 'number', 'default': '2', 'desc': 'Height of the first bar (frequency)'},
             'F2': {'type': 'number', 'default': '5', 'desc': 'Height of the second bar (frequency)'},
             'F3': {'type': 'number', 'default': '3', 'desc': 'Height of the third bar (frequency)'},
@@ -55,8 +61,8 @@ templates = [
     width=7cm,
     height=3cm,
     boxplot/draw direction = x,
-    xmin=0,
-    xmax=14,
+    xmin=__XMIN__,
+    xmax=__XMAX__,
     xlabel={Value},
     ylabel={},
 ]
@@ -70,6 +76,8 @@ templates = [
 \end{axis}
 \end{tikzpicture}""",
         "params": {
+            'XMIN': {'type': 'number', 'default': '0', 'desc': 'axis minimum below the lower whisker'},
+            'XMAX': {'type': 'number', 'default': '14', 'desc': 'axis maximum above the upper whisker'},
             'MIN': {'type': 'number', 'default': '4', 'desc': 'Minimum value'},
             'Q1': {'type': 'number', 'default': '6', 'desc': 'First quartile (lower quartile)'},
             'MED': {'type': 'number', 'default': '8', 'desc': 'Median value'},
@@ -96,7 +104,7 @@ templates = [
     axis lines=left,
     yticklabels={\,},
     xtick={__MU__-2*__SIGMA__, __MU__-__SIGMA__, __MU__, __MU__+__SIGMA__, __MU__+2*__SIGMA__},
-    xticklabels={$\mu-2\sigma$, $\mu-\sigma$, $\mu$, $\mu+\sigma$, $\mu+2\sigma$},
+    xticklabels={__T1__,__T2__,__T3__,__T4__,__T5__},
     declare function={gauss(\x)=1/(sqrt(2*pi*(__SIGMA__)^2)) * exp(-((\x-(__MU__))^2)/(2*(__SIGMA__)^2));},
 ]
 % density curve (no plot-cycle marks; a smooth line, not a band of dots)
@@ -112,6 +120,11 @@ templates = [
             'SIGMA': {'type': 'number', 'default': '1', 'desc': 'Standard deviation of the normal distribution'},
             'SHADE_L': {'type': 'number', 'default': '-0.5', 'desc': 'Left boundary of the shaded region'},
             'SHADE_R': {'type': 'number', 'default': '0.5', 'desc': 'Right boundary of the shaded region'},
+            'T1': {'type': 'label', 'default': '$\\mu-2\\sigma$', 'desc': 'label at mean minus two standard deviations; use the numeric given when requested'},
+            'T2': {'type': 'label', 'default': '$\\mu-\\sigma$', 'desc': 'label at mean minus one standard deviation'},
+            'T3': {'type': 'label', 'default': '$\\mu$', 'desc': 'label at the mean'},
+            'T4': {'type': 'label', 'default': '$\\mu+\\sigma$', 'desc': 'label at mean plus one standard deviation'},
+            'T5': {'type': 'label', 'default': '$\\mu+2\\sigma$', 'desc': 'label at mean plus two standard deviations'},
         },
     },
     {
@@ -217,32 +230,45 @@ templates = [
 \begin{axis}[
     width=7cm,
     height=4cm,
-    xmin=0,
-    xmax=5,
-    ymin=0,
-    ymax=10,
-    xlabel={$x$},
-    ylabel={$y$},
+    xmin=__XMIN__,
+    xmax=__XMAX__,
+    ymin=__YMIN__,
+    ymax=__YMAX__,
+    xlabel={__XLABEL__},
+    ylabel={__YLABEL__},
     xmajorgrids,
     ymajorgrids,
     axis lines=left,
 ]
 % scatter points
 \addplot[only marks, mark=*, cp line] coordinates {
-    (1, __Y1__)
-    (2, __Y2__)
-    (3, __Y3__)
-    (4, __Y4__)
+    (__X1__, __Y1__)
+    (__X2__, __Y2__)
+    (__X3__, __Y3__)
+    (__X4__, __Y4__)
+    (__X5__, __Y5__)
 };
 % line of best fit
-\addplot[cp line, domain=0:5] {__M__ * x + __B__};
+\addplot[cp line, domain=__XMIN__:__XMAX__] {__M__ * x + __B__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
+            'XMIN': {'type': 'number', 'default': '0', 'desc': 'left axis bound'},
+            'XMAX': {'type': 'number', 'default': '6', 'desc': 'right axis bound'},
+            'YMIN': {'type': 'number', 'default': '0', 'desc': 'bottom axis bound'},
+            'YMAX': {'type': 'number', 'default': '10', 'desc': 'top axis bound'},
+            'XLABEL': {'type': 'label', 'default': '$x$', 'desc': 'short horizontal-axis label from the problem'},
+            'YLABEL': {'type': 'label', 'default': '$y$', 'desc': 'short vertical-axis label from the problem'},
+            'X1': {'type': 'number', 'default': '1', 'desc': 'x-coordinate of the first data point'},
             'Y1': {'type': 'number', 'default': '2', 'desc': 'y-coordinate of the first data point'},
+            'X2': {'type': 'number', 'default': '2', 'desc': 'x-coordinate of the second data point'},
             'Y2': {'type': 'number', 'default': '4', 'desc': 'y-coordinate of the second data point'},
+            'X3': {'type': 'number', 'default': '3', 'desc': 'x-coordinate of the third data point'},
             'Y3': {'type': 'number', 'default': '6', 'desc': 'y-coordinate of the third data point'},
+            'X4': {'type': 'number', 'default': '4', 'desc': 'x-coordinate of the fourth data point'},
             'Y4': {'type': 'number', 'default': '8', 'desc': 'y-coordinate of the fourth data point'},
+            'X5': {'type': 'number', 'default': '5', 'desc': 'x-coordinate of the fifth data point'},
+            'Y5': {'type': 'number', 'default': '9', 'desc': 'y-coordinate of the fifth data point'},
             'M': {'type': 'number', 'default': '1.5', 'desc': 'Slope of the best-fit line'},
             'B': {'type': 'number', 'default': '0.5', 'desc': 'Intercept of the best-fit line'},
         },
@@ -309,10 +335,10 @@ templates = [
 \begin{axis}[
     width=7cm,
     height=4cm,
-    xmin=0,
-    xmax=6,
+    xmin=__XMIN__,
+    xmax=__XMAX__,
     ymin=0,
-    ymax=10,
+    ymax=__YMAX__,
     xlabel={$x$},
     ylabel={Cumulative Frequency},
     xmajorgrids,
@@ -320,26 +346,34 @@ templates = [
     axis lines=left,
 ]
 \addplot[cp line, smooth] coordinates {
-    (1, __C1__)
-    (2, __C2__)
-    (3, __C3__)
-    (4, __C4__)
-    (5, __C5__)
+    (__X1__, __C1__)
+    (__X2__, __C2__)
+    (__X3__, __C3__)
+    (__X4__, __C4__)
+    (__X5__, __C5__)
 };
 \addplot[only marks, mark=*, cp line] coordinates {
-    (1, __C1__)
-    (2, __C2__)
-    (3, __C3__)
-    (4, __C4__)
-    (5, __C5__)
+    (__X1__, __C1__)
+    (__X2__, __C2__)
+    (__X3__, __C3__)
+    (__X4__, __C4__)
+    (__X5__, __C5__)
 };
 \end{axis}
 \end{tikzpicture}""",
         "params": {
+            'XMIN': {'type': 'number', 'default': '0', 'desc': 'left axis bound at or below the first upper-class boundary'},
+            'XMAX': {'type': 'number', 'default': '6', 'desc': 'right axis bound above the last upper-class boundary'},
+            'YMAX': {'type': 'number', 'default': '10', 'desc': 'top cumulative-frequency bound above C5'},
+            'X1': {'type': 'number', 'default': '1', 'desc': 'first upper-class boundary'},
             'C1': {'type': 'number', 'default': '2', 'desc': 'Cumulative frequency at the first point'},
+            'X2': {'type': 'number', 'default': '2', 'desc': 'second upper-class boundary'},
             'C2': {'type': 'number', 'default': '5', 'desc': 'Cumulative frequency at the second point'},
+            'X3': {'type': 'number', 'default': '3', 'desc': 'third upper-class boundary'},
             'C3': {'type': 'number', 'default': '7', 'desc': 'Cumulative frequency at the third point'},
+            'X4': {'type': 'number', 'default': '4', 'desc': 'fourth upper-class boundary'},
             'C4': {'type': 'number', 'default': '9', 'desc': 'Cumulative frequency at the fourth point'},
+            'X5': {'type': 'number', 'default': '5', 'desc': 'fifth upper-class boundary'},
             'C5': {'type': 'number', 'default': '10', 'desc': 'Cumulative frequency at the fifth point'},
         },
     },

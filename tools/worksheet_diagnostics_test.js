@@ -3,6 +3,8 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+assert(html.includes('The user may give only a broad topic and is not expected to request individual diagrams'));
+assert(html.includes('For named angles XYZ, Y is the vertex'));
 function code(a,b) { const start=html.indexOf(a), end=html.indexOf(b,start); assert(start>=0 && end>start, 'Missing extraction marker: '+a+' / '+b); return html.slice(start,end); }
 const student = new Function(code('function worksheetStudentText','function questionHTML')+'; return worksheetStudentText;')();
 assert.equal(student({q:'Find BC. Diagram: Draw a triangle.'}), 'Find BC.');

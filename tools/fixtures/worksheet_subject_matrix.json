@@ -1,0 +1,122 @@
+[
+  {
+    "id": "integration_definite_polynomial",
+    "branch": "Integration",
+    "subject": "Calculus",
+    "question": "Evaluate the definite integral of x^2 + 1 from x = 0 to x = 2.",
+    "brief": "Draw y = x^2 + 1 on coordinate axes and shade only the region between the curve and the x-axis from x = 0 to x = 2. Label the two bounds, but do not show the evaluated integral.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "integration_area_between_curves",
+    "branch": "Integration",
+    "subject": "Calculus",
+    "question": "Find the area enclosed by y = 4 - x^2 and y = x + 2.",
+    "brief": "Plot both curves on the same coordinate plane and shade their enclosed region. Label each curve, but do not label the intersection coordinates or the area.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "integration_left_riemann",
+    "branch": "Integration",
+    "subject": "Calculus",
+    "question": "Use four left-endpoint rectangles to estimate the area under y = x + 1 on 0 <= x <= 4.",
+    "brief": "Draw y = x + 1 and exactly four left-endpoint rectangles over [0,4]. Show axes and the interval endpoints without displaying the numerical estimate.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "integration_signed_area",
+    "branch": "Integration",
+    "subject": "Calculus",
+    "question": "Interpret the integral of f(x) from x = -2 to x = 3 as signed area when f crosses the x-axis at x = 1.",
+    "brief": "Draw one smooth curve above the x-axis on [-2,1] and below it on [1,3]. Shade both regions differently using gray patterns and label -2, 1, and 3. Do not state the integral value.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "integration_accumulation_function",
+    "branch": "Integration",
+    "subject": "Calculus",
+    "question": "For F(x) equal to the integral of t^2 + 1 from 0 to x, explain what F(x) represents geometrically.",
+    "brief": "On t and y axes, draw y = t^2 + 1 and shade the region from t = 0 to a symbolic endpoint t = x. Label the moving endpoint x without solving for an area.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "statistics_histogram",
+    "branch": "Data Management",
+    "subject": "Data Management",
+    "question": "A grouped data set has frequencies 3, 7, 9, 5, and 2 in the intervals 0-9, 10-19, 20-29, 30-39, and 40-49. Describe the distribution.",
+    "brief": "Draw a histogram with the five stated class intervals and frequencies. Use touching bars, numbered frequency ticks, and no trend or conclusion label.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "statistics_boxplot",
+    "branch": "Data Management",
+    "subject": "Data Management",
+    "question": "A data set has minimum 12, first quartile 18, median 25, third quartile 31, and maximum 40. Draw and interpret its box plot.",
+    "brief": "Draw one horizontal box-and-whisker plot using exactly the five-number summary 12, 18, 25, 31, 40 on a numbered axis.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "statistics_scatter",
+    "branch": "Data Management",
+    "subject": "Data Management",
+    "question": "The ordered pairs (1,2), (2,3), (3,5), (4,6), and (5,8) relate study time to quiz score. Describe their correlation.",
+    "brief": "Plot the five given points on labeled axes and draw a reasonable line of best fit. Do not write the correlation answer on the diagram.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "statistics_normal",
+    "branch": "Data Management",
+    "subject": "Data Management",
+    "question": "Bottle fills are normally distributed with mean 500 mL and standard deviation 4 mL. Represent the interval within one standard deviation of the mean.",
+    "brief": "Draw a normal curve centered at 500, mark 496, 500, and 504 on the axis, and shade only the region from 496 to 504. Do not state its probability.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "statistics_ogive",
+    "branch": "Data Management",
+    "subject": "Data Management",
+    "question": "Cumulative frequencies at upper class boundaries 10, 20, 30, 40, and 50 are 2, 8, 17, 24, and 30. Estimate the median from an ogive.",
+    "brief": "Plot an increasing cumulative-frequency ogive through the five stated points on numbered axes. Do not draw or label the solved median.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "functions_exponential",
+    "branch": "Functions",
+    "subject": "Advanced Functions",
+    "question": "Describe the transformations and asymptote of y = 2^(x - 1) + 3.",
+    "brief": "Graph y = 2^(x - 1) + 3 on labeled coordinate axes and draw its horizontal asymptote as a dashed line. Do not write the transformation description.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "functions_rational",
+    "branch": "Functions",
+    "subject": "Advanced Functions",
+    "question": "Identify the vertical and horizontal asymptotes of f(x) = (2x + 1)/(x - 3).",
+    "brief": "Sketch both branches of the rational function and show both asymptotes as unlabeled dashed guide lines or symbolic lines. Do not print their solved equations.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "functions_sinusoidal",
+    "branch": "Functions",
+    "subject": "Advanced Functions",
+    "question": "Determine the amplitude, period, and midline of y = 3 sin(x) - 2.",
+    "brief": "Graph at least one complete cycle on labeled axes and show the midline as a dashed line. Do not state the amplitude, period, or midline value as an answer label.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "functions_piecewise",
+    "branch": "Functions",
+    "subject": "Advanced Functions",
+    "question": "Graph f(x) = x + 2 for x < 1 and f(x) = 5 - x for x >= 1.",
+    "brief": "Draw both linear pieces on one coordinate plane. At x = 1 use the correct open point for the first rule and closed point for the second rule.",
+    "kind": "worksheet_acceptance"
+  },
+  {
+    "id": "functions_inverse",
+    "branch": "Functions",
+    "subject": "Advanced Functions",
+    "question": "Explain how the graphs of an exponential function and its logarithmic inverse are related.",
+    "brief": "Draw a representative exponential curve and its logarithmic inverse on the same axes with y = x dashed. Label the two functions symbolically and show their reflection relationship.",
+    "kind": "worksheet_acceptance"
+  }
+]

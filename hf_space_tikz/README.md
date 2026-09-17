@@ -59,10 +59,17 @@ PNG requests return base64:
 
 Starts a background job. Supported, fully specified elementary setups (a named
 right triangle with two given legs, a two-point coordinate midpoint problem,
-an external circle tangent, a block with four cardinal forces, and an explicitly
-bounded quadratic graph) use validated
+an external circle tangent, a central/inscribed-angle circle theorem, a block
+with four cardinal forces, and an explicitly bounded quadratic graph) use validated
 numerical geometry without Gemini. Unsupported setups use the existing catalog
 fit/parameter path, then reference-guided generation with one repair.
+
+The circle-theorem renderer accepts one named central angle with a value from
+20 to 160 degrees and one requested inscribed angle intercepting the same two
+points. All three outer points must be stated to lie on the circumference and
+the centre must be named. It always draws the smaller interior sectors. Reflex,
+exterior, tangent/secant, or ambiguous multi-angle constructions use the verified
+model-assisted path instead.
 
 Quadratics accept standard-form `y = ax^2 + bx + c` with finite integer/decimal
 coefficients, omitted terms, `x²` or `x^{2}`. Supply an explicit domain such as

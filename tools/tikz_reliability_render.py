@@ -33,6 +33,7 @@ def main():
         'Plot the quadratic y = 0.5x^2-2x-1 over -3 <= x <= 5. Show the y-axis from -5 to 10. Do not mark the vertex or intercepts.',
         'A circle has centre O and radius 5 cm. OP = 13 cm. PT is tangent to the circle at T. Find PT. Label OT = 5 cm and OP = 13 cm and PT = x.',
         'A block experiences four forces: 10 N upward, 10 N downward, 8 N to the right, 3 N to the left. Find the resultant force. Do not draw the resultant force.',
+        'Points A, B, and C lie on the circumference of a circle with center O. If angle AOB = 80 degrees, what is the measure of angle ACB?',
     ]
     for batch, texts in [('exact',[q['question']+'\nDiagram: '+q['visualDescription'] for q in fixtures]), ('variation',variations)]:
         for number, text in enumerate(texts,1):
