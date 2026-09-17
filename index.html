@@ -3676,9 +3676,9 @@
         .st-q .st-opts li { margin:6px 0; }
         .st-q .st-opts li::before { content: attr(data-l) ")"; font-weight:600; margin-right:8px; color:#444; }
         .st-a4 mjx-merror { display:none !important; }
-        .st-q-tikz { margin:9px 0 3px 34px; width:min(330px,100%); max-width:330px; overflow:visible; break-inside:avoid; }
+        .st-q-tikz { margin:9px 0 3px 34px; width:min(420px,calc(100% - 34px)); max-width:420px; overflow:visible; break-inside:avoid; }
         .st-q-tikz svg,
-        .st-q-tikz img { display:block; width:100%; max-width:100%; height:auto; max-height:235px; object-fit:contain; overflow:visible; }
+        .st-q-tikz img { display:block; width:100%; max-width:100%; height:auto; object-fit:contain; overflow:visible; }
         .st-q .st-worklines { margin-top:10px; }
         .st-q .st-worklines div { height:26px; }
         /* Answer-section view options (toggled per worksheet) */
@@ -3838,10 +3838,10 @@
             #stPrintArea .st-a4 { width:100%; min-height:auto; margin:0; border-radius:0; box-shadow:none; padding:0; break-after:page; page-break-after:always; overflow:visible; }
             #stPrintArea .st-q { margin-bottom:4.6mm; break-inside:auto; page-break-inside:auto; }
             #stPrintArea .st-q.has-visual { margin-bottom:3.6mm; break-inside:avoid; page-break-inside:avoid; }
-            #stPrintArea .st-q-tikz { width:62mm; max-width:62mm; margin-top:2.5mm; margin-bottom:1mm; overflow:visible; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+            #stPrintArea .st-q-tikz { width:85mm; max-width:calc(100% - 34px); margin-top:2.5mm; margin-bottom:1mm; overflow:visible; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
             #stPrintArea .st-q-tikz svg,
-            #stPrintArea .st-q-tikz img { width:100% !important; height:auto !important; max-height:45mm; object-fit:contain; overflow:visible; color:#111; }
-            #stPrintArea .st-q-tikz svg [stroke]:not([stroke="none"]) { stroke:#111 !important; stroke-opacity:1 !important; vector-effect:non-scaling-stroke; }
+            #stPrintArea .st-q-tikz img { width:100% !important; height:auto !important; object-fit:contain; overflow:visible; color:#111; }
+            /* Preserve SVG grid contrast, opacity, and line weights when printing. */
             #stPrintArea .st-a4:last-child { break-after:auto; page-break-after:auto; }
         }
         #stPrintArea { display:none; }
@@ -14578,12 +14578,13 @@
                         properties: {
                             type: { type: 'string', enum: ['mc', 'short', 'work', 'tf', 'fill'] },
                             q: { type: 'string' },
+                            visualDescription: { type: 'string' },
                             opts: { type: 'array', items: { type: 'string' } },
                             answer: { type: 'string' },
                             tikz: { type: 'string' },
                             tikzSvg: { type: 'string' }
                         },
-                        required: ['type', 'q', 'answer'], propertyOrdering: ['type', 'q', 'opts', 'answer', 'tikz', 'tikzSvg']
+                        required: ['type', 'q', 'answer'], propertyOrdering: ['type', 'q', 'visualDescription', 'opts', 'answer', 'tikz', 'tikzSvg']
                     }
                 }
             },
@@ -15427,7 +15428,7 @@
         function tikzPrompt(kind) {
             const target = kind || 'content';
             if (/worksheet/i.test(target)) {
-                return '\nTextbook visuals are enabled for this worksheet, but do NOT write TikZ code in the question JSON yourself. Leave "tikz", "tikzSvg", and image fields empty. A separate backend renderer will create clean SVG diagrams after the worksheet text is generated. Still write questions that clearly name the needed points, sides, angles, axes, vectors, bearings, coordinates, and labels so the renderer can draw them accurately.';
+                return '\nTextbook visuals are enabled for this worksheet, but do NOT write TikZ code in the question JSON yourself. Leave "tikz", "tikzSvg", and image fields empty. A separate backend renderer will create clean SVG diagrams after the worksheet text is generated. Keep "q" strictly student-facing, with all givens needed to solve the question. Put drawing instructions, axis bounds, layout, labels, and answer-hiding requirements in "visualDescription", never in "q". Copy explicit diagram requirements from the user into visualDescription. Leave visualDescription empty for text-only questions. Clearly name needed points, sides, angles, axes, vectors, bearings, coordinates, and labels. Do not put the worked answer in visualDescription.';
             }
             return '\nTextbook visuals are enabled, but do NOT write TikZ code yourself. Leave "tikzSvg" empty. A separate backend renderer draws every diagram after the text is generated, so all visuals across the worksheet, study guide, flashcard and slide generators share one clean black/gray textbook style. Your job is only to say WHERE a diagram helps and to describe it in plain words — clearly name the points, sides, angles, axes, curves, vectors, bearings, coordinates, regions, and labels the diagram needs for ' + target + '. Only ask for a diagram with real drawing content (graphs, geometry, number lines, vectors, force diagrams, probability trees, regions under a curve). Do not request a diagram for standalone formulas, definitions, statements, or proofs; put formulas in the normal text/equation fields instead.';
         }
@@ -16063,6 +16064,8 @@
         }
         async function generateTikzVisual(payload) {
             payload = Object.assign({ format: 'svg' }, payload || {}, { theme: 'mono' });
+            let jobId = '', stage = 'submit', diagnostics = [];
+            try {
             const res = await tikzFetch(TIKZ_SPACE_URL + '/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -16073,18 +16076,22 @@
             // returns immediately. Poll /status until the SVG/PNG is ready so slow
             // Gemini/LaTeX work cannot trip a gateway timeout.
             if (res.ok && out && out.job_id) {
+                jobId = out.job_id;
+                stage = 'poll';
                 const started = Date.now();
                 const maxWait = 300000;
                 while (Date.now() - started < maxWait) {
                     await wait(1800);
                     const sres = await tikzFetch(TIKZ_SPACE_URL + '/status/' + encodeURIComponent(out.job_id), { cache: 'no-store' }, 30000);
                     const st = await sres.json().catch(() => null);
+                    if (st && Array.isArray(st.diagnostics)) diagnostics = st.diagnostics;
                     if (!sres.ok) throw new Error(st && st.error || ('TikZ status failed: ' + sres.status));
                     if (st && st.status === 'completed' && (st.svg || st.base64)) {
                         st.ok = true;
+                        st.job_id = jobId;
                         return st;
                     }
-                    if (st && st.status === 'failed') throw new Error(st.error || 'TikZ generation failed.');
+                    if (st && st.status === 'failed') { stage = 'backend'; throw new Error(st.error || 'TikZ generation failed.'); }
                 }
                 throw new Error('TikZ generation timed out while polling the renderer.');
             }
@@ -16092,15 +16099,18 @@
             // the rendered diagram directly.
             if (res.ok && out && out.ok && (out.svg || out.base64)) return out;
             throw new Error(out && (out.error || out.log) || ('TikZ generation failed: ' + res.status));
+            } catch (error) {
+                const e = error instanceof Error ? error : new Error(String(error));
+                e.visualDiagnostic = { status: 'failed', stage: stage, jobId: jobId, error: e.message, events: diagnostics };
+                throw e;
+            }
         }
-        // When the diagram backend is rate limited / under high demand (429/503/
-        // timeout), some visuals come back empty. Surface a single explainable notice
-        // per generation so the missing diagrams don't silently vanish — the user knows
-        // to retry rather than assuming the tool is broken.
+        // Report omissions without guessing whether the cause was quota, transport,
+        // compilation, or validation. Worksheet feedback retains available details.
         function noteVisualFailures(count) {
             if (!count) return;
             const n = count === 1 ? '1 diagram' : count + ' diagrams';
-            toast(n + " couldn't be rendered — the diagram service was busy or rate limited. Try generating again shortly.", 'err');
+            toast(n + " couldn't be rendered. Use Report issue on the worksheet to download the available failure details.", 'err');
         }
         function worksheetTikzHTML(q) {
             const svg = isolateEmbeddedSvg(q && q.tikzSvg);
@@ -16126,6 +16136,7 @@
         // fabricates a generic shape when nothing fits. Only questions with a concrete
         // geometric or graphable signal are sent.
         function worksheetNeedsVisual(q) {
+            if (String(q && q.visualDescription || '').trim()) return true;
             if (sdCleanTikz(q && q.tikz)) return true;
             // Decide from the QUESTION only, never the worked answer. Keying off answer
             // prose made near-identical questions diverge (e.g. "calculate p-q" got a
@@ -16205,7 +16216,7 @@
             let completed = 0, failed = 0;
             if (progress) progress.detail(aiCandidates.length ? ('Rendering TikZ visual 1 of ' + aiCandidates.length + ' on the backend') : 'No backend visuals needed');
             let nextVisual = 0;
-            const diagramQuestionText = q => String(q && q.q || '')
+            const diagramQuestionText = q => (String(q && q.q || '') + (q && q.visualDescription ? '\nDiagram: ' + q.visualDescription : ''))
                 .replace(/\t\s*ext\s*\{/g, '\\text{')
                 .replace(/\t\s*ext(?=(?:less|greater|superscript|subscript|backslash|asciitilde|asciicircum)\b)/g, '\\text')
                 .replace(/(^|[\s([{])ext(?=(?:less|greater|superscript|subscript|backslash|asciitilde|asciicircum)\b)/g, '$1\\text')
@@ -16228,10 +16239,13 @@
                     });
                     q.tikzSvg = out.svg || '';
                     q.tikzPng = out.base64 || '';
+                    q.visualDiagnostic = { status: 'completed', jobId: out.job_id || '', source: out.source || '', events: out.diagnostics || [] };
                 } catch (e) {
+                    q.visualDiagnostic = e.visualDiagnostic || { status: 'failed', stage: 'request', error: String(e.message || e) };
                     if (sdCleanTikz(q.tikz)) {
                         try {
                             q.tikzSvg = await renderTikzCode(q.tikz, 'worksheet');
+                            q.visualDiagnostic = { status: 'completed', source: 'direct-render-fallback', previousFailure: q.visualDiagnostic };
                             return;
                         } catch (fallbackErr) {
                             console.warn('[worksheet] TikZ fallback render failed', fallbackErr);
@@ -16240,7 +16254,7 @@
                     console.warn('[worksheet] TikZ renderer unavailable for question ' + (data.questions.indexOf(q) + 1), e);
                 } finally {
                     completed++;
-                    if (!String(q.tikzSvg || '').trim()) failed++;
+                    if (!String(q.tikzSvg || q.tikzPng || '').trim()) failed++;
                     if (progress && aiCandidates.length) {
                         const pct = 65 + Math.round((completed / aiCandidates.length) * 20);
                         progress.set(3, completed < aiCandidates.length
@@ -16307,7 +16321,7 @@
                 // the prompt + settings back for debugging without re-downloading a PDF.
                 WS_DATA.request = {
                     topic: topic, subject: subject, level: level, count: count,
-                    types: types, visuals: visualsEnabled, generatedAt: new Date().toISOString()
+                    types: types, visuals: visualsEnabled, model: localStorage.getItem('cp_gemini_model') || '', generatedAt: new Date().toISOString()
                 };
                 if (progress) progress.set(visualsEnabled ? 4 : 3, 'Rendering worksheet and typesetting math', 90);
                 renderWorksheet(WS_DATA);
@@ -16316,6 +16330,11 @@
             });
         });
 
+        function worksheetStudentText(q) {
+            // Compatibility for older/model-produced questions with an explicit
+            // authoring-instruction suffix. Keep the original text for generation/export.
+            return String(q && q.q || '').split(/\s+Diagram:\s*(?=Draw\b|Show\b|Plot\b|Include\b)/i)[0];
+        }
         function questionHTML(q, idx, isKey) {
             let body = '';
             if (q.type === 'mc' && q.opts && q.opts.length) {
@@ -16331,7 +16350,7 @@
             const visual = WS_DIAGRAMS ? worksheetTikzHTML(q) : '';
             const hasVisual = !!visual;
             return '<div class="st-q' + (hasVisual ? ' has-visual' : '') + '"><div class="st-q-head"><span class="st-q-num">' + (idx + 1) + '.</span>' +
-                '<div class="st-q-text">' + escMathFlow(q.q) + '</div></div>' + visual + body + ans + '</div>';
+                '<div class="st-q-text">' + escMathFlow(worksheetStudentText(q)) + '</div></div>' + visual + body + ans + '</div>';
         }
         function sheetHTML(d, isKey) {
             const cls = 'st-a4' + (isKey ? ' is-key' : '') + (WS_LINES ? ' ws-lines' : '') + (WS_SPACE ? '' : ' ws-nospace');
@@ -16353,7 +16372,7 @@
             const qs = Array.isArray(d.questions) ? d.questions : [];
             return {
                 kind: 'course-planner-worksheet-feedback',
-                version: 1,
+                version: 2,
                 exportedAt: new Date().toISOString(),
                 tikzBackend: TIKZ_SPACE_URL,
                 request: d.request || null,
@@ -16374,6 +16393,8 @@
                             answer: (q && q.answer) || '',
                             visualStatus: visualStatus
                         };
+                        if (q && q.visualDescription) out.visualDescription = q.visualDescription;
+                        if (q && q.visualDiagnostic) out.visualDiagnostic = q.visualDiagnostic;
                         if (q && q.opts) out.options = q.opts;
                         if (svg) out.tikzSvg = svg;
                         if (png) out.tikzPng = png;

@@ -134,7 +134,10 @@ _SANITIZERS = {
 # add or change diagrams; this module is the engine that routes and fills them.
 # ---------------------------------------------------------------------------
 
-from catalog import ALL as _CATALOG_ALL
+if __package__:
+    from .catalog import ALL as _CATALOG_ALL
+else:
+    from catalog import ALL as _CATALOG_ALL
 
 TEMPLATES: list[dict] = list(_CATALOG_ALL)
 
@@ -201,11 +204,27 @@ def _trigger_hit(keyword: str, text_low: str) -> bool:
     return re.search(left + re.escape(kw) + right, text_low) is not None
 
 
+def _compatible(template: dict, text_low: str) -> bool:
+    # These families have no exact catalog skeleton. Never offer a different
+    # family as an "exact" match or as a misleading fallback reference.
+    if ("circle" in text_low and "tangent" in text_low
+            or "midpoint" in text_low and "coordinate plane" in text_low
+            or "block" in text_low and "four forces" in text_low):
+        return False
+    if template['id'] == 'network_graph' and 'triangle' in text_low and not re.search(r'network|weighted graph|spanning tree|hamiltonian|euler', text_low):
+        return False
+    if template['id'] == 'plane_with_normal' and 'coordinate plane' in text_low and not re.search(r'3d|three.dimension|normal vector', text_low):
+        return False
+    return True
+
+
 def _relevance(template: dict, text_low: str, subj_tokens: set) -> float:
     """Keyword-trigger score for one template, weighting multi-word phrases higher
     (a specific "angle between" beats a bare "triangle") plus a subject-token
     tiebreak. Subject is NOT part of the keyword haystack (folding it in made
     "vectors" match every vector template)."""
+    if not _compatible(template, text_low):
+        return 0.0
     score = 0.0
     for kw in template["triggers"]:
         if _trigger_hit(kw, text_low):
@@ -354,7 +373,7 @@ def route_top(text: str, subject: str = "", k: int = 3) -> list[dict]:
     text_low = str(text or "").lower()
     subj_tokens = set(re.findall(r"[a-z]+", str(subject or "").lower()))
     scored = sorted(
-        ((_relevance(t, text_low, subj_tokens), _domain_affinity(t, text_low, subj_tokens), i, t) for i, t in enumerate(TEMPLATES)),
+        ((_relevance(t, text_low, subj_tokens), _domain_affinity(t, text_low, subj_tokens), i, t) for i, t in enumerate(TEMPLATES) if _compatible(t, text_low)),
         key=lambda x: (-x[0], -x[1], x[2]),
     )
     picked = [t for s, _a, _i, t in scored if s > 0][:k]

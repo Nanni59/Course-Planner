@@ -17,7 +17,8 @@ tools.
 
 ### `GET /health`
 
-Returns service status and whether the required command-line tools are present.
+Returns service status, tool availability, and `catalog_available`,
+`catalog_enabled`, and `elementary_available` so a missing template engine is visible.
 
 ### `POST /render`
 
@@ -56,9 +57,16 @@ PNG requests return base64:
 
 ### `POST /generate`
 
-Uses a Gemini key stored in the Space secrets to generate a compact TikZ diagram
-from a plain-language visual brief, render it, and attempt one repair if LaTeX
-rejects the first draft.
+Starts a background job. Supported, fully specified elementary setups (a named
+right triangle with two given legs, a two-point coordinate midpoint problem,
+an external circle tangent, and a block with four cardinal forces) use validated
+numerical geometry without Gemini. Unsupported setups use the existing catalog
+fit/parameter path, then reference-guided generation with one repair.
+
+Worksheet drawing instructions belong in `visualDescription` in the frontend's
+question data. The frontend sends them together with the question, never its answer.
+An older `Diagram: Draw/Show/Plot/...` suffix is hidden in the student view but
+retained in the generation request and feedback export.
 
 Request:
 
@@ -78,20 +86,29 @@ Response:
 
 ```json
 {
-  "ok": true,
-  "format": "svg",
-  "mime": "image/svg+xml",
-  "svg": "<svg ...></svg>",
-  "tikz": "\\begin{tikzpicture}...",
-  "caption": "The tangent line gives the slope at one point."
+  "job_id": "...",
+  "status": "pending"
 }
 ```
+
+### `GET /status/{job_id}`
+
+Poll until `status` is `completed` or `failed`. Completion includes `svg` (or
+`base64` for PNG), `job_id`, `source`, and bounded per-job `diagnostics` with stages,
+template IDs, model attempts, and available error details. Failure includes `error`
+and the same diagnostic trail. No API keys or full request prompts are included.
+
+The worksheet's Report issue JSON preserves this information. It does not label
+every failure as a rate limit. Custom TikZ readiness is a source-code check, not an
+image inspection; an unavailable verifier no longer counts as success. Template
+parameter failures do not render invented default givens.
 
 ## Hugging Face Setup
 
 1. Create a new Hugging Face Space.
 2. Choose Docker as the Space SDK.
-3. Upload this folder's files: `Dockerfile`, `app.py`, `requirements.txt`.
+3. Upload this folder, including `Dockerfile`, `app.py`, `requirements.txt`,
+   `templates.py`, and the complete `catalog/` directory.
 4. Add `GEMINI_API_KEY` as a Space secret if you want server-side visual
    generation through `/generate`. Optional fallback secrets:
    `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_API_KEY_4`.

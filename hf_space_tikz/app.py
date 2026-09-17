@@ -39,10 +39,34 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 try:
-    import templates as tcatalog  # constrained catalog engine (route/fill/ai_spec)
+    if __package__:
+        from . import templates as tcatalog
+    else:
+        import templates as tcatalog
 except Exception as _cat_exc:  # keep /render and /health alive even if catalog breaks
     tcatalog = None
     print(f"[catalog] engine import failed, catalog path disabled: {_cat_exc}", flush=True)
+
+try:
+    if __package__:
+        from .catalog.elementary import generate as elementary_diagram
+    else:
+        from catalog.elementary import generate as elementary_diagram
+except ImportError:
+    elementary_diagram = None
+
+_job_trace = threading.local()
+
+
+def _diagnostic(stage: str, detail: str = "", **metadata) -> None:
+    """Per-job, bounded diagnostics: no prompts, API keys, or cross-job model guesses."""
+    events = getattr(_job_trace, "events", None)
+    if events is None:
+        return
+    for key in GEMINI_KEYS:
+        detail = detail.replace(key, "[redacted]")
+    events.append({"stage": stage, "detail": detail[:500], **metadata})
+    del events[:-24]
 
 
 app = FastAPI(title="Course Planner TikZ Renderer")
@@ -381,6 +405,7 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
         key = GEMINI_KEYS[key_idx]
         models = _available_models(key_idx)
         model = models[0]
+        _diagnostic("model-attempt", model=model)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         try:
             res = requests.post(
@@ -404,6 +429,7 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
                 global _last_success_model
                 with _last_success_model_lock:
                     _last_success_model = model
+                _diagnostic("model-success", model=model)
                 print(f"[gemini] success using model {model} on key slot {key_idx + 1}.", flush=True)
                 if as_json:
                     return json.loads(_strip_fence(text))
@@ -415,6 +441,7 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
                 continue
 
         last_err = f"Gemini API error {res.status_code}: {res.text[:220]}"
+        _diagnostic("model-error", last_err, model=model, http_status=res.status_code)
         if res.status_code == 429:
             key_idx = (key_idx + 1) % len(GEMINI_KEYS)
             if (attempt + 1) % max(1, len(GEMINI_KEYS)) == 0:
@@ -3056,6 +3083,9 @@ def health():
         "gemini_key_slots": len(GEMINI_KEYS),
         "model_candidates": _available_models(),
         "last_success_model": _last_success_model,
+        "catalog_available": CATALOG_AVAILABLE,
+        "catalog_enabled": CATALOG_ENABLED,
+        "elementary_available": elementary_diagram is not None,
     }
 
 
@@ -3460,12 +3490,12 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
         if not tmpl:
             return None
     spec = tcatalog.ai_spec(tmpl)
+    _diagnostic("catalog-route", template=tmpl["id"])
     caption = tmpl.get("caption", "")
     skeleton = str(tmpl.get("skeleton", ""))
     params = dict(spec["defaults"])
     if not spec["defaults"]:
-        # Static template: still let the model veto a wrong diagram family before
-        # shipping it. On any Gemini failure, trust the keyword route as before.
+        # Static templates still need a confirmed family match before shipping.
         if FIT_CHECK_ENABLED:
             try:
                 raw = _gemini(
@@ -3474,10 +3504,14 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
                     temperature=0.05,
                 )
                 if isinstance(raw, dict) and str(raw.get("_fit", "yes")).strip().lower().startswith("n"):
+                    _diagnostic("catalog-unfit", str(raw.get('_why', '')), template=tmpl['id'])
                     print(f"[catalog] {tmpl['id']} judged UNFIT for question: {str(raw.get('_why', ''))[:200]}", flush=True)
                     return {"ok": False, "unfit": True, "template": tmpl["id"], "why": str(raw.get("_why", ""))[:300]}
+                if not isinstance(raw, dict) or str(raw.get('_fit', '')).strip().lower() != 'yes':
+                    raise ValueError("Template fit response did not confirm a match.")
             except Exception as exc:
-                print(f"[catalog] {tmpl['id']} static fit-check Gemini failure (rendering anyway): {str(exc)[:160]}", flush=True)
+                _diagnostic("catalog-fit-error", str(exc), template=tmpl['id'])
+                return None
         filled = tcatalog.fill(tmpl, {}, target=req.target)
         rendered = _verified_render(req, filled, source=f"catalog-static:{tmpl['id']}", run_critic=False)
         if rendered.get("ok"):
@@ -3505,22 +3539,19 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
                     and str(raw.get("_fit", "yes")).strip().lower().startswith("n")
                 ):
                     print(f"[catalog] {tmpl['id']} judged UNFIT for question: {str(raw.get('_why', ''))[:200]}", flush=True)
+                    _diagnostic("catalog-unfit", str(raw.get('_why', '')), template=tmpl['id'])
                     return {"ok": False, "unfit": True, "template": tmpl["id"], "why": str(raw.get("_why", ""))[:300]}
+                if FIT_CHECK_ENABLED and attempt == 0 and str(raw.get('_fit', '')).strip().lower() != 'yes':
+                    raise ValueError("Template fit response did not confirm a match.")
+                if any(k not in raw for k in spec['defaults']):
+                    raise ValueError("Template response omitted required drawing parameters.")
                 params.update({k: v for k, v in raw.items() if k in spec["defaults"]})
+            else:
+                raise ValueError("Template parameters must be a JSON object.")
         except Exception as exc:
             print(f"[catalog] {tmpl['id']} param Gemini failure: {str(exc)[:200]}", flush=True)
-            if attempt == 0:
-                # Fall back to a deterministic default fill so the diagram still renders.
-                fallback_params = dict(spec["defaults"])
-                fallback_params.update(_catalog_local_param_overrides(req, tmpl["id"]))
-                filled = tcatalog.fill(tmpl, fallback_params, target=req.target)
-                rendered = _verified_render(req, filled, source=f"catalog-default:{tmpl['id']}", run_critic=False)
-                if rendered.get("ok"):
-                    rendered["tikz"] = rendered.get("tikz", filled)
-                    rendered["caption"] = caption
-                    rendered["customized"] = "catalog-default:" + tmpl["id"]
-                    return rendered
-                return None
+            _diagnostic("catalog-parameter-error", str(exc), template=tmpl['id'])
+            return None  # Default labels/values are not the student's givens.
         filled = tcatalog.fill(tmpl, params, target=req.target)
         params.update(_catalog_local_param_overrides(req, tmpl["id"]))
         filled = tcatalog.fill(tmpl, params, target=req.target)
@@ -3532,6 +3563,7 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
             rendered["customized"] = "catalog:" + tmpl["id"]
             return rendered
         repair_log = rendered.get("log") or rendered.get("error") or "TikZ render failed."
+        _diagnostic("catalog-render-error", repair_log, template=tmpl['id'])
     return rendered if rendered.get("ok") else None
 
 
@@ -3581,15 +3613,14 @@ PROPOSED TikZ:
 
 
 def _readiness_verdict(req: GenerateReq, tikz: str) -> tuple[str, str]:
-    """LLM gate for the reference-guided fallback: PASS -> show it, FAIL -> repair
-    or blank. If no verifier is available, PASS (do not blank everything on outage)."""
+    """Source-code gate for custom drawings. A verifier outage is not a PASS."""
     if not GEMINI_KEYS:
-        return "PASS", "verifier unavailable"
+        return "FAIL", "verifier unavailable"
     try:
         out = _gemini(_readiness_prompt(req, tikz), as_json=False, temperature=0.0).strip()
     except Exception as exc:
-        return "PASS", "verifier error: " + str(exc)[:120]
-    if out.upper().startswith("PASS"):
+        return "FAIL", "verifier error: " + str(exc)[:120]
+    if out.upper() == "PASS":
         return "PASS", ""
     return "FAIL", out[:220] or "readiness check failed"
 
@@ -3613,6 +3644,7 @@ def _reference_generate(req: GenerateReq) -> dict | None:
         # Spec-free fallback, same as the Manim pipeline: a missing plan
         # degrades quality, never availability.
         print(f"[reference] plan Gemini failure (drafting spec-free): {str(exc)[:160]}", flush=True)
+        _diagnostic("planning-error", str(exc))
     tikz = ""
     caption = ""
     repair_log = ""
@@ -3625,22 +3657,30 @@ def _reference_generate(req: GenerateReq) -> dict | None:
             )
         except Exception as exc:
             print(f"[reference] generation Gemini failure: {str(exc)[:180]}", flush=True)
-            return None
+            _diagnostic("generation-error", str(exc))
+            return {"ok": False, "error": "Diagram code generation failed: " + str(exc)[:300]}
+        if not isinstance(spec, dict):
+            _diagnostic("invalid-code-response", "Expected a JSON object containing TikZ.")
+            return {"ok": False, "error": "The model returned an invalid diagram response."}
         tikz = _strip_fence(str(spec.get("tikz", "")))
         caption = str(spec.get("caption", caption)).strip()
         if not tikz:
-            return None  # model judged the request non-visual
+            _diagnostic("empty-code", "The model returned no drawing code.")
+            return {"ok": False, "error": "The model returned no drawing code."}
         safe = _worksheet_answer_safe_tikz(req, tikz)
         semantic_issue = _semantic_visual_issue(req, safe)
         if semantic_issue:
             repair_log = semantic_issue
+            _diagnostic("semantic-rejection", repair_log)
             continue
         enlarged = _enlarge_visual_code(req, safe)
         rendered = _render(RenderReq(code=enlarged, format=req.format, theme=req.theme, target=req.target))
         if not rendered.get("ok"):
             repair_log = rendered.get("log") or rendered.get("error") or "TikZ compile failed."
+            _diagnostic("render-error", repair_log)
             continue
         verdict, reason = _readiness_verdict(req, enlarged)
+        _diagnostic("readiness", reason or verdict)
         if verdict == "PASS":
             rendered["tikz"] = enlarged
             rendered["caption"] = caption
@@ -3648,8 +3688,10 @@ def _reference_generate(req: GenerateReq) -> dict | None:
             print(f"[reference] PASS ({reason or 'ready'})", flush=True)
             return rendered
         print(f"[reference] readiness FAIL, {'repairing' if attempt == 0 else 'blanking'}: {reason}", flush=True)
+        if reason.startswith('verifier'):
+            return {"ok": False, "error": "Diagram verification unavailable: " + reason}
         repair_log = "The previous diagram failed the readiness check: " + reason
-    return None  # repair-once-then-blank: no verified diagram -> no diagram
+    return {"ok": False, "error": repair_log[:500] or "No verified diagram was produced."}
 
 
 def _question_should_stay_blank(req: GenerateReq) -> bool:
@@ -3708,6 +3750,16 @@ def _generate_visual_sync(req: GenerateReq) -> dict:
         if _question_should_stay_blank(req):
             return {"ok": False, "tikz": "", "caption": "", "error": "No diagram was produced."}
 
+        if elementary_diagram is not None:
+            exact = elementary_diagram(_question_text(req))
+            if exact:
+                _diagnostic("elementary-route", template=exact["template"])
+                rendered = _verified_render(req, exact["tikz"], source="elementary", run_critic=False)
+                if rendered.get("ok"):
+                    rendered["customized"] = "elementary:" + exact["template"]
+                    return rendered
+                _diagnostic("elementary-render-error", rendered.get("log") or rendered.get("error", ""))
+
         # 0) Constrained catalog path (parallel rollout). Route -> fit-check ->
         #    fill declared params -> render. On no-match or failure, fall through
         #    to legacy. When the MODEL judges the keyword-routed template unfit
@@ -3721,7 +3773,7 @@ def _generate_visual_sync(req: GenerateReq) -> dict:
                     return catalog_rendered
                 if catalog_rendered and catalog_rendered.get("unfit"):
                     reference_rendered = _reference_generate(req)
-                    if reference_rendered and reference_rendered.get("ok"):
+                    if reference_rendered:
                         return reference_rendered
                     return {"ok": False, "tikz": "", "caption": "", "error": "No diagram was produced."}
             except Exception as cat_exc:
@@ -3765,7 +3817,7 @@ def _generate_visual_sync(req: GenerateReq) -> dict:
         #    LLM readiness checker (repair once, else blank - a verified diagram or
         #    none, never a shaky one). Replaces the old unconstrained bespoke path.
         reference_rendered = _reference_generate(req)
-        if reference_rendered and reference_rendered.get("ok"):
+        if reference_rendered:
             return reference_rendered
 
         tikz = ""
@@ -3802,6 +3854,11 @@ def _cleanup_jobs() -> None:
 
 
 def _set_job(job_id: str, **values) -> None:
+    if values.get('error'):
+        error = str(values['error'])
+        for key in GEMINI_KEYS:
+            error = error.replace(key, '[redacted]')
+        values['error'] = error[:500]
     with _jobs_lock:
         job = jobs.get(job_id)
         if job is not None:
@@ -3810,6 +3867,7 @@ def _set_job(job_id: str, **values) -> None:
 
 def _run_generate_job(job_id: str, req: GenerateReq) -> None:
     _set_job(job_id, status="processing", error="")
+    _job_trace.events = []
     try:
         result = _generate_visual_sync(req)
         if result.get("ok"):
@@ -3822,6 +3880,8 @@ def _run_generate_job(job_id: str, req: GenerateReq) -> None:
                 format=result.get("format", req.format),
                 mime=result.get("mime", "image/svg+xml" if req.format == "svg" else "image/png"),
                 error="",
+                source=result.get("customized", ""),
+                diagnostics=list(_job_trace.events),
             )
             return
         _set_job(
@@ -3831,9 +3891,13 @@ def _run_generate_job(job_id: str, req: GenerateReq) -> None:
             svg="",
             base64="",
             error=result.get("error") or result.get("log") or "TikZ generation failed.",
+            diagnostics=list(_job_trace.events),
         )
     except Exception as exc:
-        _set_job(job_id, status="failed", ok=False, error=str(exc)[:500], svg="", base64="")
+        _diagnostic("job-error", str(exc))
+        _set_job(job_id, status="failed", ok=False, error=str(exc)[:500], svg="", base64="", diagnostics=list(_job_trace.events))
+    finally:
+        del _job_trace.events
 
 
 @app.post("/generate")
@@ -3861,12 +3925,14 @@ def status(job_id: str):
         if job is None:
             return JSONResponse({"status": "failed", "error": "Unknown or expired job id."}, status_code=404)
         if job.get("status") == "completed":
-            out = {"status": "completed", "svg": job.get("svg", ""), "error": ""}
+            out = {"status": "completed", "svg": job.get("svg", ""), "error": "",
+                   "job_id": job_id, "diagnostics": job.get("diagnostics", []), "source": job.get("source", "")}
             if job.get("base64"):
                 out["base64"] = job.get("base64", "")
             return out
         if job.get("status") == "failed":
-            return {"status": "failed", "svg": "", "error": job.get("error", "TikZ generation failed.")}
+            return {"status": "failed", "svg": "", "error": job.get("error", "TikZ generation failed."),
+                    "job_id": job_id, "diagnostics": job.get("diagnostics", [])}
         return {"status": job.get("status", "pending"), "svg": "", "error": ""}
 
 
