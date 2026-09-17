@@ -49,8 +49,10 @@ def _triangle(text):
         return None
     s = 4.2 / max(vertical, horizontal)
     x, y = _n(horizontal*s), _n(vertical*s)
-    unknown = re.search(rf'(?i:label)\s+(?:{b}{c}|{c}{b})\s+(?i:as)\s+([a-z])\b', text)
-    hyp = unknown[1] if unknown else '?'
+    unknowns = set(re.findall(rf'\b(?:{b}{c}|{c}{b})\s*(?:=|(?i:as))\s*([a-z])\b', text))
+    if len(unknowns) > 1:
+        return None
+    hyp = next(iter(unknowns), '?')
     return _result('right_triangle_given_legs', dict(vertices=[a,b,c], vertical=vertical, horizontal=horizontal, unit=vb[1]), rf'''
 \coordinate ({a}) at (0,0); \coordinate ({b}) at (0,{y}); \coordinate ({c}) at ({x},0);
 \draw[cp line] ({a})--({b})--({c})--cycle;
@@ -65,16 +67,23 @@ def _points(text):
     if not re.search(r'midpoint', text, re.I) or re.search(r'circle|triangle|perpendicular|bisector|reflect|translate|rotate', text, re.I):
         return None
     points = re.findall(rf'\b([A-Z])\s*\(\s*({NUM})\s*,\s*({NUM})\s*\)', text)
-    if len(points) != 2 or points[0][0] == points[1][0]:
+    unique = {}
+    for p, x, y in points:
+        coordinates = (float(x), float(y))
+        if p in unique and unique[p] != coordinates:
+            return None
+        unique[p] = coordinates
+    if len(unique) != 2:
         return None
-    values = [(p,float(x),float(y)) for p,x,y in points]
+    values = [(p,x,y) for p,(x,y) in unique.items()]
     if values[0][1:] == values[1][1:] or any(abs(v)>1000 for _,x,y in values for v in (x,y)):
         return None
     bounds = re.search(rf'both axes from\s*({NUM})\s*to\s*({NUM})', text, re.I)
     lo, hi = (float(bounds[1]),float(bounds[2])) if bounds else (math.floor(min(0,*(v for _,x,y in values for v in (x,y))))-1, math.ceil(max(0,*(v for _,x,y in values for v in (x,y))))+1)
     if not lo < hi or hi-lo > 40 or any(not lo <= v <= hi for _,x,y in values for v in (x,y)):
         return None
-    marks = '\n'.join(rf'\addplot[only marks,mark=*,mark size=1.5pt] coordinates {{({_n(x)},{_n(y)})}};\node[above right,font=\small] at (axis cs:{_n(x)},{_n(y)}) {{${p}({_n(x)},{_n(y)})$}};' for p,x,y in values)
+    # Keep labels away from the horizontal axis and its numbered ticks.
+    marks = '\n'.join(rf'\addplot[only marks,mark=*,mark size=1.5pt] coordinates {{({_n(x)},{_n(y)})}};\node[{"below" if y < 0 else "above"} right,font=\small] at (axis cs:{_n(x)},{_n(y)}) {{${p}({_n(x)},{_n(y)})$}};' for p,x,y in values)
     coords = ' '.join(f'({_n(x)},{_n(y)})' for _,x,y in values)
     return _result('coordinate_segment',dict(points=values,bounds=[lo,hi]),rf'''
 \begin{{axis}}[width=7cm,height=7cm,axis equal image,axis lines=middle,xlabel=$x$,ylabel=$y$,
@@ -109,7 +118,10 @@ def _tangent(text):
     return _result('circle_external_tangent',dict(radius=r,distance=d,tangent_point=[tx,ty],vertices=[o,p,t]),rf'''
 \coordinate ({o}) at (0,0);\coordinate ({p}) at ({_n(d*s)},0);\coordinate ({t}) at ({_n(tx*s)},{_n(ty*s)});
 \draw[cp line] ({o}) circle[radius={_n(r*s)}];
-\draw[cp line] ({o})--({p}) node[pos=.72,below] {{${_label(d,distance[2])}$}};
+\draw[cp line] ({o})--({p});
+\draw[thin,gray] (0,-.25)--(0,{_n(-r*s-.65)});
+\draw[thin,gray] ({_n(d*s)},-.25)--({_n(d*s)},{_n(-r*s-.65)});
+\draw[<->,thin] (0,{_n(-r*s-.45)})--({_n(d*s)},{_n(-r*s-.45)}) node[midway,below] {{${_label(d,distance[2])}$}};
 \draw[cp line] ({o})--({t}) node[midway,left] {{${_label(r,radius[2])}$}};
 \draw[cp line] ({t})--({p}) node[midway,above right] {{${lab}$}};
 \pic[draw=black,angle radius=3mm] {{right angle={o}--{t}--{p}}};
@@ -122,8 +134,13 @@ def _forces(text):
     if re.search(r'incline|ramp|angle|friction coefficient|pulley',text,re.I):
         return None
     matches = re.findall(rf'({NUM})\s*(?:N|newtons?)\s+(upward|downward|to the right|to the left)\b',text,re.I)
-    forces = {direction.lower():float(value) for value,direction in matches}
-    if len(matches)!=4 or set(forces)!={'upward','downward','to the right','to the left'} or any(not 0 < v < 1e6 for v in forces.values()):
+    forces = {}
+    for value, direction in matches:
+        direction, value = direction.lower(), float(value)
+        if direction in forces and forces[direction] != value:
+            return None
+        forces[direction] = value
+    if set(forces)!={'upward','downward','to the right','to the left'} or any(not 0 < v < 1e6 for v in forces.values()):
         return None
     body = r'\draw[cp line] (-.6,-.4) rectangle (.6,.4);\draw[cp line] (-2,-.4)--(2,-.4);'+'\n'
     for direction,start,delta,anchor in [
