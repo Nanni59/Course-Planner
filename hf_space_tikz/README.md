@@ -132,11 +132,25 @@ parameter failures do not render invented default givens.
 3. Upload this folder, including `Dockerfile`, `app.py`, `requirements.txt`,
    `templates.py`, and the complete `catalog/` directory.
 4. Add `GEMINI_API_KEY` as a Space secret if you want server-side visual
-   generation through `/generate`. Optional fallback secrets:
-   `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_API_KEY_4`.
+   generation through `/generate`. Optional extra secrets:
+   `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_API_KEY_4`. Free-tier
+   quota belongs to the Google Cloud project, so extra keys only add quota
+   when each comes from a different project (in AI Studio, create each key
+   in a new project).
 5. Optionally set `GEMINI_MODEL` and `GEMINI_FALLBACK_MODELS` as Space
    variables. The default model order is `gemini-3-flash-preview`,
    `gemini-3.5-flash`, then `gemini-2.5-flash`.
+
+### How keys and models are used
+
+Each key slot paired with each model is a lane. A 429 quota response rests
+only that lane, for Google's `retryDelay` (an hour for a per-day quota). A 503
+"high demand" response rests that model on every key for 30 s, doubling while
+it keeps failing (at most 5 minutes). A rejected key rests all of its lanes.
+Requests go to the preferred model's least-used ready key, so parallel jobs
+spread across keys. When every lane is resting, a call waits up to
+`GEMINI_MAX_WAIT` seconds (default 60) for the first one to recover, then fails
+closed. `/health` lists each lane's readiness and last outcome, without keys.
 6. Wait for the Space to build.
 7. Test `/health`.
 

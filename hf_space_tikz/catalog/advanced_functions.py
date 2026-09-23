@@ -13,24 +13,30 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[
     width=7cm, height=4cm,
-    xmin=-4, xmax=4,
-    ymin=-10, ymax=10,
+    % The window follows the roots: 1.5 units past the outer roots, and 1.35x
+    % the taller turning point (roots of f'(x) = 3x^2 - 2*s1*x + s2). A fixed
+    % -4..4 by -10..10 window lost roots beyond 3.5 or flattened the humps.
+    declare function={cpf(\t)=(\t-(__ROOTA__))*(\t-(__ROOTB__))*(\t-(__ROOTC__));
+      cps(\t)=(__ROOTA__)+(__ROOTB__)+(__ROOTC__);
+      cpd(\t)=sqrt(max(0,cps(0)^2-3*((__ROOTA__)*(__ROOTB__)+(__ROOTB__)*(__ROOTC__)+(__ROOTC__)*(__ROOTA__))));},
+    xmin={min(__ROOTA__,__ROOTB__,__ROOTC__)-1.5}, xmax={max(__ROOTA__,__ROOTB__,__ROOTC__)+1.5},
+    ymin={-1.35*max(1,abs(cpf((cps(0)-cpd(0))/3)),abs(cpf((cps(0)+cpd(0))/3)))},
+    ymax={1.35*max(1,abs(cpf((cps(0)-cpd(0))/3)),abs(cpf((cps(0)+cpd(0))/3)))},
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
-    xtick={-3,-2,-1,0,1,2,3}, ytick={-10,-5,0,5,10},
+    % The root labels are the x tick labels, so they are never printed twice
+    % (and a root at the origin keeps its label).
+    xtick={__ROOTA__,__ROOTB__,__ROOTC__},
+    xticklabels={__LABELA__,__LABELB__,__LABELC__},
+    hide obscured x ticks=false,
     tick label style={font=\scriptsize},
-    domain=-3.5:3.5,
     samples=201,
 ]
     % cubic polynomial defined by its three roots
-    \addplot[cp line] { (x - __ROOTA__)*(x - __ROOTB__)*(x - __ROOTC__) };
-    % roots marked on the x–axis
+    \addplot[cp line, domain={min(__ROOTA__,__ROOTB__,__ROOTC__)-1.5}:{max(__ROOTA__,__ROOTB__,__ROOTC__)+1.5}] { (x - (__ROOTA__))*(x - (__ROOTB__))*(x - (__ROOTC__)) };
+    % roots marked on the x-axis
     \addplot[only marks, cp point] coordinates {(__ROOTA__,0) (__ROOTB__,0) (__ROOTC__,0)};
-    % labels for each root
-    \node[cp label, anchor=north] at (axis cs:__ROOTA__,0) {__LABELA__};
-    \node[cp label, anchor=north] at (axis cs:__ROOTB__,0) {__LABELB__};
-    \node[cp label, anchor=north] at (axis cs:__ROOTC__,0) {__LABELC__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -56,6 +62,10 @@ templates = [
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
     unbounded coords=jump,
+    % A sample landing on the asymptote (x = H on the sample grid) overflowed
+    % TeX ("Dimension too large"); drop samples far outside the window.
+    % (restrict y to domain cannot take expressions, so filter per sample.)
+    y filter/.expression={abs(y-(__K__))>4*(__YMAX__-(__YMIN__)) ? nan : y},
     % Clip the curves only; the asymptote labels sit just outside the window.
     clip mode=individual,
 ]
@@ -126,27 +136,30 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[
     width=7cm, height=4cm,
-    xmin=-1, xmax=6,
-    ymin=-2, ymax=4,
+    % The window follows the curve on (H, H + 7.5]; the old fixed window and
+    % asymptote at x = 0 could not draw y = log(x - 3) + 1.
+    xmin={min(-1,__H__-1)}, xmax={max(1,__H__+7.5)},
+    ymin={min(0,__K__+__A__*ln(0.05)/ln(__B__),__K__+__A__*ln(7.5)/ln(__B__))-0.5},
+    ymax={max(0,__K__+__A__*ln(0.05)/ln(__B__),__K__+__A__*ln(7.5)/ln(__B__))+0.5},
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
-    xtick={0,1,2,3,4,5}, ytick={-2,-1,0,1,2,3,4},
-    domain=0.1:6,
+    % Clip the curve only; the asymptote label sits just below the window.
+    clip mode=individual,
 ]
-    % logarithmic function f(x) = A*log_B(x) + K
-    \addplot[cp line, samples=201] { __A__*(ln(x)/ln(__B__)) + __K__ };
-    % vertical asymptote at x = 0
-    \addplot[cp dashed] coordinates {(0,-2) (0,4)};
-    % label for asymptote
-    \node[cp label, anchor=north west] at (axis cs:0,4) {$x=__LABEL_X__$};
+    % logarithmic function f(x) = A*log_B(x - H) + K
+    \addplot[cp line, samples=201, domain=__H__+0.05:__H__+7.5] { __A__*(ln(x-(__H__))/ln(__B__)) + __K__ };
+    % vertical asymptote x = H, full height
+    \draw[cp dashed] ({axis cs:__H__,0}|-{rel axis cs:0,0}) -- ({axis cs:__H__,0}|-{rel axis cs:0,1});
+    \node[cp label, anchor=north] at ({axis cs:__H__,0}|-{rel axis cs:0,0}) {$x=__LABEL_X__$};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
-            'A': {'type': 'number', 'default': 1, 'desc': 'coefficient of the logarithmic function'},
-            'B': {'type': 'number', 'default': 10, 'desc': 'base of the logarithm'},
-            'K': {'type': 'number', 'default': 0, 'desc': 'vertical shift'},
-            'LABEL_X': {'type': 'label', 'default': '0', 'desc': 'label for the vertical asymptote'},
+            'A': {'type': 'number', 'default': 1, 'desc': 'coefficient A in y = A*log_B(x - H) + K'},
+            'B': {'type': 'number', 'default': 10, 'desc': 'base of the logarithm; use 2.718 for ln'},
+            'H': {'type': 'number', 'default': 0, 'desc': 'horizontal shift H (the vertical asymptote is x = H)'},
+            'K': {'type': 'number', 'default': 0, 'desc': 'vertical shift K'},
+            'LABEL_X': {'type': 'label', 'default': '?', 'desc': 'value shown in the asymptote label x = ...; ? when the question asks for the asymptote', 'answer_safe': False},
         },
     },
     {
@@ -157,7 +170,8 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[
     width=7cm, height=4cm,
-    xmin=0, xmax=6.2832,
+    % At least one full period: a period above 2 pi, as in cos(0.5t), was cut off.
+    xmin=0, xmax={max(6.2832,6.2832/__FREQUENCY_VALUE__)},
     % The window always contains the full wave and the x-axis; the old fixed
     % -4..4 range cut off the trough of y = 3 sin x - 2.
     ymin={min(0,__MIDLINE_VALUE__-abs(__AMPLITUDE_VALUE__))-ifthenelse(__MIDLINE_VALUE__<0,1.8,0.8)},
@@ -165,21 +179,21 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
-    xtick={0,1.5708,3.1416,4.7124,6.2832},
-    xticklabels={$0$,$\frac{\pi}{2}$,$\pi$,$\frac{3\pi}{2}$,$2\pi$},
+    xtick={0,1.5708,3.1416,4.7124,6.2832,9.4248,12.5664},
+    xticklabels={$0$,$\frac{\pi}{2}$,$\pi$,$\frac{3\pi}{2}$,$2\pi$,$3\pi$,$4\pi$},
     % Clip the curve only; the midline label sits just right of the window.
     clip mode=individual,
 ]
     % sinusoidal function f(x) = A*sin(B*(x - C)) + D
-    \addplot[cp line, samples=241, domain=0:6.2832] { __AMPLITUDE_VALUE__*sin(deg(__FREQUENCY_VALUE__*(x - (__PHASE_SHIFT_VALUE__)))) + __MIDLINE_VALUE__ };
-    % midline
-    \addplot[cp dashed] coordinates {(0,__MIDLINE_VALUE__) (6.2832,__MIDLINE_VALUE__)};
-    \node[cp label, anchor=west] at (axis cs:6.2832,__MIDLINE_VALUE__) {__MIDLINE_LABEL__};
+    \addplot[cp line, samples=241, domain=0:{max(6.2832,6.2832/__FREQUENCY_VALUE__)}] { __AMPLITUDE_VALUE__*sin(deg(__FREQUENCY_VALUE__*(x - (__PHASE_SHIFT_VALUE__)))) + __MIDLINE_VALUE__ };
+    % midline across the whole window
+    \draw[cp dashed] ({rel axis cs:0,0}|-{axis cs:0,__MIDLINE_VALUE__}) -- ({rel axis cs:1,0}|-{axis cs:0,__MIDLINE_VALUE__});
+    \node[cp label, anchor=west] at ({rel axis cs:1,0}|-{axis cs:0,__MIDLINE_VALUE__}) {__MIDLINE_LABEL__};
     % amplitude: midline to the extremum on the side away from the x-axis, so
     % the arrow never crosses the axis or its tick labels (x kept off the y-axis)
     \draw[cp axis,<->] (axis cs:{((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))+ifthenelse(((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))<0.3,(6.2832/__FREQUENCY_VALUE__),0)},__MIDLINE_VALUE__) -- (axis cs:{((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))+ifthenelse(((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))<0.3,(6.2832/__FREQUENCY_VALUE__),0)},{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*abs(__AMPLITUDE_VALUE__)}) node[pos=1, anchor=west, xshift=2pt] {__AMPLITUDE_LABEL__};
     % period: one cycle long, drawn on the side of the wave away from the x-axis
-    \draw[cp axis,<->] (axis cs:0,{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*(abs(__AMPLITUDE_VALUE__)+1)}) -- (axis cs:{min(6.2832,6.2832/__FREQUENCY_VALUE__)},{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*(abs(__AMPLITUDE_VALUE__)+1)}) node[midway, yshift={ifthenelse(__MIDLINE_VALUE__>=0,7,-7)}] {__PERIOD_LABEL__};
+    \draw[cp axis,<->] (axis cs:0,{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*(abs(__AMPLITUDE_VALUE__)+1)}) -- (axis cs:{6.2832/__FREQUENCY_VALUE__},{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*(abs(__AMPLITUDE_VALUE__)+1)}) node[midway, yshift={ifthenelse(__MIDLINE_VALUE__>=0,7,-7)}] {__PERIOD_LABEL__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -205,8 +219,11 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
-    xtick={-5,-4,-3,-2,-1,0,1,2,3,4,5}, ytick={-5,-4,-3,-2,-1,0,1,2,3,4,5},
+    % Every unit was a crowded tick label along the curve's path.
+    xtick={-4,-2,2,4}, ytick={-4,-2,2,4},
     unbounded coords=jump,
+    % Clip the curve only; the asymptote labels sit just outside the window.
+    clip mode=individual,
 ]
     % reciprocal function f(x) = COEFF/x (split domain to skip the x=0 asymptote)
     \addplot[cp line, samples=100, domain=-4.8:-0.2] { __COEFF__/x };
@@ -216,8 +233,10 @@ templates = [
     % horizontal asymptote y=0
     \addplot[cp dashed] coordinates {(-5,0) (5,0)};
     % labels for asymptotes
-    \node[cp label, anchor=north west] at (axis cs:0,5) {$x=__LABEL_VA__$};
-    \node[cp label, anchor=north east] at (axis cs:-5,0) {$y=__LABEL_HA__$};
+    % Both asymptotes lie on the axes, so the labels go below and left of the
+    % window instead of on top of the axis labels.
+    \node[cp label, anchor=north] at (axis cs:0,-5) {$x=__LABEL_VA__$};
+    \node[cp label, anchor=east] at (axis cs:-5,0) {$y=__LABEL_HA__$};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -300,26 +319,25 @@ templates = [
         "triggers": ['unit circle', 'terminal arm', 'reference angle'],
         "caption": 'Unit circle showing a terminal arm, its angle, and the corresponding reference angle.',
         "skeleton": r"""\begin{tikzpicture}
-    \begin{scope}[scale=2]
-    % define key points
+    % Radius-2 coordinates instead of a scale=2 scope: with transform shape
+    % the scope doubled every label.
     \coordinate (O) at (0,0);
-    \coordinate (Xaxis) at (1,0);
-    \coordinate (B) at ({cos(__THETA__)},{sin(__THETA__)});
-    % draw the unit circle and axes
-    \draw[cp line] (O) circle (1);
-    \draw[cp axis] (-1.2,0) -- (1.2,0) node[cp label, anchor=west] {$x$};
-    \draw[cp axis] (0,-1.2) -- (0,1.2) node[cp label, anchor=south] {$y$};
-    % terminal arm
+    \coordinate (B) at (__THETA__:2);
+    % unit circle and axes
+    \draw[cp line] (O) circle (2);
+    \draw[cp axis] (-2.5,0) -- (2.5,0) node[cp label, anchor=west] {$x$};
+    \draw[cp axis] (0,-2.5) -- (0,2.5) node[cp label, anchor=south] {$y$};
+    % terminal arm and its drop to the x-axis (the reference triangle)
     \draw[cp line] (O) -- (B);
-    % central angle \theta
-    \pic[draw, cp axis, ->, angle radius=0.3cm] {angle=Xaxis--O--B};
-    \node[cp label, anchor=west] at (0.18,0.38) {__THETA_LABEL__};
-    % foot of the projection to create reference angle
-    \coordinate (C) at ({cos(__THETA__)},0);
-    % reference angle (between B, C, and Xaxis)
-    \pic[draw, cp axis, ->, angle radius=0.2cm] {angle=B--C--Xaxis};
-    \node[cp label, anchor=north east] at ({cos(__THETA__)+0.12},-0.18) {__REF_LABEL__};
-    \end{scope}
+    \draw[cp dashed] (B) -- ({2*cos(__THETA__)},0);
+    % rotation angle, counterclockwise from the positive x-axis
+    \draw[cp line,->] (0.45,0) arc[start angle=0,end angle=__THETA__,radius=0.45];
+    \node[cp label] at ({__THETA__/2}:0.8) {__THETA_LABEL__};
+    % Reference angle: at the origin, between the terminal arm and the nearest
+    % x-axis ray (180*round(theta/180) is 0, 180 or 360). The old mark sat at
+    % the foot of the perpendicular, where the angle is always 90 degrees.
+    \draw[cp line] ({min(__THETA__,180*round(__THETA__/180))}:1.15) arc[start angle={min(__THETA__,180*round(__THETA__/180))},end angle={max(__THETA__,180*round(__THETA__/180))},radius=1.15];
+    \node[cp label] at ({(__THETA__+180*round(__THETA__/180))/2}:1.5) {__REF_LABEL__};
 \end{tikzpicture}""",
         "params": {
             'THETA': {'type': 'number', 'default': 135, 'desc': 'terminal angle in degrees'},

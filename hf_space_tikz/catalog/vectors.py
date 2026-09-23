@@ -351,7 +351,8 @@ templates = [
     {
         "id": 'angle_between_vectors',
         "subject": 'Vectors / Linear Algebra',
-        "triggers": ['angle between vectors', 'angle between two vectors', 'angle between force vectors'],
+        "triggers": ['angle between vectors', 'angle between two vectors', 'angle between force vectors',
+                     'angle between the vectors', 'angle between the two vectors'],
         "caption": 'Two vectors with the marked angle between them.',
         "skeleton": r"""\begin{tikzpicture}[scale=1]
   \draw[cp axis] (-0.5,0) -- (4.5,0) node[cp label,anchor=west] {$x$};
@@ -661,22 +662,26 @@ templates = [
   \coordinate (U1) at (1,0);
   \coordinate (U2) at (1,1);
   \coordinate (U3) at (0,1);
-  % draw unit square (dashed)
-  \draw[cp dashed] (O) -- (U1) -- (U2) -- (U3) -- cycle;
-  \node[cp label] at (0.5,0.5) {unit square};
-
   % images of basis vectors under the transformation
   \coordinate (A) at (__AVAL__,__BVAL__);
   \coordinate (B) at (__CVAL__,__DVAL__);
   \coordinate (C) at ($(A)+(B)$);
 
-  % draw transformed region
+  % Transformed region first: drawn after the unit square, its fill hid the
+  % square and its label.
   \draw[cp fill] (O) -- (A) -- (C) -- (B) -- cycle;
-  \node[cp label] at ($(A)!0.5!(B)$) {image};
+  \node[cp label] at ($(O)!0.68!(C)$) {image};
 
-  % arrows showing the images of the standard basis
-  \draw[cp line,->] (O) -- (A) node[cp label,anchor=south east] {$__ALAB__$};
-  \draw[cp line,->] (O) -- (B) node[cp label,anchor=south west] {$__BLAB__$};
+  % Unit square (dashed) on top of the fill. Its label sits below the x-axis
+  % between the y-axis and x = 1: inside the square a shear image crossed it,
+  % and T(1,0) is labelled below and to the right of (1,0).
+  \draw[cp dashed] (O) -- (U1) -- (U2) -- (U3) -- cycle;
+  \node[cp label,font=\scriptsize,align=left,anchor=north west] at (0.05,-0.05) {unit\\square};
+
+  % Images of the standard basis, labelled outside the parallelogram: below
+  % right of T(1,0) and above left of T(0,1).
+  \draw[cp line,->] (O) -- (A) node[cp label,anchor=north west] {$__ALAB__$};
+  \draw[cp line,->] (O) -- (B) node[cp label,anchor=south east] {$__BLAB__$};
 \end{tikzpicture}""",
         "params": {
             'AVAL': {'type': 'number', 'default': '2', 'desc': 'x-image of the vector (1,0)'},

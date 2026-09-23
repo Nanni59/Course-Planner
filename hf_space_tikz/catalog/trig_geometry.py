@@ -51,28 +51,27 @@ templates = [
         "caption": "Bearing diagram with north reference rays and travel vectors.",
         "skeleton": r"""\begin{tikzpicture}[scale=.85]
   \coordinate (O) at (0,0);
-  \coordinate (P) at (__A1__:2.45);
-  \coordinate (Q) at ($(P)+(__A2__:2.1)$);
+  % Directions and label angles derive from the bearings (standard angle =
+  % 90 - bearing; the arc label sits at 90 - bearing/2) instead of asking the
+  % model to do that arithmetic.
+  \coordinate (P) at ({90-(__B1__)}:2.45);
+  \coordinate (Q) at ($(P)+({90-(__B2__)}:2.1)$);
   \draw[cp axis,-Stealth] (O)--(0,2.4) node[above] {$N$};
   \draw[cp axis,-Stealth] (O)--(2.3,0) node[right] {$E$};
-  \draw[cp line,-Stealth] (O)--(P) node[midway,above right] {$__L1__$};
-  \draw[cp line,-Stealth] (P)--(Q) node[midway,above] {$__L2__$};
+  \draw[cp line,-Stealth] (O)--(P) node[midway,above right] {\ensuremath{__L1__}};
+  \draw[cp line,-Stealth] (P)--(Q) node[midway,above] {\ensuremath{__L2__}};
   \draw[cp dashed] (O)--(Q) node[midway,below] {$d$};
-  \draw[cp dashed] (90:.62) arc[start angle=90,end angle=__A1__,radius=.62];
-  \node at (__M1__:.88) {$__B1__^\circ$};
+  \draw[cp dashed] (90:.62) arc[start angle=90,end angle={90-(__B1__)},radius=.62];
+  \node at ({90-(__B1__)/2}:.88) {$__B1__^\circ$};
   \draw[cp axis,-Stealth] (P)--($(P)+(0,1.15)$) node[above] {$N$};
-  \draw[cp dashed] ($(P)+(0,.58)$) arc[start angle=90,end angle=__A2__,radius=.58];
-  \node at ($(P)+(__M2__:.84)$) {$__B2__^\circ$};
+  \draw[cp dashed] ($(P)+(0,.58)$) arc[start angle=90,end angle={90-(__B2__)},radius=.58];
+  \node at ($(P)+({90-(__B2__)/2}:.84)$) {$__B2__^\circ$};
 \end{tikzpicture}""",
         "params": {
-            "A1": {"type": "number", "default": "45", "desc": "first leg direction in standard math degrees = 90 - bearing1"},
-            "A2": {"type": "number", "default": "-25", "desc": "second leg direction = 90 - bearing2"},
-            "M1": {"type": "number", "default": "67.5", "desc": "midpoint angle for first bearing arc label = (90 + A1)/2"},
-            "M2": {"type": "number", "default": "32.5", "desc": "midpoint angle for second bearing arc label = (90 + A2)/2"},
             "B1": {"type": "number", "default": "45", "desc": "first bearing value in degrees, clockwise from north"},
-            "B2": {"type": "number", "default": "115", "desc": "second bearing value in degrees"},
-            "L1": {"type": "label", "default": "45^\\circ", "desc": "label on first leg (given distance with unit, else the bearing)"},
-            "L2": {"type": "label", "default": "115^\\circ", "desc": "label on second leg"},
+            "B2": {"type": "number", "default": "115", "desc": "second bearing value in degrees, clockwise from north"},
+            "L1": {"type": "label", "default": "", "desc": "given distance of the first leg with unit, e.g. 12\\,\\mathrm{km}; empty when none is given (the bearing is already marked on its arc)"},
+            "L2": {"type": "label", "default": "", "desc": "given distance of the second leg with unit; empty when none is given"},
         },
     },
     {
@@ -87,23 +86,21 @@ templates = [
         "caption": "Two objects leaving a common point along two bearings, with the distance between them.",
         "skeleton": r"""\begin{tikzpicture}[scale=0.9]
   \coordinate (O) at (0,0);
-  \coordinate (P) at (__A1__:2.7);
-  \coordinate (Q) at (__A2__:2.3);
+  % Directions and label angles derive from the bearings, as above.
+  \coordinate (P) at ({90-(__B1__)}:2.7);
+  \coordinate (Q) at ({90-(__B2__)}:2.3);
   \draw[cp axis,-Stealth] (O)--(0,3.0) node[above] {$N$};
   \draw[cp axis,-Stealth] (O)--(3.0,0) node[right] {$E$};
-  \draw[cp line,-Stealth] (O)--(P) node[midway,above left] {$__L1__$};
-  \draw[cp line,-Stealth] (O)--(Q) node[midway,below right] {$__L2__$};
+  \draw[cp line,-Stealth] (O)--(P) node[midway,above left] {\ensuremath{__L1__}};
+  \draw[cp line,-Stealth] (O)--(Q) node[midway,below right] {\ensuremath{__L2__}};
   \draw[cp dashed] (P)--(Q) node[midway,above right] {$__DLAB__$};
-  \draw[cp dashed] (90:0.62) arc[start angle=90,end angle=__A1__,radius=0.62];
-  \node at (__M1__:0.92) {$__B1__^\circ$};
-  \draw[cp dashed] (90:0.42) arc[start angle=90,end angle=__A2__,radius=0.42];
-  \node at (__M2__:0.7) {$__B2__^\circ$};
+  % Separate radii keep the two bearing labels off each other.
+  \draw[cp dashed] (90:0.5) arc[start angle=90,end angle={90-(__B1__)},radius=0.5];
+  \node at ({90-(__B1__)/2}:0.82) {$__B1__^\circ$};
+  \draw[cp dashed] (90:1.2) arc[start angle=90,end angle={90-(__B2__)},radius=1.2];
+  \node at ({90-(__B2__)/2}:1.52) {$__B2__^\circ$};
 \end{tikzpicture}""",
         "params": {
-            "A1": {"type": "number", "default": "70", "desc": "first object's direction in standard math degrees = 90 - bearing1 (e.g. bearing 020 -> 70)"},
-            "A2": {"type": "number", "default": "-20", "desc": "second object's direction in standard math degrees = 90 - bearing2 (e.g. bearing 110 -> -20)"},
-            "M1": {"type": "number", "default": "80", "desc": "midpoint angle for the first bearing arc label = (90 + A1)/2"},
-            "M2": {"type": "number", "default": "35", "desc": "midpoint angle for the second bearing arc label = (90 + A2)/2"},
             "B1": {"type": "number", "default": "20", "desc": "first bearing value in degrees, clockwise from north"},
             "B2": {"type": "number", "default": "110", "desc": "second bearing value in degrees, clockwise from north"},
             "L1": {"type": "label", "default": "d_1", "desc": "label on the first object's path (its distance travelled with unit, e.g. 45\\,\\mathrm{km})"},

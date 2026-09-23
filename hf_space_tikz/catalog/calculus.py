@@ -148,25 +148,33 @@ templates = [
     {
         "id": 'removable_discontinuity',
         "subject": 'Calculus',
-        "triggers": ['removable discontinuity', 'removable discontinuities', 'limit at a point', 'hole in graph', 'holes'],
-        "caption": 'A graph illustrating a removable discontinuity with an open hole and a defined value.',
+        "triggers": ['removable discontinuity', 'removable discontinuities', 'limit at a point', 'hole in graph', 'hole'],
+        "caption": 'A graph illustrating a removable discontinuity with an open hole and, when given, a separately defined value.',
+        # The old skeleton always drew y = x + 1 on [0, 3] whatever the function;
+        # the simplified curve is now A2*x^2 + M*x + B on a window around the hole.
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
-  xmin=0, xmax=3, ymin=0, ymax=4,
+  declare function={cpf(\t)=(__A2__)*\t^2+(__M__)*\t+(__B__);
+    cpv(\t)=max(__X0__-3,min(__X0__+3,-(__M__)/(2*(__A2__)+ifthenelse(__A2__==0,1,0))));},
+  xmin={min(-0.5,__X0__-3)}, xmax={max(0.5,__X0__+3)},
+  ymin={min(-0.5,cpf(__X0__-3),cpf(__X0__+3),cpf(cpv(0)),__FILLED_Y__)-1},
+  ymax={max(0.5,cpf(__X0__-3),cpf(__X0__+3),cpf(cpv(0)),__FILLED_Y__)+1},
   grid=both, grid style={cp dashed},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
-  \addplot[cp line, samples=100, domain=0:3]{x+1};
-  \draw[cp line, fill=white] (axis cs:__X0__, __HOLE_Y__) circle[radius=2pt];
-  \addplot[only marks, cp point] coordinates {(__X0__, __FILLED_Y__)};
-  \node[cp label, above right] at (axis cs:__X0__, __HOLE_Y__) {hole};
-  \node[cp label, right] at (axis cs:__X0__, __FILLED_Y__) {defined};
+  \addplot[cp line, samples=121, domain={min(-0.5,__X0__-3)}:{max(0.5,__X0__+3)}]{cpf(x)};
+  % the hole sits on the curve; the defined value shows only when given
+  \draw[cp line, fill=white] (axis cs:__X0__,{cpf(__X0__)}) circle[radius=2pt];
+  \addplot[only marks, cp point, opacity=__SHOW_DEFINED__] coordinates {(__X0__, __FILLED_Y__)};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
-            'X0': {'type': 'number', 'default': '1', 'desc': 'x-coordinate of the discontinuity'},
-            'HOLE_Y': {'type': 'number', 'default': '2', 'desc': 'y-value of the function approaching the discontinuity'},
-            'FILLED_Y': {'type': 'number', 'default': '1', 'desc': 'defined y-value at the discontinuity'},
+            'X0': {'type': 'number', 'default': '1', 'desc': 'x-coordinate of the hole'},
+            'A2': {'type': 'number', 'default': '0', 'desc': 'x^2 coefficient of the simplified function (0 when it is a line)'},
+            'M': {'type': 'number', 'default': '1', 'desc': 'x coefficient of the simplified function; (x^2 - 9)/(x - 3) simplifies to x + 3, so M = 1'},
+            'B': {'type': 'number', 'default': '1', 'desc': 'constant term of the simplified function; 3 for x + 3'},
+            'FILLED_Y': {'type': 'number', 'default': '0', 'desc': 'separately defined value f(X0), if the question gives one'},
+            'SHOW_DEFINED': {'type': 'number', 'default': '0', 'desc': '1 when the question defines f(X0) separately, otherwise 0'},
         },
     },
     {
@@ -176,16 +184,21 @@ templates = [
         "caption": 'A graph of a rational function showing both a vertical and a horizontal asymptote.',
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
-  xmin=-2, xmax=5, ymin=-1, ymax=5,
+  % The window follows both asymptotes; the fixed -2..5 by -1..5 window lost
+  % asymptotes outside it and clipped the labels.
+  xmin={min(-2,__C__-3)}, xmax={max(5,__C__+4)}, ymin={min(-1,__K__-4)}, ymax={max(5,__K__+3)},
   grid=both, grid style={cp dashed},
   every axis line/.style={cp axis},
-  every tick/.style={cp label}]
-  \addplot[cp line, samples=100, domain=-2:__C__-0.2]{1/(x-__C__) + __K__};
-  \addplot[cp line, samples=100, domain=__C__+0.2:5]{1/(x-__C__) + __K__};
-  \draw[cp dashed] (axis cs:__C__,-1) -- (axis cs:__C__,5);
-  \draw[cp dashed] (axis cs:-2,__K__) -- (axis cs:5,__K__);
-  \node[cp label, anchor=west] at (axis cs:__C__+0.05,4.5) {vertical asymptote};
-  \node[cp label, anchor=south] at (axis cs:-1.5,__K__+0.05) {horizontal asymptote};
+  every tick/.style={cp label},
+  clip mode=individual]
+  \addplot[cp line, samples=100, domain={min(-2,__C__-3)}:__C__-0.2]{1/(x-__C__) + __K__};
+  \addplot[cp line, samples=100, domain=__C__+0.2:{max(5,__C__+4)}]{1/(x-__C__) + __K__};
+  \draw[cp dashed] ({axis cs:__C__,0}|-{rel axis cs:0,0}) -- ({axis cs:__C__,0}|-{rel axis cs:0,1});
+  \draw[cp dashed] ({rel axis cs:0,0}|-{axis cs:0,__K__}) -- ({rel axis cs:1,0}|-{axis cs:0,__K__});
+  % Labels sit outside the window: above it for the vertical asymptote and
+  % beyond its right edge for the horizontal one, clear of axes and branches.
+  \node[cp label, anchor=south] at ({axis cs:__C__,0}|-{rel axis cs:0,1}) {vertical asymptote};
+  \node[cp label, anchor=west, align=left] at ({rel axis cs:1,0}|-{axis cs:0,__K__}) {horizontal\\asymptote};
 \end{axis}
 \end{tikzpicture}""",
         "params": {

@@ -97,9 +97,12 @@ templates = [
         "caption": 'Normal distribution curve with a shaded region and sigma tick marks.',
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[
-    width=7cm,
+    % A wider axis over 3.5 sigma each side leaves about 1.2 cm per sigma, so
+    % symbolic tick labels such as mu - 2 sigma no longer run together.
+    width=8.5cm,
     height=4cm,
-    domain=__MU__-4*__SIGMA__ : __MU__+4*__SIGMA__,
+    domain=__MU__-3.5*__SIGMA__ : __MU__+3.5*__SIGMA__,
+    xticklabel style={font=\scriptsize},
     samples=150,
     xlabel={$x$},
     ylabel={},
@@ -202,7 +205,7 @@ templates = [
 \draw[cp line] (C) circle (1.6cm);
 \node[cp label] at (-3.0,1.6) {__LA__};
 \node[cp label] at (3.0,1.6) {__LB__};
-\node[cp label] at (0,-2.4) {__LC__};
+\node[cp label] at (1.75,-2.3) {__LC__};
 \node[cp label] at (-2.2,0.6) {__V1__};
 \node[cp label] at (2.2,0.6) {__V2__};
 \node[cp label] at (0,-2.0) {__V3__};
@@ -292,7 +295,7 @@ templates = [
 \node[cp label] at (0,-2.35) {$__LABEL__$};
 \end{tikzpicture}""",
         "params": {
-            'LABEL': {'type': 'label', 'default': 'K_n: every pair connected', 'desc': 'short label for the complete graph idea'},
+            'LABEL': {'type': 'label', 'default': 'K_n\\text{: every pair connected}', 'desc': 'short math label such as K_5; wrap any words in \\text{...} (the label is typeset in math mode, which drops plain spaces)'},
         },
     },
     {
@@ -313,10 +316,11 @@ templates = [
   \coordinate (E) at (0.9,-0.7);
   \foreach \p in {A,B,C,D,E} {\node[cp point,label=above:{$\p$}] at (\p) {};}
   \draw[cp line] (A)--(B) node[midway,above] {$__WAB__$};
-  \draw[cp line] (A)--(C) node[midway,above] {$__WAC__$};
+  \draw[cp line] (A)--(C) node[midway,below] {$__WAC__$};
   \draw[cp line] (B)--(C) node[midway,above] {$__WBC__$};
-  \draw[cp line] (B)--(D) node[midway,right] {$__WBD__$};
-  \draw[cp line] (C)--(E) node[midway,right] {$__WCE__$};
+  % BD and CE cross near their midpoints; label them away from the crossing.
+  \draw[cp line] (B)--(D) node[pos=.3,right] {$__WBD__$};
+  \draw[cp line] (C)--(E) node[pos=.3,above] {$__WCE__$};
   \draw[cp line] (D)--(E) node[midway,below] {$__WDE__$};
   \draw[cp dashed] (A)--(E);
 \end{tikzpicture}""",

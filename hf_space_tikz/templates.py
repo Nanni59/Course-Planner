@@ -85,7 +85,8 @@ def sanitize_label(value, default: str = "") -> str:
     # Allow % so an escaped \% survives, and $ so a label may carry its own math
     # delimiters (many templates use a bare node {__LABEL__} with a "$...$" value).
     # A bare/unbalanced % or $ only fails the compile, which the repair loop catches.
-    value = re.sub(r"[^A-Za-z0-9_+\-*/=.,:(){}\\^\s/|%$°]", "", value)
+    # "?" is the unknown marker ("x = ?"); stripping it turned "$?$" into "$$".
+    value = re.sub(r"[^A-Za-z0-9_+\-*/=.,:(){}\\^\s/|%$°?]", "", value)
     value = re.sub(r"\s+", " ", value).strip()
     return value or default
 
@@ -216,6 +217,17 @@ def _compatible(template: dict, text_low: str) -> bool:
     if template['id'] == 'network_graph' and 'triangle' in text_low and not re.search(r'network|weighted graph|spanning tree|hamiltonian|euler', text_low):
         return False
     if template['id'] == 'plane_with_normal' and 'coordinate plane' in text_low and not re.search(r'3d|three.dimension|normal vector', text_low):
+        return False
+    # One labelled triangle is the wrong picture for parallel lines cut by a
+    # transversal ("co-interior angle" hit the "interior angle" trigger) and
+    # for a pair of similar or congruent triangles.
+    if template['id'] == 'triangle_general' and re.search(
+            r'\btransversal\b|\b(?:similar|congruent)\s+(?:to|triangles?)\b', text_low):
+        return False
+    # The fence rectangles need an optimization question; "area enclosed
+    # between two curves" and a boat moving "along the river" matched them.
+    if template['id'] in ('optimization_rectangle', 'optimization_river_rectangle') and not re.search(
+            r'maxim|minim|optimi|fenc|largest|smallest|greatest|least|dimensions', text_low):
         return False
     return True
 
@@ -383,7 +395,8 @@ def route(text: str, subject: str = "") -> dict | None:
     # own routes.
     if (
         re.search(
-            r"(?<![a-z0-9.])(?:\(\s*\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\s*\)|\d+(?:\.\d+)?|e)"
+            # A parenthesized base may follow its coefficient ("80(0.5)^t").
+            r"(?:\(\s*\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\s*\)|(?<![a-z0-9.])(?:\d+(?:\.\d+)?|e))"
             r"\s*\^\s*[({]?\s*[-+]?\s*(?:\d+(?:\.\d+)?\s*\*?\s*)?[xt]\b",
             text_low,
         )

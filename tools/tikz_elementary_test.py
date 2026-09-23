@@ -21,11 +21,10 @@ functions = [n for n in tree.body if isinstance(n, ast.FunctionDef)]
 for node in functions:
     node.decorator_list = []
 module = ast.Module(body=[ast.ImportFrom(module='__future__', names=[ast.alias(name='annotations')], level=0)] + functions, type_ignores=[])
-ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, GEMINI_KEYS=['test-secret'],
+ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, threading=threading, GEMINI_KEYS=['test-secret'],
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
 real_gemini = ns['_gemini']
-real_available_models = ns['_available_models']
 
 questions = [
     'Triangle ABC is right-angled at A. AB = 6 cm and AC = 8 cm. Find BC. Diagram: Draw AB vertically and AC horizontally, label the vertices, and label BC as x.',
@@ -290,7 +289,7 @@ class OfflineError(Exception):
 def offline_post(*args, **kwargs):
     raise OfflineError('test-secret read timed out')
 ns.update(GEMINI_MAX_ATTEMPTS=1,GEMINI_MODELS=['fixture'],GEMINI_TIMEOUT=(1,1),GEMINI_DEADLINE=2,
-          _next_key_index=lambda:0,_available_models=lambda _:['fixture'],
+          GEMINI_MAX_WAIT=0,_lane_state=ns['_new_lane_state'](),
           requests=SimpleNamespace(post=offline_post,exceptions=SimpleNamespace(RequestException=OfflineError)),
           time=SimpleNamespace(time=lambda:0,sleep=lambda _:None))
 ns['_job_trace'].events = []
@@ -304,50 +303,99 @@ assert any(e['stage']=='model-network-error' for e in events)
 assert 'test-secret' not in json.dumps(events)
 del ns['_job_trace'].events
 
-# Model fallback: an overloaded or quota-exhausted primary must not consume
-# every attempt while a healthy fallback model is available (live failures on
-# 2026-09-23: 12 of 12 calls went to gemini-3-flash-preview).
+# Lane scheduler: keys x models. A quota error cools one lane for Google's
+# retryDelay, a capacity 503 cools the model on every key, a rejected key cools
+# every lane on that key, and a bad request fails at once. Live failures on
+# 2026-09-23 spent 12 of 12 attempts on one overloaded model.
 class FakeResponse:
     def __init__(self, code, text):
         self.status_code, self.text = code, text
     def json(self):
         return json.loads(self.text)
-def fallback_trial(behaviour, preblock=False):
+QUOTA_MINUTE = json.dumps({'error': {'code': 429, 'message': 'You exceeded your current quota', 'details': [
+    {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [
+        {'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier'}]},
+    {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '21s'}]}})
+QUOTA_DAY = QUOTA_MINUTE.replace('PerMinute', 'PerDay')
+def lane_trial(behaviour, prepare=None, max_wait=60):
     clock, calls = [1000.0], []
     def post(url, headers, json, timeout):
         model = url.split('/models/')[1].split(':')[0]
-        calls.append(model)
-        code = behaviour(model)
-        if code == 200:
-            return FakeResponse(200, '{"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}')
-        body = 'This model is currently experiencing high demand.' if code == 503 else 'You exceeded your current quota'
-        return FakeResponse(code, '{"error":{"message":"%s"}}' % body)
-    models = ['primary', 'secondary', 'healthy']
-    ns.update(GEMINI_KEYS=['k1','k2','k3','k4'], GEMINI_MODELS=models, GEMINI_MAX_ATTEMPTS=4,
-              GEMINI_DEADLINE=180, GEMINI_TIMEOUT=90, _key_idx=0, _key_lock=threading.Lock(),
-              _model_blocked_until={}, _model_lock=threading.Lock(), _last_success_model=None,
-              _last_success_model_lock=threading.Lock(), _next_key_index=lambda: 0,
-              _available_models=real_available_models,
+        key = headers['x-goog-api-key']
+        calls.append((key, model))
+        code, text = behaviour(key, model)
+        return FakeResponse(code, text)
+    ns.update(GEMINI_KEYS=['k1','k2','k3','k4'], GEMINI_MODELS=['primary','secondary','healthy'],
+              GEMINI_MAX_ATTEMPTS=4, GEMINI_DEADLINE=180, GEMINI_MAX_WAIT=max_wait, GEMINI_TIMEOUT=90,
+              _lane_state=ns['_new_lane_state'](), _last_success_model=None,
+              _last_success_model_lock=threading.Lock(),
               time=SimpleNamespace(time=lambda: clock[0], sleep=lambda s: clock.__setitem__(0, clock[0]+s)),
               requests=SimpleNamespace(post=post, exceptions=SimpleNamespace(RequestException=OSError)))
-    if preblock:
-        for m in models:
-            ns['_temporarily_block_model'](m, 900, None)
-    assert real_gemini('fixture') == 'ok'
-    return calls
-overloaded = lambda m: 200 if m == 'healthy' else 503
-assert fallback_trial(overloaded, preblock=True)[-1] == 'healthy'
-exhausted = lambda m: 429 if m == 'primary' else (503 if m == 'secondary' else 200)
-calls = fallback_trial(exhausted)
-assert calls[-1] == 'healthy' and calls.count('primary') <= 4, calls
+    if prepare:
+        prepare()
+    try:
+        result = real_gemini('fixture')
+    except RuntimeError as exc:
+        result = exc
+    return result, calls, clock[0] - 1000.0
+OK = (200, '{"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}')
+BUSY = (503, '{"error":{"code":503,"message":"This model is currently experiencing high demand."}}')
+# Capacity: one 503 rests the model on every key, so the next attempt moves on.
+result, calls, _ = lane_trial(lambda k, m: OK if m == 'healthy' else BUSY)
+assert result == 'ok' and [m for _k, m in calls] == ['primary', 'secondary', 'healthy'], calls
+# Every model resting (from other jobs): wait for the soonest instead of failing
+# or hammering, then use it.
+def rest_all():
+    for m, s in (('primary', 40), ('secondary', 20), ('healthy', 30)):
+        ns['_cool_model'](m, s, 'high demand', 0)
+result, calls, elapsed = lane_trial(lambda k, m: OK if m == 'healthy' else BUSY, rest_all)
+assert result == 'ok' and 20 <= elapsed <= 60 and len(calls) <= 3, (calls, elapsed)
+# ...but a wait longer than the budget fails closed without any request.
+result, calls, _ = lane_trial(lambda k, m: OK, rest_all, max_wait=10)
+assert isinstance(result, RuntimeError) and not calls and 'cooling down' in str(result)
+# Minute quota on the primary for one key: that lane rests for Google's
+# retryDelay while the primary stays in use on the other keys.
+result, calls, _ = lane_trial(lambda k, m: (429, QUOTA_MINUTE) if (k, m) == ('k1', 'primary') else OK)
+assert result == 'ok' and calls == [('k1', 'primary'), ('k2', 'primary')], calls
+with ns['_lane_state']['lock']:
+    assert round(ns['_lane_wait'](0, 'primary', ns['time'].time())) == 21
+    assert ns['_lane_wait'](1, 'primary', ns['time'].time()) == 0
+# Daily quota on every key: each key's primary lane rests an hour, then the
+# fallback model answers.
+result, calls, _ = lane_trial(lambda k, m: (429, QUOTA_DAY) if m == 'primary' else OK)
+assert result == 'ok' and [m for _k, m in calls] == ['primary'] * 4 + ['secondary'], calls
+assert all(lane['ready_in_s'] == 3600 for lane in ns['_lane_report']() if lane['model'] == 'primary')
+# A rejected key rests all of its lanes; a malformed request fails at once.
+result, calls, _ = lane_trial(lambda k, m: (403, '{"error":{"message":"permission denied"}}') if k == 'k1' else OK)
+assert result == 'ok' and calls == [('k1', 'primary'), ('k2', 'primary')]
+assert {l['last_outcome'] for l in ns['_lane_report']() if l['key_slot'] == 1} == {'key rejected'}
+result, calls, _ = lane_trial(lambda k, m: (400, '{"error":{"message":"Request payload is invalid"}}'))
+assert isinstance(result, RuntimeError) and len(calls) == 1
+# Repeated capacity failures back off 30 s, then 60 s; a success resets it.
+ns['_lane_state'] = ns['_new_lane_state']()
+assert ns['_cool_model']('primary', None, 'high demand', 0) == 30
+assert ns['_cool_model']('primary', None, 'high demand', 0) == 60
+ns['_lane_succeeded'](0, 'primary')
+assert ns['_cool_model']('primary', None, 'high demand', 0) == 30
+# Parallel jobs spread across keys instead of queueing on the first one.
+ns['_lane_state'] = ns['_new_lane_state']()
+assert [ns['_pick_lane']()[0] for _ in range(4)] == [0, 1, 2, 3]
+assert 'k1' not in json.dumps(ns['_lane_report']())
 
 # Routing diagnostics survive long model-retry traces.
 ns['_job_trace'].events = []
 ns['_diagnostic']('catalog-route', template='ogive')
-for _ in range(40):
+for _ in range(20):
     ns['_diagnostic']('model-error', 'busy')
+ns['_diagnostic']('catalog-parameter-error', 'Gemini API error 503', template='ogive')
+for _ in range(20):
+    ns['_diagnostic']('model-error', 'busy')
+ns['_diagnostic']('render-error', '(package loading noise)\n' * 40 + '! Undefined control sequence.\nl.12 \\foo')
 events = ns['_job_trace'].events
 assert len(events) == 24 and events[0]['stage'] == 'catalog-route'
+assert [e['stage'] for e in events if not e['stage'].startswith('model-')] == [
+    'catalog-route', 'catalog-parameter-error', 'render-error']
+assert events[-1]['detail'].startswith('! Undefined control sequence.')
 del ns['_job_trace'].events
 
 # Equation-only exponential questions reach the exponential template; calculus
@@ -385,5 +433,46 @@ assert 'pow(2, x - (1))' in exp_tikz and 'ytick={0,1,2,3,4,5}' not in exp_tikz
 narrow = generate('Points A, B, and C lie on the circumference of a circle with center O. '
                   'If angle AOB = 20 degrees, what is the measure of angle ACB?')
 assert narrow and 'angle eccentricity=1.45' not in narrow['tikz'] and 'angle eccentricity=1.55' not in narrow['tikz']
+# Catalog-wide audit (2026-09-23): wrong or unreadable template geometry.
+assert templates.sanitize_label('$x = ?$') == '$x = ?$'
+unit_circle = templates.fill(templates.get('unit_circle_reference_angle'), {'THETA':'210'})
+assert 'angle=B--C--Xaxis' not in unit_circle and '180*round(210/180)' in unit_circle
+assert 'scope}[scale=2]' not in unit_circle
+for bearing_id in ('bearing_two_leg', 'bearing_two_objects'):
+    spec = templates.get(bearing_id)
+    assert not {'A1', 'A2', 'M1', 'M2'} & set(spec['params']), bearing_id
+    assert '{90-(40)}' in templates.fill(spec, {'B1':'40','B2':'115'})
+assert templates.get('bearing_two_leg')['params']['L1']['default'] == ''
+cubic = templates.fill(templates.get('poly_roots_end'), {'ROOTA':'-4','ROOTB':'1','ROOTC':'5'})
+assert 'xtick={-4,1,5}' in cubic and 'xmin=-4' not in cubic and r'\node[cp label, anchor=north]' not in cubic
+logarithm = templates.fill(templates.get('logarithmic_asymptote'), {'H':'3','B':'2'})
+assert 'ln(x-(3))' in logarithm and '(0,-2) (0,4)' not in logarithm
+assert 'y filter/.expression' in templates.get('rational_asymptotes')['skeleton']
+assert '$K_n: every' not in templates.fill(templates.get('complete_graph_sketch'), {})
+lin = templates.get('linear_transformation_unit_square')['skeleton']
+assert lin.index(r'\draw[cp fill]') < lin.index(r'\draw[cp dashed] (O) -- (U1)')
+removable = templates.fill(templates.get('removable_discontinuity'), {'X0':'3','M':'1','B':'3'})
+assert '{x+1}' not in removable and 'cpf(3)' in removable
+assert 'max(6.2832,6.2832/0.5)' in templates.fill(templates.get('sinusoid_amplitude_period'), {'FREQUENCY_VALUE':'0.5'})
+
+# Fifty specific questions across topics, written like generated worksheet
+# items (question + model-authored diagram description), must reach the right
+# family before any model call: an exact renderer, a catalog template, or the
+# verified custom path.
+def expected_path(case):
+    text = ns['_question_text'](SimpleNamespace(title=case['question'] + '\nDiagram: ' + case['brief']))
+    exact = generate(text)
+    if exact:
+        return 'elementary:' + exact['template']
+    routed = templates.route(text, case['subject'])
+    if not routed and ns['_looks_like_triangle'](text):
+        triangle = templates.get('triangle_general')
+        routed = triangle if templates._compatible(triangle, text.lower()) else None
+    return 'catalog:' + routed['id'] if routed else 'reference'
+breadth = json.loads((ROOT / 'tools/fixtures/worksheet_topic_breadth.json').read_text(encoding='utf-8'))
+assert len(breadth) == 50
+for case in breadth:
+    path = expected_path(case)
+    assert case['expect'] == 'any' or path in case['expect'].split('|'), (case['id'], path)
 assert not templates.catalog_errors()
 print('PASS model fallback, pinned routing diagnostics, exponential routing, number parsing, and template geometry')

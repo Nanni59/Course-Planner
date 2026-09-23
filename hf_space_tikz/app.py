@@ -65,13 +65,17 @@ def _diagnostic(stage: str, detail: str = "", **metadata) -> None:
         return
     for key in GEMINI_KEYS:
         detail = detail.replace(key, "[redacted]")
+    # A LaTeX log tail opens with package-loading noise; keep its "!" error
+    # lines, which the first 500 characters never reached.
+    error_at = detail.find("\n!")
+    if len(detail) > 500 and error_at != -1:
+        detail = detail[error_at + 1:]
     events.append({"stage": stage, "detail": detail[:500], **metadata})
-    if len(events) > 24:
-        # Model retries used to push the routing decision out of the window;
-        # keep the route/veto events so a failed job still says which path ran.
-        pinned = [e for e in events if e["stage"] in ("elementary-route", "catalog-route", "catalog-unfit")][:3]
-        rest = [e for e in events if all(e is not p for p in pinned)]
-        events[:] = pinned + rest[-(24 - len(pinned)):]
+    # Model retries used to push the routing decision and the reason a path
+    # gave up out of the window; drop the oldest retry chatter first.
+    while len(events) > 24:
+        chatter = next((e for e in events if e["stage"].startswith("model-")), None)
+        events.remove(chatter if chatter is not None else events[0])
 
 
 app = FastAPI(title="Course Planner TikZ Renderer")
@@ -90,6 +94,9 @@ MAX_OUTPUT_BYTES = int(os.environ.get("MAX_OUTPUT_BYTES", "1500000"))
 GEMINI_TIMEOUT = (10, int(os.environ.get("GEMINI_READ_TIMEOUT", "90")))
 GEMINI_MAX_ATTEMPTS = int(os.environ.get("GEMINI_MAX_ATTEMPTS", "4"))
 GEMINI_DEADLINE = int(os.environ.get("GEMINI_DEADLINE", "180"))
+# Longest a single call may sit waiting for a cooling lane; the frontend gives
+# each visual about five minutes in total.
+GEMINI_MAX_WAIT = int(os.environ.get("GEMINI_MAX_WAIT", "60"))
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
 GEMINI_FALLBACK_MODELS = [
     m.strip()
@@ -107,10 +114,6 @@ GEMINI_KEYS = [
     )
     if k
 ]
-_key_idx = 0
-_key_lock = threading.Lock()
-_model_blocked_until: dict[tuple[object, str], float] = {}
-_model_lock = threading.Lock()
 _last_success_model = None
 _last_success_model_lock = threading.Lock()
 
@@ -164,54 +167,139 @@ class GenerateReq(BaseModel):
     target: Literal["slide", "worksheet", "guide", "flashcard", "generic"] = "generic"
 
 
-def _next_key_index() -> int:
-    global _key_idx
-    if not GEMINI_KEYS:
-        return 0
-    with _key_lock:
-        idx = _key_idx
-        _key_idx = (_key_idx + 1) % len(GEMINI_KEYS)
-        return idx
+# Gemini traffic is scheduled over lanes: one (key slot, model) pair each. A
+# free-tier failure belongs to a lane, a key, or a model, so each cools down at
+# its own level instead of one global block that, after a single 503, shut a
+# model off for every key for 15 minutes:
+#   - 429 quota is per key (Google project) and model: that lane cools for the
+#     retryDelay Google returns, or an hour for a per-day quota;
+#   - a 503 "high demand" is Google capacity for the model on every key: the
+#     model cools briefly, 30 s doubling while it keeps failing, at most 5 min;
+#   - a rejected key (403, invalid key) cools every lane on that key.
+# Ready lanes are ranked by model preference, then by the fewest requests in
+# the last minute, so parallel jobs spread over the keys. When no lane is ready
+# the call waits for the soonest one rather than spending attempts on lanes
+# already known to fail.
+def _new_lane_state() -> dict:
+    return {
+        "lock": threading.Lock(),
+        "lane_until": {},     # (key_idx, model) -> cooldown end
+        "key_until": {},      # key_idx -> cooldown end
+        "model_until": {},    # model -> cooldown end
+        "model_streak": {},   # model -> consecutive capacity failures
+        "recent": {},         # (key_idx, model) -> request start times, last 60 s
+        "last": {},           # (key_idx, model) -> last outcome, for /health
+    }
 
 
-def _model_block_key(model: str, key_idx: int | None = None):
-    return ("*", model) if key_idx is None else (key_idx, model)
+_lane_state = _new_lane_state()
 
 
-def _model_is_blocked(model: str, key_idx: int | None = None) -> bool:
+def _lane_wait(key_idx: int, model: str, now: float) -> float:
+    """Seconds until a lane may be used (0 = ready). Caller holds the lock."""
+    until = max(
+        _lane_state["lane_until"].get((key_idx, model), 0),
+        _lane_state["key_until"].get(key_idx, 0),
+        _lane_state["model_until"].get(model, 0),
+    )
+    return max(0.0, until - now)
+
+
+def _pick_lane() -> tuple[int, str, float]:
+    """Best lane as (key_idx, model, wait); a ready lane is reserved (wait 0)."""
     now = time.time()
-    with _model_lock:
-        if _model_blocked_until.get(_model_block_key(model, None), 0) > now:
-            return True
-        if key_idx is not None and _model_blocked_until.get(_model_block_key(model, key_idx), 0) > now:
-            return True
-    return False
+    with _lane_state["lock"]:
+        ranked = []
+        for model_rank, model in enumerate(GEMINI_MODELS):
+            for key_idx in range(len(GEMINI_KEYS)):
+                lane = (key_idx, model)
+                recent = [t for t in _lane_state["recent"].get(lane, []) if now - t < 60]
+                _lane_state["recent"][lane] = recent
+                wait = _lane_wait(key_idx, model, now)
+                last_used = recent[-1] if recent else 0
+                if wait:
+                    ranked.append(((1, wait, model_rank, len(recent)), key_idx, model, wait))
+                else:
+                    ranked.append(((0, model_rank, len(recent), last_used), key_idx, model, 0.0))
+        _rank, key_idx, model, wait = min(ranked)
+        if not wait:
+            _lane_state["recent"][(key_idx, model)].append(now)
+        return key_idx, model, wait
 
 
-def _available_models(key_idx: int | None = None) -> list[str]:
-    models = [m for m in GEMINI_MODELS if not _model_is_blocked(m, key_idx)]
-    if models:
-        return models
-    # Every model is cooling down. Returning GEMINI_MODELS[:] here made each
-    # attempt hit the overloaded primary while a healthy fallback sat idle;
-    # prefer the block that ends soonest (a re-blocked model moves to the back).
-    with _model_lock:
-        def blocked_until(model: str) -> float:
-            until = _model_blocked_until.get(_model_block_key(model, None), 0)
-            if key_idx is not None:
-                until = max(until, _model_blocked_until.get(_model_block_key(model, key_idx), 0))
-            return until
-        return sorted(GEMINI_MODELS, key=blocked_until)
+def _cool_lane(key_idx: int, model: str, seconds: float, outcome: str) -> None:
+    with _lane_state["lock"]:
+        _lane_state["lane_until"][(key_idx, model)] = time.time() + seconds
+        _lane_state["last"][(key_idx, model)] = outcome
 
 
-def _temporarily_block_model(model: str, seconds: int = 900, key_idx: int | None = None) -> None:
-    with _model_lock:
-        _model_blocked_until[_model_block_key(model, key_idx)] = time.time() + seconds
+def _cool_key(key_idx: int, seconds: float, outcome: str) -> None:
+    with _lane_state["lock"]:
+        _lane_state["key_until"][key_idx] = time.time() + seconds
+        for model in GEMINI_MODELS:
+            _lane_state["last"][(key_idx, model)] = outcome
 
 
-def _fallback_models_after(model: str, key_idx: int | None = None) -> list[str]:
-    models = [m for m in GEMINI_MODELS if m != model and not _model_is_blocked(m, key_idx)]
-    return models or [m for m in GEMINI_MODELS if m != model] or [model]
+def _cool_model(model: str, seconds: float | None, outcome: str, key_idx: int) -> float:
+    """Cool a model on every key; None means the capacity back-off schedule."""
+    with _lane_state["lock"]:
+        if seconds is None:
+            streak = _lane_state["model_streak"].get(model, 0) + 1
+            _lane_state["model_streak"][model] = streak
+            seconds = min(300, 30 * 2 ** (streak - 1))
+        _lane_state["model_until"][model] = time.time() + seconds
+        _lane_state["last"][(key_idx, model)] = outcome
+        return seconds
+
+
+def _lane_succeeded(key_idx: int, model: str) -> None:
+    with _lane_state["lock"]:
+        _lane_state["model_streak"][model] = 0
+        _lane_state["last"][(key_idx, model)] = "ok"
+
+
+def _quota_cooldown(res) -> tuple[float, bool]:
+    """(seconds, per_day) for a 429, from Google's RetryInfo / QuotaFailure."""
+    try:
+        details = res.json().get("error", {}).get("details", []) or []
+    except (ValueError, AttributeError):
+        details = []
+    delay, per_day = 0.0, "perday" in res.text.lower().replace(" ", "").replace("_", "")
+    for item in details if isinstance(details, list) else []:
+        match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)s\s*", str(item.get("retryDelay", "")))
+        if match:
+            delay = float(match.group(1))
+        for violation in item.get("violations", []) or []:
+            if "perday" in str(violation.get("quotaId", "")).lower():
+                per_day = True
+    if per_day:
+        return 3600.0, True
+    return (max(delay, 5.0) if delay else 60.0), False
+
+
+def _available_models() -> list[str]:
+    """Models with at least one ready lane, in preference order."""
+    now = time.time()
+    with _lane_state["lock"]:
+        return [m for m in GEMINI_MODELS
+                if any(not _lane_wait(k, m, now) for k in range(len(GEMINI_KEYS)))]
+
+
+def _lane_report() -> list[dict]:
+    """Per-lane readiness for /health; never includes key material."""
+    now = time.time()
+    with _lane_state["lock"]:
+        return [
+            {
+                "key_slot": key_idx + 1,
+                "model": model,
+                "ready_in_s": round(_lane_wait(key_idx, model, now)),
+                "requests_last_min": len([t for t in _lane_state["recent"].get((key_idx, model), []) if now - t < 60]),
+                "last_outcome": _lane_state["last"].get((key_idx, model), ""),
+            }
+            for key_idx in range(len(GEMINI_KEYS))
+            for model in GEMINI_MODELS
+        ]
 
 
 def _probe_model_access() -> list[dict]:
@@ -220,13 +308,15 @@ def _probe_model_access() -> list[dict]:
         row = {"key_slot": key_idx + 1, "models": []}
         for model in GEMINI_MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}"
+            with _lane_state["lock"]:
+                cooling = _lane_wait(key_idx, model, time.time()) > 0
             try:
                 res = requests.get(url, headers={"x-goog-api-key": key}, timeout=(8, 20))
                 row["models"].append({
                     "model": model,
                     "ok": res.status_code == 200,
                     "status": res.status_code,
-                    "blocked_temporarily": _model_is_blocked(model, key_idx),
+                    "blocked_temporarily": cooling,
                 })
             except requests.exceptions.RequestException as exc:
                 row["models"].append({
@@ -234,7 +324,7 @@ def _probe_model_access() -> list[dict]:
                     "ok": False,
                     "status": "network",
                     "error": str(exc)[:120],
-                    "blocked_temporarily": _model_is_blocked(model, key_idx),
+                    "blocked_temporarily": cooling,
                 })
         out.append(row)
     return out
@@ -355,7 +445,7 @@ def _template(tikz: str, theme: str, target: str) -> str:
 \usepackage{{pgfplots}}
 \pgfplotsset{{compat=1.18}}
 {tick_labels}
-\usepgfplotslibrary{{statistics}}
+\usepgfplotslibrary{{statistics,fillbetween}}
 \usetikzlibrary{{arrows.meta,calc,decorations.pathreplacing,patterns,positioning,angles,quotes,intersections,3d}}
 \definecolor{{cpGreen}}{{HTML}}{{3F8F46}}
 \definecolor{{cpSage}}{{HTML}}{{6AA96F}}
@@ -418,18 +508,29 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
         body["generationConfig"]["responseMimeType"] = "application/json"
 
     last_err = "Gemini call failed."
-    backoff = 2
     started = time.time()
-    key_idx = _next_key_index()
+    waited = 0.0
+    sent = 0
     attempts = max(GEMINI_MAX_ATTEMPTS, len(GEMINI_KEYS) * len(GEMINI_MODELS))
-    for attempt in range(attempts):
-        if time.time() - started > GEMINI_DEADLINE:
+    while sent < attempts:
+        key_idx, model, wait = _pick_lane()
+        remaining = GEMINI_DEADLINE - (time.time() - started)
+        if wait:
+            # Every lane is cooling: wait for the soonest one when the budget
+            # allows, otherwise fail with the last real error.
+            if wait >= remaining or waited + wait > GEMINI_MAX_WAIT:
+                if sent == 0:
+                    last_err = f"All Gemini keys and models are cooling down (next in {wait:.0f} s)."
+                break
+            _diagnostic("model-wait", f"{wait:.0f} s", model=model, key_slot=key_idx + 1)
+            time.sleep(wait)
+            waited += wait
+            continue
+        if remaining <= 0:
             break
-        key_idx = key_idx % len(GEMINI_KEYS)
+        sent += 1
         key = GEMINI_KEYS[key_idx]
-        models = _available_models(key_idx)
-        model = models[0]
-        _diagnostic("model-attempt", model=model)
+        _diagnostic("model-attempt", model=model, key_slot=key_idx + 1)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         try:
             res = requests.post(
@@ -440,11 +541,9 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
             )
         except requests.exceptions.RequestException as exc:
             last_err = f"Gemini network error: {str(exc)[:180]}"
-            _diagnostic("model-network-error", last_err, model=model, attempt=attempt + 1)
-            print(f"[gemini] {last_err} - attempt {attempt + 1}/{attempts}, rotating key.", flush=True)
-            key_idx = (key_idx + 1) % len(GEMINI_KEYS)
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 20)
+            _diagnostic("model-network-error", last_err, model=model, key_slot=key_idx + 1, attempt=sent)
+            print(f"[gemini] {last_err} - key slot {key_idx + 1}, {model}.", flush=True)
+            _cool_lane(key_idx, model, 15, "network")
             continue
 
         low_body = res.text.lower()
@@ -454,58 +553,36 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
                 global _last_success_model
                 with _last_success_model_lock:
                     _last_success_model = model
-                _diagnostic("model-success", model=model)
+                _lane_succeeded(key_idx, model)
+                _diagnostic("model-success", model=model, key_slot=key_idx + 1)
                 print(f"[gemini] success using model {model} on key slot {key_idx + 1}.", flush=True)
                 if as_json:
                     return json.loads(_strip_fence(text))
                 return text
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 last_err = f"Gemini returned unusable output: {type(exc).__name__}"
-                time.sleep(backoff)
-                backoff = min(backoff * 2, 20)
+                _diagnostic("model-unusable-output", last_err, model=model, key_slot=key_idx + 1)
+                _cool_lane(key_idx, model, 5, "unusable output")
                 continue
 
         last_err = f"Gemini API error {res.status_code}: {res.text[:220]}"
-        _diagnostic("model-error", last_err, model=model, http_status=res.status_code)
-        if res.status_code == 429:
-            # Free-tier quota is per key and model: without remembering the
-            # exhausted pair, every attempt went back to the same model.
-            per_day = "perday" in low_body.replace(" ", "").replace("_", "")
-            _temporarily_block_model(model, seconds=3600 if per_day else 60, key_idx=key_idx)
-            key_idx = (key_idx + 1) % len(GEMINI_KEYS)
-            if (attempt + 1) % max(1, len(GEMINI_KEYS)) == 0:
-                time.sleep(backoff)
-                backoff = min(backoff * 2, 20)
-            continue
-        if res.status_code == 404 and len(GEMINI_MODELS) > 1:
-            _temporarily_block_model(model, seconds=3600, key_idx=key_idx)
-            key_idx = (key_idx + 1) % len(GEMINI_KEYS)
-            print(f"[gemini] {last_err} - trying another key/model.", flush=True)
-            continue
-        if res.status_code in (400, 403) and len(GEMINI_KEYS) > 1:
-            _temporarily_block_model(model, seconds=1800, key_idx=key_idx)
-            key_idx = (key_idx + 1) % len(GEMINI_KEYS)
-            print(f"[gemini] {last_err} - trying another key/model.", flush=True)
-            continue
-        if res.status_code in (429, 500, 502, 503, 504):
-            if res.status_code == 503 and len(GEMINI_MODELS) > 1 and (
-                "high demand" in low_body or "overloaded" in low_body or "capacity" in low_body
-            ):
-                _temporarily_block_model(model, seconds=900, key_idx=None)
-                print(f"[gemini] {last_err} - temporarily falling back from {model}.", flush=True)
-                if all(_model_is_blocked(m, key_idx) for m in GEMINI_MODELS):
-                    # No healthy fallback left: back off instead of spending the
-                    # remaining attempts back-to-back on overloaded models.
-                    time.sleep(backoff)
-                    backoff = min(backoff * 2, 20)
-                continue
-            key_idx = (key_idx + 1) % len(GEMINI_KEYS)
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 20)
-            continue
-        if len(GEMINI_MODELS) <= 1 and len(GEMINI_KEYS) <= 1:
+        _diagnostic("model-error", last_err, model=model, key_slot=key_idx + 1, http_status=res.status_code)
+        status = res.status_code
+        if status == 429:
+            seconds, per_day = _quota_cooldown(res)
+            _cool_lane(key_idx, model, seconds, "daily quota" if per_day else "minute quota")
+        elif status == 503 and ("high demand" in low_body or "overloaded" in low_body or "capacity" in low_body):
+            seconds = _cool_model(model, None, "high demand", key_idx)
+            print(f"[gemini] {model} at capacity - resting it {seconds:.0f} s on every key.", flush=True)
+        elif status == 404:
+            _cool_model(model, 3600, "model not found", key_idx)
+        elif status == 403 or (status == 400 and ("api key" in low_body or "api_key" in low_body)):
+            _cool_key(key_idx, 3600, "key rejected")
+        elif status == 400:
+            # The request itself was refused; every other lane would refuse it too.
             break
-        key_idx = (key_idx + 1) % len(GEMINI_KEYS)
+        else:
+            _cool_lane(key_idx, model, 10, f"HTTP {status}")
 
     raise RuntimeError(last_err)
 
@@ -3151,6 +3228,7 @@ def health():
         "gemini_key_slots": len(GEMINI_KEYS),
         "model_candidates": _available_models(),
         "last_success_model": _last_success_model,
+        "lanes": _lane_report(),
         "catalog_available": CATALOG_AVAILABLE,
         "catalog_enabled": CATALOG_ENABLED,
         "elementary_available": elementary_diagram is not None,
@@ -3398,19 +3476,12 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
         if bearings:
             b1 = bearings[0]
             b2 = bearings[1] if len(bearings) > 1 else min(359, b1 + 55)
-            a1 = 90 - b1
-            a2 = 90 - b2
-            overrides.update({
-                "A1": _clean_number(a1),
-                "A2": _clean_number(a2),
-                "M1": _clean_number((90 + a1) / 2),
-                "M2": _clean_number((90 + a2) / 2),
-                "B1": str(b1),
-                "B2": str(b2),
-            })
-            distances = _distance_labels_from_text(text)
-            overrides["L1"] = distances[0] if distances else rf"{b1}^\circ"
-            overrides["L2"] = distances[1] if len(distances) > 1 else rf"{b2}^\circ"
+            # The skeleton derives directions from the bearings. Leg labels are
+            # distances only: repeating the bearing there printed every angle
+            # twice.
+            overrides.update({"B1": str(b1), "B2": str(b2)})
+            for slot, distance in zip(("L1", "L2"), _distance_labels_from_text(text)):
+                overrides[slot] = distance
     elif template_id in {"vector_add_head_to_tail", "vector_add_parallelogram"}:
         overrides.update({"ULAB": avec, "VLAB": bvec, "SUM": avec + "+" + bvec})
     elif template_id == "vector_resultant_from_angle":
@@ -3523,7 +3594,7 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
         if template_id == "complete_graph_sketch":
             m = re.search(r"\bK_?\{?(\d+)\}?", text)
             if m:
-                overrides["LABEL"] = "K_{" + m.group(1) + "}: every pair connected"
+                overrides["LABEL"] = "K_{" + m.group(1) + r"}\text{: every pair connected}"
 
     return overrides
 
@@ -3555,6 +3626,8 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
         )) >= 2
         if not has_coordinate_vertices and _looks_like_triangle(_question_text(req)):
             tmpl = tcatalog.get("triangle_general")
+            if tmpl and not tcatalog._compatible(tmpl, _question_text(req).lower()):
+                tmpl = None
         if not tmpl:
             return None
     spec = tcatalog.ai_spec(tmpl)
