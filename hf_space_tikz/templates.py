@@ -91,9 +91,11 @@ def sanitize_label(value, default: str = "") -> str:
 
 
 def sanitize_number(value, default: str = "0") -> str:
-    value = str(value if value is not None else default).strip()
-    match = re.search(r"-?\d+(?:\.\d+)?", value)
-    return match.group(0) if match else default
+    # Models often emit a typographic minus ("−2") or a bare decimal (".5");
+    # matching only ASCII "-" and a leading digit silently turned them into 2 and 5.
+    value = str(value if value is not None else default).strip().replace("−", "-")
+    match = re.search(r"-?(?:\d+(?:\.\d+)?|\.\d+)", value)
+    return re.sub(r"^(-?)\.", r"\g<1>0.", match.group(0)) if match else default
 
 
 _TIKZ_LINE_BLOCKLIST = re.compile(
@@ -375,6 +377,25 @@ def route(text: str, subject: str = "") -> dict | None:
             hit = get(template_id)
             if hit and _compatible(hit, text_low):
                 return hit
+    # Worksheet questions usually give the equation ("y = 2^(x - 1) + 3") without
+    # the word "exponential"; the shared word "asymptote" then scored the
+    # rational template higher. Calculus and inverse/log questions keep their
+    # own routes.
+    if (
+        re.search(
+            r"(?<![a-z0-9.])(?:\(\s*\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\s*\)|\d+(?:\.\d+)?|e)"
+            r"\s*\^\s*[({]?\s*[-+]?\s*(?:\d+(?:\.\d+)?\s*\*?\s*)?[xt]\b",
+            text_low,
+        )
+        and not re.search(
+            r"integra|antideriv|riemann|derivative|differentiat|tangent|secant|\blimit|\barea\b"
+            r"|\blog|\bln\b|inverse|rational",
+            text_low,
+        )
+    ):
+        hit = get("exponential_asymptote")
+        if hit and _compatible(hit, text_low):
+            return hit
     if re.search(r"(?:∠|\\angle\b|\bangle\s+|\?)[A-Z]{3}\b", text_raw):
         hit = get("triangle_general")
         if hit:

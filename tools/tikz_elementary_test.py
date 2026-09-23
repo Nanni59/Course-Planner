@@ -25,6 +25,7 @@ ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, GEMINI_KEYS=['te
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
 real_gemini = ns['_gemini']
+real_available_models = ns['_available_models']
 
 questions = [
     'Triangle ABC is right-angled at A. AB = 6 cm and AC = 8 cm. Find BC. Diagram: Draw AB vertically and AC horizontally, label the vertices, and label BC as x.',
@@ -302,3 +303,87 @@ events = ns['_job_trace'].events
 assert any(e['stage']=='model-network-error' for e in events)
 assert 'test-secret' not in json.dumps(events)
 del ns['_job_trace'].events
+
+# Model fallback: an overloaded or quota-exhausted primary must not consume
+# every attempt while a healthy fallback model is available (live failures on
+# 2026-09-23: 12 of 12 calls went to gemini-3-flash-preview).
+class FakeResponse:
+    def __init__(self, code, text):
+        self.status_code, self.text = code, text
+    def json(self):
+        return json.loads(self.text)
+def fallback_trial(behaviour, preblock=False):
+    clock, calls = [1000.0], []
+    def post(url, headers, json, timeout):
+        model = url.split('/models/')[1].split(':')[0]
+        calls.append(model)
+        code = behaviour(model)
+        if code == 200:
+            return FakeResponse(200, '{"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}')
+        body = 'This model is currently experiencing high demand.' if code == 503 else 'You exceeded your current quota'
+        return FakeResponse(code, '{"error":{"message":"%s"}}' % body)
+    models = ['primary', 'secondary', 'healthy']
+    ns.update(GEMINI_KEYS=['k1','k2','k3','k4'], GEMINI_MODELS=models, GEMINI_MAX_ATTEMPTS=4,
+              GEMINI_DEADLINE=180, GEMINI_TIMEOUT=90, _key_idx=0, _key_lock=threading.Lock(),
+              _model_blocked_until={}, _model_lock=threading.Lock(), _last_success_model=None,
+              _last_success_model_lock=threading.Lock(), _next_key_index=lambda: 0,
+              _available_models=real_available_models,
+              time=SimpleNamespace(time=lambda: clock[0], sleep=lambda s: clock.__setitem__(0, clock[0]+s)),
+              requests=SimpleNamespace(post=post, exceptions=SimpleNamespace(RequestException=OSError)))
+    if preblock:
+        for m in models:
+            ns['_temporarily_block_model'](m, 900, None)
+    assert real_gemini('fixture') == 'ok'
+    return calls
+overloaded = lambda m: 200 if m == 'healthy' else 503
+assert fallback_trial(overloaded, preblock=True)[-1] == 'healthy'
+exhausted = lambda m: 429 if m == 'primary' else (503 if m == 'secondary' else 200)
+calls = fallback_trial(exhausted)
+assert calls[-1] == 'healthy' and calls.count('primary') <= 4, calls
+
+# Routing diagnostics survive long model-retry traces.
+ns['_job_trace'].events = []
+ns['_diagnostic']('catalog-route', template='ogive')
+for _ in range(40):
+    ns['_diagnostic']('model-error', 'busy')
+events = ns['_job_trace'].events
+assert len(events) == 24 and events[0]['stage'] == 'catalog-route'
+del ns['_job_trace'].events
+
+# Equation-only exponential questions reach the exponential template; calculus
+# and inverse questions keep their routes.
+for text, expected in [
+    ('Describe the transformations and asymptote of y = 2^(x - 1) + 3.', 'exponential_asymptote'),
+    ('Graph y = 3(2)^x and state its horizontal asymptote.', 'exponential_asymptote'),
+    ('Sketch y = (1/2)^{x} + 1.', 'exponential_asymptote'),
+    ('Evaluate the definite integral of e^x from x = 0 to x = 2. Shade the area under the curve.', 'definite_integral_shaded'),
+    ('Identify the asymptotes of f(x) = (2x + 1)/(x - 3). Sketch the rational function.', 'rational_asymptotes'),
+    ('Explain how y = 2^x and its logarithmic inverse are reflected in y = x.', 'function_inverse_reflection'),
+]:
+    assert templates.route(text, 'Advanced Functions')['id'] == expected, (text, expected)
+
+# Typographic minus signs and bare decimals keep their value.
+assert templates.sanitize_number('\u22122', '9') == '-2'
+assert templates.sanitize_number('.5', '9') == '0.5' and templates.sanitize_number('-.25', '9') == '-0.25'
+
+# Template geometry defects found in the 2026-09-23 live review.
+inverse_tikz = templates.fill(templates.get('function_inverse_reflection'), {'BASE':'2'})
+assert 'coordinates {(1,1)}' not in inverse_tikz and 'coordinates {(0,1) (1,0)}' in inverse_tikz
+assert 'bar width=1,' in templates.get('histogram')['skeleton']
+assert r'ytick=\empty' in templates.get('boxplot')['skeleton']
+normal_skeleton = templates.get('normal_curve')['skeleton']
+assert 'scaled y ticks=false' in normal_skeleton
+assert normal_skeleton.index(r'\closedcycle') < normal_skeleton.index(r'\addplot[cp line')
+integral_skeleton = templates.get('definite_integral_shaded')['skeleton']
+assert integral_skeleton.index(r'\closedcycle') < integral_skeleton.index(r'\addplot[cp line')
+assert 'AREA_LABEL_X' not in templates.get('definite_integral_shaded')['params']
+sinusoid = templates.fill(templates.get('sinusoid_amplitude_period'), {
+    'AMPLITUDE_VALUE':'3', 'FREQUENCY_VALUE':'2', 'PHASE_SHIFT_VALUE':'0', 'MIDLINE_VALUE':'-2'})
+assert 'sin(deg(2*(x - (0))))' in sinusoid and 'ymin=-4' not in sinusoid
+exp_tikz = templates.fill(templates.get('exponential_asymptote'), {'A':'1','B':'2','H':'1','K':'3'})
+assert 'pow(2, x - (1))' in exp_tikz and 'ytick={0,1,2,3,4,5}' not in exp_tikz
+narrow = generate('Points A, B, and C lie on the circumference of a circle with center O. '
+                  'If angle AOB = 20 degrees, what is the measure of angle ACB?')
+assert narrow and 'angle eccentricity=1.45' not in narrow['tikz'] and 'angle eccentricity=1.55' not in narrow['tikz']
+assert not templates.catalog_errors()
+print('PASS model fallback, pinned routing diagnostics, exponential routing, number parsing, and template geometry')

@@ -17,16 +17,17 @@ templates = [
     ybar,
     ymin=0,
     ymax=__YMAX__,
-    xmin=0.5,
-    xmax=5.5,
+    xmin=0.2,
+    xmax=5.8,
     xtick={1,2,3,4,5},
     xticklabels={__L1__,__L2__,__L3__,__L4__,__L5__},
     xlabel={Class Interval},
     ylabel={Frequency},
-    bar width=0.6cm,
+    % Class intervals are continuous, so each bar spans a full unit and touches.
+    bar width=1,
+    bar shift=0pt,
     ymajorgrids,
     axis lines=left,
-    enlarge x limits=0.15,
 ]
 \addplot+[cp fill, cp line] coordinates {
     (1, __F1__)
@@ -65,6 +66,7 @@ templates = [
     xmax=__XMAX__,
     xlabel={Value},
     ylabel={},
+    ytick=\empty,
 ]
 \addplot+[cp fill, cp line, boxplot prepared={
     lower whisker=__MIN__,
@@ -102,15 +104,16 @@ templates = [
     xlabel={$x$},
     ylabel={},
     axis lines=left,
-    yticklabels={\,},
+    ytick=\empty,
+    scaled y ticks=false,
     xtick={__MU__-2*__SIGMA__, __MU__-__SIGMA__, __MU__, __MU__+__SIGMA__, __MU__+2*__SIGMA__},
     xticklabels={__T1__,__T2__,__T3__,__T4__,__T5__},
     declare function={gauss(\x)=1/(sqrt(2*pi*(__SIGMA__)^2)) * exp(-((\x-(__MU__))^2)/(2*(__SIGMA__)^2));},
 ]
+% shaded region first, so the fill cannot paint over the curve's stroke
+\addplot[cp fill, draw=none, mark=none, domain=__SHADE_L__:__SHADE_R__] {gauss(x)} \closedcycle;
 % density curve (no plot-cycle marks; a smooth line, not a band of dots)
 \addplot[cp line, mark=none, smooth] {gauss(x)};
-% shaded region under the curve
-\addplot[cp fill, draw=none, mark=none, domain=__SHADE_L__:__SHADE_R__] {gauss(x)} \closedcycle;
 % vertical line at the mean
 \draw[cp dashed] (axis cs:__MU__,0) -- (axis cs:__MU__,{gauss(__MU__)});
 \end{axis}
@@ -120,7 +123,7 @@ templates = [
             'SIGMA': {'type': 'number', 'default': '1', 'desc': 'Standard deviation of the normal distribution'},
             'SHADE_L': {'type': 'number', 'default': '-0.5', 'desc': 'Left boundary of the shaded region'},
             'SHADE_R': {'type': 'number', 'default': '0.5', 'desc': 'Right boundary of the shaded region'},
-            'T1': {'type': 'label', 'default': '$\\mu-2\\sigma$', 'desc': 'label at mean minus two standard deviations; use the numeric given when requested'},
+            'T1': {'type': 'label', 'default': '$\\mu-2\\sigma$', 'desc': 'label at mean minus two standard deviations; T1-T5 share one style: all numbers when the question gives numeric values, otherwise all symbols'},
             'T2': {'type': 'label', 'default': '$\\mu-\\sigma$', 'desc': 'label at mean minus one standard deviation'},
             'T3': {'type': 'label', 'default': '$\\mu$', 'desc': 'label at the mean'},
             'T4': {'type': 'label', 'default': '$\\mu+\\sigma$', 'desc': 'label at mean plus one standard deviation'},

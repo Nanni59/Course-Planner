@@ -25,7 +25,7 @@ CASES = [
     ('integration', 'definite_integral_shaded', {
         'CURVE':'x^2+1', 'XMIN':'-1', 'XMAX':'3', 'YMIN':'0', 'YMAX':'11',
         'A':'0', 'B':'2', 'A_LABEL':'$0$', 'B_LABEL':'$2$',
-        'AREA_LABEL_X':'1', 'AREA_LABEL_Y':'2.2', 'AREA_LABEL':'area',
+        'AREA_LABEL':'area',
     }, 'Evaluate the definite integral of x^2 + 1 from x = 0 to x = 2.'),
     ('riemann', 'riemann_sum_rectangles', {
         'CURVE':'x+1', 'XMIN':'0', 'XMAX':'4.5', 'YMIN':'0', 'YMAX':'6',
@@ -54,14 +54,14 @@ CASES = [
         'X4':'40', 'C4':'24', 'X5':'50', 'C5':'30',
     }, 'Estimate the median from an ogive with five stated cumulative-frequency points.'),
     ('exponential', 'exponential_asymptote', {
-        'A':'0.5', 'B':'2', 'K':'3', 'LABEL_K':'?',
+        'A':'1', 'B':'2', 'H':'1', 'K':'3', 'LABEL_K':'?',
     }, 'Describe the transformations and asymptote of y = 2^(x - 1) + 3.'),
     ('rational', 'rational_asymptotes', {
         'XMIN':'-5', 'XMAX':'7', 'YMIN':'-6', 'YMAX':'10',
         'A':'7', 'H':'3', 'K':'2', 'LABEL_H':'?', 'LABEL_K':'?',
     }, 'Identify the vertical and horizontal asymptotes of f(x) = (2x + 1)/(x - 3).'),
     ('sinusoid', 'sinusoid_amplitude_period', {
-        'AMPLITUDE_VALUE':'3', 'MIDLINE_VALUE':'-2',
+        'AMPLITUDE_VALUE':'3', 'FREQUENCY_VALUE':'1', 'PHASE_SHIFT_VALUE':'0', 'MIDLINE_VALUE':'-2',
         'AMPLITUDE_LABEL':'$A$', 'MIDLINE_LABEL':'midline', 'PERIOD_LABEL':'$P$',
     }, 'Determine the amplitude, period, and midline of y = 3 sin(x) - 2.'),
     ('piecewise', 'piecewise_linear', {
@@ -70,6 +70,24 @@ CASES = [
     ('inverse', 'function_inverse_reflection', {
         'BASE':'2', 'F_LABEL':'$f$', 'INV_LABEL':'$f^{-1}$',
     }, 'Explain how an exponential function and its logarithmic inverse are related.'),
+    # Variations that the old fixed windows and label positions got wrong.
+    ('signed_area', 'definite_integral_shaded', {
+        'CURVE':'(x+2)*(x-1)*(x-3)/3', 'XMIN':'-3', 'XMAX':'4', 'YMIN':'-3', 'YMAX':'5',
+        'A':'1', 'B':'3', 'A_LABEL':'$1$', 'B_LABEL':'$3$', 'AREA_LABEL':'$A$',
+    }, 'Interpret the integral from x = 1 to x = 3 when the region lies below the x-axis.'),
+    ('exponential_decay', 'exponential_asymptote', {
+        'A':'3', 'B':'0.5', 'H':'0', 'K':'-2', 'LABEL_K':'?',
+    }, 'Describe the asymptote of y = 3(0.5)^x - 2.'),
+    ('cosine', 'sinusoid_amplitude_period', {
+        'AMPLITUDE_VALUE':'2', 'FREQUENCY_VALUE':'2', 'PHASE_SHIFT_VALUE':'-0.7854', 'MIDLINE_VALUE':'1',
+        'AMPLITUDE_LABEL':'$A$', 'MIDLINE_LABEL':'midline', 'PERIOD_LABEL':'$P$',
+    }, 'Determine the amplitude, period, and midline of y = 2 cos(2x) + 1.'),
+    ('piecewise_steep', 'piecewise_linear', {
+        'M1':'-2', 'B1':'-3', 'M2':'3', 'B2':'-4', 'C':'-1', 'LABEL_BREAK':'$x=-1$',
+    }, 'Graph f(x) = -2x - 3 for x < -1 and f(x) = 3x - 4 for x >= -1.'),
+    ('inverse_base_e', 'function_inverse_reflection', {
+        'BASE':'2.718', 'F_LABEL':'$y=e^x$', 'INV_LABEL':r'$y=\ln x$',
+    }, 'Explain how y = e^x and y = ln x are related.'),
 ]
 
 

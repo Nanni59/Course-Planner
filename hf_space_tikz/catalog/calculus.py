@@ -85,14 +85,16 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
+  xtick={__A__,__B__}, xticklabels={__A_LABEL__,__B_LABEL__}, hide obscured x ticks=false,
   grid=both, grid style={cp dashed},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
-  \addplot[cp line, samples=120, domain=__XMIN__:__XMAX__]{__CURVE__};
+  % Fill first so it cannot paint over half of the curve's stroke.
   \addplot[cp fill, draw=none, samples=120, domain=__A__:__B__] {__CURVE__} \closedcycle;
-  \node[cp label, below] at (axis cs:__A__,0) {__A_LABEL__};
-  \node[cp label, below] at (axis cs:__B__,0) {__B_LABEL__};
-  \node[cp label, above] at (axis cs:__AREA_LABEL_X__, __AREA_LABEL_Y__) {__AREA_LABEL__};
+  \addplot[cp line, samples=120, domain=__XMIN__:__XMAX__]{__CURVE__};
+  % The label rides an invisible copy of the curve at 40% height, so it stays
+  % between the curve and the x-axis for any bounds.
+  \addplot[draw=none, samples=41, domain=__A__:__B__] {0.4*(__CURVE__)} node[cp label, pos=0.5] {__AREA_LABEL__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -105,9 +107,7 @@ templates = [
             'B': {'type': 'number', 'default': '2', 'desc': 'upper limit of integration'},
             'A_LABEL': {'type': 'label', 'default': '$a$', 'desc': 'short x-axis label for the lower bound, using the given value when stated'},
             'B_LABEL': {'type': 'label', 'default': '$b$', 'desc': 'short x-axis label for the upper bound, using the given value when stated'},
-            'AREA_LABEL_X': {'type': 'number', 'default': '1.3', 'desc': 'x-coordinate for the area label'},
-            'AREA_LABEL_Y': {'type': 'number', 'default': '2', 'desc': 'y-coordinate for the area label'},
-            'AREA_LABEL': {'type': 'label', 'default': 'area', 'desc': 'short symbolic region label such as area or accumulated change; never the evaluated value'},
+            'AREA_LABEL':{'type': 'label', 'default': 'area', 'desc': 'short symbolic region label such as area or accumulated change; never the evaluated value'},
         },
     },
     {

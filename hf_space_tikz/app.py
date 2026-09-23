@@ -66,7 +66,12 @@ def _diagnostic(stage: str, detail: str = "", **metadata) -> None:
     for key in GEMINI_KEYS:
         detail = detail.replace(key, "[redacted]")
     events.append({"stage": stage, "detail": detail[:500], **metadata})
-    del events[:-24]
+    if len(events) > 24:
+        # Model retries used to push the routing decision out of the window;
+        # keep the route/veto events so a failed job still says which path ran.
+        pinned = [e for e in events if e["stage"] in ("elementary-route", "catalog-route", "catalog-unfit")][:3]
+        rest = [e for e in events if all(e is not p for p in pinned)]
+        events[:] = pinned + rest[-(24 - len(pinned)):]
 
 
 app = FastAPI(title="Course Planner TikZ Renderer")
@@ -185,7 +190,18 @@ def _model_is_blocked(model: str, key_idx: int | None = None) -> bool:
 
 def _available_models(key_idx: int | None = None) -> list[str]:
     models = [m for m in GEMINI_MODELS if not _model_is_blocked(m, key_idx)]
-    return models or GEMINI_MODELS[:]
+    if models:
+        return models
+    # Every model is cooling down. Returning GEMINI_MODELS[:] here made each
+    # attempt hit the overloaded primary while a healthy fallback sat idle;
+    # prefer the block that ends soonest (a re-blocked model moves to the back).
+    with _model_lock:
+        def blocked_until(model: str) -> float:
+            until = _model_blocked_until.get(_model_block_key(model, None), 0)
+            if key_idx is not None:
+                until = max(until, _model_blocked_until.get(_model_block_key(model, key_idx), 0))
+            return until
+        return sorted(GEMINI_MODELS, key=blocked_until)
 
 
 def _temporarily_block_model(model: str, seconds: int = 900, key_idx: int | None = None) -> None:
@@ -325,12 +341,20 @@ def _template(tikz: str, theme: str, target: str) -> str:
         "flashcard": "0.82",
         "generic": "1.0",
     }.get(target, "1.0")
+    # Worksheets always print on a white A4 sheet, so tick labels can knock out
+    # a curve or asymptote passing through them (centred axes put the numbers
+    # right where graphs cross). Other targets may sit on tinted backgrounds.
+    tick_labels = (
+        r"\pgfplotsset{every tick label/.append style={fill=white,inner sep=1pt}}"
+        if target == "worksheet" else ""
+    )
 
     return rf"""
 \documentclass[tikz,border=6pt]{{standalone}}
 \usepackage{{amsmath,amssymb}}
 \usepackage{{pgfplots}}
 \pgfplotsset{{compat=1.18}}
+{tick_labels}
 \usepgfplotslibrary{{statistics}}
 \usetikzlibrary{{arrows.meta,calc,decorations.pathreplacing,patterns,positioning,angles,quotes,intersections,3d}}
 \definecolor{{cpGreen}}{{HTML}}{{3F8F46}}
@@ -444,6 +468,10 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
         last_err = f"Gemini API error {res.status_code}: {res.text[:220]}"
         _diagnostic("model-error", last_err, model=model, http_status=res.status_code)
         if res.status_code == 429:
+            # Free-tier quota is per key and model: without remembering the
+            # exhausted pair, every attempt went back to the same model.
+            per_day = "perday" in low_body.replace(" ", "").replace("_", "")
+            _temporarily_block_model(model, seconds=3600 if per_day else 60, key_idx=key_idx)
             key_idx = (key_idx + 1) % len(GEMINI_KEYS)
             if (attempt + 1) % max(1, len(GEMINI_KEYS)) == 0:
                 time.sleep(backoff)
@@ -465,6 +493,11 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
             ):
                 _temporarily_block_model(model, seconds=900, key_idx=None)
                 print(f"[gemini] {last_err} - temporarily falling back from {model}.", flush=True)
+                if all(_model_is_blocked(m, key_idx) for m in GEMINI_MODELS):
+                    # No healthy fallback left: back off instead of spending the
+                    # remaining attempts back-to-back on overloaded models.
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2, 20)
                 continue
             key_idx = (key_idx + 1) % len(GEMINI_KEYS)
             time.sleep(backoff)

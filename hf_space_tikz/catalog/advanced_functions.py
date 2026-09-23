@@ -56,6 +56,8 @@ templates = [
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
     unbounded coords=jump,
+    % Clip the curves only; the asymptote labels sit just outside the window.
+    clip mode=individual,
 ]
     % rational function f(x) = A/(x - H) + K
     \addplot[cp line, samples=301, domain=__XMIN__:__XMAX__] { __A__/(x - __H__) + __K__ };
@@ -89,23 +91,29 @@ templates = [
 \begin{axis}[
     width=7cm, height=4cm,
     xmin=-2, xmax=3,
-    ymin=-1, ymax=6,
+    % The window follows the curve (capped at 8 units past the asymptote); the
+    % old fixed 0..6 range cut off shifted graphs such as y = 2^(x - 1) + 3.
+    ymin={max(min(0,__K__,__K__+__A__*pow(__B__,-2-(__H__)),__K__+__A__*pow(__B__,3-(__H__))),min(0,__K__)-8)-1},
+    ymax={min(max(0,__K__,__K__+__A__*pow(__B__,-2-(__H__)),__K__+__A__*pow(__B__,3-(__H__))),max(0,__K__)+8)+1},
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
-    xtick={-2,-1,0,1,2,3}, ytick={0,1,2,3,4,5},
+    xtick={-2,-1,0,1,2,3},
+    % Clip the curve only; the asymptote label sits just left of the window.
+    clip mode=individual,
 ]
-    % exponential function f(x) = A*B^x + K
-    \addplot[cp line, samples=201, domain=-2:3] { __A__*(pow(__B__, x)) + __K__ };
+    % exponential function f(x) = A*B^(x - H) + K
+    \addplot[cp line, samples=201, domain=-2:3] { __A__*(pow(__B__, x - (__H__))) + __K__ };
     % horizontal asymptote y = K
     \addplot[cp dashed] coordinates {(-2,__K__) (3,__K__)};
     % label for asymptote
-    \node[cp label, anchor=south east] at (axis cs:-2,__K__) {$y=__LABEL_K__$};
+    \node[cp label, anchor=east] at (axis cs:-2,__K__) {$y=__LABEL_K__$};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
-            'A': {'type': 'number', 'default': 1, 'desc': 'leading coefficient of the exponential function'},
-            'B': {'type': 'number', 'default': 2, 'desc': 'base of the exponential function'},
+            'A': {'type': 'number', 'default': 1, 'desc': 'coefficient multiplying the power in y = A*B^(x - H) + K'},
+            'B': {'type': 'number', 'default': 2, 'desc': 'positive base of the exponential function'},
+            'H': {'type': 'number', 'default': 0, 'desc': 'horizontal shift H in y = A*B^(x - H) + K; y = 2^(x - 1) + 3 has H = 1'},
             'K': {'type': 'number', 'default': 0, 'desc': 'vertical shift (horizontal asymptote)'},
             'LABEL_K': {'type': 'label', 'default': '?', 'desc': 'symbolic label for the horizontal asymptote; do not reveal the value when it is requested', 'answer_safe': False},
         },
@@ -149,29 +157,36 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[
     width=7cm, height=4cm,
-    xmin=0, xmax=6.28,
-    ymin=-4, ymax=4,
+    xmin=0, xmax=6.2832,
+    % The window always contains the full wave and the x-axis; the old fixed
+    % -4..4 range cut off the trough of y = 3 sin x - 2.
+    ymin={min(0,__MIDLINE_VALUE__-abs(__AMPLITUDE_VALUE__))-ifthenelse(__MIDLINE_VALUE__<0,1.8,0.8)},
+    ymax={max(0,__MIDLINE_VALUE__+abs(__AMPLITUDE_VALUE__))+ifthenelse(__MIDLINE_VALUE__<0,0.8,1.8)},
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
-    xtick={0,1.57,3.14,4.71,6.28},
+    xtick={0,1.5708,3.1416,4.7124,6.2832},
     xticklabels={$0$,$\frac{\pi}{2}$,$\pi$,$\frac{3\pi}{2}$,$2\pi$},
-    ytick={-4,-2,0,2,4}, yticklabels={-4,-2,0,2,4},
+    % Clip the curve only; the midline label sits just right of the window.
+    clip mode=individual,
 ]
-    % sinusoidal function f(x) = A*sin(x) + M
-    \addplot[cp line, samples=201, domain=0:6.28] { __AMPLITUDE_VALUE__*sin(deg(x)) + __MIDLINE_VALUE__ };
+    % sinusoidal function f(x) = A*sin(B*(x - C)) + D
+    \addplot[cp line, samples=241, domain=0:6.2832] { __AMPLITUDE_VALUE__*sin(deg(__FREQUENCY_VALUE__*(x - (__PHASE_SHIFT_VALUE__)))) + __MIDLINE_VALUE__ };
     % midline
-    \addplot[cp dashed] coordinates {(0,__MIDLINE_VALUE__) (6.28,__MIDLINE_VALUE__)};
-    \node[cp label, anchor=south east] at (axis cs:0,__MIDLINE_VALUE__) {__MIDLINE_LABEL__};
-    % amplitude arrow
-    \draw[cp axis,<->] (axis cs:6.28,__MIDLINE_VALUE__) -- (axis cs:6.28,__MIDLINE_VALUE__ + __AMPLITUDE_VALUE__) node[midway, anchor=west] {__AMPLITUDE_LABEL__};
-    % period arrow from 0 to 2*pi
-    \draw[cp axis,<->] (axis cs:0, __MIDLINE_VALUE__ - __AMPLITUDE_VALUE__/2) -- (axis cs:6.28, __MIDLINE_VALUE__ - __AMPLITUDE_VALUE__/2) node[midway, anchor=south] {__PERIOD_LABEL__};
+    \addplot[cp dashed] coordinates {(0,__MIDLINE_VALUE__) (6.2832,__MIDLINE_VALUE__)};
+    \node[cp label, anchor=west] at (axis cs:6.2832,__MIDLINE_VALUE__) {__MIDLINE_LABEL__};
+    % amplitude: midline to the extremum on the side away from the x-axis, so
+    % the arrow never crosses the axis or its tick labels (x kept off the y-axis)
+    \draw[cp axis,<->] (axis cs:{((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))+ifthenelse(((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))<0.3,(6.2832/__FREQUENCY_VALUE__),0)},__MIDLINE_VALUE__) -- (axis cs:{((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))+ifthenelse(((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))<0.3,(6.2832/__FREQUENCY_VALUE__),0)},{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*abs(__AMPLITUDE_VALUE__)}) node[pos=1, anchor=west, xshift=2pt] {__AMPLITUDE_LABEL__};
+    % period: one cycle long, drawn on the side of the wave away from the x-axis
+    \draw[cp axis,<->] (axis cs:0,{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*(abs(__AMPLITUDE_VALUE__)+1)}) -- (axis cs:{min(6.2832,6.2832/__FREQUENCY_VALUE__)},{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*(abs(__AMPLITUDE_VALUE__)+1)}) node[midway, yshift={ifthenelse(__MIDLINE_VALUE__>=0,7,-7)}] {__PERIOD_LABEL__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
-            'AMPLITUDE_VALUE': {'type': 'number', 'default': 2, 'desc': 'amplitude of the sinusoid'},
-            'MIDLINE_VALUE': {'type': 'number', 'default': 0, 'desc': 'vertical midline of the sinusoid'},
+            'AMPLITUDE_VALUE': {'type': 'number', 'default': 2, 'desc': 'A in y = A*sin(B*(x - C)) + D'},
+            'FREQUENCY_VALUE': {'type': 'number', 'default': 1, 'desc': 'positive B in y = A*sin(B*(x - C)) + D; the period is 2*pi/B'},
+            'PHASE_SHIFT_VALUE': {'type': 'number', 'default': 0, 'desc': 'C in radians; for a cosine y = A*cos(B*(x - C)) + D use C - 1.5708/B'},
+            'MIDLINE_VALUE': {'type': 'number', 'default': 0, 'desc': 'D, the vertical midline of the sinusoid'},
             'AMPLITUDE_LABEL': {'type': 'label', 'default': '$A$', 'desc': 'symbolic label for the amplitude arrow; never the requested numeric answer', 'answer_safe': False, 'unknown': '$A$'},
             'MIDLINE_LABEL': {'type': 'label', 'default': 'midline', 'desc': 'symbolic midline label; never the requested equation', 'answer_safe': False, 'unknown': 'midline'},
             'PERIOD_LABEL': {'type': 'label', 'default': '$P$', 'desc': 'symbolic label for the period arrow; never the requested numeric answer', 'answer_safe': False, 'unknown': '$P$'},
@@ -321,11 +336,16 @@ templates = [
 \begin{axis}[
     width=7cm, height=4cm,
     xmin=-5, xmax=5,
-    ymin=-2, ymax=8,
+    % The window contains both pieces end to end; a fixed -2..8 cut off steep
+    % or negative pieces.
+    ymin={min(0,__M1__*(-5)+__B1__,__M1__*(__C__)+__B1__,__M2__*(__C__)+__B2__,__M2__*5+__B2__)-1},
+    ymax={max(0,__M1__*(-5)+__B1__,__M1__*(__C__)+__B1__,__M2__*(__C__)+__B2__,__M2__*5+__B2__)+1},
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
-    xtick={-5,-4,-3,-2,-1,0,1,2,3,4,5}, ytick={-2,0,2,4,6,8},
+    xtick={-5,-4,-3,-2,-1,0,1,2,3,4,5},
+    % Clip the pieces only; the break label sits just above the window.
+    clip mode=individual,
 ]
     % first piece for x < C
     \addplot[cp line, domain=-5:__C__, samples=2] { __M1__*x + __B1__ };
@@ -335,8 +355,9 @@ templates = [
     \addplot[cp line, domain=__C__:5, samples=2] { __M2__*x + __B2__ };
     % closed circle at the break point for the second piece
     \addplot[only marks, cp point] coordinates {(__C__, __M2__*__C__ + __B2__)};
-    % label for the break point on the x-axis
-    \node[cp label, anchor=south] at (axis cs:__C__, -2) {__LABEL_BREAK__};
+    % label for the break point, above the window so it never overlaps the
+    % x-axis tick labels or either piece
+    \node[cp label, anchor=south] at (rel axis cs:{(__C__+5)/10},1) {__LABEL_BREAK__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -363,17 +384,23 @@ templates = [
     xlabel={$x$}, ylabel={$y$},
     xtick={-2,-1,0,1,2,3,4}, ytick={-2,-1,0,1,2,3,4},
     samples=201,
+    % Clip the curves but not the labels.
+    clip mode=individual,
 ]
-    % exponential function f(x) = BASE^x
-    \addplot[cp line, domain=-2:3] { pow(__BASE__, x) };
-    % its inverse g(x) = log_BASE(x)
-    \addplot[cp line, domain=0.1:4] { ln(x)/ln(__BASE__) };
-    % line y = x as the mirror
+    % line y = x as the mirror, under both curves
     \addplot[cp dashed, domain=-2:4] { x };
-    \node[cp label, anchor=south east] at (axis cs:1.55,3.05) {__F_LABEL__};
-    \node[cp label, anchor=north west] at (axis cs:3,1.4) {__INV_LABEL__};
-    % intersection point (1,1)
-    \addplot[only marks, cp point] coordinates {(1,1)};
+    % exponential function f(x) = BASE^x
+    \addplot[cp line, domain=-2:4] { pow(__BASE__, x) };
+    % its inverse g(x) = log_BASE(x)
+    \addplot[cp line, domain=0.01:4] { ln(x)/ln(__BASE__) };
+    % Labels sit on each curve near the top/right edge for any base (fixed
+    % coordinates floated off the curve when the base changed).
+    \node[cp label, anchor=west, xshift=3pt] at (axis cs:{max(-1.9,min(3.9,ln(3.6)/ln(__BASE__)))},{pow(__BASE__,max(-1.9,min(3.9,ln(3.6)/ln(__BASE__))))}) {__F_LABEL__};
+    \node[cp label, anchor=north] at (axis cs:3.6,{ln(3.6)/ln(__BASE__)}) {__INV_LABEL__};
+    % A point and its mirror image: (0,1) on f and (1,0) on the inverse. The old
+    % marked "intersection" (1,1) lies on neither curve.
+    \draw[cp dashed, densely dotted] (axis cs:0,1) -- (axis cs:1,0);
+    \addplot[only marks, cp point] coordinates {(0,1) (1,0)};
 \end{axis}
 \end{tikzpicture}""",
         "params": {

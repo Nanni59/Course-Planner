@@ -233,8 +233,20 @@ def _circle_central_inscribed(text):
     if len(labels) > 1:
         return None
     unknown = next(iter(labels), '?')
-    radius = 2.45
     half = theta / 2
+    # Labels sit on each angle's bisector. They must clear the arc (the central
+    # label is horizontal, so its half-width counts; a fixed 1.45 let the arc
+    # cut "124°") and reach a point where the wedge is taller than the text (a
+    # fixed 1.55 put "?" on a chord of an 18° inscribed angle). Distances in mm.
+    def wedge_mm(angle):
+        return 1.9 / math.sin(math.radians(angle / 2))
+    central_mm = max(6 + 1, wedge_mm(theta)) + 0.9 * len(_n(theta)) + 0.6
+    central_eccentricity = _n(round(central_mm / 6, 2))
+    inscribed_mm = max(1.55 * 5, wedge_mm(theta / 2) + 1)
+    inscribed_eccentricity = _n(round(inscribed_mm / 5, 2))
+    # A narrow inscribed angle pushes "?" toward the centre; enlarge the circle
+    # so it stops short of the centre label.
+    radius = max(2.45, round((inscribed_mm + 8.5) / 10, 2))
     return _result('circle_central_inscribed_angle', {
         'centre': centre,
         'endpoints': [first, second],
@@ -248,10 +260,10 @@ def _circle_central_inscribed(text):
 \draw[cp line] ({centre}) circle[radius={_n(radius)}];
 \draw[cp line] ({centre})--({first}) ({centre})--({second});
 \draw[cp line] ({vertex})--({first}) ({vertex})--({second});
-\pic[draw=black,angle radius=6mm,"${_n(theta)}^\circ$",angle eccentricity=1.45] {{angle={first}--{centre}--{second}}};
-\pic[draw=black,angle radius=5mm,"${unknown}$",angle eccentricity=1.55] {{angle={first}--{vertex}--{second}}};
+\pic[draw=black,angle radius=6mm,"${_n(theta)}^\circ$",angle eccentricity={central_eccentricity}] {{angle={first}--{centre}--{second}}};
+\pic[draw=black,angle radius=5mm,"${unknown}$",angle eccentricity={inscribed_eccentricity}] {{angle={first}--{vertex}--{second}}};
 \fill ({centre}) circle (1.2pt); \fill ({first}) circle (1.2pt); \fill ({second}) circle (1.2pt); \fill ({vertex}) circle (1.2pt);
-\node[below left] at ({centre}) {{${centre}$}};
+\node[left] at ({centre}) {{${centre}$}};
 \node[below right] at ({first}) {{${first}$}}; \node[above right] at ({second}) {{${second}$}}; \node[left] at ({vertex}) {{${vertex}$}};''')
 
 
