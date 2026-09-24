@@ -156,7 +156,11 @@ rational_tikz = templates.fill(templates.get('rational_asymptotes'), {
     'XMIN':'-5','XMAX':'7','YMIN':'-6','YMAX':'10',
     'A':'7','H':'3','K':'2','LABEL_H':'?','LABEL_K':'?',
 }, target='worksheet')
-assert 'domain=-5:7' in rational_tikz and '(3,-6) (3,10)' in rational_tikz
+# The window derives from A, H, and K rather than model-chosen bounds.
+assert 'domain={min(-1,3-6)}:{max(1,3+6)}' in rational_tikz and '__' not in rational_tikz
+assert 'XMIN' not in templates.get('rational_asymptotes')['params']
+intersection = templates.fill(templates.get('function_intersection_two_curves'), {'F':'x^2','G':'x+2'})
+assert '{x^2}' in intersection and '{x+2}' in intersection and '4^x' not in intersection
 inverse_tikz = templates.fill(templates.get('function_inverse_reflection'), {
     'BASE':'2','F_LABEL':'$f$','INV_LABEL':'$f^{-1}$',
 }, target='worksheet')

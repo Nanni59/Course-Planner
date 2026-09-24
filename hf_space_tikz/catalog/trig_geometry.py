@@ -93,7 +93,8 @@ templates = [
   \draw[cp axis,-Stealth] (O)--(3.0,0) node[right] {$E$};
   \draw[cp line,-Stealth] (O)--(P) node[midway,above left] {\ensuremath{__L1__}};
   \draw[cp line,-Stealth] (O)--(Q) node[midway,below right] {\ensuremath{__L2__}};
-  \draw[cp dashed] (P)--(Q) node[midway,above right] {$__DLAB__$};
+  % d sits near P, away from the bearing arcs at the origin
+  \draw[cp dashed] (P)--(Q) node[pos=.25,above right] {$__DLAB__$};
   % Separate radii keep the two bearing labels off each other.
   \draw[cp dashed] (90:0.5) arc[start angle=90,end angle={90-(__B1__)},radius=0.5];
   \node at ({90-(__B1__)/2}:0.82) {$__B1__^\circ$};

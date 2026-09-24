@@ -56,36 +56,34 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[
     width=7cm, height=4cm,
-    xmin=__XMIN__, xmax=__XMAX__,
-    ymin=__YMIN__, ymax=__YMAX__,
+    % The window is computed around the asymptotes (6 units each side of
+    % x = H, max(3,|A|) + 1 units each side of y = K, always with the origin);
+    % model-chosen bounds hid most of a branch of (3x - 1)/(x + 2).
+    xmin={min(-1,__H__-6)}, xmax={max(1,__H__+6)},
+    ymin={min(-1,__K__-max(3,abs(__A__))-1)}, ymax={max(1,__K__+max(3,abs(__A__))+1)},
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
     unbounded coords=jump,
-    % A sample landing on the asymptote (x = H on the sample grid) overflowed
-    % TeX ("Dimension too large"); drop samples far outside the window.
-    % (restrict y to domain cannot take expressions, so filter per sample.)
-    y filter/.expression={abs(y-(__K__))>4*(__YMAX__-(__YMIN__)) ? nan : y},
+    % A sample landing on the asymptote overflowed TeX ("Dimension too
+    % large"); drop samples far outside the window. (restrict y to domain
+    % cannot take expressions, so filter per sample.)
+    y filter/.expression={abs(y-(__K__))>8*(max(3,abs(__A__))+1) ? nan : y},
     % Clip the curves only; the asymptote labels sit just outside the window.
     clip mode=individual,
 ]
     % rational function f(x) = A/(x - H) + K
-    \addplot[cp line, samples=301, domain=__XMIN__:__XMAX__] { __A__/(x - __H__) + __K__ };
-    % vertical asymptote x = H
-    \addplot[cp dashed] coordinates {(__H__,__YMIN__) (__H__,__YMAX__)};
-    % horizontal asymptote y = K
-    \addplot[cp dashed] coordinates {(__XMIN__,__K__) (__XMAX__,__K__)};
-    % labels for asymptotes
-    \node[cp label, anchor=south west] at (axis cs:__H__,__YMAX__) {$x=__LABEL_H__$};
-    \node[cp label, anchor=north east] at (axis cs:__XMIN__,__K__) {$y=__LABEL_K__$};
+    \addplot[cp line, samples=301, domain={min(-1,__H__-6)}:{max(1,__H__+6)}] { __A__/(x - (__H__)) + __K__ };
+    % asymptotes across the whole window
+    \draw[cp dashed] ({axis cs:__H__,0}|-{rel axis cs:0,0}) -- ({axis cs:__H__,0}|-{rel axis cs:0,1});
+    \draw[cp dashed] ({rel axis cs:0,0}|-{axis cs:0,__K__}) -- ({rel axis cs:1,0}|-{axis cs:0,__K__});
+    % labels below and left of the window, clear of the axis labels
+    \node[cp label, anchor=north] at ({axis cs:__H__,0}|-{rel axis cs:0,0}) {$x=__LABEL_H__$};
+    \node[cp label, anchor=east] at ({rel axis cs:0,0}|-{axis cs:0,__K__}) {$y=__LABEL_K__$};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
-            'XMIN': {'type': 'number', 'default': -5, 'desc': 'left axis bound far enough to show the left branch'},
-            'XMAX': {'type': 'number', 'default': 5, 'desc': 'right axis bound far enough to show the right branch'},
-            'YMIN': {'type': 'number', 'default': -5, 'desc': 'bottom axis bound'},
-            'YMAX': {'type': 'number', 'default': 5, 'desc': 'top axis bound'},
-            'A': {'type': 'number', 'default': 1, 'desc': 'numerator coefficient in the rational function'},
+            'A': {'type': 'number', 'default': 1, 'desc': 'A in f(x) = A/(x - H) + K; (3x - 1)/(x + 2) = -7/(x + 2) + 3 has A = -7'},
             'H': {'type': 'number', 'default': 1, 'desc': 'x-value of the vertical asymptote'},
             'K': {'type': 'number', 'default': 0, 'desc': 'y-value of the horizontal asymptote'},
             'LABEL_H': {'type': 'label', 'default': '?', 'desc': 'symbolic label for the vertical asymptote; do not reveal it when the worksheet asks the student to identify it', 'answer_safe': False},
@@ -101,10 +99,11 @@ templates = [
 \begin{axis}[
     width=7cm, height=4cm,
     xmin=-2, xmax=3,
-    % The window follows the curve (capped at 8 units past the asymptote); the
-    % old fixed 0..6 range cut off shifted graphs such as y = 2^(x - 1) + 3.
-    ymin={max(min(0,__K__,__K__+__A__*pow(__B__,-2-(__H__)),__K__+__A__*pow(__B__,3-(__H__))),min(0,__K__)-8)-1},
-    ymax={min(max(0,__K__,__K__+__A__*pow(__B__,-2-(__H__)),__K__+__A__*pow(__B__,3-(__H__))),max(0,__K__)+8)+1},
+    % The window follows the curve, capped at 3x its height at x = 0 (at least
+    % 8 units) past the asymptote. The old fixed 0..6 range cut off
+    % y = 2^(x - 1) + 3, and a fixed 8-unit cap hid all of 80(0.5)^t.
+    ymin={max(min(0,__K__,__K__+__A__*pow(__B__,-2-(__H__)),__K__+__A__*pow(__B__,3-(__H__))),min(0,__K__)-max(8,3*abs(__A__*pow(__B__,-(__H__)))))-1},
+    ymax={min(max(0,__K__,__K__+__A__*pow(__B__,-2-(__H__)),__K__+__A__*pow(__B__,3-(__H__))),max(0,__K__)+max(8,3*abs(__A__*pow(__B__,-(__H__)))))+1},
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
@@ -431,26 +430,36 @@ templates = [
         "id": 'function_intersection_two_curves',
         "subject": 'Advanced Functions',
         "triggers": ['points of intersection', 'point of intersection', 'intersection for the functions', 'intersections of functions', 'two functions intersect'],
-        "caption": 'Two function graphs with their intersection point indicated symbolically.',
+        "caption": 'The two given function graphs on one set of axes, so their intersections can be found.',
+        # This skeleton used to be static (2^(x+1) and 4^x with a point at
+        # (1,4)), so every "find the intersection" question got that picture.
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[
-    width=7cm, height=4cm,
-    xmin=-1, xmax=3,
-    ymin=0, ymax=9,
+    width=7cm, height=4.5cm,
+    xmin=__XMIN__, xmax=__XMAX__,
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
-    xtick={-1,0,1,2,3}, ytick={0,2,4,6,8},
-    samples=100,
+    samples=161,
+    % y fits the curves; far-off samples are dropped so steep curves still fit
+    restrict y to domain=-60:60,
+    enlarge y limits=0.08,
+    legend pos=outer north east,
+    legend style={draw=none, font=\small},
 ]
-    \addplot[cp line, domain=-1:3] {2^(x+1)};
-    \addplot[cp dashed, domain=-1:3] {4^x};
-    \addplot[only marks, cp point] coordinates {(1,4)};
-    \node[cp label, anchor=south west] at (axis cs:1,4) {$P$};
-    \node[cp label, anchor=south east] at (axis cs:2.7,7.2) {$f(x)$};
-    \node[cp label, anchor=north west] at (axis cs:1.55,6.2) {$g(x)$};
+    \addplot[cp line, domain=__XMIN__:__XMAX__] {__F__};
+    \addlegendentry{__F_LABEL__}
+    \addplot[cp dashed, domain=__XMIN__:__XMAX__] {__G__};
+    \addlegendentry{__G_LABEL__}
 \end{axis}
 \end{tikzpicture}""",
-        "params": {},
+        "params": {
+            'F': {'type': 'label', 'default': 'x^2', 'desc': "pgfplots expression in x for the first function; write * for multiplication, e.g. 2*x^2-3"},
+            'G': {'type': 'label', 'default': 'x+2', 'desc': "pgfplots expression in x for the second function"},
+            'XMIN': {'type': 'number', 'default': '-3', 'desc': 'left x bound, a unit or two beyond the leftmost intersection'},
+            'XMAX': {'type': 'number', 'default': '4', 'desc': 'right x bound, a unit or two beyond the rightmost intersection'},
+            'F_LABEL': {'type': 'label', 'default': '$y=x^2$', 'desc': 'legend entry for the first function, e.g. $y=x^2$'},
+            'G_LABEL': {'type': 'label', 'default': '$y=x+2$', 'desc': 'legend entry for the second function'},
+        },
     },
 ]
