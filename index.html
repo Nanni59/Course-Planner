@@ -2157,12 +2157,12 @@
         body.dark-mode #themeToggleBtn {
             color: #ffd479;
             background-color: #242c38;
-            box-shadow: 0 0 12px rgba(255, 212, 121, 0.18);
+            box-shadow: var(--btn-lift);
         }
 
         body.dark-mode #themeToggleBtn:hover {
             background-color: #2b3442;
-            box-shadow: 0 0 16px rgba(255, 212, 121, 0.26);
+            box-shadow: var(--btn-press);
         }
 
         @media (max-width: 600px) {
@@ -5672,6 +5672,363 @@
         @media (prefers-reduced-motion:reduce) {
             .exam-btn, .exam-progress > span, .exam-toast { transition:none; }
         }
+
+        /* =========================================================
+           CLAY PRESS BUTTONS — the Canvas/Backup/Reset gesture for every
+           action button: raised at rest, sinks in on hover, deeper on click.
+           Only the surface changes (fill, shadow, hover/press); each button
+           keeps its own size, radius and colour (--acc below). Kept last in
+           the cascade, "body" + :not(:disabled) out-rank the older per-area
+           rules, and disabled buttons keep their original look.
+           ========================================================= */
+        /* Light mode lifts buttons with a white face, a crisp contact shadow, a
+           soft cast shadow and a hairline edge: a grey face on white cards read as
+           recessed. Dark mode keeps the Canvas look. --btn-press* is the hover /
+           click recess; the -color variants sit on filled buttons. */
+        :root {
+            --btn-raised: #ffffff;
+            --btn-raised-hover: #eef2f8;
+            --btn-track: #dfe4ee;
+            --btn-ink: #2c3340;
+            --btn-ink-soft: #5b6473;
+            --btn-neu-dark: rgba(80, 100, 140, 0.12);
+            --btn-neu-dark-strong: rgba(80, 100, 140, 0.16);
+            --btn-neu-light: rgba(255, 255, 255, 0.95);
+            --btn-lift: 0 1px 2px rgba(40, 60, 100, 0.10), 3px 4px 10px rgba(80, 100, 140, 0.18),
+                -3px -3px 8px rgba(255, 255, 255, 0.9), inset 0 0 0 1px rgba(60, 80, 120, 0.07);
+            --btn-lift-sm: 0 1px 2px rgba(40, 60, 100, 0.10), 2px 3px 6px rgba(80, 100, 140, 0.16),
+                -2px -2px 4px rgba(255, 255, 255, 0.9), inset 0 0 0 1px rgba(60, 80, 120, 0.07);
+            --btn-lift-color: 0 1px 2px rgba(40, 60, 100, 0.14), 3px 4px 10px rgba(80, 100, 140, 0.22),
+                -3px -3px 8px rgba(255, 255, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+            --btn-lift-color-sm: 0 1px 2px rgba(40, 60, 100, 0.14), 2px 3px 6px rgba(80, 100, 140, 0.20),
+                -2px -2px 4px rgba(255, 255, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+            --btn-press: inset 2px 2px 6px rgba(80, 100, 140, 0.24), inset -2px -2px 5px rgba(255, 255, 255, 0.9);
+            --btn-press-deep: inset 3px 3px 8px rgba(80, 100, 140, 0.30), inset -1px -1px 3px rgba(255, 255, 255, 0.8);
+            --btn-press-color: inset 3px 3px 8px rgba(0, 0, 0, 0.32), inset -3px -3px 7px rgba(255, 255, 255, 0.14);
+            --btn-press-color-deep: inset 4px 4px 10px rgba(0, 0, 0, 0.40), inset -2px -2px 5px rgba(255, 255, 255, 0.10);
+        }
+        body.dark-mode {
+            --btn-raised: #242c38;
+            --btn-raised-hover: #2b3442;
+            --btn-track: #171d26;
+            --btn-ink: #e8ebf2;
+            --btn-ink-soft: #cbd2e0;
+            --btn-neu-dark: rgba(0, 0, 0, 0.40);
+            --btn-neu-dark-strong: rgba(0, 0, 0, 0.45);
+            --btn-neu-light: rgba(255, 255, 255, 0.03);
+            --btn-lift: 3px 3px 7px rgba(0, 0, 0, 0.40), -3px -3px 7px rgba(255, 255, 255, 0.03);
+            --btn-lift-sm: 2px 2px 5px rgba(0, 0, 0, 0.40), -2px -2px 5px rgba(255, 255, 255, 0.03);
+            --btn-lift-color: 3px 3px 7px rgba(0, 0, 0, 0.45), -3px -3px 7px rgba(255, 255, 255, 0.03),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            --btn-lift-color-sm: 2px 2px 5px rgba(0, 0, 0, 0.45), -2px -2px 5px rgba(255, 255, 255, 0.03),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            --btn-press: inset 2px 2px 5px rgba(0, 0, 0, 0.45), inset -2px -2px 5px rgba(255, 255, 255, 0.03);
+            --btn-press-deep: inset 3px 3px 7px rgba(0, 0, 0, 0.50), inset -1px -1px 3px rgba(255, 255, 255, 0.03);
+            --btn-press-color: inset 3px 3px 8px rgba(0, 0, 0, 0.45), inset -2px -2px 6px rgba(255, 255, 255, 0.08);
+            --btn-press-color-deep: inset 4px 4px 10px rgba(0, 0, 0, 0.55), inset -2px -2px 5px rgba(255, 255, 255, 0.06);
+        }
+
+        /* Button colours (anything unmapped falls back to the shared green) */
+        .st-btn { --acc: var(--color-study); }
+        .link-modal-buttons .btn-save { --acc: var(--active-color); }
+        .manual-import-section .btn-save { --acc: var(--color-tracker-green); }
+        #canvas-import-section .btn-save,
+        #canvas-import-section .btn-cancel { --acc: #e72429; }
+        .cal-btn.primary { --acc: var(--cal-accent); }
+        .exam-btn.primary,
+        .exam-section-nav .exam-btn.active { --acc: var(--exam-accent); }
+        .st-chip { --acc: var(--color-study); }
+
+        /* Primary: filled with --acc. Selected toggles (worksheet question types,
+           the SAT/IELTS section tabs) use the same filled look. The drop shadow is
+           the neutral Canvas one, not a coloured glow, so in dark mode coloured
+           buttons stand off the page the same way Canvas does. */
+        body #saveBtn:not(:disabled),
+        body .add-items-trigger-btn:not(:disabled),
+        body .autofill-btn:not(:disabled),
+        body .cm-btn-add:not(:disabled),
+        body .link-modal-buttons .btn-save:not(:disabled),
+        body #canvas-import-section .btn-cancel:not(:disabled),
+        body .split-modal-buttons .btn-split:not(:disabled),
+        body .st-btn:not(.st-btn-ghost):not(:disabled),
+        body .cal-btn.primary:not(:disabled),
+        body .exam-btn.primary:not(:disabled),
+        body .exam-section-nav .exam-btn.active:not(:disabled),
+        body .st-chip.on {
+            --acc-deep: color-mix(in srgb, var(--acc, #58A65C) 90%, #000);
+            background: var(--acc, #58A65C);
+            color: #ffffff;
+            border-color: transparent;
+            box-shadow: var(--btn-lift-color);
+            transition: background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+        }
+
+        body #saveBtn:not(:disabled):hover,
+        body .add-items-trigger-btn:not(:disabled):hover,
+        body .autofill-btn:not(:disabled):hover,
+        body .cm-btn-add:not(:disabled):hover,
+        body .link-modal-buttons .btn-save:not(:disabled):hover,
+        body #canvas-import-section .btn-cancel:not(:disabled):hover,
+        body .split-modal-buttons .btn-split:not(:disabled):hover,
+        body .st-btn:not(.st-btn-ghost):not(:disabled):hover,
+        body .cal-btn.primary:not(:disabled):hover,
+        body .exam-btn.primary:not(:disabled):hover,
+        body .exam-section-nav .exam-btn.active:not(:disabled):hover,
+        body .st-chip.on:hover {
+            background: var(--acc-deep);
+            color: #ffffff;
+            opacity: 1;
+            transform: none;
+            filter: none;
+            box-shadow: var(--btn-press-color);
+        }
+
+        /* Click, and the footer's brief "Saved!" confirmation, sit pressed in */
+        body #saveBtn:not(:disabled):active,
+        body #saveBtn.saved-state:not(:disabled),
+        body .add-items-trigger-btn:not(:disabled):active,
+        body .autofill-btn:not(:disabled):active,
+        body .cm-btn-add:not(:disabled):active,
+        body .link-modal-buttons .btn-save:not(:disabled):active,
+        body #canvas-import-section .btn-cancel:not(:disabled):active,
+        body .split-modal-buttons .btn-split:not(:disabled):active,
+        body .st-btn:not(.st-btn-ghost):not(:disabled):active,
+        body .cal-btn.primary:not(:disabled):active,
+        body .exam-btn.primary:not(:disabled):active,
+        body .exam-section-nav .exam-btn.active:not(:disabled):active,
+        body .st-chip.on:active {
+            background: var(--acc-deep);
+            transform: none;
+            box-shadow: var(--btn-press-color-deep);
+        }
+
+        /* Secondary: the neutral Canvas surface (Canvas/Backup/Reset themselves, Cancel,
+           ghost, Connect API, switch rows, unselected question types and section tabs,
+           calendar and exam tools) */
+        body #canvas-import-btn:not(:disabled),
+        body #backupBtn:not(.active):not(:disabled),
+        body #resetBtn:not(:disabled),
+        body .link-modal-buttons .btn-cancel:not(:disabled),
+        body .split-modal-buttons .btn-cancel:not(:disabled),
+        body .st-btn.st-btn-ghost:not(:disabled),
+        body .st-api-btn:not(:disabled),
+        body .st-toggle-pill:not(:disabled),
+        body .st-chip:not(.on),
+        body .cal-btn:not(.primary):not(:disabled),
+        body .cal-icon-btn:not(:disabled),
+        body .exam-btn:not(.primary):not(:disabled):not(.exam-section-nav .exam-btn),
+        body .exam-section-nav .exam-btn:not(.active):not(:disabled) {
+            background: var(--btn-raised);
+            border-color: transparent;
+            box-shadow: var(--btn-lift);
+            transition: background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+        }
+
+        body #canvas-import-btn:not(:disabled):hover,
+        body #backupBtn:not(.active):not(:disabled):hover,
+        body #resetBtn:not(:disabled):hover,
+        body .link-modal-buttons .btn-cancel:not(:disabled):hover,
+        body .split-modal-buttons .btn-cancel:not(:disabled):hover,
+        body .st-btn.st-btn-ghost:not(:disabled):hover,
+        body .st-api-btn:not(:disabled):hover,
+        body .st-toggle-pill:not(:disabled):hover,
+        body .st-chip:not(.on):hover,
+        body .cal-btn:not(.primary):not(:disabled):hover,
+        body .cal-icon-btn:not(:disabled):hover,
+        body .exam-btn:not(.primary):not(:disabled):not(.exam-section-nav .exam-btn):hover,
+        body .exam-section-nav .exam-btn:not(.active):not(:disabled):hover {
+            background: var(--btn-raised-hover);
+            opacity: 1;
+            transform: none;
+            filter: none;
+            box-shadow: var(--btn-press);
+        }
+
+        body #canvas-import-btn:not(:disabled):active,
+        body #backupBtn:not(.active):not(:disabled):active,
+        body #resetBtn:not(:disabled):active,
+        body .link-modal-buttons .btn-cancel:not(:disabled):active,
+        body .split-modal-buttons .btn-cancel:not(:disabled):active,
+        body .st-btn.st-btn-ghost:not(:disabled):active,
+        body .st-api-btn:not(:disabled):active,
+        body .st-toggle-pill:not(:disabled):active,
+        body .st-chip:not(.on):active,
+        body .cal-btn:not(.primary):not(:disabled):active,
+        body .cal-icon-btn:not(:disabled):active,
+        body .exam-btn:not(.primary):not(:disabled):not(.exam-section-nav .exam-btn):active,
+        body .exam-section-nav .exam-btn:not(.active):not(:disabled):active {
+            background: var(--btn-raised-hover);
+            transform: none;
+            box-shadow: var(--btn-press-deep);
+        }
+
+        /* The SAT/IELTS tab row scrolls sideways and clips anything past its 5px/7px
+           padding, so its tabs rest on a tighter version of the same shadow */
+        body .exam-section-nav .exam-btn:not(.active):not(:disabled) { box-shadow: var(--btn-lift-sm); }
+        body .exam-section-nav .exam-btn.active:not(:disabled) { box-shadow: var(--btn-lift-color-sm); }
+
+        /* Switch rows (notifications, math formatting, textbook visuals): the row stays
+           a neutral raised button; a tinted icon tile and a sliding switch show the state.
+           The "On"/"Off" text stays in the switch for screen readers. */
+        body .st-toggle-pill.on:not(:disabled) { color: var(--btn-ink); }
+        body .st-toggle-pill:not(:disabled) .st-tp-ico {
+            background: color-mix(in srgb, var(--active-color, #58A65C) 13%, transparent);
+            color: var(--active-color, #58A65C);
+            box-shadow: none;
+        }
+        body .st-toggle-pill.on:not(:disabled) .st-tp-ico { background: var(--active-color, #58A65C); color: #ffffff; }
+        body .st-toggle-pill:not(:disabled) .st-tp-state {
+            position: relative;
+            width: 40px;
+            height: 24px;
+            padding: 0;
+            border-radius: 999px;
+            overflow: hidden;
+            font-size: 0;
+            letter-spacing: 0;
+            color: transparent;
+            background: var(--btn-track);
+            box-shadow: inset 1px 1px 3px var(--btn-neu-dark-strong);
+            transition: background-color 0.18s ease;
+        }
+        body .st-toggle-pill:not(:disabled) .st-tp-state::after {
+            content: "";
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.25);
+            transition: transform 0.18s ease;
+        }
+        body .st-toggle-pill.on:not(:disabled) .st-tp-state { background: var(--active-color, #58A65C); }
+        body .st-toggle-pill.on:not(:disabled) .st-tp-state::after { transform: translateX(16px); }
+
+        /* Other selected toggles drop their coloured glow for the same neutral shadow */
+        body .vid-mode-btn.on,
+        body .cal-view-btn.active,
+        body .cal-picker-day.selected {
+            box-shadow: 2px 2px 6px var(--btn-neu-dark-strong), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        /* The modal Cancel buttons were #f0f0f0 with #333 text; give them the themed greys */
+        body .link-modal-buttons .btn-cancel:not(:disabled),
+        body .split-modal-buttons .btn-cancel:not(:disabled) { color: var(--btn-ink-soft); }
+        body .link-modal-buttons .btn-cancel:not(:disabled):hover,
+        body .split-modal-buttons .btn-cancel:not(:disabled):hover { color: var(--btn-ink); }
+
+        /* Saved / on toggles keep their green outline */
+        body .st-btn.st-btn-ghost.is-saved:not(:disabled),
+        body .vid-head-actions .st-btn.st-btn-ghost.is-on:not(:disabled) { border-color: rgba(88, 166, 92, 0.5); }
+
+        /* Keyboard focus: a ring in the button's colour (shadows are taken by the press effect) */
+        body #saveBtn:not(:disabled):focus-visible,
+        body .add-items-trigger-btn:not(:disabled):focus-visible,
+        body .autofill-btn:not(:disabled):focus-visible,
+        body .cm-btn-add:not(:disabled):focus-visible,
+        body .link-modal-buttons button:not(:disabled):focus-visible,
+        body .split-modal-buttons button:not(:disabled):focus-visible,
+        body .st-btn:not(:disabled):focus-visible,
+        body .cal-btn.primary:not(:disabled):focus-visible,
+        body .exam-btn.primary:not(:disabled):focus-visible,
+        body .st-api-btn:not(:disabled):focus-visible,
+        body .st-toggle-pill:not(:disabled):focus-visible {
+            outline: 3px solid color-mix(in srgb, var(--acc, #58A65C) 38%, transparent);
+            outline-offset: 2px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            body #saveBtn, body .add-items-trigger-btn, body .autofill-btn, body .cm-btn-add,
+            body .link-modal-buttons button, body .split-modal-buttons button, body .st-btn,
+            body .cal-btn, body .cal-icon-btn, body .exam-btn, body .st-chip, body .st-api-btn,
+            body #canvas-import-btn, body #backupBtn, body #resetBtn, body .st-toggle-pill,
+            body .st-toggle-pill .st-tp-state, body .st-toggle-pill .st-tp-state::after { transition: none; }
+        }
+
+        /* =========================================================
+           CHECKMARKS — one standard for Day A/B cards (lesson, assignment,
+           subtask, expanded view), the trackers, and split-assignment progress
+           circles, using the Clay Press button gesture: raised at rest, sinks in
+           on hover, deeper on click. Open = neutral raised circle; done = green
+           raised circle with a white tick. A split assignment part-way through
+           shows a green progress arc and a faint green tick. Checkmarks are small
+           and sit in scrolling cards, so they rest on the compact (-sm) lift.
+           ========================================================= */
+        :root {
+            --check-done: var(--color-tracker-green);
+            --check-tick-white: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3E%3C/svg%3E");
+            --check-tick-green: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2358A65C' d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3E%3C/svg%3E");
+        }
+
+        /* open */
+        body .task-list input[type="checkbox"],
+        body .tracker-item-checkbox,
+        body .progress-circle-wrapper {
+            --check-done-deep: color-mix(in srgb, var(--check-done) 90%, #000);
+            width: 26px;
+            height: 26px;
+            border: none;
+            background-color: var(--btn-raised);
+            background-image: none;
+            box-shadow: var(--btn-lift-sm);
+            transition: background-color 0.18s ease, box-shadow 0.18s ease;
+        }
+        body .task-list input[type="checkbox"]:hover,
+        body .tracker-item-checkbox:hover,
+        body .progress-circle-wrapper:hover {
+            border: none;
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press);
+        }
+        body .task-list input[type="checkbox"]:active,
+        body .tracker-item-checkbox:active,
+        body .progress-circle-wrapper:active {
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press-deep);
+        }
+
+        /* done */
+        body .task-list input[type="checkbox"]:checked,
+        body .tracker-item-checkbox:checked,
+        body .progress-circle-wrapper.completed {
+            background-color: var(--check-done);
+            background-image: var(--check-tick-white);
+            box-shadow: var(--btn-lift-color-sm);
+        }
+        body .task-list input[type="checkbox"]:checked:hover,
+        body .tracker-item-checkbox:checked:hover,
+        body .progress-circle-wrapper.completed:hover {
+            background-color: var(--check-done-deep);
+            box-shadow: var(--btn-press-color);
+        }
+        body .task-list input[type="checkbox"]:checked:active,
+        body .tracker-item-checkbox:checked:active,
+        body .progress-circle-wrapper.completed:active {
+            background-color: var(--check-done-deep);
+            box-shadow: var(--btn-press-color-deep);
+        }
+        /* the wrapper draws its tick with a child element, not a background image */
+        body .progress-circle-wrapper.completed { background-image: none; }
+
+        body .task-list input[type="checkbox"]:focus-visible,
+        body .tracker-item-checkbox:focus-visible {
+            outline: 3px solid color-mix(in srgb, var(--check-done) 38%, transparent);
+            outline-offset: 2px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            body .task-list input[type="checkbox"], body .tracker-item-checkbox, body .progress-circle-wrapper { transition: none; }
+        }
+
+        /* Split-assignment circle: the arc and tick sit inside the borderless well.
+           Once complete the green fill says it all, so the ring (and the day-coloured
+           stroke the script sets inline) is hidden. */
+        body .progress-circle-svg { top: 0; left: 0; width: 100%; height: 100%; }
+        body .progress-circle-wrapper.completed .progress-circle-svg { display: none; }
+        body .progress-circle-progress.in-progress { stroke: var(--check-done); }
+        body .progress-circle-checkmark { background-image: var(--check-tick-green); }
+        body .progress-circle-wrapper.completed .progress-circle-checkmark { background-image: var(--check-tick-white); }
     </style>
 </head>
 
