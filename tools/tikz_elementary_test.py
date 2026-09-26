@@ -500,6 +500,25 @@ for tid in ('reciprocal_asymptotes', 'rational_asymptotes'):
     skeleton = templates.get(tid)['skeleton']
     assert r'xticklabel style={anchor={ifthenelse(' in skeleton and r'yticklabel style={anchor={ifthenelse(' in skeleton, tid
     assert '/(\\tick' not in skeleton, tid  # sign tests never divide: pgfmath cannot divide by zero
+# Vector labels (2026-09-27): placed beside their own segment, clear by their
+# measured size (an invisible copy is typeset to measure it) instead of at fixed
+# anchors that let wide labels cross steep vectors.
+for tid in ('airplane_wind_ground_velocity', 'boat_current_resultant', 'collinear_vectors',
+            'vector_difference_from_angle', 'vector_linear_combination', 'triangle_midpoint_vector_sum',
+            'vector_subtraction_as_addition', 'vector_closed_triangle_sum', 'parallelepiped_volume'):
+    skeleton = templates.get(tid)['skeleton']
+    assert 'overlay,opacity=0]' in skeleton and '.north east)-(' in skeleton, tid
+# Comments count as TikZ: none in a vector template may look like a raw arc path,
+# or the vector-angle guard rejects the diagram (the bearing arc is exempt there).
+for t in templates.TEMPLATES:
+    if t['subject'].startswith('Vectors') and t['id'] != 'airplane_wind_ground_velocity':
+        assert not re.search(r"\barc\s*(?:\[|\()", t['skeleton']), t['id']
+# The line passes through the marked intersection point, and plane labels no
+# longer sit under the normal / on the point.
+line_plane = templates.get('line_plane_intersection')['skeleton']
+assert '($(I)+(-1.2,-1.5,1.3)$)' in line_plane and '($(I)+(1.2,1.5,-1.3)$)' in line_plane
+for tid in ('line_plane_intersection', 'plane_with_normal'):
+    assert r'\node[cp label] at ($(A)!0.5!(B)$)' not in templates.get(tid)['skeleton'], tid
 # Middle axes put the axis letters beyond the arrow tips, clear of the last tick label.
 for t in templates.TEMPLATES:
     if 'axis lines=middle' in t['skeleton'] or 'axis lines=center' in t['skeleton']:
