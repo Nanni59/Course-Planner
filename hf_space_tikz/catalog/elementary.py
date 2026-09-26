@@ -115,7 +115,7 @@ def _points(text):
     marks = '\n'.join(rf'\addplot[only marks,mark=*,mark size=1.5pt] coordinates {{({_n(x)},{_n(y)})}};\node[{"below" if y < 0 else "above"} right,font=\small] at (axis cs:{_n(x)},{_n(y)}) {{${p}({_n(x)},{_n(y)})$}};' for p,x,y in values)
     coords = ' '.join(f'({_n(x)},{_n(y)})' for _,x,y in values)
     return _result('coordinate_segment',dict(points=values,bounds=[lo,hi]),rf'''
-\begin{{axis}}[width=7cm,height=7cm,axis equal image,axis lines=middle,xlabel=$x$,ylabel=$y$,
+\begin{{axis}}[width=7cm,height=7cm,axis equal image,axis lines=middle,xlabel=$x$,ylabel=$y$,xlabel style={{anchor=west}},ylabel style={{anchor=south}},
 xmin={_n(lo)},xmax={_n(hi)},ymin={_n(lo)},ymax={_n(hi)},xtick distance=1,ytick distance=1,
 tick label style={{font=\small}},grid=major,grid style={{gray!25,thin}},clip=false]
 \addplot[cp line] coordinates {{{coords}}};
@@ -351,7 +351,7 @@ def _quadratic(text):
         return None
     c,b,a = equations[0]
     return _result('quadratic_explicit_bounds', dict(a=a,b=b,c=c,domain=[xmin,xmax],yrange=[ymin,ymax]), rf'''
-\begin{{axis}}[width=7cm,height=7cm,axis lines=middle,xlabel=$x$,ylabel=$y$,
+\begin{{axis}}[width=7cm,height=7cm,axis lines=middle,xlabel=$x$,ylabel=$y$,xlabel style={{anchor=west}},ylabel style={{anchor=south}},
 xmin={_n(xmin)},xmax={_n(xmax)},ymin={_n(ymin)},ymax={_n(ymax)},xtick distance=1,ytick distance=1,
 tick label style={{font=\small}},grid=major,grid style={{gray!25,thin}},clip=true,clip mode=individual]
 \addplot[cp line,no marks,samples=161,domain={_n(xmin)}:{_n(xmax)}] {{{_n(a)}*x^2+({_n(b)})*x+({_n(c)})}};

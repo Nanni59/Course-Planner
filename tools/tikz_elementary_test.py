@@ -487,7 +487,23 @@ lin = templates.get('linear_transformation_unit_square')['skeleton']
 assert lin.index(r'\draw[cp fill]') < lin.index(r'\draw[cp dashed] (O) -- (U1)')
 removable = templates.fill(templates.get('removable_discontinuity'), {'X0':'3','M':'1','B':'3'})
 assert '{x+1}' not in removable and 'cpf(3)' in removable
-assert 'max(6.2832,6.2832/0.5)' in templates.fill(templates.get('sinusoid_amplitude_period'), {'FREQUENCY_VALUE':'0.5'})
+slow_wave = templates.fill(templates.get('sinusoid_amplitude_period'), {'FREQUENCY_VALUE':'0.5'})
+assert 'max(6.2832,6.2832/0.5,' in slow_wave
+# Label collisions (2026-09-27): the period arrow runs peak to peak instead of
+# from the y-axis, and the amplitude label sits mid-arrow instead of on the peak.
+assert '(axis cs:0,{' not in slow_wave and '(axis cs:{cpx(0)+cpp(0)},' in slow_wave
+assert 'node[pos=.5, anchor=west' in slow_wave and 'node[pos=1, anchor=west' not in slow_wave
+# Root labels are drawn once each, on the side of the axis where the curve is not.
+assert cubic.count(r'\node[cp label, font=\scriptsize, anchor={ifthenelse(') == 3 and 'xticklabels={}' in cubic
+# Asymptote graphs put each tick label on the side of its axis away from the curve.
+for tid in ('reciprocal_asymptotes', 'rational_asymptotes'):
+    skeleton = templates.get(tid)['skeleton']
+    assert r'xticklabel style={anchor={ifthenelse(' in skeleton and r'yticklabel style={anchor={ifthenelse(' in skeleton, tid
+    assert '/(\\tick' not in skeleton, tid  # sign tests never divide: pgfmath cannot divide by zero
+# Middle axes put the axis letters beyond the arrow tips, clear of the last tick label.
+for t in templates.TEMPLATES:
+    if 'axis lines=middle' in t['skeleton'] or 'axis lines=center' in t['skeleton']:
+        assert 'xlabel style={anchor=west}, ylabel style={anchor=south}' in t['skeleton'], t['id']
 
 # Fifty specific questions across topics, written like generated worksheet
 # items (question + model-authored diagram description), must reach the right

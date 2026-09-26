@@ -18,16 +18,28 @@ templates = [
         # landed outside the plot. The fill prompt shows the model this skeleton,
         # so it can frame the window around the actual point of tangency.
         "skeleton": r"""\begin{tikzpicture}
-\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
   grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
   \addplot[cp line, samples=100, domain=__XMIN__:__XMAX__]{__CURVE__};
   \addplot[only marks, cp point] coordinates {(__POINT_X__, __POINT_Y__)};
-  \node[cp label, above right] at (axis cs:__POINT_X__,__POINT_Y__) {$(__POINT_X__,__POINT_Y__)$};
+  % Point label above the line on its uphill-away side (above-left for a rising
+  % line: bottom-right corner at the point), off both the line and the curve;
+  % above right sat on the line.
+  \node[cp label, anchor=south, xshift={ifthenelse(__SLOPE__>=0,-1,1)*(0.5*width("$(__POINT_X__,__POINT_Y__)$")+2)}] at (axis cs:__POINT_X__,__POINT_Y__) {$(__POINT_X__,__POINT_Y__)$};
   \addplot[cp dashed, domain=__XMIN__:__XMAX__]{__SLOPE__*x + __INTERCEPT__};
-  \node[cp label, above right] at (axis cs:__LABEL_X__, {__SLOPE__*(__LABEL_X__) + __INTERCEPT__}) {__LINE_LABEL__};
+  % Line label on the side of the line away from the curve. The curve's side at
+  % LABEL_X is the sign of curve - line there, computed as this point's meta
+  % value; the transformed meta is above 500 exactly when it is positive (then
+  % the label goes below the line: below-right of a rising line).
+  \addplot[draw=none, samples at={__LABEL_X__},
+    point meta={(__CURVE__)-(__SLOPE__*x + __INTERCEPT__)}, point meta min=-0.001, point meta max=0.001,
+    nodes near coords={__LINE_LABEL__},
+    nodes near coords style={cp label, anchor={ifthenelse(\pgfplotspointmetatransformed>500,90,270)},
+      xshift={ifthenelse(\pgfplotspointmetatransformed>500,1,-1)*ifthenelse(__SLOPE__>=0,1,-1)*(0.5*width("__LINE_LABEL__")+2)}}]
+    {__SLOPE__*x + __INTERCEPT__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -40,7 +52,7 @@ templates = [
             'POINT_Y': {'type': 'number', 'default': '1', 'desc': 'y-coordinate of the point of tangency'},
             'SLOPE': {'type': 'number', 'default': '2', 'desc': 'slope of the drawn line at the point'},
             'INTERCEPT': {'type': 'number', 'default': '-1', 'desc': 'y-intercept of the drawn line'},
-            'LABEL_X': {'type': 'number', 'default': '-1.5', 'desc': 'x-position for the line label, inside the window and away from the marked point'},
+            'LABEL_X': {'type': 'number', 'default': '2', 'desc': 'x-position for the line label, inside the window and away from the marked point'},
             'LINE_LABEL': {'type': 'label', 'default': 'tangent', 'desc': "name of the drawn line: 'tangent' for tangent-line questions, 'normal' for normal-line questions"},
         },
     },
@@ -50,7 +62,7 @@ templates = [
         "triggers": ['secant', 'secant line', 'average rate', 'instantaneous rate'],
         "caption": 'A function curve with a secant line between two points and a tangent line at one of them.',
         "skeleton": r"""\begin{tikzpicture}
-\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   xmin=-1, xmax=3.5, ymin=-1, ymax=6,
   grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
@@ -58,9 +70,12 @@ templates = [
   \addplot[cp line, samples=100, domain=-1:3.5]{x^2};
   \addplot[only marks, cp point] coordinates {(__X1__, __Y1__) (__X2__, __Y2__)};
   \draw[cp line] (axis cs:__X1__,__Y1__) -- (axis cs:__X2__,__Y2__);
-  \node[cp label, above right] at (axis cs:__X1__,__Y1__) {secant};
+  % at the middle of the chord, outside the (convex) curve: above-left of a rising chord
+  \node[cp label, anchor=south, xshift={ifthenelse((__Y2__-(__Y1__))*(__X2__-(__X1__))>=0,-1,1)*(0.5*width("secant")+2)}] at (axis cs:{(__X1__+__X2__)/2},{(__Y1__+__Y2__)/2}) {secant};
   \addplot[cp dashed, domain=-1:3.5]{__TAN_SLOPE__*x + __TAN_INTERCEPT__};
-  \node[cp label, anchor=west] at (axis cs:-0.5, {__TAN_SLOPE__*(-0.5)+__TAN_INTERCEPT__}) {tangent};
+  % one unit from the point of tangency (inside the window), below the line,
+  % where the convex curve never reaches; at x = -0.5 it was usually off-window
+  \node[cp label, anchor=north, xshift={ifthenelse(__TAN_SLOPE__>=0,1,-1)*(0.5*width("tangent")+2)}] at (axis cs:{ifthenelse(__X1__<2,__X1__+1,__X1__-1)}, {__TAN_SLOPE__*ifthenelse(__X1__<2,__X1__+1,__X1__-1)+__TAN_INTERCEPT__}) {tangent};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -83,7 +98,7 @@ templates = [
         ],
         "caption": 'Definite integral represented as shaded area under a curve between $x=a$ and $x=b$.',
         "skeleton": r"""\begin{tikzpicture}
-\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
   xtick={__A__,__B__}, xticklabels={__A_LABEL__,__B_LABEL__}, hide obscured x ticks=false,
   grid=both, grid style={gray!25,thin},
@@ -116,7 +131,7 @@ templates = [
         "triggers": ['Riemann sum', 'rectangles', 'left endpoint', 'left-endpoint'],
         "caption": 'Riemann sum approximation using four left-endpoint rectangles under a curve.',
         "skeleton": r"""\begin{tikzpicture}
-\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
   grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
@@ -153,7 +168,7 @@ templates = [
         # The old skeleton always drew y = x + 1 on [0, 3] whatever the function;
         # the simplified curve is now A2*x^2 + M*x + B on a window around the hole.
         "skeleton": r"""\begin{tikzpicture}
-\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   declare function={cpf(\t)=(__A2__)*\t^2+(__M__)*\t+(__B__);
     cpv(\t)=max(__X0__-3,min(__X0__+3,-(__M__)/(2*(__A2__)+ifthenelse(__A2__==0,1,0))));},
   xmin={min(-0.5,__X0__-3)}, xmax={max(0.5,__X0__+3)},
@@ -183,7 +198,7 @@ templates = [
         "triggers": ['vertical asymptote', 'horizontal asymptote'],
         "caption": 'A graph of a rational function showing both a vertical and a horizontal asymptote.',
         "skeleton": r"""\begin{tikzpicture}
-\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   % The window follows both asymptotes; the fixed -2..5 by -1..5 window lost
   % asymptotes outside it and clipped the labels.
   xmin={min(-2,__C__-3)}, xmax={max(5,__C__+4)}, ymin={min(-1,__K__-4)}, ymax={max(5,__K__+3)},
@@ -197,8 +212,12 @@ templates = [
   \draw[cp dashed] ({rel axis cs:0,0}|-{axis cs:0,__K__}) -- ({rel axis cs:1,0}|-{axis cs:0,__K__});
   % Labels sit outside the window: above it for the vertical asymptote and
   % beyond its right edge for the horizontal one, clear of axes and branches.
-  \node[cp label, anchor=south] at ({axis cs:__C__,0}|-{rel axis cs:0,1}) {vertical asymptote};
-  \node[cp label, anchor=west, align=left] at ({rel axis cs:1,0}|-{axis cs:0,__K__}) {horizontal\\asymptote};
+  % extends away from the y-axis (its bottom corner at the line), clear of the
+  % axis letter; angle anchors are border points, not corners, on a wide label
+  \node[cp label, anchor=south, xshift={ifthenelse(__C__>=0,1,-1)*(0.5*width("vertical asymptote")+1)}] at ({axis cs:__C__,0}|-{rel axis cs:0,1}) {vertical asymptote};
+  % grows away from the x-axis (its two lines sit above the line when K >= 0), so
+  % it never meets the x-axis letter just beyond the arrow
+  \node[cp label, anchor=west, align=left, yshift={ifthenelse(__K__>=0,1,-1)*0.5*height("horizontal")*2}] at ({rel axis cs:1,0}|-{axis cs:0,__K__}) {horizontal\\asymptote};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -214,7 +233,7 @@ templates = [
                      'local extrema'],
         "caption": 'A curve with marked local maximum, local minimum and an inflection point.',
         "skeleton": r"""\begin{tikzpicture}
-\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   xmin=-2, xmax=2, ymin=-3, ymax=3,
   grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
@@ -244,7 +263,7 @@ templates = [
 \draw[cp line] (0,0) rectangle (4,2);
 \draw[cp dashed,<->] (0,-0.4) -- (4,-0.4) node[midway,below] {$__WIDTH_LABEL__$};
 \draw[cp dashed,<->] (-0.4,0) -- (-0.4,2) node[midway,left] {$__HEIGHT_LABEL__$};
-\node[cp label] at (2,2.5) {$2\times __WIDTH_LABEL__ + 2\times __HEIGHT_LABEL__ = __P__$};
+\node[cp label] at (2,2.5) {$2__WIDTH_LABEL__ + 2__HEIGHT_LABEL__ = __P__$};
 \end{tikzpicture}""",
         "params": {
             'WIDTH_LABEL': {'type': 'label', 'default': 'x', 'desc': "symbol for the rectangle's width"},
@@ -277,7 +296,7 @@ templates = [
 \draw[cp dashed,<->] (-0.45,0) -- (-0.45,2) node[midway,left] {$__SIDE_LABEL__$};
 \draw[cp dashed,<->] (4.45,0) -- (4.45,2) node[midway,right] {$__SIDE_LABEL__$};
 \draw[cp dashed,<->] (0,2.4) -- (4,2.4) node[midway,above] {$__TOP_LABEL__$};
-\node[cp label] at (2,3.05) {$2\times __SIDE_LABEL__ + __TOP_LABEL__ = __P__$};
+\node[cp label] at (2,3.05) {$2__SIDE_LABEL__ + __TOP_LABEL__ = __P__$};
 \end{tikzpicture}""",
         "params": {
             'SIDE_LABEL': {'type': 'label', 'default': 'x', 'desc': 'symbol for each of the two fenced sides perpendicular to the open side'},
@@ -315,7 +334,7 @@ templates = [
 \node[cp label, above right] at (2.3,0.28) {__DR_LABEL__};
 \end{tikzpicture}""",
         "params": {
-            'R_LABEL': {'type': 'label', 'default': 'r', 'desc': "radius label using the question's given value, e.g. r=5 cm"},
+            'R_LABEL': {'type': 'label', 'default': '$r$', 'desc': "radius label using the question's given value, e.g. $r=5$ cm"},
             'DR_LABEL': {'type': 'label', 'default': '$\\frac{dr}{dt}$', 'desc': "rate-of-change label using the question's given rate, e.g. $\\frac{dr}{dt}=2$"},
         },
     },
