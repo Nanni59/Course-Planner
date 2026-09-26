@@ -314,13 +314,16 @@ templates = [
   \coordinate (C) at (4.2,1.3);
   \coordinate (D) at (3.1,-0.8);
   \coordinate (E) at (0.9,-0.7);
-  \foreach \p in {A,B,C,D,E} {\node[cp point,label=above:{$\p$}] at (\p) {};}
+  % Each vertex label points where no edge leaves that vertex (above D and E
+  % the edges ran through them).
+  \foreach \p/\q in {A/above left,B/above,C/right,D/below right,E/below left} {\node[cp point,label=\q:{$\p$}] at (\p) {};}
   \draw[cp line] (A)--(B) node[midway,above] {$__WAB__$};
-  \draw[cp line] (A)--(C) node[midway,below] {$__WAC__$};
+  \draw[cp line] (A)--(C) node[pos=.3,below] {$__WAC__$};
   \draw[cp line] (B)--(C) node[midway,above] {$__WBC__$};
-  % BD and CE cross near their midpoints; label them away from the crossing.
-  \draw[cp line] (B)--(D) node[pos=.3,right] {$__WBD__$};
-  \draw[cp line] (C)--(E) node[pos=.3,above] {$__WCE__$};
+  % AC crosses BD a quarter of the way down BD and CE crosses it at 0.58, so
+  % each weight sits where its edge is clear of every crossing (AC at 0.3).
+  \draw[cp line] (B)--(D) node[pos=.8,right] {$__WBD__$};
+  \draw[cp line] (C)--(E) node[pos=.25,above] {$__WCE__$};
   \draw[cp line] (D)--(E) node[midway,below] {$__WDE__$};
   \draw[cp dashed] (A)--(E);
 \end{tikzpicture}""",

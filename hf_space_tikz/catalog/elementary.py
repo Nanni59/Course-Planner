@@ -111,8 +111,20 @@ def _points(text):
     lo, hi = next(iter(bounds)) if bounds else (math.floor(min(0,*(v for _,x,y in values for v in (x,y))))-1, math.ceil(max(0,*(v for _,x,y in values for v in (x,y))))+1)
     if not lo < hi or hi-lo > 40 or any(not lo <= v <= hi for _,x,y in values for v in (x,y)):
         return None
-    # Keep labels away from the horizontal axis and its numbered ticks.
-    marks = '\n'.join(rf'\addplot[only marks,mark=*,mark size=1.5pt] coordinates {{({_n(x)},{_n(y)})}};\node[{"below" if y < 0 else "above"} right,font=\small] at (axis cs:{_n(x)},{_n(y)}) {{${p}({_n(x)},{_n(y)})$}};' for p,x,y in values)
+    # A label extends toward the middle of the grid (it is about two units
+    # wide), on the vertical side the segment does not use; when the segment
+    # heads the other way, on the side away from the horizontal axis and its
+    # numbered ticks. A fixed "above right" was crossed by rising segments.
+    def place(x, y, ox, oy):
+        horizontal = 'right' if x <= (lo + hi) / 2 else 'left'
+        toward_other = (ox > x) == (horizontal == 'right')
+        vertical = ('below' if oy > y else 'above') if toward_other and oy != y else ('below' if y < 0 else 'above')
+        if abs(y) < 1.3 and (vertical == 'above') == (y < 0):
+            # that side runs into the axis tick labels: continue the segment instead
+            return 'right' if ox < x else 'left'
+        return f'{vertical} {horizontal}'
+    marks = '\n'.join(rf'\addplot[only marks,mark=*,mark size=1.5pt] coordinates {{({_n(x)},{_n(y)})}};\node[{place(x, y, ox, oy)},font=\small] at (axis cs:{_n(x)},{_n(y)}) {{${p}({_n(x)},{_n(y)})$}};'
+                      for (p,x,y),(_,ox,oy) in zip(values, values[::-1]))
     coords = ' '.join(f'({_n(x)},{_n(y)})' for _,x,y in values)
     return _result('coordinate_segment',dict(points=values,bounds=[lo,hi]),rf'''
 \begin{{axis}}[width=7cm,height=7cm,axis equal image,axis lines=middle,xlabel=$x$,ylabel=$y$,xlabel style={{anchor=west}},ylabel style={{anchor=south}},

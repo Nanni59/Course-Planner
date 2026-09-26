@@ -519,6 +519,15 @@ line_plane = templates.get('line_plane_intersection')['skeleton']
 assert '($(I)+(-1.2,-1.5,1.3)$)' in line_plane and '($(I)+(1.2,1.5,-1.3)$)' in line_plane
 for tid in ('line_plane_intersection', 'plane_with_normal'):
     assert r'\node[cp label] at ($(A)!0.5!(B)$)' not in templates.get(tid)['skeleton'], tid
+# Midpoint labels extend toward the grid's middle on the side the segment does not
+# use (a fixed "above right" was crossed by rising segments), and continue the
+# segment instead where that side would meet the axis tick labels.
+rising = generate('Points A(-4, 1) and B(2, 5). Find the midpoint of AB. Diagram: Show both axes from -5 to 5.')['tikz']
+assert r'\node[left,font=\small] at (axis cs:-4,1)' in rising and r'\node[above left,font=\small] at (axis cs:2,5)' in rising
+# Angle labels are explicit nodes where the angle is computed: the angles library
+# splices angle eccentricity into a polar radius, where only a plain number behaves.
+for t in templates.TEMPLATES:
+    assert 'angle eccentricity={' not in t['skeleton'], t['id']
 # Middle axes put the axis letters beyond the arrow tips, clear of the last tick label.
 for t in templates.TEMPLATES:
     if 'axis lines=middle' in t['skeleton'] or 'axis lines=center' in t['skeleton']:
