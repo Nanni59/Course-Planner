@@ -7,9 +7,9 @@
 // against a stubbed localStorage.
 //
 // Covers:
-//   1. seeding: absent/corrupt key falls back to the original four courses,
+//   1. seeding: absent/corrupt key falls back to the default three courses,
 //      but a DELIBERATELY emptied roster stays empty (deleting your last course
-//      must not resurrect Calculus & Vectors on the next load)
+//      must not resurrect English on the next load)
 //   2. normalization rejects blank names, '::' names, duplicates and dayless entries
 //   3. isCourseOnBothDays follows the roster instead of a hard-coded pair
 //   4. renaming a course rewrites its name in EVERY per-course store
@@ -95,17 +95,16 @@ function build(ls) {
 {
     const api = build(makeLocalStorage({}));
     const names = api.getCourses().map(c => c.name);
-    check('absent roster falls back to the original four courses',
-        names.join('|') === 'Calculus & Vectors|English|Media Arts|Business Leadership');
+    check('absent roster falls back to the default three courses',
+        names.join('|') === 'English|Media Arts|Business Leadership');
     check('seeded roster keeps the original day assignments',
         JSON.stringify(api.getCourses()) === JSON.stringify([
-            { name: 'Calculus & Vectors', days: ['dayA', 'dayB'] },
             { name: 'English', days: ['dayA', 'dayB'] },
             { name: 'Media Arts', days: ['dayA'] },
             { name: 'Business Leadership', days: ['dayB'] }
         ]));
     check('ALL_COURSE_NAMES is derived from the roster, not a literal',
-        api.ALL_COURSE_NAMES.length === 4 && api.ALL_COURSE_NAMES[0] === 'Calculus & Vectors');
+        api.ALL_COURSE_NAMES.length === 3 && api.ALL_COURSE_NAMES[0] === 'English');
 }
 {
     const api = build(makeLocalStorage({ cp_courses_v1: [] }));
@@ -115,11 +114,11 @@ function build(ls) {
 {
     const ls = makeLocalStorage({});
     ls.setItem('cp_courses_v1', '{not json');
-    check('corrupt roster falls back to defaults', build(ls).getCourses().length === 4);
+    check('corrupt roster falls back to defaults', build(ls).getCourses().length === 3);
 }
 {
     const api = build(makeLocalStorage({ cp_courses_v1: 'nope' }));
-    check('non-array roster falls back to defaults', api.getCourses().length === 4);
+    check('non-array roster falls back to defaults', api.getCourses().length === 3);
 }
 
 // ---- 2. normalization ------------------------------------------------------
@@ -345,15 +344,15 @@ check('Day A toggles re-point the accent to the shared Day A blue',
     html.includes('.cm-day .cal-square-check[data-day="dayA"] { --cal-accent: var(--color-day-a); }'));
 check('Day B toggles re-point the accent to the shared Day B orange',
     html.includes('.cm-day .cal-square-check[data-day="dayB"] { --cal-accent: var(--color-day-b); }'));
-check('the tick itself is still owned by the Calendar :checked rules',
-    !/\.cm-day[^\n]*:checked[^\n]*background-image/.test(html));
+check('the day toggles use the raised checkmark look with a day-coloured tick',
+    html.includes('body .cm-day .cal-square-check[data-day="dayA"]:checked { background-image: var(--check-tick-day-a); }')
+    && html.includes('body .cm-day .cal-square-check[data-day="dayB"]:checked { background-image: var(--check-tick-day-b); }'));
 
 // ---- 11. the Backup tab's three actions share the app's green --------------
-const GREEN = 'linear-gradient(145deg, #58A65C, #4a9152)';
-check('Export to JSON uses the shared green',
-    html.includes('id="exportJsonBtn"') && html.includes('background: ' + GREEN));
-check('Import from JSON uses the shared green',
-    (html.match(/background: linear-gradient\(145deg, #58A65C, #4a9152\)/g) || []).length === 2);
+check('Export and Import drop their inline gradient for the Clay Press primary',
+    html.includes('id="exportJsonBtn"') && html.includes('id="importJsonBtn"')
+    && !html.includes('background: linear-gradient(145deg, #58A65C, #4a9152)')
+    && html.includes('body #exportJsonBtn:not(:disabled),') && html.includes('body #importJsonBtn:not(:disabled),'));
 check('Add course uses the shared green',
     html.includes('background: linear-gradient(145deg, var(--color-tracker-green), #4a9152);'));
 check('no blue or orange button gradients remain in the Backup tab',

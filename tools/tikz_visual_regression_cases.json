@@ -98,7 +98,7 @@
   {
     "id": "geo_law_cosines_lake",
     "branch": "Geometry And Trigonometry",
-    "subject": "Calculus and Vectors",
+    "subject": "Vectors",
     "title": "Distance Across A Lake",
     "brief": "Two survey points A and B are 120 m apart. A tree C is seen from A and B with included angle A = 42 degrees. Draw triangle ABC for a law of cosines setup.",
     "kind": "word_problem"
@@ -106,7 +106,7 @@
   {
     "id": "geo_law_sines_tower",
     "branch": "Geometry And Trigonometry",
-    "subject": "Calculus and Vectors",
+    "subject": "Vectors",
     "title": "Tower From Two Angles",
     "brief": "In triangle ABC, angle A = 38 degrees, angle B = 71 degrees, and side AB = 45 m. Draw a triangle for a sine law setup.",
     "kind": "word_problem"
@@ -114,7 +114,7 @@
   {
     "id": "geo_bearing_hikers",
     "branch": "Geometry And Trigonometry",
-    "subject": "Calculus and Vectors",
+    "subject": "Vectors",
     "title": "Two-Leg Hike Bearing",
     "brief": "A hiker walks 6 km on a bearing of 040 degrees, then 9 km on a bearing of 115 degrees. Draw the two travel vectors and the displacement from the start.",
     "kind": "word_problem"
@@ -122,7 +122,7 @@
   {
     "id": "geo_angle_elevation_tree",
     "branch": "Geometry And Trigonometry",
-    "subject": "Calculus and Vectors",
+    "subject": "Vectors",
     "title": "Tree Height",
     "brief": "A surveyor stands 18 m from a tree and measures an angle of elevation of 32 degrees to the top. Draw the right triangle with distance, height, and angle.",
     "kind": "word_problem_divergent"
@@ -138,7 +138,7 @@
   {
     "id": "vec_airplane_wind",
     "branch": "Vectors",
-    "subject": "Calculus and Vectors",
+    "subject": "Vectors",
     "title": "Airplane Wind",
     "brief": "An airplane has airspeed 500 km/h on a bearing N30E. Wind from the West is 80 km/h. Draw the air velocity, wind velocity, and ground velocity resultant.",
     "kind": "word_problem"
@@ -146,7 +146,7 @@
   {
     "id": "vec_boat_current",
     "branch": "Vectors",
-    "subject": "Calculus and Vectors",
+    "subject": "Vectors",
     "title": "Boat Crossing River",
     "brief": "A boat heads directly across a river at 4 m/s while the current flows downstream at 3 m/s. Draw the velocity vectors and the resultant path.",
     "kind": "word_problem_divergent"
@@ -154,7 +154,7 @@
   {
     "id": "vec_forces_crate",
     "branch": "Vectors",
-    "subject": "Calculus and Vectors",
+    "subject": "Vectors",
     "title": "Two Forces On A Crate",
     "brief": "Two forces F1 = 20 N and F2 = 30 N act on a crate with an angle of 110 degrees between them. Draw the resultant force vector.",
     "kind": "word_problem"
@@ -162,7 +162,7 @@
   {
     "id": "vec_projection_ramp",
     "branch": "Vectors",
-    "subject": "Calculus and Vectors",
+    "subject": "Vectors",
     "title": "Projection Onto A Ramp",
     "brief": "A force vector is applied near a ramp. Show the projection of vector u onto vector v along the ramp and the perpendicular drop.",
     "kind": "word_problem"
@@ -170,7 +170,7 @@
   {
     "id": "vec_midpoint_median",
     "branch": "Vectors",
-    "subject": "Calculus and Vectors",
+    "subject": "Vectors",
     "title": "Median Vector Proof",
     "brief": "In triangle ABC, M is the midpoint of side BC. Draw vectors AB, AC, and AM to support the proof AB + AC = 2AM.",
     "kind": "textbook_problem"

@@ -254,7 +254,7 @@ def _relevance(template: dict, text_low: str, subj_tokens: set) -> float:
 def _domain_affinity(template: dict, text_low: str, subj_tokens: set) -> float:
     """Tie-breaker used only when padding reference examples.
 
-    Course names such as "Calculus & Vectors" are intentionally broad; a vector
+    Course names can be broad (one course spanning several topic families); a vector
     question with no exact keyword hit should still receive vector references,
     not the first calculus or advanced-functions examples in catalog order.
     """
@@ -514,9 +514,9 @@ if __name__ == "__main__":
     print(f"  OK - {len(TEMPLATES)} templates, all slots/params consistent.\n")
 
     demos = [
-        ("Calculus & Vectors", "In triangle PQR, angle P = 40 degrees and side q = 12 cm. Find angle R."),
-        ("Calculus & Vectors", "A ship sails on a bearing of 040 then 110. Find its distance from start."),
-        ("Calculus & Vectors", "Find the resultant of two forces with an angle of 60 between them."),
+        ("Trigonometry", "In triangle PQR, angle P = 40 degrees and side q = 12 cm. Find angle R."),
+        ("Vectors", "A ship sails on a bearing of 040 then 110. Find its distance from start."),
+        ("Vectors", "Find the resultant of two forces with an angle of 60 between them."),
         ("Data Management", "The marks are normally distributed. Shade within one standard deviation."),
         ("Data Management", "Draw a box-and-whisker plot for the five-number summary."),
         ("Advanced Functions", "Sketch y = log(x) and its asymptote."),  # expect no route

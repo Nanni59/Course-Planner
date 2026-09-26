@@ -72,7 +72,7 @@ function check(name, cond, detail) {
     else { failures++; console.log('FAIL  ' + name + (detail ? '  -> ' + detail : '')); }
 }
 
-const COURSE = 'Calculus & Vectors';
+const COURSE = 'Physics';
 const OTHER = 'English';
 
 // == ordinary assignment: both days updated, other course untouched ==============

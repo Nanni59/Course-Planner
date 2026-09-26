@@ -1,4 +1,4 @@
-"""Course Planner TikZ catalog - Trigonometry & geometry (Calculus & Vectors).
+"""Course Planner TikZ catalog - Trigonometry & geometry.
 
 Preserved from the proven backend blueprints: triangle (law of sines/cosines,
 elevation/depression) and two-leg bearing. These fill a gap the sourced subject
@@ -9,7 +9,7 @@ files don't cover, and the triangle exercises the `tikz`-type ANGLE_LINES slot
 templates = [
     {
         "id": "triangle_general",
-        "subject": "Calculus / Vectors",
+        "subject": "Trigonometry / Geometry",
         "triggers": [
             "triangle", "law of sines", "law of cosines", "sine law", "cosine law",
             "sas", "sss", "asa", "included angle", "oblique triangle",
@@ -46,7 +46,7 @@ templates = [
     },
     {
         "id": "bearing_two_leg",
-        "subject": "Calculus / Vectors",
+        "subject": "Trigonometry / Geometry",
         "triggers": ["bearing", "bearing of", "true bearing", "navigation", "heading", "compass", "due north", "due east"],
         "caption": "Bearing diagram with north reference rays and travel vectors.",
         "skeleton": r"""\begin{tikzpicture}[scale=.85]
@@ -76,7 +76,7 @@ templates = [
     },
     {
         "id": "bearing_two_objects",
-        "subject": "Calculus / Vectors",
+        "subject": "Trigonometry / Geometry",
         "triggers": [
             "same point", "from the same point", "same starting point",
             "two drones", "two ships", "two planes", "two boats", "two aircraft",
@@ -111,7 +111,7 @@ templates = [
     },
     {
         "id": "right_triangle",
-        "subject": "Calculus / Vectors",
+        "subject": "Trigonometry / Geometry",
         "triggers": [
             "right triangle", "angle of elevation", "angle of depression",
             "line of sight", "ladder", "leans against", "foot of the",
@@ -138,7 +138,7 @@ templates = [
     },
     {
         "id": "circle_sector",
-        "subject": "Calculus / Vectors",
+        "subject": "Trigonometry / Geometry",
         "triggers": [
             "sector", "central angle", "arc length", "subtends", "subtended",
             "pizza slice", "slice of", "pie slice", "wedge", "radians",
@@ -163,7 +163,7 @@ templates = [
     },
     {
         "id": "circle_chord_arc",
-        "subject": "Calculus / Vectors",
+        "subject": "Trigonometry / Geometry",
         "triggers": [
             "chord", "circular segment", "length of the chord", "arc and chord",
             "arc length and chord", "area of a circular segment",

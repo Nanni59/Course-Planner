@@ -39,12 +39,12 @@ new Function('window', 'date', 'expand', 'courses', calendarAutofillHelper)(
     helperWindow,
     value => value,
     () => [
-        { displayDate: '2026-07-18', completed: false, type: 'task', title: 'Calculus & Vectors', subtasks: [{ id: 's1', title: 'Review vectors', completed: false }] },
+        { displayDate: '2026-07-18', completed: false, type: 'task', title: 'Physics', subtasks: [{ id: 's1', title: 'Review vectors', completed: false }] },
         { displayDate: '2026-07-18', completed: true, type: 'task', title: 'English', subtasks: [{ id: 's2', title: 'Skip completed item', completed: false }] },
         { displayDate: '2026-07-18', completed: false, type: 'event', title: 'English', subtasks: [{ id: 's3', title: 'Skip event', completed: false }] },
         { displayDate: '2026-07-18', completed: false, type: 'task', title: 'Custom subject', subtasks: [{ id: 's4', title: 'Skip custom subject', completed: false }] }
     ],
-    ['Calculus & Vectors', 'English', 'Media Arts', 'Business Leadership']
+    ['Physics', 'English', 'Media Arts', 'Business Leadership']
 );
 const scheduledByCourse = helperWindow.cpGetCalendarTasksForDate('2026-07-18');
 
@@ -70,7 +70,7 @@ check('Calendar subtask saves sync back to Day cards', html.includes('window.cpS
 check('Autofill requests today\'s Calendar tasks', autofill.includes('window.cpGetCalendarTasksForDate(todayKey)'));
 check('Autofill appends course-matched Calendar subtasks', autofill.includes('calendarTasks[courseName]') && autofill.includes('window.cpAppendDayCardSubtasks(card, scheduledTasks)'));
 check('Calendar exposes date and subject matched tasks', html.includes('window.cpGetCalendarTasksForDate=dateKey=>') && html.includes("courses.includes(o.title)"));
-check('Calendar Autofill returns only eligible course tasks', scheduledByCourse['Calculus & Vectors']?.[0]?.title === 'Review vectors' && !scheduledByCourse.English && !scheduledByCourse['Custom subject']);
+check('Calendar Autofill returns only eligible course tasks', scheduledByCourse['Physics']?.[0]?.title === 'Review vectors' && !scheduledByCourse.English && !scheduledByCourse['Custom subject']);
 check('Calendar urgency exclamation marks were removed', !html.includes("content:'!'") && !html.includes('content:"!"'));
 check('all-day Calendar item titles remain bold', html.includes('.cal-all-cell .cal-item-title { font-weight:750; }'));
 check('hover checklist uses enabled square checkboxes', calendarInteractions.includes('data-hover-sub=') && !calendarInteractions.includes('disabled aria-hidden'));

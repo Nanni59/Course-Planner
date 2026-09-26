@@ -181,10 +181,10 @@ if not _question_should_stay_blank(req("What is the difference between a scalar 
 check("vectors ramp no fake tension", "A 10 kg box rests on a ramp inclined at an angle of 30 degrees to the horizontal. Draw a free-body diagram for the box, labeling all forces acting on it.",
       subject="Vectors as Forces", expect_template=True, expect_caption="Inclined-plane", expect_tikz=["$30^\\circ$", "mg\\sin\\theta"], reject_tikz=["{$T$}"])
 # A free-body / inclined-plane request must fire even when the wording carries NO explicit
-# "force"/"vector" cue (only "free-body diagram") and the subject is Calculus & Vectors — the
+# "force"/"vector" cue (only "free-body diagram") and the subject is a broad course name — the
 # vector-cue gate used to reject it, so it fell to a generic (growing-pattern) fallback.
 check("ramp free-body no force word", "A 10 kg block rests on a frictionless ramp inclined at 30 degrees. Draw the free-body diagram.",
-      subject="Calculus and Vectors", expect_template=True, expect_caption="Inclined-plane", expect_tikz=["$30^\\circ$", "mg\\sin\\theta"], reject_tikz=["{$T$}"])
+      subject="Vectors", expect_template=True, expect_caption="Inclined-plane", expect_tikz=["$30^\\circ$", "mg\\sin\\theta"], reject_tikz=["{$T$}"])
 check("vectors pulling force work angle", "An object is pulled along a horizontal surface with a force of 50 N at an angle of 20 degrees above the horizontal. If the object moves a distance of 10 m, calculate the work done by the pulling force.",
       subject="Vectors as Forces", expect_template=True, expect_caption="Force and displacement", expect_tikz=["$20^\\circ$", "F=50\\,\\mathrm{N}", "d=10\\,\\mathrm{m}"])
 check("vectors drone east north up", "A drone starts at the origin (0,0,0) and moves 5 km east, then 3 km north, and finally 2 km up. Represent the drone's final position as a position vector.",

@@ -380,20 +380,12 @@
         .cm-day:has(> [data-day="dayA"]) { color: var(--color-day-a); }
         .cm-day:has(> [data-day="dayB"]) { color: var(--color-day-b); }
 
-        /* The day toggles reuse the Calendar's .cal-square-check (geometry, the
-           white SVG tick and both theme states come from there). Only the accent
-           is re-pointed, per day, so a ticked box matches the Day A / Day B colour
-           used by the tab bar and the trackers. Overriding --cal-accent rather
-           than background-color keeps the :checked rule — and its dark-mode
-           counterpart — as the single source of the tick. */
+        /* The day toggles reuse the Calendar's .cal-square-check (geometry comes from
+           there; the raised face and tick from the CHECKMARKS block). The accent is
+           re-pointed per day so anything accent-coloured matches Day A / Day B; the
+           tick colour itself is set in the CHECKMARKS block. */
         .cm-day .cal-square-check[data-day="dayA"] { --cal-accent: var(--color-day-a); }
         .cm-day .cal-square-check[data-day="dayB"] { --cal-accent: var(--color-day-b); }
-        .cm-day .cal-square-check[data-day="dayA"]:checked {
-            box-shadow: 0 4px 8px rgba(52, 152, 219, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-        }
-        .cm-day .cal-square-check[data-day="dayB"]:checked {
-            box-shadow: 0 4px 8px rgba(237, 125, 49, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-        }
 
         .cm-btn {
             font-family: inherit;
@@ -954,7 +946,7 @@
         }
 
         /* Themed dropdown — drop-in enhancement for native <select> outside of
-           Study Tools (Canvas import, bulk add modals). Mirrors the .st-dd look
+           Study Tools (tracker import, bulk add modals). Mirrors the .st-dd look
            so every tab shares the same dropdown UI/UX. The native <select> stays
            in the DOM (hidden) and is kept in sync, so existing .value reads work. */
         .cp-dd {
@@ -1124,7 +1116,7 @@
             box-shadow: inset 2px 2px 5px rgba(80, 100, 140, 0.14), inset -2px -2px 5px rgba(255, 255, 255, 0.95);
         }
 
-        /* Canvas Import & Multi-Assignment CSS */
+        /* Import preview tree (Add Lessons / Add Assignments) & Multi-Assignment CSS */
         .canvas-tree-item {
             margin-left: 20px;
             border-left: 2px solid #ddd;
@@ -1212,7 +1204,6 @@
             position: relative;
         }
 
-        #canvas-preview-container,
         #manual-preview-container {
             max-height: 400px;
             overflow-y: auto;
@@ -1221,11 +1212,6 @@
             margin-bottom: 15px;
         }
 
-        #canvas-preview-container.no-indent .canvas-tree-item {
-            margin-left: 0 !important;
-            padding-left: 0 !important;
-            border-left: none !important;
-        }
 
 
         /* FIX: Ensure lesson and assignment text is black, but reset/placeholder is gray */
@@ -2101,8 +2087,7 @@
             opacity: 1;
         }
 
-        /* Tactile "pop" buttons: Canvas, Backup, Reset — raised by default, press in on hover */
-        #canvas-import-btn,
+        /* Tactile "pop" buttons: Backup, Reset — raised by default, press in on hover */
         #backupBtn:not(.active),
         #resetBtn {
             background-color: #f3f6fb;
@@ -2111,7 +2096,6 @@
                 -3px -3px 7px rgba(255, 255, 255, 0.95);
         }
 
-        #canvas-import-btn:hover,
         #backupBtn:not(.active):hover,
         #resetBtn:hover {
             background-color: #eef2f8;
@@ -2138,14 +2122,21 @@
             border-radius: 12px;
             cursor: pointer;
             color: #5b6473;
-            background-color: #f3f6fb;
-            box-shadow: 0 2px 8px rgba(80, 100, 140, 0.12);
+            /* Clay Press, like every other button. It keeps its own rules (not the
+               shared Clay lists) because those reset transform, which centres it. */
+            background-color: var(--btn-raised);
+            box-shadow: var(--btn-lift);
             transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
         }
 
         #themeToggleBtn:hover {
-            background-color: #eef2f8;
-            box-shadow: 0 3px 10px rgba(80, 100, 140, 0.18);
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press);
+        }
+
+        #themeToggleBtn:active {
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press-deep);
         }
 
         #themeToggleBtn svg {
@@ -2154,108 +2145,10 @@
             display: block;
         }
 
-        body.dark-mode #themeToggleBtn {
-            color: #ffd479;
-            background-color: #242c38;
-            box-shadow: var(--btn-lift);
-        }
-
-        body.dark-mode #themeToggleBtn:hover {
-            background-color: #2b3442;
-            box-shadow: var(--btn-press);
-        }
+        body.dark-mode #themeToggleBtn { color: #ffd479; }
 
         @media (max-width: 600px) {
             #themeToggleBtn { left: 16px; }
-        }
-
-        /* Canvas: red brand text + icon (matches mockup) */
-        #canvas-import-btn {
-            color: #e72429;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 7px;
-            padding: 8px 14px;
-        }
-
-        #canvas-import-btn:hover {
-            color: #d11e23;
-        }
-
-        #canvas-import-btn:hover svg {
-            fill: #d11e23;
-        }
-
-        #canvas-import-btn svg {
-            width: 17px;
-            height: 17px;
-            fill: #e72429;
-            flex-shrink: 0;
-        }
-
-        /* Red branding for the Canvas Import section buttons and hovers */
-        #canvas-import-section .btn-save,
-        #canvas-import-section .btn-cancel,
-        #canvas-import-action-btn,
-        #canvas-preview-btn {
-            background-color: #e72429 !important;
-            border-color: #e72429 !important;
-            color: white !important;
-        }
-
-        #canvas-import-section .btn-save:hover,
-        #canvas-import-section .btn-cancel:hover,
-        #canvas-import-action-btn:hover,
-        #canvas-preview-btn:hover {
-            background-color: #d11e23 !important;
-            opacity: 1 !important;
-        }
-
-        /* Ensure textarea and select hover borders are also red in Canvas section */
-        #canvas-import-section .add-items-modal-textarea:focus,
-        #canvas-import-section .add-items-modal-select:focus {
-            border-color: #e72429 !important;
-            box-shadow: 0 0 0 1px #e72429 !important;
-        }
-
-        /* Import Modal Tab Navigation */
-        .import-tab-nav {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-
-        .import-tab-btn {
-            flex: 1;
-            padding: 10px 16px;
-            border: 2px solid #ddd;
-            border-radius: 50px;
-            background-color: #fff;
-            font-family: 'Century Gothic', 'Futura', 'Montserrat', sans-serif;
-            font-size: 14px;
-            font-weight: 600;
-            color: #999;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: center;
-        }
-
-        .import-tab-btn:hover {
-            border-color: #bbb;
-            color: #666;
-        }
-
-        .import-tab-btn.active-canvas {
-            border-color: #e72429;
-            color: #e72429;
-            background-color: #fdf2f2;
-        }
-
-        .import-tab-btn.active-manual {
-            border-color: var(--color-tracker-green);
-            color: var(--color-tracker-green);
-            background-color: #f0f9f0;
         }
 
         /* Green branding for Manual Import buttons */
@@ -3151,6 +3044,13 @@
             font-weight: 600;
         }
 
+        /* Clear / delete all tasks: the red of the card X and the tracker trash */
+        .context-menu-item.danger-action {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+        body.dark-mode .context-menu-item.danger-action { color: #ff6b6b; }
+
         /* **NEW:** Split Assignment Feature Styles */
         .context-menu-item.split-action {
             color: var(--color-tracker-green);
@@ -3186,7 +3086,7 @@
             box-shadow: 0 0 0 1px var(--active-color);
         }
 
-        /* **NEW:** Canvas Preview Context Menu */
+        /* Import preview context menu (convert / rename / delete) */
         .canvas-context-menu {
             position: fixed;
             background: #fff;
@@ -3214,7 +3114,7 @@
 
         .canvas-context-menu-item:hover {
             background-color: #f5f5f5;
-            color: #e72429;
+            color: var(--color-tracker-green);
         }
 
         .canvas-preview-title {
@@ -3878,13 +3778,11 @@
         body.dark-mode .main-footer { background-color: rgba(22, 27, 36, 0.92); }
         body.dark-mode .footer-title { color: #e4e8f0; }
         body.dark-mode .main-footer button { color: #cbd2e0; }
-        body.dark-mode #canvas-import-btn,
         body.dark-mode #backupBtn:not(.active),
         body.dark-mode #resetBtn {
             background-color: #242c38;
             box-shadow: 3px 3px 7px rgba(0, 0, 0, 0.4), -3px -3px 7px rgba(255, 255, 255, 0.03);
         }
-        body.dark-mode #canvas-import-btn:hover,
         body.dark-mode #backupBtn:not(.active):hover,
         body.dark-mode #resetBtn:hover {
             background-color: #2b3442;
@@ -4616,20 +4514,19 @@
             --cal-raised: var(--clay-surface);         /* buttons and chips: white + outer shadow */
             /* --cal-track vs --cal-field is a REAL distinction, not a duplicate:
                track = structural chrome (weekday bar, segmented groove, agenda
-               headers, badges, outside-month days) and carries the green tint.
+               headers, outside-month days) and is plain white like the panels, so
+               the Month/Week/Agenda views read as white sheets with grid lines.
                field = anything that is, or is a well around, an input (the inputs
-               themselves, subtask rows, category rows, the settings file group).
-               Those follow the app's field colour so they match Location/URL/Notes.
-               Do not collapse these two back into one token. */
-            --cal-track: var(--color-tracker-tint);    /* #f7fcf7 — structural chrome */
+               themselves, subtask rows, category rows, the settings file group,
+               badges). Those follow the app's field colour so they match
+               Location/URL/Notes. Do not collapse these two back into one token. */
+            --cal-track: #ffffff;                      /* structural chrome */
             --cal-field: var(--clay-field-bg);         /* #f6f8fc — inputs and their wells */
-            /* Green tint ramp — keep these ORDERED, each step deeper than the last:
-               #ffffff panel -> --cal-track -> --cal-hover -> --cal-accent-tint.
-               They used to be told apart by hue (a cool grey track vs a green
-               today); now that the whole ramp is one green family they are told
-               apart by value alone, so collapsing any two makes a hovered day
-               indistinguishable from today. */
-            --cal-hover: #edf6ee;
+            /* Ramp — keep ORDERED, each step deeper than the last:
+               white panel/track -> --cal-hover (neutral grey) -> --cal-accent-tint (green,
+               today and drop targets only). Collapsing hover into today makes a hovered
+               day indistinguishable from today. */
+            --cal-hover: #f1f4f9;
             --cal-line: rgba(60,80,120,.14);           /* grid lines */
             --cal-border: var(--clay-border);
             --cal-ink: #2c3340;                        /* the app's primary text grey */
@@ -4827,7 +4724,7 @@
         .cal-dot { width:10px; height:10px; border-radius:50%; background:var(--cat); }
         .cal-agenda-main strong { display:block; font-size:13px; }
         .cal-agenda-meta { color:var(--cal-ink-mute); font-size:11px; margin-top:3px; }
-        .cal-badge { display:inline-flex; padding:3px 7px; border-radius:99px; background:var(--cal-track); color:var(--cal-ink-soft); font-size:10px; font-weight:750; }
+        .cal-badge { display:inline-flex; padding:3px 7px; border-radius:99px; background:var(--cal-field); color:var(--cal-ink-soft); font-size:10px; font-weight:750; }
         .cal-badge.overdue { background:#fbe8e6; color:#b44f48; }
         .cal-reminder-strip { margin-bottom:12px; padding:10px 13px; border-radius:13px; background:#fff7df; color:#745d20; font-size:12px; display:flex; justify-content:space-between; gap:8px; }
         .cal-overlay { position:fixed; inset:0; z-index:12000; display:flex; align-items:center; justify-content:center; padding:18px; background:rgba(22,31,24,.46); backdrop-filter:blur(4px); }
@@ -4909,7 +4806,7 @@
            Keep .cal-view-btn out of the raised .cal-btn group above — it sits later in the
            cascade at equal specificity and would win. */
         .cal-view-btn { transition:background .16s ease,color .16s ease,box-shadow .16s ease; }
-        .cal-view-btn:hover:not(.active) { background:rgba(255,255,255,.66); color:var(--cal-accent-ink); }
+        .cal-view-btn:hover:not(.active) { background:var(--cal-hover); color:var(--cal-accent-ink); }
         .cal-btn:hover, .cal-icon-btn:hover {
             transform:translateY(-2px);
             box-shadow:0 8px 16px rgba(73,98,78,.16), inset 0 1px 0 rgba(255,255,255,.95);
@@ -4930,7 +4827,7 @@
             padding:5px;
             background:var(--cal-track);
             border:1px solid var(--cal-border);
-            box-shadow:inset 0 2px 5px rgba(54,82,61,.08),inset 0 -1px 0 rgba(255,255,255,.85);
+            box-shadow:inset 0 2px 5px rgba(80,100,140,.10),inset 0 -1px 0 rgba(255,255,255,.85);
         }
         .cal-search input,
         .cal-field input:not([type="checkbox"]):not([type="color"]),
@@ -5333,7 +5230,7 @@
         body.dark-mode .cal-color-hex input { background:var(--cal-field); border-color:var(--cal-border); }
         .cal-danger { background:#fff3f2; box-shadow:0 4px 9px rgba(178,76,68,.11),inset 0 1px 0 #fff; }
         .cal-day { transition:background .15s ease,box-shadow .15s ease; }
-        .cal-day:hover { background:var(--cal-hover); box-shadow:inset 0 0 0 1px rgba(88,166,92,.18); }
+        .cal-day:hover { background:var(--cal-hover); box-shadow:inset 0 0 0 1px rgba(60,80,120,.12); }
         .cal-item, .cal-time-event {
             box-shadow:0 3px 7px rgba(55,78,60,.10),inset 0 1px 0 rgba(255,255,255,.68);
         }
@@ -5380,7 +5277,7 @@
         body.dark-mode .cal-badge.due-soon { background:#39331f; color:#e5cd93; }
         /* body.dark-mode .cal-day beats the unqualified :hover rules on
            specificity, so each hover state needs a dark counterpart. */
-        body.dark-mode .cal-day:hover { background:var(--cal-hover); box-shadow:inset 0 0 0 1px rgba(95,167,104,.28); }
+        body.dark-mode .cal-day:hover { background:var(--cal-hover); box-shadow:inset 0 0 0 1px rgba(255,255,255,.10); }
         body.dark-mode .cal-agenda-item:hover { background:var(--cal-hover); }
         body.dark-mode .cal-item:hover, body.dark-mode .cal-time-event:hover { filter:brightness(1.14); }
         body.dark-mode .cal-view-btn:hover:not(.active) { background:rgba(255,255,255,.07); color:var(--cal-ink); }
@@ -5674,7 +5571,7 @@
         }
 
         /* =========================================================
-           CLAY PRESS BUTTONS — the Canvas/Backup/Reset gesture for every
+           CLAY PRESS BUTTONS — the Backup/Reset gesture for every
            action button: raised at rest, sinks in on hover, deeper on click.
            Only the surface changes (fill, shadow, hover/press); each button
            keeps its own size, radius and colour (--acc below). Kept last in
@@ -5683,7 +5580,7 @@
            ========================================================= */
         /* Light mode lifts buttons with a white face, a crisp contact shadow, a
            soft cast shadow and a hairline edge: a grey face on white cards read as
-           recessed. Dark mode keeps the Canvas look. --btn-press* is the hover /
+           recessed. Dark mode keeps the original dark look. --btn-press* is the hover /
            click recess; the -color variants sit on filled buttons. */
         :root {
             --btn-raised: #ffffff;
@@ -5732,8 +5629,6 @@
         .st-btn { --acc: var(--color-study); }
         .link-modal-buttons .btn-save { --acc: var(--active-color); }
         .manual-import-section .btn-save { --acc: var(--color-tracker-green); }
-        #canvas-import-section .btn-save,
-        #canvas-import-section .btn-cancel { --acc: #e72429; }
         .cal-btn.primary { --acc: var(--cal-accent); }
         .exam-btn.primary,
         .exam-section-nav .exam-btn.active { --acc: var(--exam-accent); }
@@ -5741,14 +5636,15 @@
 
         /* Primary: filled with --acc. Selected toggles (worksheet question types,
            the SAT/IELTS section tabs) use the same filled look. The drop shadow is
-           the neutral Canvas one, not a coloured glow, so in dark mode coloured
-           buttons stand off the page the same way Canvas does. */
+           the neutral Backup one, not a coloured glow, so in dark mode coloured
+           buttons stand off the page the same way Backup does. */
         body #saveBtn:not(:disabled),
         body .add-items-trigger-btn:not(:disabled),
         body .autofill-btn:not(:disabled),
         body .cm-btn-add:not(:disabled),
+        body #exportJsonBtn:not(:disabled),
+        body #importJsonBtn:not(:disabled),
         body .link-modal-buttons .btn-save:not(:disabled),
-        body #canvas-import-section .btn-cancel:not(:disabled),
         body .split-modal-buttons .btn-split:not(:disabled),
         body .st-btn:not(.st-btn-ghost):not(:disabled),
         body .cal-btn.primary:not(:disabled),
@@ -5767,8 +5663,9 @@
         body .add-items-trigger-btn:not(:disabled):hover,
         body .autofill-btn:not(:disabled):hover,
         body .cm-btn-add:not(:disabled):hover,
+        body #exportJsonBtn:not(:disabled):hover,
+        body #importJsonBtn:not(:disabled):hover,
         body .link-modal-buttons .btn-save:not(:disabled):hover,
-        body #canvas-import-section .btn-cancel:not(:disabled):hover,
         body .split-modal-buttons .btn-split:not(:disabled):hover,
         body .st-btn:not(.st-btn-ghost):not(:disabled):hover,
         body .cal-btn.primary:not(:disabled):hover,
@@ -5789,8 +5686,9 @@
         body .add-items-trigger-btn:not(:disabled):active,
         body .autofill-btn:not(:disabled):active,
         body .cm-btn-add:not(:disabled):active,
+        body #exportJsonBtn:not(:disabled):active,
+        body #importJsonBtn:not(:disabled):active,
         body .link-modal-buttons .btn-save:not(:disabled):active,
-        body #canvas-import-section .btn-cancel:not(:disabled):active,
         body .split-modal-buttons .btn-split:not(:disabled):active,
         body .st-btn:not(.st-btn-ghost):not(:disabled):active,
         body .cal-btn.primary:not(:disabled):active,
@@ -5802,12 +5700,12 @@
             box-shadow: var(--btn-press-color-deep);
         }
 
-        /* Secondary: the neutral Canvas surface (Canvas/Backup/Reset themselves, Cancel,
+        /* Secondary: the neutral Backup surface (Backup/Reset themselves, Cancel,
            ghost, Connect API, switch rows, unselected question types and section tabs,
            calendar and exam tools) */
-        body #canvas-import-btn:not(:disabled),
         body #backupBtn:not(.active):not(:disabled),
         body #resetBtn:not(:disabled),
+        body .cm-btn-remove:not(:disabled),
         body .link-modal-buttons .btn-cancel:not(:disabled),
         body .split-modal-buttons .btn-cancel:not(:disabled),
         body .st-btn.st-btn-ghost:not(:disabled),
@@ -5816,6 +5714,9 @@
         body .st-chip:not(.on),
         body .cal-btn:not(.primary):not(:disabled),
         body .cal-icon-btn:not(:disabled),
+        body .cal-close:not(:disabled),
+        body .cal-cat-row button[data-cdel]:not(:disabled),
+        body .cal-subtask button[data-sd]:not(:disabled),
         body .exam-btn:not(.primary):not(:disabled):not(.exam-section-nav .exam-btn),
         body .exam-section-nav .exam-btn:not(.active):not(:disabled) {
             background: var(--btn-raised);
@@ -5824,9 +5725,9 @@
             transition: background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
         }
 
-        body #canvas-import-btn:not(:disabled):hover,
         body #backupBtn:not(.active):not(:disabled):hover,
         body #resetBtn:not(:disabled):hover,
+        body .cm-btn-remove:not(:disabled):hover,
         body .link-modal-buttons .btn-cancel:not(:disabled):hover,
         body .split-modal-buttons .btn-cancel:not(:disabled):hover,
         body .st-btn.st-btn-ghost:not(:disabled):hover,
@@ -5835,6 +5736,9 @@
         body .st-chip:not(.on):hover,
         body .cal-btn:not(.primary):not(:disabled):hover,
         body .cal-icon-btn:not(:disabled):hover,
+        body .cal-close:not(:disabled):hover,
+        body .cal-cat-row button[data-cdel]:not(:disabled):hover,
+        body .cal-subtask button[data-sd]:not(:disabled):hover,
         body .exam-btn:not(.primary):not(:disabled):not(.exam-section-nav .exam-btn):hover,
         body .exam-section-nav .exam-btn:not(.active):not(:disabled):hover {
             background: var(--btn-raised-hover);
@@ -5844,9 +5748,9 @@
             box-shadow: var(--btn-press);
         }
 
-        body #canvas-import-btn:not(:disabled):active,
         body #backupBtn:not(.active):not(:disabled):active,
         body #resetBtn:not(:disabled):active,
+        body .cm-btn-remove:not(:disabled):active,
         body .link-modal-buttons .btn-cancel:not(:disabled):active,
         body .split-modal-buttons .btn-cancel:not(:disabled):active,
         body .st-btn.st-btn-ghost:not(:disabled):active,
@@ -5855,6 +5759,9 @@
         body .st-chip:not(.on):active,
         body .cal-btn:not(.primary):not(:disabled):active,
         body .cal-icon-btn:not(:disabled):active,
+        body .cal-close:not(:disabled):active,
+        body .cal-cat-row button[data-cdel]:not(:disabled):active,
+        body .cal-subtask button[data-sd]:not(:disabled):active,
         body .exam-btn:not(.primary):not(:disabled):not(.exam-section-nav .exam-btn):active,
         body .exam-section-nav .exam-btn:not(.active):not(:disabled):active {
             background: var(--btn-raised-hover);
@@ -5928,6 +5835,8 @@
         body .add-items-trigger-btn:not(:disabled):focus-visible,
         body .autofill-btn:not(:disabled):focus-visible,
         body .cm-btn-add:not(:disabled):focus-visible,
+        body #exportJsonBtn:not(:disabled):focus-visible,
+        body #importJsonBtn:not(:disabled):focus-visible,
         body .link-modal-buttons button:not(:disabled):focus-visible,
         body .split-modal-buttons button:not(:disabled):focus-visible,
         body .st-btn:not(:disabled):focus-visible,
@@ -5941,9 +5850,10 @@
 
         @media (prefers-reduced-motion: reduce) {
             body #saveBtn, body .add-items-trigger-btn, body .autofill-btn, body .cm-btn-add,
+            body #exportJsonBtn, body #importJsonBtn, body .cm-btn-remove,
             body .link-modal-buttons button, body .split-modal-buttons button, body .st-btn,
-            body .cal-btn, body .cal-icon-btn, body .exam-btn, body .st-chip, body .st-api-btn,
-            body #canvas-import-btn, body #backupBtn, body #resetBtn, body .st-toggle-pill,
+            body .cal-btn, body .cal-icon-btn, body .cal-close, body .cal-cat-row button, body .cal-subtask button, body .exam-btn, body .st-chip, body .st-api-btn,
+            body #backupBtn, body #resetBtn, body .st-toggle-pill,
             body .st-toggle-pill .st-tp-state, body .st-toggle-pill .st-tp-state::after { transition: none; }
         }
 
@@ -5951,22 +5861,27 @@
            CHECKMARKS — one standard for Day A/B cards (lesson, assignment,
            subtask, expanded view), the trackers, and split-assignment progress
            circles, using the Clay Press button gesture: raised at rest, sinks in
-           on hover, deeper on click. Open = neutral raised circle; done = green
-           raised circle with a white tick. A split assignment part-way through
+           on hover, deeper on click. Open = neutral raised circle; done = the
+           same raised circle with a green tick. A split assignment part-way through
            shows a green progress arc and a faint green tick. Checkmarks are small
            and sit in scrolling cards, so they rest on the compact (-sm) lift.
            ========================================================= */
         :root {
             --check-done: var(--color-tracker-green);
-            --check-tick-white: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3E%3C/svg%3E");
-            --check-tick-green: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2358A65C' d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3E%3C/svg%3E");
+            /* a stroked tick with round ends, drawn at the weight of the tracker trash icon */
+            --check-tick-green: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2358A65C' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+            --check-tick-day-a: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233498DB' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+            --check-tick-day-b: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ED7D31' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+            --clear-x-red: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e74c3c' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
+        }
+        body.dark-mode {
+            --clear-x-red: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff6b6b' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
         }
 
         /* open */
         body .task-list input[type="checkbox"],
         body .tracker-item-checkbox,
         body .progress-circle-wrapper {
-            --check-done-deep: color-mix(in srgb, var(--check-done) 90%, #000);
             width: 26px;
             height: 26px;
             border: none;
@@ -5989,29 +5904,29 @@
             box-shadow: var(--btn-press-deep);
         }
 
-        /* done */
+        /* done: same raised face as open, with a green tick. Stated in full because
+           the older :checked rules out-rank the open rule above. */
         body .task-list input[type="checkbox"]:checked,
         body .tracker-item-checkbox:checked,
         body .progress-circle-wrapper.completed {
-            background-color: var(--check-done);
-            background-image: var(--check-tick-white);
-            box-shadow: var(--btn-lift-color-sm);
+            background-color: var(--btn-raised);
+            background-image: var(--check-tick-green);
+            box-shadow: var(--btn-lift-sm);
         }
         body .task-list input[type="checkbox"]:checked:hover,
         body .tracker-item-checkbox:checked:hover,
         body .progress-circle-wrapper.completed:hover {
-            background-color: var(--check-done-deep);
-            box-shadow: var(--btn-press-color);
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press);
         }
         body .task-list input[type="checkbox"]:checked:active,
         body .tracker-item-checkbox:checked:active,
         body .progress-circle-wrapper.completed:active {
-            background-color: var(--check-done-deep);
-            box-shadow: var(--btn-press-color-deep);
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press-deep);
         }
         /* the wrapper draws its tick with a child element, not a background image */
         body .progress-circle-wrapper.completed { background-image: none; }
-
         body .task-list input[type="checkbox"]:focus-visible,
         body .tracker-item-checkbox:focus-visible {
             outline: 3px solid color-mix(in srgb, var(--check-done) 38%, transparent);
@@ -6022,13 +5937,91 @@
         }
 
         /* Split-assignment circle: the arc and tick sit inside the borderless well.
-           Once complete the green fill says it all, so the ring (and the day-coloured
-           stroke the script sets inline) is hidden. */
+           Once complete the full green tick says it all, so the ring (and the
+           day-coloured stroke the script sets inline) is hidden. */
         body .progress-circle-svg { top: 0; left: 0; width: 100%; height: 100%; }
         body .progress-circle-wrapper.completed .progress-circle-svg { display: none; }
         body .progress-circle-progress.in-progress { stroke: var(--check-done); }
         body .progress-circle-checkmark { background-image: var(--check-tick-green); }
-        body .progress-circle-wrapper.completed .progress-circle-checkmark { background-image: var(--check-tick-white); }
+
+        /* Card X (clear a completed card) and the tracker trash button sit beside the
+           checkmarks, so they share their surface: raised neutral face, red icon,
+           same lift and press. The X glyph is swapped for an SVG at the tick's weight. */
+        body .delete-course-card-btn:not(:disabled),
+        body .delete-btn:not(:disabled) {
+            background-color: var(--btn-raised);
+            box-shadow: var(--btn-lift-sm);
+            opacity: 1;
+            transform: none;
+            transition: background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+        }
+        body .delete-course-card-btn:not(:disabled):hover,
+        body .delete-btn:not(:disabled):hover {
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press);
+            opacity: 1;
+        }
+        body .delete-course-card-btn:not(:disabled):active,
+        body .delete-btn:not(:disabled):active {
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press-deep);
+        }
+        body .delete-course-card-btn:not(:disabled) {
+            font-size: 0;
+            background-image: var(--clear-x-red);
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 14px;
+        }
+
+        /* Square checkboxes (Calendar editor, settings, subtasks, hover checklist, and
+           the Backup tab's Day A / Day B toggles) follow the same checkmark look:
+           raised face, green tick, press on hover/click. Day toggles tick in the day's
+           colour. :not(:disabled) out-ranks the dark-mode .cal-square-check rules. */
+        body .cal-square-check:not(:disabled) {
+            border-color: transparent;
+            background-color: var(--btn-raised);
+            background-image: none;
+            box-shadow: var(--btn-lift-sm);
+            transition: background-color 0.18s ease, box-shadow 0.18s ease;
+        }
+        body .cal-square-check:not(:disabled):hover {
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press);
+        }
+        body .cal-square-check:not(:disabled):active {
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press-deep);
+        }
+        body .cal-square-check:not(:disabled):checked {
+            border-color: transparent;
+            background-color: var(--btn-raised);
+            background-image: var(--check-tick-green);
+            box-shadow: var(--btn-lift-sm);
+        }
+        body .cal-square-check:not(:disabled):checked:hover {
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press);
+        }
+        body .cal-square-check:not(:disabled):checked:active {
+            background-color: var(--btn-raised-hover);
+            box-shadow: var(--btn-press-deep);
+        }
+        body .cal-square-check:focus-visible {
+            outline: 3px solid color-mix(in srgb, var(--check-done) 38%, transparent);
+            outline-offset: 2px;
+        }
+        body .cm-day .cal-square-check[data-day="dayA"]:checked { background-image: var(--check-tick-day-a); }
+        body .cm-day .cal-square-check[data-day="dayB"]:checked { background-image: var(--check-tick-day-b); }
+
+        /* Calendar: the Month/Week/Agenda switch is flat green when selected (no
+           gradient) and, like every button, never moves on click. */
+        body .cal-view-btn.active { background: var(--cal-accent); border-color: transparent; }
+        body .cal-view-btn:active { transform: none; }
+
+        @media (prefers-reduced-motion: reduce) {
+            body .delete-course-card-btn, body .delete-btn, body .cal-square-check { transition: none; }
+        }
     </style>
 </head>
 
@@ -6057,7 +6050,7 @@
         </div>
 
         <div id="lessonTracker" class="tab-content">
-            <button id="openAddLessonModal" class="add-items-trigger-btn" style="display: none;">Add Lessons</button>
+            <button id="openAddLessonModal" class="add-items-trigger-btn">Add Lessons</button>
 
             <div id="lessonOverallProgress" class="progress-bar-container"></div>
 
@@ -6066,7 +6059,7 @@
         </div>
 
         <div id="assignmentTracker" class="tab-content">
-            <button id="openAddAssignmentModal" class="add-items-trigger-btn" style="display: none;">Add
+            <button id="openAddAssignmentModal" class="add-items-trigger-btn">Add
                 Assignments</button>
 
             <div id="assignmentOverallProgress" class="progress-bar-container"></div>
@@ -6104,7 +6097,7 @@
                                 your current data as a JSON file. This includes all tasks, tracker items, and settings.
                             </p>
                             <button id="exportJsonBtn"
-                                style="display:inline-flex; align-items:center; gap:8px; font-family: inherit; font-size: 14px; font-weight: 600; padding: 11px 22px; background: linear-gradient(145deg, #58A65C, #4a9152); color: white; border: none; border-radius: 12px; cursor: pointer; box-shadow:0 7px 15px rgba(74,150,83,0.30), inset 0 1px 0 rgba(255,255,255,0.28);">
+                                style="display:inline-flex; align-items:center; gap:8px; font-family: inherit; font-size: 14px; font-weight: 600; padding: 11px 22px; color: white; border: none; border-radius: 12px; cursor: pointer;">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -6133,7 +6126,7 @@
                                 your data from a JSON backup file. This will <strong>overwrite</strong> all current data.
                             </p>
                             <button id="importJsonBtn"
-                                style="display:inline-flex; align-items:center; gap:8px; font-family: inherit; font-size: 14px; font-weight: 600; padding: 11px 22px; background: linear-gradient(145deg, #58A65C, #4a9152); color: white; border: none; border-radius: 12px; cursor: pointer; box-shadow:0 7px 15px rgba(74,150,83,0.30), inset 0 1px 0 rgba(255,255,255,0.28);">
+                                style="display:inline-flex; align-items:center; gap:8px; font-family: inherit; font-size: 14px; font-weight: 600; padding: 11px 22px; color: white; border: none; border-radius: 12px; cursor: pointer;">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -6201,15 +6194,6 @@
             <div class="footer-divider"></div>
 
             <!-- Tool Group -->
-            <button id="canvas-import-btn">
-                <svg viewBox="0 0 1920 1920" xmlns="http://www.w3.org/2000/svg">
-                    <g id="SVGRepo_iconCarrier">
-                        <path
-                            d="M958.568 277.97C1100.42 277.97 1216.48 171.94 1233.67 34.3881 1146.27 12.8955 1054.57 0 958.568 0 864.001 0 770.867 12.8955 683.464 34.3881 700.658 171.94 816.718 277.97 958.568 277.97ZM35.8207 682.031C173.373 699.225 279.403 815.285 279.403 957.136 279.403 1098.99 173.373 1215.05 35.8207 1232.24 12.8953 1144.84 1.43262 1051.7 1.43262 957.136 1.43262 862.569 12.8953 769.434 35.8207 682.031ZM528.713 957.142C528.713 1005.41 489.581 1044.55 441.31 1044.55 393.038 1044.55 353.907 1005.41 353.907 957.142 353.907 908.871 393.038 869.74 441.31 869.74 489.581 869.74 528.713 908.871 528.713 957.142ZM1642.03 957.136C1642.03 1098.99 1748.06 1215.05 1885.61 1232.24 1908.54 1144.84 1920 1051.7 1920 957.136 1920 862.569 1908.54 769.434 1885.61 682.031 1748.06 699.225 1642.03 815.285 1642.03 957.136ZM1567.51 957.142C1567.51 1005.41 1528.38 1044.55 1480.11 1044.55 1431.84 1044.55 1392.71 1005.41 1392.71 957.142 1392.71 908.871 1431.84 869.74 1480.11 869.74 1528.38 869.74 1567.51 908.871 1567.51 957.142ZM958.568 1640.6C816.718 1640.6 700.658 1746.63 683.464 1884.18 770.867 1907.11 864.001 1918.57 958.568 1918.57 1053.14 1918.57 1146.27 1907.11 1233.67 1884.18 1216.48 1746.63 1100.42 1640.6 958.568 1640.6ZM1045.98 1480.11C1045.98 1528.38 1006.85 1567.51 958.575 1567.51 910.304 1567.51 871.172 1528.38 871.172 1480.11 871.172 1431.84 910.304 1392.71 958.575 1392.71 1006.85 1392.71 1045.98 1431.84 1045.98 1480.11ZM1045.98 439.877C1045.98 488.148 1006.85 527.28 958.575 527.28 910.304 527.28 871.172 488.148 871.172 439.877 871.172 391.606 910.304 352.474 958.575 352.474 1006.85 352.474 1045.98 391.606 1045.98 439.877ZM1441.44 1439.99C1341.15 1540.29 1333.98 1697.91 1418.52 1806.8 1579 1712.23 1713.68 1577.55 1806.82 1418.5 1699.35 1332.53 1541.74 1339.7 1441.44 1439.99ZM1414.21 1325.37C1414.21 1373.64 1375.08 1412.77 1326.8 1412.77 1278.53 1412.77 1239.4 1373.64 1239.4 1325.37 1239.4 1277.1 1278.53 1237.97 1326.8 1237.97 1375.08 1237.97 1414.21 1277.1 1414.21 1325.37ZM478.577 477.145C578.875 376.846 586.039 219.234 501.502 110.339 341.024 204.906 206.338 339.592 113.203 498.637 220.666 584.607 378.278 576.01 478.577 477.145ZM679.155 590.32C679.155 638.591 640.024 677.723 591.752 677.723 543.481 677.723 504.349 638.591 504.349 590.32 504.349 542.048 543.481 502.917 591.752 502.917 640.024 502.917 679.155 542.048 679.155 590.32ZM1440 475.712C1540.3 576.01 1697.91 583.174 1806.8 498.637 1712.24 338.159 1577.55 203.473 1418.51 110.339 1332.54 217.801 1341.13 375.413 1440 475.712ZM1414.21 590.32C1414.21 638.591 1375.08 677.723 1326.8 677.723 1278.53 677.723 1239.4 638.591 1239.4 590.32 1239.4 542.048 1278.53 502.917 1326.8 502.917 1375.08 502.917 1414.21 542.048 1414.21 590.32ZM477.145 1438.58C376.846 1338.28 219.234 1331.12 110.339 1415.65 204.906 1576.13 339.593 1710.82 498.637 1805.39 584.607 1696.49 577.443 1538.88 477.145 1438.58ZM679.155 1325.37C679.155 1373.64 640.024 1412.77 591.752 1412.77 543.481 1412.77 504.349 1373.64 504.349 1325.37 504.349 1277.1 543.481 1237.97 591.752 1237.97 640.024 1237.97 679.155 1277.1 679.155 1325.37Z" />
-                    </g>
-                </svg>
-                Canvas
-            </button>
             <button id="backupBtn">Backup</button>
             <div class="footer-divider"></div>
 
@@ -6293,6 +6277,8 @@
 
     <div id="trackerContextMenu" class="context-menu" style="display: none;">
         <div class="context-menu-item" id="pauseUnpauseBtn"></div>
+        <div style="border-top: 1px solid #eee;"></div>
+        <div class="context-menu-item danger-action" id="deleteTrackerCourseTasksBtn">Delete All Tasks</div>
     </div>
 
     <div id="dayCardContextMenu" class="context-menu" style="display: none;">
@@ -6303,6 +6289,8 @@
         <div class="context-menu-item link-action" id="addEditLinkBtn">Add / Edit Link</div>
         <div class="context-menu-item link-action" id="removeLinkBtn" style="display: none;">Remove Link</div>
         <div class="context-menu-item link-action" id="expandCardBtn" style="display: none;">Expand Card</div>
+        <div style="border-top: 1px solid #eee;"></div>
+        <div class="context-menu-item danger-action" id="clearDayCardTasksBtn" style="display: none;">Clear All Tasks</div>
     </div>
 
     <!-- Expand Card Modal (Full-Screen) -->
@@ -6444,54 +6432,12 @@
         </div>
     </div>
 
-    <!-- Canvas Import Modal (Tabbed: Canvas + Manual) -->
-    <div id="canvasImportModal" class="link-modal-overlay">
+    <!-- Import Modal (Add Lessons / Add Assignments on the tracker pages) -->
+    <div id="importModal" class="link-modal-overlay">
         <div class="link-modal" style="max-width: 600px; width: 90%;">
+            <h2>Add to Tracker</h2>
 
-            <!-- Tab Navigation -->
-            <div class="import-tab-nav">
-                <button class="import-tab-btn active-canvas" id="importTabCanvas" data-import-tab="canvas">Import from
-                    Canvas</button>
-                <button class="import-tab-btn" id="importTabManual" data-import-tab="manual">Manual Import</button>
-            </div>
-
-            <!-- ========== CANVAS TAB ========== -->
-            <div id="canvas-import-section">
-
-                <!-- Canvas Step 1: Paste Text -->
-                <div id="canvas-step-1">
-                    <textarea id="canvas-raw-text" class="add-items-modal-textarea"
-                        placeholder="Paste Canvas data here..."
-                        style="min-height: 200px; max-height: 500px; overflow-y: auto;"></textarea>
-                    <div class="link-modal-buttons">
-                        <button class="btn-cancel" id="canvas-cancel-btn">Cancel</button>
-                        <button class="btn-save" id="canvas-preview-btn">Preview</button>
-                    </div>
-                </div>
-
-                <!-- Canvas Step 2: Preview & Import -->
-                <div id="canvas-step-2" style="display: none;">
-                    <h4>Preview Import</h4>
-                    <p>Review the identified items below.</p>
-
-                    <div id="canvas-preview-container"></div>
-
-                    <div style="margin-top: 15px;">
-                        <label for="canvas-import-course" style="font-size: 14px; font-weight: 600;">Import into
-                            Course:</label>
-                        <select id="canvas-import-course" class="add-items-modal-select"
-                            style="margin-top: 5px;"></select>
-                    </div>
-
-                    <div class="link-modal-buttons">
-                        <button class="btn-cancel" id="canvas-back-btn">Back</button>
-                        <button class="btn-save" id="canvas-import-action-btn">Import</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ========== MANUAL IMPORT TAB ========== -->
-            <div id="manual-import-section" class="manual-import-section" style="display: none;">
+            <div id="manual-import-section" class="manual-import-section">
 
                 <!-- Manual Step 1: Enter Items -->
                 <div id="manual-step-1">
@@ -6538,7 +6484,7 @@
         </div>
     </div>
 
-    <!-- New Canvas Context Menu -->
+    <!-- Import preview context menu -->
     <div id="canvasContextMenu" class="canvas-context-menu">
         <div class="canvas-context-menu-item" id="canvasConvertAction">
             <span id="canvasConvertText">Convert to Lesson</span>
@@ -6598,7 +6544,6 @@
                A course with two days gets a card on both — the old
                isCourseOnBothDays() special case, generalised.                     */
             const DEFAULT_COURSES = [
-                { name: 'Calculus & Vectors', days: ['dayA', 'dayB'] },
                 { name: 'English', days: ['dayA', 'dayB'] },
                 { name: 'Media Arts', days: ['dayA'] },
                 { name: 'Business Leadership', days: ['dayB'] }
@@ -7775,7 +7720,7 @@
             }
 
             // NOTE: resizeFieldsForActiveDay / resizeAllDayFields are defined further
-            // down in this scope (near the Canvas Import section); earlier duplicate
+            // down in this scope (near the Tracker Import section); earlier duplicate
             // declarations that were shadowed by them were removed.
 
             // **NEW FUNCTION:** Logic to check if a day card is fully completed
@@ -8847,7 +8792,7 @@
                         autoPopulateLessonLinks(card, nextLesson.name);
                     }
 
-                    // Use autoPopulateAssignmentField to fill ALL linked assignments from Canvas mapping
+                    // Use autoPopulateAssignmentField to fill ALL linked assignments from the import mapping
                     if (nextLesson) {
                         autoPopulateAssignmentField(card);
                     } else if (assignmentNameField) {
@@ -9331,6 +9276,7 @@
                         localStorage.removeItem(LS_LESSONS_KEY);
                         localStorage.removeItem(LS_PAUSED_COURSES_KEY); // Also reset pause state
                         localStorage.removeItem(LS_LESSON_LINKS_KEY); // Also reset lesson links
+                        pruneLessonAssignmentLinks('lesson'); // and their lesson->assignment links
                         initializeTrackerData(); // Initialize to empty array
                         renderTracker('lesson');
 
@@ -9338,6 +9284,7 @@
                         localStorage.removeItem(LS_ASSIGNMENTS_KEY);
                         localStorage.removeItem(LS_PAUSED_COURSES_KEY); // Also reset pause state
                         localStorage.removeItem(LS_SPLIT_ASSIGNMENTS_KEY); // Also reset split assignments
+                        pruneLessonAssignmentLinks('assignment');
                         initializeTrackerData(); // Initialize to empty array
                         renderTracker('assignment');
                     }
@@ -9452,7 +9399,6 @@
                 const courseSelects = [
                     document.getElementById('bulkLessonCourse'),
                     document.getElementById('bulkAssignmentCourse'),
-                    document.getElementById('canvas-import-course'),
                     document.getElementById('manual-import-course')
                 ];
 
@@ -9522,25 +9468,8 @@
                 textarea.style.height = textarea.scrollHeight + 'px';
             }
 
-            // Open Add Lessons Modal
-            document.getElementById('openAddLessonModal').addEventListener('click', () => {
-                const modal = document.getElementById('addLessonModal');
-                modal.classList.add('active');
-                const textarea = document.getElementById('bulkLessonNames');
-                textarea.value = '';
-                textarea.style.height = '80px';
-                textarea.focus();
-            });
-
-            // Open Add Assignments Modal
-            document.getElementById('openAddAssignmentModal').addEventListener('click', () => {
-                const modal = document.getElementById('addAssignmentModal');
-                modal.classList.add('active');
-                const textarea = document.getElementById('bulkAssignmentNames');
-                textarea.value = '';
-                textarea.style.height = '80px';
-                textarea.focus();
-            });
+            // The tracker pages' Add Lessons / Add Assignments buttons open the import
+            // window (openImportModal, in the Tracker Import section below).
 
             // Cancel buttons close modals
             document.getElementById('addLessonModalCancel').addEventListener('click', () => {
@@ -9642,6 +9571,42 @@
             }
 
             // Delete Item functionality (New Function - individual task)
+            // Import links each lesson to its assignments in tracker_lesson_assignments_map
+            // ("Course::Lesson" -> [assignment names]); Day cards use it to fill a lesson's
+            // assignments. Deleting tracker items must drop those links too, or re-adding a
+            // lesson with the same name brings its old assignments back.
+            //   type 'lesson'     -> remove the lesson's entry (all lessons if itemName is null)
+            //   type 'assignment' -> remove the assignment from every entry (all if null); an
+            //                        entry emptied this way is dropped, while entries that were
+            //                        already [] (lessons imported without assignments) stay.
+            // courseName null = every course (tracker Reset).
+            function pruneLessonAssignmentLinks(type, courseName = null, itemName = null) {
+                const mapKey = 'tracker_lesson_assignments_map';
+                let map;
+                try { map = JSON.parse(localStorage.getItem(mapKey)) || {}; } catch (e) { return; }
+                let changed = false;
+                Object.keys(map).forEach(key => {
+                    const sep = key.indexOf('::');
+                    if (sep < 0) return;
+                    const course = key.slice(0, sep);
+                    const lesson = key.slice(sep + 2);
+                    if (courseName !== null && course !== courseName) return;
+                    if (type === 'lesson') {
+                        // __orphan__ holds assignment-only imports, not a lesson
+                        if (lesson === '__orphan__' || (itemName !== null && lesson !== itemName)) return;
+                        delete map[key];
+                        changed = true;
+                    } else {
+                        const list = Array.isArray(map[key]) ? map[key] : [];
+                        const kept = itemName === null ? [] : list.filter(a => a !== itemName);
+                        if (kept.length === list.length) return;
+                        if (kept.length) map[key] = kept; else delete map[key];
+                        changed = true;
+                    }
+                });
+                if (changed) localStorage.setItem(mapKey, JSON.stringify(map));
+            }
+
             function deleteTrackerItem(itemId, type) {
                 showAppConfirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`, () => {
                     const storageKey = type === 'lesson' ? LS_LESSONS_KEY : LS_ASSIGNMENTS_KEY;
@@ -9654,6 +9619,7 @@
                     if (type === 'assignment' && itemToDelete) {
                         deleteSplitAssignment(itemToDelete.course, itemToDelete.name);
                     }
+                    if (itemToDelete) pruneLessonAssignmentLinks(type, itemToDelete.course, itemToDelete.name);
 
                     // Filter out the item with the matching id
                     data = data.filter(item => item.id != itemId);
@@ -9684,6 +9650,7 @@
 
                     // Filter out all items belonging to the specified course
                     data = data.filter(item => item.course !== courseName);
+                    pruneLessonAssignmentLinks(type, courseName);
 
                     // Also remove from paused state if it was paused
                     let pausedCourses = getPausedCourses();
@@ -9703,27 +9670,40 @@
 
             // --- **NEW:** Backup & Restore Functionality ---
             function exportData() {
-                const backupData = {};
+                // Day A/B edits only reach storage on Save; write them first so the
+                // file matches what the planner is showing.
+                if (typeof saveData === 'function') {
+                    ['dayA', 'dayB'].forEach(dayId => {
+                        if (document.querySelector('#' + dayId + ' .course-card')) saveData(dayId);
+                    });
+                }
 
-                // Capture ALL keys in localStorage for a complete snapshot
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    const value = localStorage.getItem(key);
-                    if (value !== null) {
+                // Only Course Planner's own keys, in a fixed order so every export
+                // of the same data reads the same.
+                const backupData = {};
+                courseplannerKeysInStorage()
+                    .sort((a, b) => backupKeyRank(a) - backupKeyRank(b) || a.localeCompare(b))
+                    .forEach(key => {
+                        const value = localStorage.getItem(key);
                         try {
                             backupData[key] = JSON.parse(value);
                         } catch (e) {
                             backupData[key] = value; // Store as raw string if not JSON
                         }
-                    }
-                }
+                    });
 
                 // Ensure lesson_links is included in export, even if empty
                 if (!backupData[LS_LESSON_LINKS_KEY]) {
                     backupData[LS_LESSON_LINKS_KEY] = {}; // Store as object, will be stringified below
                 }
 
-                const dataStr = JSON.stringify(backupData, null, 2);
+                const backup = {
+                    app: CP_BACKUP_APP,
+                    version: CP_BACKUP_VERSION,
+                    exportedAt: new Date().toISOString(),
+                    data: backupData
+                };
+                const dataStr = JSON.stringify(backup, null, 2);
                 const blob = new Blob([dataStr], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
 
@@ -9762,6 +9742,68 @@
                 }
             }
 
+            // localStorage is shared by everything on the same origin: every site run on
+            // localhost:3000, and every project published under nanni59.github.io. So a
+            // backup must never mean "all keys", or it drags in other sites' data (and
+            // library caches like Iconify's), and an import must never clear() the
+            // origin. These are the keys Course Planner owns. Deliberately left out:
+            // the Gemini API key (a secret, re-enter it after restoring) and
+            // where-you-were UI state (last tab, selected day).
+            const CP_BACKUP_APP = 'course-planner';
+            const CP_BACKUP_VERSION = 2;
+            const CP_BACKUP_KEYS = [
+                'cp_courses_v1', 'dayA_data', 'dayB_data',
+                'tracker_lessons', 'tracker_assignments', 'tracker_paused_courses', 'tracker_lesson_assignments_map',
+                'split_assignments', 'lesson_links', 'course_custom_links', 'course_priorities', 'moved_courses',
+                'link_preview_toggle',
+                'cp_calendar_items_v1', 'cp_calendar_categories_v1', 'cp_calendar_preferences_v1',
+                'cp_calendar_exceptions_v1', 'cp_calendar_reminded_v1',
+                'cp_study_sets', 'cp_study_decks', 'cp_study_guides', 'cp_study_worksheets', 'cp_study_slides',
+                'cp_study_videos',
+                'cp_satPrep_v1', 'cp_ieltsPrep_v1',
+                'cp_theme', 'cp_gemini_model', 'cp_st_notify'
+            ];
+            const CP_BACKUP_PREFIXES = ['expandFolders_', 'expandOrder_']; // + course name
+
+            function isBackupKey(key) {
+                return CP_BACKUP_KEYS.includes(key)
+                    || CP_BACKUP_PREFIXES.some(p => key.startsWith(p) && key.length > p.length);
+            }
+            function backupKeyRank(key) {
+                const i = CP_BACKUP_KEYS.indexOf(key);
+                return i < 0 ? CP_BACKUP_KEYS.length : i;
+            }
+            function courseplannerKeysInStorage() {
+                const keys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key !== null && isBackupKey(key)) keys.push(key);
+                }
+                return keys;
+            }
+
+            // Accepts this app's backup ({app, version, data}) and older flat
+            // {key: value} backups. Returns only Course Planner keys; throws on another
+            // app's backup or a file with nothing of ours in it.
+            function readBackupPayload(parsed) {
+                const isPlainObject = v => typeof v === 'object' && v !== null && !Array.isArray(v);
+                if (!isPlainObject(parsed)) throw new Error('Invalid backup file format.');
+                let data = parsed;
+                if (typeof parsed.app === 'string' && Object.prototype.hasOwnProperty.call(parsed, 'data')) {
+                    if (parsed.app !== CP_BACKUP_APP) {
+                        throw new Error('This file is a backup from a different app ("' + parsed.app + '"), not Course Planner.');
+                    }
+                    if (!isPlainObject(parsed.data)) throw new Error('Invalid backup file format.');
+                    data = parsed.data;
+                }
+                const own = {};
+                Object.keys(data).forEach(key => {
+                    if (isBackupKey(key)) own[key] = data[key];
+                });
+                if (!Object.keys(own).length) throw new Error('This file does not contain any Course Planner data.');
+                return own;
+            }
+
             function importData(event) {
                 const file = event.target.files[0];
                 if (!file) return;
@@ -9769,12 +9811,7 @@
                 const reader = new FileReader();
                 reader.onload = function (e) {
                     try {
-                        const importedData = JSON.parse(e.target.result);
-
-                        // Basic validation
-                        if (typeof importedData !== 'object' || importedData === null) {
-                            throw new Error('Invalid backup file format.');
-                        }
+                        const importedData = readBackupPayload(JSON.parse(e.target.result));
 
                         showAppConfirm('Importing this file will overwrite all your current data. Are you sure you want to proceed?', () => {
                             // This callback runs on a later button click, OUTSIDE the try/catch
@@ -9788,20 +9825,17 @@
                                     window.cpNormalizeExamPrepBackup(importedData);
                                 }
 
-                                // 1. Snapshot every existing key's EXACT string value so a failed
-                                //    restore (e.g. QuotaExceededError) can roll back losslessly.
-                                //    No JSON parse/reserialize here — raw strings only.
-                                const snapshot = [];
-                                for (let i = 0; i < localStorage.length; i++) {
-                                    const k = localStorage.key(i);
-                                    snapshot.push([k, localStorage.getItem(k)]);
-                                }
+                                // 1. Snapshot every Course Planner key's EXACT string value so a
+                                //    failed restore (e.g. QuotaExceededError) can roll back
+                                //    losslessly. No JSON parse/reserialize here — raw strings only.
+                                const snapshot = courseplannerKeysInStorage().map(k => [k, localStorage.getItem(k)]);
 
                                 try {
-                                    // 2. Clear ALL current localStorage to avoid residue
-                                    localStorage.clear();
+                                    // 2. Remove the current Course Planner keys to avoid residue.
+                                    //    Never clear(): other sites on this origin keep their data.
+                                    snapshot.forEach(([k]) => localStorage.removeItem(k));
 
-                                    // 3. Set new keys from the imported data
+                                    // 3. Set new keys from the imported data (already filtered)
                                     for (const key in importedData) {
                                         const value = importedData[key];
                                         if (typeof value === 'object' && value !== null) {
@@ -9813,7 +9847,7 @@
                                 } catch (importError) {
                                     // 4. Roll back: drop the partial import, replay the snapshot.
                                     try {
-                                        localStorage.clear();
+                                        courseplannerKeysInStorage().forEach(k => localStorage.removeItem(k));
                                         snapshot.forEach(([k, v]) => localStorage.setItem(k, v));
                                         alert('Import failed: ' + importError.message + '. Your previous data has been restored — nothing was changed.');
                                     } catch (rollbackError) {
@@ -10527,8 +10561,8 @@
                     const emptyMsg = document.createElement('p');
                     emptyMsg.style.cssText = 'text-align: center; color: #999; font-style: italic; padding: 40px 20px; font-size: 15px;';
                     emptyMsg.textContent = type === 'lesson'
-                        ? 'No lessons added. Use the Canvas button to import.'
-                        : 'No assignments added. Use the Canvas button to import.';
+                        ? 'No lessons added. Use Add Lessons to import.'
+                        : 'No assignments added. Use Add Assignments to import.';
                     contentContainer.appendChild(emptyMsg);
                 }
 
@@ -10563,12 +10597,14 @@
                 const hasLink = hasCustomLink(courseName);
                 removeLinkBtn.style.display = hasLink ? 'block' : 'none';
 
-                // Show "Expand Card" only if the card has a link (inline or custom)
+                // "Expand Card" is always offered here, link or not. The visible inline
+                // expand button still only appears once the card has links.
+                expandCardBtn.style.display = 'block';
+
+                // "Clear All Tasks" does what the card's X does, without having to
+                // finish every task first. Hidden when there is nothing to clear.
                 const card = document.querySelector(`.course-card[data-course-name="${courseName}"][data-day="${dayId}"]`);
-                const inlineLinkArray = card ? Array.from(card.querySelectorAll('.task-link')).map(inp => inp.value.trim()).filter(v => v !== '') : [];
-                const inlineLink = inlineLinkArray.join(',');
-                const hasAnyLink = hasLink || inlineLink !== '';
-                expandCardBtn.style.display = hasAnyLink ? 'block' : 'none';
+                clearDayCardTasksBtn.style.display = card && dayCardHasTasks(card) ? 'block' : 'none';
 
                 // Set Prioritize/Unprioritize text and color dynamically
                 const priorities = getCoursePriorities();
@@ -10686,6 +10722,7 @@
 
             // --- NEW: Expand Card Feature ---
             const expandCardBtn = document.getElementById('expandCardBtn');
+            const clearDayCardTasksBtn = document.getElementById('clearDayCardTasksBtn');
             const expandCardOverlay = document.getElementById('expandCardOverlay');
             const expandCardClose = document.getElementById('expandCardClose');
             const expandCardRefresh = document.getElementById('expandCardRefresh');
@@ -11936,6 +11973,27 @@
                 dayCardContextMenu.style.display = 'none';
             });
 
+            // Anything the card's X would clear: lesson, assignments, Calendar tasks, notes, links
+            function dayCardHasTasks(card) {
+                const filled = sel => Array.from(card.querySelectorAll(sel)).some(el => (el.value || '').trim() !== '');
+                return filled('.task-lesson-name') || filled('.task-assignment-name')
+                    || filled('.day-card-subtask-title') || filled('.task-notes') || filled('.task-link');
+            }
+
+            // Same action and confirmation as the X that appears once every task is done
+            clearDayCardTasksBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dayCardContextMenu.style.display = 'none';
+                const courseName = dayCardContextMenuCourseName;
+                const dayId = dayCardContextMenuDayId;
+                const courseCard = document.querySelector(`.course-card[data-course-name="${CSS.escape(courseName)}"][data-day="${dayId}"]`);
+                if (!courseCard) return;
+                showAppConfirm(`Are you sure you want to clear the tasks for "${courseName}" on ${dayId.replace('day', 'Day ')}?`, () => {
+                    // false = keep tracker progress, exactly like the X and Ctrl+E
+                    deleteDayTaskCard(courseCard, false);
+                }, { title: 'Clear this card?', confirmText: 'Clear' });
+            });
+
             // --- Visible inline expand buttons on cards (keyboard/touch accessible) ---
             function initInlineExpandButtons() {
                 document.querySelectorAll('.course-card[data-course-name][data-day]').forEach(card => {
@@ -12816,6 +12874,16 @@
                 contextMenu.style.display = 'none';
             });
 
+            // Same as the card's X (which only shows once everything is finished):
+            // deleteTrackerCourse asks for confirmation itself.
+            document.getElementById('deleteTrackerCourseTasksBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                contextMenu.style.display = 'none';
+                if (contextMenuCourseName && contextMenuTrackerType) {
+                    deleteTrackerCourse(contextMenuCourseName, contextMenuTrackerType);
+                }
+            });
+
             // Ctrl/Cmd shortcuts belong only to the planner and tracker tabs.
             document.addEventListener('keydown', (event) => {
                 const activeTab = document.querySelector('.tab-content.active');
@@ -12869,17 +12937,9 @@
             }
 
             // --- Initial Load ---
-            // --- **NEW:** Canvas Import Logic ---
+            // --- Tracker Import (Add Lessons / Add Assignments) ---
 
-            const canvasImportBtn = document.getElementById('canvas-import-btn'); // In footer
-            const canvasImportModal = document.getElementById('canvasImportModal');
-            const canvasTextInput = document.getElementById('canvas-raw-text');
-            const canvasPreviewContainer = document.getElementById('canvas-preview-container');
-            const canvasCourseSelect = document.getElementById('canvas-import-course');
-            const canvasBackBtn = document.getElementById('canvas-back-btn');
-            const canvasPreviewBtn = document.getElementById('canvas-preview-btn');
-            const canvasImportActionBtn = document.getElementById('canvas-import-action-btn');
-            const canvasCancelBtn = document.getElementById('canvas-cancel-btn');
+            const importModal = document.getElementById('importModal');
 
             // Manual Import Elements
             const manualTextInput = document.getElementById('manual-raw-text');
@@ -12890,64 +12950,31 @@
             const manualImportActionBtn = document.getElementById('manual-import-action-btn');
             const manualCancelBtn = document.getElementById('manual-cancel-btn');
 
-            let parsedCanvasData = [];
             let parsedManualData = [];
 
+            // Open Modal — from the Add Lessons / Add Assignments button on each tracker
+            // page, with that page's type preselected.
+            function openImportModal(manualType) {
+                importModal.classList.add('active');
+                document.getElementById('manual-step-1').style.display = 'block';
+                document.getElementById('manual-step-2').style.display = 'none';
+                if (manualTextInput) manualTextInput.value = '';
+                parsedManualData = [];
+                const manualTypeSelect = document.getElementById('manual-import-type');
+                if (manualTypeSelect && manualType) manualTypeSelect.value = manualType;
 
-            // --- Import Modal Tab Switching ---
-            document.querySelectorAll('.import-tab-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const tab = btn.dataset.importTab;
-                    document.querySelectorAll('.import-tab-btn').forEach(b => {
-                        b.classList.remove('active-canvas', 'active-manual');
-                    });
-                    if (tab === 'canvas') {
-                        btn.classList.add('active-canvas');
-                        document.getElementById('canvas-import-section').style.display = 'block';
-                        document.getElementById('manual-import-section').style.display = 'none';
-                    } else {
-                        btn.classList.add('active-manual');
-                        document.getElementById('canvas-import-section').style.display = 'none';
-                        document.getElementById('manual-import-section').style.display = 'block';
+                populateCourseDropdowns();
+
+                setTimeout(() => {
+                    if (manualTextInput) {
+                        manualTextInput.style.height = '200px';
+                        manualTextInput.focus();
                     }
-                });
-            });
-
-
-            // Open Modal
-            if (canvasImportBtn) {
-                canvasImportBtn.addEventListener('click', () => {
-                    canvasImportModal.classList.add('active');
-                    // Reset Canvas tab state
-                    document.getElementById('canvas-step-1').style.display = 'block';
-                    document.getElementById('canvas-step-2').style.display = 'none';
-                    canvasTextInput.value = '';
-                    parsedCanvasData = [];
-                    // Reset Manual tab state
-                    document.getElementById('manual-step-1').style.display = 'block';
-                    document.getElementById('manual-step-2').style.display = 'none';
-                    if (manualTextInput) manualTextInput.value = '';
-                    parsedManualData = [];
-                    // Reset to Canvas tab
-                    document.querySelectorAll('.import-tab-btn').forEach(b => b.classList.remove('active-canvas', 'active-manual'));
-                    document.getElementById('importTabCanvas').classList.add('active-canvas');
-                    document.getElementById('canvas-import-section').style.display = 'block';
-                    document.getElementById('manual-import-section').style.display = 'none';
-
-                    populateCourseDropdowns();
-
-                    setTimeout(() => {
-                        canvasTextInput.style.height = '200px';
-                        if (manualTextInput) manualTextInput.style.height = '200px';
-                    }, 50);
-                });
-
-                // Auto-Fit for Canvas textarea
-                canvasTextInput.addEventListener('input', function () {
-                    this.style.height = 'auto';
-                    this.style.height = (this.scrollHeight) + 'px';
-                });
+                }, 50);
             }
+
+            document.getElementById('openAddLessonModal').addEventListener('click', () => openImportModal('lessons'));
+            document.getElementById('openAddAssignmentModal').addEventListener('click', () => openImportModal('assignments'));
 
             // Auto-Fit for Manual textarea
             if (manualTextInput) {
@@ -12957,36 +12984,9 @@
                 });
             }
 
-            // Cancel (both tabs)
-            if (canvasCancelBtn) {
-                canvasCancelBtn.addEventListener('click', () => {
-                    canvasImportModal.classList.remove('active');
-                });
-            }
             if (manualCancelBtn) {
                 manualCancelBtn.addEventListener('click', () => {
-                    canvasImportModal.classList.remove('active');
-                });
-            }
-
-            // Canvas Preview
-            if (canvasPreviewBtn) {
-                canvasPreviewBtn.addEventListener('click', () => {
-                    const text = canvasTextInput.value;
-                    if (!text.trim()) {
-                        alert('Please paste some text first.');
-                        return;
-                    }
-
-                    parsedCanvasData = parseCanvasTextV3(text);
-                    if (parsedCanvasData.length === 0) {
-                        alert('Could not detect any lessons or assignments. Please check the format.');
-                        return;
-                    }
-
-                    renderCanvasPreview(parsedCanvasData);
-                    document.getElementById('canvas-step-1').style.display = 'none';
-                    document.getElementById('canvas-step-2').style.display = 'block';
+                    importModal.classList.remove('active');
                 });
             }
 
@@ -13008,48 +13008,16 @@
                         return;
                     }
 
-                    renderCanvasPreview(parsedManualData, manualPreviewContainer);
+                    renderImportPreview(parsedManualData);
                     document.getElementById('manual-step-1').style.display = 'none';
                     document.getElementById('manual-step-2').style.display = 'block';
                 });
             }
 
-            // Back buttons
-            if (canvasBackBtn) {
-                canvasBackBtn.addEventListener('click', () => {
-                    document.getElementById('canvas-step-2').style.display = 'none';
-                    document.getElementById('canvas-step-1').style.display = 'block';
-                });
-            }
             if (manualBackBtn) {
                 manualBackBtn.addEventListener('click', () => {
                     document.getElementById('manual-step-2').style.display = 'none';
                     document.getElementById('manual-step-1').style.display = 'block';
-                });
-            }
-
-            // Canvas Import Action
-            if (canvasImportActionBtn) {
-                canvasImportActionBtn.addEventListener('click', () => {
-                    const selectedCourse = canvasCourseSelect.value;
-                    if (!selectedCourse) {
-                        alert('Please select a course to import into.');
-                        return;
-                    }
-
-                    importDataToCard(selectedCourse, parsedCanvasData);
-
-                    const originalText = canvasImportActionBtn.textContent;
-                    canvasImportActionBtn.textContent = 'Imported!';
-                    canvasImportActionBtn.disabled = true;
-
-                    console.log(`Successfully imported ${parsedCanvasData.length} lessons into ${selectedCourse}.`);
-
-                    setTimeout(() => {
-                        canvasImportModal.classList.remove('active');
-                        canvasImportActionBtn.textContent = originalText;
-                        canvasImportActionBtn.disabled = false;
-                    }, 1000);
                 });
             }
 
@@ -13071,199 +13039,13 @@
                     console.log(`Successfully imported ${parsedManualData.length} groups into ${selectedCourse}.`);
 
                     setTimeout(() => {
-                        canvasImportModal.classList.remove('active');
+                        importModal.classList.remove('active');
                         manualImportActionBtn.textContent = originalText;
                         manualImportActionBtn.disabled = false;
                     }, 1000);
                 });
             }
 
-            // **NEW PARSER V3:** Enhanced Logic for Headers, LaTeX, and Status
-            function parseCanvasTextV3(text) {
-                const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-                const structure = [];
-                let currentLesson = null;
-
-                // Helper: Clean Text (LaTeX, Emojis)
-                const cleanText = (str) => {
-                    if (!str) return '';
-                    // simplistic LaTeX unwrap: \cmd{text} -> text
-                    let oldStr;
-                    do {
-                        oldStr = str;
-                        str = str.replace(/\\[a-zA-Z]+{([^{}]*)}/g, '$1');
-                    } while (str !== oldStr);
-
-                    // Remove standalone commands and braces
-                    str = str.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '');
-
-                    // Remove Emojis (Broad Unicode Ranges)
-                    str = str.replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
-                        .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc Symbols and Pictographs
-                        .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport and Map
-                        .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Flags
-                        .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc Symbols
-                        .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
-                        .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental Symbols
-                        .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '') // Chess Symbols
-                        .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols Extended-A
-                        .replace(/[\u{2300}-\u{23FF}]/gu, '')   // Misc Technical
-                        .replace(/[\u{200D}]/gu, '')             // Zero Width Joiner
-                        .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Variation Selectors
-                        .replace(/[\u{E0020}-\u{E007F}]/gu, '') // Tags
-                        .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, ''); // Skin Tone Modifiers
-
-                    // Collapse multiple spaces left after stripping
-                    str = str.replace(/\s{2,}/g, ' ');
-
-                    // Filter: Remove known noise phrases (inline fragments)
-                    const noiseFragments = [
-                        'Links to an external site.',
-                        'Links to an external site'
-                    ];
-                    noiseFragments.forEach(phrase => {
-                        str = str.split(phrase).join('');
-                    });
-
-                    return str.trim();
-                };
-
-                // Helper: Normalize Status (Returns Text Only)
-                const normalizeStatus = (str) => {
-                    if (!str) return '';
-                    if (/Submitted/i.test(str)) return 'Submit';
-                    if (/Submit/i.test(str)) return 'Submit';
-                    if (/Marked done/i.test(str)) return 'Mark Done';
-                    if (/Mark.*done/i.test(str)) return 'Mark Done';
-                    if (/Viewed/i.test(str)) return 'Viewed';
-                    if (/Contribute/i.test(str)) return 'Contribute';
-                    return '';
-                };
-
-                // Mode Detection: Do we have explicit headers?
-                const useSubHeader = lines.some(l => l.includes('Context Module Sub Header'));
-                let isExplicitLesson = false; // Track if current lesson is a real Header or just a standalone item wrapper
-
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-
-                    // 1. Header Detection (Explicit)
-                    if (useSubHeader && line === 'Context Module Sub Header') {
-                        if (lines[i + 1]) {
-                            let title = cleanText(lines[i + 1]);
-                            let skip = 1;
-                            // FIX: If title is empty after cleaning (emoji-only line), scan forward
-                            while (!title && lines[i + skip + 1]) {
-                                skip++;
-                                const candidate = lines[i + skip];
-                                // Stop if we hit another type marker
-                                if (['Page', 'Assignment', 'Quiz', 'Discussion Topic', 'Attachment', 'External Url', 'Context Module Sub Header'].includes(candidate)) break;
-                                title = cleanText(candidate);
-                            }
-                            if (!title) { i += skip; continue; } // Skip entirely if no real title found
-                            currentLesson = { name: title, items: [] };
-                            structure.push(currentLesson);
-                            isExplicitLesson = true;
-                            i += skip; // Skip title (and any emoji lines before it)
-                            continue;
-                        }
-                    }
-
-                    // 2. Item Detection Strategies
-                    const isPage = line === 'Page';
-                    const isAssignment = line === 'Assignment' || line === 'Quiz' || line === 'Discussion Topic' || line === 'Attachment' || line === 'External Url';
-
-                    if (isPage || isAssignment) {
-                        const type = line === 'External Url' ? 'Link' : (line === 'Attachment' ? 'File' : line);
-                        if (lines[i + 1]) {
-                            let rawTitle = lines[i + 1];
-                            let title = cleanText(rawTitle);
-                            let titleSkip = 1;
-                            // FIX: If title is empty after cleaning (emoji-only line), scan forward
-                            while (!title && lines[i + titleSkip + 1]) {
-                                titleSkip++;
-                                const candidate = lines[i + titleSkip];
-                                if (['Page', 'Assignment', 'Quiz', 'Discussion Topic', 'Attachment', 'External Url', 'Context Module Sub Header'].includes(candidate)) break;
-                                title = cleanText(candidate);
-                            }
-                            if (!title) { i += titleSkip; continue; } // Skip if no real title
-                            i += titleSkip; // Skip title (and any emoji lines before it)
-
-                            // 3. Header Detection (Implicit OR Explicit override)
-                            // If title starts with "Lesson X", treat as Lesson Group
-                            if (isAssignment && /^Lesson\s+/i.test(title)) {
-                                // User Rule: "If an assignment name begins with 'Lesson'... treated as a separate, distinct lesson"
-                                currentLesson = { name: title, items: [] };
-                                structure.push(currentLesson);
-                                isExplicitLesson = true;
-                                continue;
-                            }
-
-                            // 3b. Header Detection (Implicit - Page with "Lesson/Unit/Chapter/Week")
-                            // Only if NOT using SubHeaders (or fallback)
-                            // Relaxed regex to support "Lesson Three" (Word numbers) or just "Lesson ..."
-                            if (!useSubHeader && isPage && /^(Lesson|Unit|Chapter|Week|Module)\s+/i.test(title)) {
-                                currentLesson = { name: title, items: [] };
-                                structure.push(currentLesson);
-                                isExplicitLesson = true;
-                                // Treat this Page as the Lesson Concept, not an item to do
-                                continue;
-                            }
-
-                            // 4. Add Item to Current Lesson
-                            // Fallback: If no lesson exists yet (at the start of the file)
-                            // User Request: Group orphans into a single group so indentation can work.
-                            if (!currentLesson) {
-                                // FIX: Create orphan group WITHOUT using the item title as the lesson name.
-                                // This prevents the first assignment from being treated as both a lesson and assignment.
-                                currentLesson = { name: '__orphan__', items: [], isStandaloneWrapper: true };
-                                structure.push(currentLesson);
-                                isExplicitLesson = false;
-                            }
-
-                            if (currentLesson) {
-                                let statusObj = null;
-                                let metaLinesProcessed = 0;
-
-                                // Check i+1 (Points or Status)
-                                if (lines[i + 1]) {
-                                    const next = lines[i + 1];
-                                    const s = normalizeStatus(next);
-                                    if (s) {
-                                        statusObj = s;
-                                        metaLinesProcessed++;
-                                    } else if (/\d+\s+pts/.test(next) || /\d+\s+min/.test(next)) {
-                                        // Points line
-                                        metaLinesProcessed++;
-                                        if (lines[i + 2]) {
-                                            const s2 = normalizeStatus(lines[i + 2]);
-                                            if (s2) {
-                                                statusObj = s2;
-                                                metaLinesProcessed++;
-                                            }
-                                        }
-                                    }
-                                }
-
-                                i += metaLinesProcessed;
-
-                                let mappedType = 'assignment';
-                                if (line === 'Quiz') mappedType = 'quiz';
-                                if (line === 'Discussion Topic') mappedType = 'discussion';
-
-                                currentLesson.items.push({
-                                    title: title,
-                                    type: mappedType,
-                                    status: statusObj || '',
-                                    isDone: false // Forced off globally
-                                });
-                            }
-                        }
-                    }
-                }
-
-                return structure;
-            }
             // **NEW:** Manual Import Parser
             function parseManualText(text, mode) {
                 const rawLines = text.split('\n');
@@ -13320,8 +13102,8 @@
                 return structure;
             }
 
-            function renderCanvasPreview(data, targetContainer) {
-                const container = targetContainer || canvasPreviewContainer;
+            function renderImportPreview(data) {
+                const container = manualPreviewContainer;
                 container.innerHTML = '';
                 if (!data || data.length === 0) {
                     container.innerHTML = '<p style="color:#666; font-style:italic;">No items detected.</p>';
@@ -13351,7 +13133,7 @@
                     }
 
                     if (!hideHeader) {
-                        lessonDiv.innerHTML = `<strong>${lesson.name}</strong>`;
+                        lessonDiv.innerHTML = `<strong>${escapeHTML(lesson.name)}</strong>`;
                     }
 
                     if (lesson.items && lesson.items.length > 0) {
@@ -13365,7 +13147,7 @@
                             const itemTitle = (item.title || item.name || '');
 
                             // Format: Type Title (Status removed per user request)
-                            let text = `<span class="canvas-tree-type">${dType}</span> <span class="canvas-preview-title">${itemTitle}</span>`;
+                            let text = `<span class="canvas-tree-type">${dType}</span> <span class="canvas-preview-title">${escapeHTML(itemTitle)}</span>`;
                             itemDiv.innerHTML = text;
 
                             // **NEW:** Restricted Indentation Cycle in Preview
@@ -13401,7 +13183,7 @@
                             titleSpan.oncontextmenu = function (e) {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                showCanvasContextMenu(titleSpan, lessonIdx, itemIdx);
+                                showImportContextMenu(titleSpan, lessonIdx, itemIdx);
                             };
 
                             // **NEW:** Type Cycling in Preview
@@ -13427,7 +13209,7 @@
                         if (e.target === lessonDiv || e.target === header) {
                             e.preventDefault();
                             e.stopPropagation();
-                            showCanvasContextMenu(header, lessonIdx, -1);
+                            showImportContextMenu(header, lessonIdx, -1);
                         }
                     };
 
@@ -13435,16 +13217,16 @@
                 });
             }
 
-            // --- **NEW: Canvas Conversion Logic** ---
-            let canvasContextMenuTarget = { lessonIdx: -1, itemIdx: -1 };
+            // --- Preview editing: convert / rename / delete (right-click) ---
+            let importContextMenuTarget = { lessonIdx: -1, itemIdx: -1 };
 
-            function showCanvasContextMenu(targetEl, lessonIdx, itemIdx) {
+            function showImportContextMenu(targetEl, lessonIdx, itemIdx) {
                 const menu = document.getElementById('canvasContextMenu');
                 const textEl = document.getElementById('canvasConvertText');
                 const renameTextEl = document.getElementById('canvasRenameText'); // NEW
                 const deleteTextEl = document.getElementById('canvasDeleteText'); // NEW
 
-                canvasContextMenuTarget = { lessonIdx, itemIdx };
+                importContextMenuTarget = { lessonIdx, itemIdx };
 
                 if (itemIdx === -1) {
                     textEl.textContent = 'Convert to Assignment';
@@ -13481,16 +13263,16 @@
                 menu.style.top = top + 'px';
             }
 
-            function performCanvasConversion() {
-                const { lessonIdx, itemIdx } = canvasContextMenuTarget;
+            function performImportConversion() {
+                const { lessonIdx, itemIdx } = importContextMenuTarget;
                 if (lessonIdx === -1) return;
 
                 if (itemIdx === -1) {
                     // CONVERT LESSON TO ASSIGNMENT
                     // Merge this lesson's items into the previous lesson (if any)
                     if (lessonIdx > 0) {
-                        const lessonToDemote = parsedCanvasData[lessonIdx];
-                        const prevLesson = parsedCanvasData[lessonIdx - 1];
+                        const lessonToDemote = parsedManualData[lessonIdx];
+                        const prevLesson = parsedManualData[lessonIdx - 1];
 
                         // Check for duplicate: if lesson name == first item name, skip adding header
                         const isDuplicate = lessonToDemote.items && lessonToDemote.items.length > 0 && lessonToDemote.items[0].title === lessonToDemote.name;
@@ -13510,11 +13292,11 @@
                             prevLesson.items.push(...lessonToDemote.items);
                         }
 
-                        parsedCanvasData.splice(lessonIdx, 1);
+                        parsedManualData.splice(lessonIdx, 1);
                     } else {
                         // If it's the first lesson, we can't merge upwards, 
                         // just turn the header into an item in a new 'General' group
-                        const lessonToDemote = parsedCanvasData[lessonIdx];
+                        const lessonToDemote = parsedManualData[lessonIdx];
                         if (!lessonToDemote.items) lessonToDemote.items = [];
 
                         // Check for duplicate
@@ -13532,7 +13314,7 @@
                     }
                 } else {
                     // CONVERT ITEM TO LESSON
-                    const parentLesson = parsedCanvasData[lessonIdx];
+                    const parentLesson = parsedManualData[lessonIdx];
                     const itemToPromote = parentLesson.items[itemIdx];
 
                     // Create new lesson
@@ -13546,16 +13328,16 @@
 
                     // Smart Cleanup: Only remove empty parent if it was a "wrapper" (same name as promoted item)
                     if (parentLesson.items.length === 0 && parentLesson.name === newLesson.name) {
-                        parsedCanvasData.splice(lessonIdx, 1);
+                        parsedManualData.splice(lessonIdx, 1);
                         // Insert the new lesson at the same index (where the empty parent was)
-                        parsedCanvasData.splice(lessonIdx, 0, newLesson);
+                        parsedManualData.splice(lessonIdx, 0, newLesson);
                     } else {
                         // Insert the new lesson after the current parent
-                        parsedCanvasData.splice(lessonIdx + 1, 0, newLesson);
+                        parsedManualData.splice(lessonIdx + 1, 0, newLesson);
                     }
                 }
 
-                renderCanvasPreview(parsedCanvasData);
+                renderImportPreview(parsedManualData);
                 document.getElementById('canvasContextMenu').style.display = 'none';
             }
 
@@ -13564,7 +13346,7 @@
             if (canvasConvertAction) {
                 canvasConvertAction.onclick = function (e) {
                     e.stopPropagation();
-                    performCanvasConversion();
+                    performImportConversion();
                 };
             }
 
@@ -13573,20 +13355,20 @@
             if (canvasDeleteAction) {
                 canvasDeleteAction.onclick = function (e) {
                     e.stopPropagation();
-                    const { lessonIdx, itemIdx } = canvasContextMenuTarget;
+                    const { lessonIdx, itemIdx } = importContextMenuTarget;
                     if (lessonIdx === -1) return;
 
                     if (itemIdx === -1) {
                         // Delete Lesson
-                        parsedCanvasData.splice(lessonIdx, 1);
+                        parsedManualData.splice(lessonIdx, 1);
                     } else {
                         // Delete Assignment Item
-                        if (parsedCanvasData[lessonIdx] && parsedCanvasData[lessonIdx].items) {
-                            parsedCanvasData[lessonIdx].items.splice(itemIdx, 1);
+                        if (parsedManualData[lessonIdx] && parsedManualData[lessonIdx].items) {
+                            parsedManualData[lessonIdx].items.splice(itemIdx, 1);
                         }
                     }
 
-                    renderCanvasPreview(parsedCanvasData);
+                    renderImportPreview(parsedManualData);
                     document.getElementById('canvasContextMenu').style.display = 'none';
                 };
             }
@@ -13596,7 +13378,7 @@
             if (canvasRenameAction) {
                 canvasRenameAction.onclick = function (e) {
                     e.stopPropagation();
-                    showRenameModal(canvasContextMenuTarget.lessonIdx, canvasContextMenuTarget.itemIdx); // Updated params
+                    showRenameModal(importContextMenuTarget.lessonIdx, importContextMenuTarget.itemIdx); // Updated params
                     document.getElementById('canvasContextMenu').style.display = 'none';
                 };
             }
@@ -13606,7 +13388,7 @@
                 const modal = document.getElementById('canvasRenameModal');
                 const input = document.getElementById('canvas-rename-input');
                 const titleEl = document.getElementById('canvasRenameTitle'); // NEW
-                const lesson = parsedCanvasData[lessonIdx];
+                const lesson = parsedManualData[lessonIdx];
 
                 if (lesson) {
                     let currentName = '';
@@ -13642,13 +13424,13 @@
                 const input = document.getElementById('canvas-rename-input');
                 const newName = input.value.trim();
 
-                if (newName && parsedCanvasData[lessonIdx]) {
+                if (newName && parsedManualData[lessonIdx]) {
                     if (itemIdx === -1) {
-                        parsedCanvasData[lessonIdx].name = newName;
-                    } else if (parsedCanvasData[lessonIdx].items && parsedCanvasData[lessonIdx].items[itemIdx]) {
-                        parsedCanvasData[lessonIdx].items[itemIdx].title = newName;
+                        parsedManualData[lessonIdx].name = newName;
+                    } else if (parsedManualData[lessonIdx].items && parsedManualData[lessonIdx].items[itemIdx]) {
+                        parsedManualData[lessonIdx].items[itemIdx].title = newName;
                     }
-                    renderCanvasPreview(parsedCanvasData);
+                    renderImportPreview(parsedManualData);
                 }
                 modal.style.display = 'none';
             }
@@ -13766,7 +13548,7 @@
 
             /* =========================================================
                Themed dropdowns for native <select>s outside Study Tools
-               (Canvas import + bulk-add modals). The native <select> stays in
+               (tracker import + bulk-add modals). The native <select> stays in
                the DOM (hidden) and remains the source of truth, so all existing
                .value reads keep working; a .cp-dd overlay mirrors it and is kept
                in sync both ways (option list, programmatic value/selectedIndex).
@@ -13880,7 +13662,7 @@
     let courses=[];
     function syncCourses(){let r=null;try{r=JSON.parse(localStorage.getItem('cp_courses_v1'))}catch(e){}
       courses=Array.isArray(r)?r.map(c=>String((c&&c.name)||'').trim()).filter(Boolean)
-        :['Calculus & Vectors','English','Media Arts','Business Leadership']}
+        :['English','Media Arts','Business Leadership']}
     syncCourses(); window.cpSyncCourseRoster=syncCourses;
     let S={items:[],cats:[],prefs:{},cursor:new Date(),view:'month',filters:{q:'',type:'',cat:'',priority:'',status:''},shown:[],drag:null};
     const pad=n=>String(n).padStart(2,'0'), id=()=>`cal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,9)}`;
@@ -15778,23 +15560,6 @@
             b.querySelector('.st-tp-state').textContent = b.classList.toggle('on') ? 'On' : 'Off';
         }));
 
-        // Auto-enable math formatting for math-heavy subjects. Picking "Calculus &
-        // Vectors" from the Subject dropdown switches the LaTeX toggle on (it's off by
-        // default); the user can still turn it back off manually.
-        function setLatexOn(id, on) {
-            const el = document.getElementById(id);
-            if (!el) return;
-            el.classList.toggle('on', on);
-            const state = el.querySelector('.st-tp-state');
-            if (state) state.textContent = on ? 'On' : 'Off';
-        }
-        function setVisualOn(id, on) {
-            const el = document.getElementById(id);
-            if (!el) return;
-            el.classList.toggle('on', on);
-            const state = el.querySelector('.st-tp-state');
-            if (state) state.textContent = on ? 'On' : 'Off';
-        }
         function tikzPrompt(kind) {
             const target = kind || 'content';
             if (/worksheet/i.test(target)) {
@@ -15802,45 +15567,6 @@
             }
             return '\nTextbook visuals are enabled, but do NOT write TikZ code yourself. Leave "tikzSvg" empty. A separate backend renderer draws every diagram after the text is generated, so all visuals across the worksheet, study guide, flashcard and slide generators share one clean black/gray textbook style. Your job is only to say WHERE a diagram helps and to describe it in plain words — clearly name the points, sides, angles, axes, curves, vectors, bearings, coordinates, regions, and labels the diagram needs for ' + target + '. Only ask for a diagram with real drawing content (graphs, geometry, number lines, vectors, force diagrams, probability trees, regions under a curve). Do not request a diagram for standalone formulas, definitions, statements, or proofs; put formulas in the normal text/equation fields instead.';
         }
-        [['wsSubject', 'wsLatex'], ['aioSubject', 'aioLatex'], ['gSubject', 'gLatex'], ['fSubject', 'fLatex'], ['sdSubject', 'sdLatex']].forEach(([subId, latexId]) => {
-            const dd = document.getElementById(subId);
-            if (!dd) return;
-            dd.addEventListener('change', () => {
-                if (dd.value === 'Calculus & Vectors') setLatexOn(latexId, true);
-            });
-        });
-        const sdSubjectDD = document.getElementById('sdSubject');
-        if (sdSubjectDD) sdSubjectDD.addEventListener('change', () => {
-            if (sdSubjectDD.value === 'Calculus & Vectors') setVisualOn('sdVisuals', true);
-        });
-        const wsSubjectDD = document.getElementById('wsSubject');
-        if (wsSubjectDD) wsSubjectDD.addEventListener('change', () => {
-            if (wsSubjectDD.value === 'Calculus & Vectors') setVisualOn('wsVisuals', true);
-        });
-        [['gSubject', 'gVisuals'], ['fSubject', 'fVisuals'], ['aioSubject', 'aioVisuals']].forEach(([subId, visualId]) => {
-            const dd = document.getElementById(subId);
-            if (!dd) return;
-            dd.addEventListener('change', () => {
-                if (dd.value === 'Calculus & Vectors') setVisualOn(visualId, true);
-            });
-        });
-
-        // Multiple choice isn't an ideal assessment format for Calculus & Vectors, so
-        // selecting that subject unchecks the "Multiple Choice" chip; any other subject
-        // restores its default on state. The chip's on/off state is thus a predictable
-        // function of the subject, and it stays clickable so the user can override.
-        function applyMcDefault(subId, typesSel) {
-            const dd = document.getElementById(subId);
-            const wrap = root.querySelector(typesSel);
-            if (!dd || !wrap) return;
-            const mc = wrap.querySelector('.st-chip[data-type="mc"]');
-            if (mc) mc.classList.toggle('on', dd.value !== 'Calculus & Vectors');
-        }
-        [['wsSubject', '#wsTypes'], ['aioSubject', '#aioTypes']].forEach(([subId, typesSel]) => {
-            const dd = document.getElementById(subId);
-            if (dd) dd.addEventListener('change', () => applyMcDefault(subId, typesSel));
-            applyMcDefault(subId, typesSel);
-        });
 
         // init source managers
         ['worksheet', 'guide', 'flashcards', 'allinone', 'slides'].forEach(n => initSource(screenEl(n)));

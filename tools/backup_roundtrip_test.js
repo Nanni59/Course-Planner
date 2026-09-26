@@ -4,7 +4,8 @@
 //
 // Covers:
 //   1. export -> import round trip preserves every key/value pair
-//   2. unrelated (unknown-to-the-app) keys survive the round trip
+//   2. only Course Planner keys are exported/replaced; other keys on the origin
+//      (other sites, library caches, the API key) are left out and left alone
 //   3. malformed input is rejected BEFORE existing data is cleared
 //   4. cancelling (never invoking) the confirmation leaves storage untouched
 //   5. transactional import (the AUDIT P1-1 fix): a failure during the DEFERRED
@@ -141,7 +142,7 @@ function snapshotsEqual(a, b) {
 
 // ---- seed data resembling real app state ------------------------------------
 function seed(ls) {
-    ls.setItem('tracker_lessons', JSON.stringify([{ id: 'l1', course: 'Calculus & Vectors', name: 'Unit 3 Lesson 2', status: 'Finished' }]));
+    ls.setItem('tracker_lessons', JSON.stringify([{ id: 'l1', course: 'Physics', name: 'Unit 3 Lesson 2', status: 'Finished' }]));
     ls.setItem('tracker_assignments', JSON.stringify([{ id: 'a1', course: 'English', name: 'Essay Draft', status: 'Not Started' }]));
     ls.setItem('split_assignments', JSON.stringify({ 'English||Essay Draft': { totalDays: 3, completedDays: 1 } }));
     ls.setItem('cp_theme', 'dark');                       // plain string, not JSON
@@ -155,6 +156,7 @@ function seed(ls) {
     // "Ensure lesson_links is included in export"), so seed it for identity checks;
     // the injection itself is asserted in its own case below.
     ls.setItem('lesson_links', JSON.stringify({}));
+    ls.setItem('expandFolders_English', JSON.stringify(['Drafts']));
 }
 
 // == 1 & 2: export -> import round trip (incl. unrelated key) ==================
@@ -169,26 +171,93 @@ function seed(ls) {
     check('export produced JSON', typeof backup === 'string' && backup.length > 0);
     check('export parses as an object', (() => { try { const o = JSON.parse(backup); return o && typeof o === 'object'; } catch (e) { return false; } })());
 
-    // simulate a different browser profile: unrelated residue that import must wipe
+    const parsed = JSON.parse(backup);
+    check('export is wrapped as a Course Planner backup',
+        parsed.app === 'course-planner' && parsed.version === 2 && typeof parsed.exportedAt === 'string'
+        && parsed.data && typeof parsed.data === 'object');
+    check('export leaves out keys that are not Course Planner data',
+        !('someFutureFeatureKey' in parsed.data) && !('selectedDay' in parsed.data) && !('someFutureFeatureKey' in parsed));
+    check('export keeps the prefixed expand-view keys', 'expandFolders_English' in parsed.data);
+
+    // simulate a different browser profile: Course Planner residue that import must
+    // replace, plus another site's key on the same origin that it must leave alone
     ls.clear();
     ls.setItem('residueKey', 'stale-value');
     ls.setItem('cp_theme', 'light');
+    ls.setItem('course_priorities', JSON.stringify({ stale: 1 }));
 
     const h2 = makeHarness(ls);
     h2.importData(makeImportEvent(backup));
     check('import asked for confirmation', h2.getConfirmMessage() !== null);
-    check('storage untouched until the user confirms', ls.getItem('residueKey') === 'stale-value' && !h2.wasReloaded());
+    check('storage untouched until the user confirms', ls.getItem('cp_theme') === 'light' && !h2.wasReloaded());
     const escaped = h2.confirm(); // the later user click
     check('confirmation callback completed without uncaught error', escaped === null, escaped && escaped.message);
     check('import reloads on success', h2.wasReloaded());
-    const restored = ls._snapshot();
-    check('round trip preserves every key/value pair', snapshotsEqual(original, restored),
-        JSON.stringify({ original, restored }).slice(0, 300));
+    const ownOriginal = original.filter(([k]) => k !== 'someFutureFeatureKey' && k !== 'selectedDay');
+    const ownRestored = ls._snapshot().filter(([k]) => k !== 'residueKey');
+    check('round trip preserves every Course Planner key/value pair', snapshotsEqual(ownOriginal, ownRestored),
+        JSON.stringify({ ownOriginal, ownRestored }).slice(0, 300));
     check('worksheet solution steps survive the real backup/import path', JSON.parse(ls.getItem('cp_study_worksheets'))[0].data.questions[0].solutionSteps.join('|') === 'x + 2 = 5|x = 3');
-    check('unrelated key survives the round trip', ls.getItem('someFutureFeatureKey') === JSON.stringify({ nested: { deep: [1, 2, 3] } }));
     check('SAT Prep survives the round trip byte-for-byte', ls.getItem('cp_satPrep_v1') === original.find(x => x[0] === 'cp_satPrep_v1')[1]);
     check('IELTS Prep survives the round trip byte-for-byte', ls.getItem('cp_ieltsPrep_v1') === original.find(x => x[0] === 'cp_ieltsPrep_v1')[1]);
-    check('pre-import residue is fully replaced', ls.getItem('residueKey') === null);
+    check('Course Planner residue not in the backup is removed', ls.getItem('course_priorities') === null);
+    check("another site's key on the same origin is left alone", ls.getItem('residueKey') === 'stale-value');
+}
+
+// == secrets, UI state and library caches never enter a backup ==================
+{
+    const ls = makeLocalStorage();
+    ls.setItem('cp_theme', 'dark');
+    ls.setItem('cp_gemini_api_key', 'AIza-test-not-real');
+    ls.setItem('cp_lastActiveTab', 'backupTab');
+    ls.setItem('iconify-count', '1');
+    ls.setItem('otherSite_todos', JSON.stringify([{ t: 'x' }]));
+    const h = makeHarness(ls);
+    h.exportData();
+    const text = h.getExportedText();
+    check('export leaves out the API key, UI state, library caches and other sites',
+        !/AIza|cp_gemini_api_key|cp_lastActiveTab|iconify|otherSite/.test(text));
+}
+
+// == import keeps the API key and other sites' data on this origin ==============
+{
+    const ls = makeLocalStorage();
+    ls.setItem('cp_gemini_api_key', 'AIza-test-not-real');
+    ls.setItem('otherSite_todos', '[1]');
+    ls.setItem('cp_theme', 'light');
+    const h = makeHarness(ls);
+    h.importData(makeImportEvent(JSON.stringify({ app: 'course-planner', version: 2, data: { cp_theme: 'dark' } })));
+    h.confirm();
+    check('import keeps the saved API key and other sites\' keys',
+        ls.getItem('cp_gemini_api_key') === 'AIza-test-not-real' && ls.getItem('otherSite_todos') === '[1]'
+        && ls.getItem('cp_theme') === 'dark' && h.wasReloaded());
+}
+
+// == an older flat backup still imports, filtered to Course Planner keys ========
+{
+    const ls = makeLocalStorage();
+    const h = makeHarness(ls);
+    h.importData(makeImportEvent(JSON.stringify({ cp_theme: 'dark', lesson_links: {}, 'iconify-version': '3', otherSite_todos: [1] })));
+    h.confirm();
+    check('legacy flat backup imports only Course Planner keys',
+        ls.getItem('cp_theme') === 'dark' && ls.getItem('lesson_links') === '{}'
+        && ls.getItem('iconify-version') === null && ls.getItem('otherSite_todos') === null);
+}
+
+// == another app's backup, or a file with none of our data, is refused ==========
+for (const [label, content, pattern] of [
+    ['another app\'s backup', JSON.stringify({ app: 'recipe-box', version: 1, data: { cp_theme: 'dark' } }), /different app/i],
+    ['file with no Course Planner keys', JSON.stringify({ otherSite_todos: [1] }), /does not contain any Course Planner data/i],
+    ['array instead of an object', '[1,2,3]', /invalid backup/i],
+]) {
+    const ls = makeLocalStorage();
+    seed(ls);
+    const before = ls._snapshot();
+    const h = makeHarness(ls);
+    h.importData(makeImportEvent(content));
+    check(label + ': refused before any change, with a clear message',
+        snapshotsEqual(before, ls._snapshot()) && h.getConfirmMessage() === null
+        && h.alerts.length === 1 && pattern.test(h.alerts[0]));
 }
 
 // == export injects lesson_links when absent (intentional app behavior) ========
@@ -198,7 +267,7 @@ function seed(ls) {
     const h = makeHarness(ls);
     h.exportData();
     const backup = JSON.parse(h.getExportedText());
-    check('export injects empty lesson_links when absent', JSON.stringify(backup.lesson_links) === '{}');
+    check('export injects empty lesson_links when absent', JSON.stringify(backup.data.lesson_links) === '{}');
 }
 
 // == 3a: malformed JSON rejected before data is cleared ========================
@@ -253,7 +322,9 @@ function runFailedImport(opts) {
     let backup = opts.backup || hExp.getExportedText();
     if (opts.extraBackupKey) {
         // inject a key that exists ONLY in the backup, first in restore order
-        backup = JSON.stringify(Object.assign({ [opts.extraBackupKey]: 'backup-only' }, JSON.parse(backup)));
+        const b = JSON.parse(backup);
+        b.data = Object.assign({ [opts.extraBackupKey]: 'backup-only' }, b.data);
+        backup = JSON.stringify(b);
     }
 
     const h = makeHarness(ls);
@@ -298,11 +369,11 @@ function runFailedImport(opts) {
 
 // == 6: keys existing only in the failed backup are removed by rollback ========
 {
-    // 'onlyInBackupKey' is written FIRST during restore (write 1 succeeds),
+    // 'course_priorities' is written FIRST during restore (write 1 succeeds),
     // then write 3 fails — rollback must remove it again.
-    const r = runFailedImport({ extraBackupKey: 'onlyInBackupKey', failOnWrites: [3] });
+    const r = runFailedImport({ extraBackupKey: 'course_priorities', failOnWrites: [3] });
     check('rollback removes keys that exist only in the failed backup',
-        r.ls.getItem('onlyInBackupKey') === null);
+        r.ls.getItem('course_priorities') === null);
     check('rollback after partial import restores the exact previous store',
         snapshotsEqual(r.before, r.ls._snapshot()));
 }
@@ -321,7 +392,7 @@ function runFailedImport(opts) {
 
 // == 8: rollback itself fails -> both errors reported, no false recovery claim ==
 {
-    // write 3 kills the restore; rollback replays the 8-key snapshot and its
+    // write 3 kills the restore; rollback replays the Course Planner snapshot and its
     // 2nd replay write (overall write 5) fails too.
     const r = runFailedImport({ failOnWrites: [3, 5] });
     check('double failure: single combined alert', r.h.alerts.length === 1);

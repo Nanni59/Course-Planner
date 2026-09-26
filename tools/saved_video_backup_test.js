@@ -115,7 +115,7 @@ for (const [label, value] of [
     check('export (1 video): notice affirms other data IS included', /fully included/i.test(h.alerts[0] || ''));
     const backup = JSON.parse(h.getExportedText());
     check('export (1 video): metadata still present and exact',
-        JSON.stringify(backup.cp_study_videos) === JSON.stringify(VID_META));
+        JSON.stringify(backup.data.cp_study_videos) === JSON.stringify(VID_META));
     check('export (1 video): no MP4 bytes or media payload in the JSON',
         !/data:video|base64|"blob"|ArrayBuffer/i.test(h.getExportedText()));
 }
@@ -152,7 +152,7 @@ for (const [label, value] of [
     const ls = makeLocalStorage();
     ls.setItem('probe', 'before');
     const h = makeHarness(ls);
-    h.importData(importEvent(JSON.stringify({ a: '1', b: '2', cp_study_videos: VID_META })));
+    h.importData(importEvent(JSON.stringify({ cp_theme: 'dark', lesson_links: {}, cp_study_videos: VID_META })));
     let writes = 0;
     const realSet = ls.setItem.bind(ls);
     ls.setItem = (k, v) => { if (++writes === 2) throw new Error('QuotaExceededError (simulated)'); realSet(k, v); };
