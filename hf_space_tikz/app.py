@@ -97,10 +97,18 @@ GEMINI_DEADLINE = int(os.environ.get("GEMINI_DEADLINE", "180"))
 # Longest a single call may sit waiting for a cooling lane; the frontend gives
 # each visual about five minutes in total.
 GEMINI_MAX_WAIT = int(os.environ.get("GEMINI_MAX_WAIT", "60"))
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
+# Free-tier daily quota is per project AND per model, so every model here is a
+# separate allowance. Best Flash models first (small daily quota), then the
+# Flash-Lite models (much larger quota). gemini-2.5-flash is announced to shut
+# down in October 2026; once it is gone its lanes 404 and rest for an hour.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 GEMINI_FALLBACK_MODELS = [
     m.strip()
-    for m in os.environ.get("GEMINI_FALLBACK_MODELS", "gemini-3.5-flash,gemini-2.5-flash").split(",")
+    for m in os.environ.get(
+        "GEMINI_FALLBACK_MODELS",
+        "gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash-preview,"
+        "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash",
+    ).split(",")
     if m.strip()
 ]
 GEMINI_MODELS = list(dict.fromkeys([GEMINI_MODEL] + GEMINI_FALLBACK_MODELS))

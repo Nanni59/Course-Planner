@@ -138,8 +138,13 @@ parameter failures do not render invented default givens.
    when each comes from a different project (in AI Studio, create each key
    in a new project).
 5. Optionally set `GEMINI_MODEL` and `GEMINI_FALLBACK_MODELS` as Space
-   variables. The default model order is `gemini-3-flash-preview`,
-   `gemini-3.5-flash`, then `gemini-2.5-flash`.
+   variables. The default model order is `gemini-3.8-flash`,
+   `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`,
+   `gemini-3-flash-preview`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`,
+   then `gemini-2.5-flash` (announced to shut down in October 2026). Free-tier
+   quota is counted per model as well as per project, so each model adds its
+   own daily allowance; the Flash models allow few requests a day, the
+   Flash-Lite models far more. A Space variable replaces this list entirely.
 
 ### How keys and models are used
 

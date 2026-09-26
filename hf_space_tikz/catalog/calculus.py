@@ -20,7 +20,7 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
-  grid=both, grid style={cp dashed},
+  grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
   \addplot[cp line, samples=100, domain=__XMIN__:__XMAX__]{__CURVE__};
@@ -52,7 +52,7 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
   xmin=-1, xmax=3.5, ymin=-1, ymax=6,
-  grid=both, grid style={cp dashed},
+  grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
   \addplot[cp line, samples=100, domain=-1:3.5]{x^2};
@@ -86,7 +86,7 @@ templates = [
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
   xtick={__A__,__B__}, xticklabels={__A_LABEL__,__B_LABEL__}, hide obscured x ticks=false,
-  grid=both, grid style={cp dashed},
+  grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
   % Fill first so it cannot paint over half of the curve's stroke.
@@ -118,7 +118,7 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
-  grid=both, grid style={cp dashed},
+  grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
   \addplot[cp line, samples=100, domain=__X0__:__X4__]{__CURVE__};
@@ -159,7 +159,7 @@ templates = [
   xmin={min(-0.5,__X0__-3)}, xmax={max(0.5,__X0__+3)},
   ymin={min(-0.5,cpf(__X0__-3),cpf(__X0__+3),cpf(cpv(0)),__FILLED_Y__)-1},
   ymax={max(0.5,cpf(__X0__-3),cpf(__X0__+3),cpf(cpv(0)),__FILLED_Y__)+1},
-  grid=both, grid style={cp dashed},
+  grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
   \addplot[cp line, samples=121, domain={min(-0.5,__X0__-3)}:{max(0.5,__X0__+3)}]{cpf(x)};
@@ -187,7 +187,7 @@ templates = [
   % The window follows both asymptotes; the fixed -2..5 by -1..5 window lost
   % asymptotes outside it and clipped the labels.
   xmin={min(-2,__C__-3)}, xmax={max(5,__C__+4)}, ymin={min(-1,__K__-4)}, ymax={max(5,__K__+3)},
-  grid=both, grid style={cp dashed},
+  grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label},
   clip mode=individual]
@@ -216,7 +216,7 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$},
   xmin=-2, xmax=2, ymin=-3, ymax=3,
-  grid=both, grid style={cp dashed},
+  grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
   \addplot[cp line, samples=200, domain=-2:2]{x^3 - 3*x};

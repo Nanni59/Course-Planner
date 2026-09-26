@@ -301,12 +301,15 @@ templates = [
   \coordinate (U) at (__U1__,__U2__);
   \coordinate (Vend) at ($(U)+(__V1__,__V2__)$);
 
-  % vector u
-  \draw[cp line,->] (O) -- (U) node[cp label,anchor=south east] {$__ULAB__$};
-  % vector v placed at head of u
-  \draw[cp line,->] (U) -- (Vend) node[cp label,anchor=south east] {$__VLAB__$};
-  % resultant vector
-  \draw[cp line,->] (O) -- (Vend) node[cp label,anchor=south] {$__SUM__$};
+  % Each label sits at the middle of its own arrow, outside the triangle
+  % (labels at the arrow tips piled up where v and u+v end). The outward
+  % side flips with the triangle's orientation, the sign of u x v.
+  \draw[cp line,->] (O) -- (U);
+  \draw[cp line,->] (U) -- (Vend);
+  \draw[cp line,->] (O) -- (Vend);
+  \node[cp label,anchor={atan2(__U2__,__U1__)+ifthenelse((__U1__)*(__V2__)-(__U2__)*(__V1__)>=0,90,-90)}] at ($(O)!0.5!(U)$) {$__ULAB__$};
+  \node[cp label,anchor={atan2(__V2__,__V1__)+ifthenelse((__U1__)*(__V2__)-(__U2__)*(__V1__)>=0,90,-90)}] at ($(U)!0.5!(Vend)$) {$__VLAB__$};
+  \node[cp label,anchor={atan2((__U2__)+(__V2__),(__U1__)+(__V1__))+ifthenelse((__U1__)*(__V2__)-(__U2__)*(__V1__)>=0,-90,90)}] at ($(O)!0.5!(Vend)$) {$__SUM__$};
 \end{tikzpicture}""",
         "params": {
             'U1': {'type': 'number', 'default': '2', 'desc': 'x-component of vector u'},
@@ -332,11 +335,15 @@ templates = [
   \coordinate (U) at (__U1__,__U2__);
   \coordinate (V) at (__V1__,__V2__);
 
-  % vectors u and v
-  \draw[cp line,->] (O) -- (U) node[cp label,anchor=south east] {$__ULAB__$};
-  \draw[cp line,->] (O) -- (V) node[cp label,anchor=south west] {$__VLAB__$};
-  % difference vector (u - v)
-  \draw[cp line,->] (V) -- (U) node[cp label,anchor=south] {$__DIFF__$};
+  % Each label sits at the middle of its own arrow, outside the triangle
+  % (labels at the arrow tips piled up where u and u-v end). The outward
+  % side flips with the triangle's orientation, the sign of u x v.
+  \draw[cp line,->] (O) -- (U);
+  \draw[cp line,->] (O) -- (V);
+  \draw[cp line,->] (V) -- (U);
+  \node[cp label,anchor={atan2(__U2__,__U1__)+ifthenelse((__U1__)*(__V2__)-(__U2__)*(__V1__)>=0,90,-90)}] at ($(O)!0.5!(U)$) {$__ULAB__$};
+  \node[cp label,anchor={atan2(__V2__,__V1__)+ifthenelse((__U1__)*(__V2__)-(__U2__)*(__V1__)>=0,-90,90)}] at ($(O)!0.5!(V)$) {$__VLAB__$};
+  \node[cp label,anchor={atan2((__U2__)-(__V2__),(__U1__)-(__V1__))+ifthenelse((__U1__)*(__V2__)-(__U2__)*(__V1__)>=0,-90,90)}] at ($(V)!0.5!(U)$) {$__DIFF__$};
 \end{tikzpicture}""",
         "params": {
             'U1': {'type': 'number', 'default': '3', 'desc': 'x-component of vector u'},
@@ -459,30 +466,36 @@ templates = [
         "subject": 'Vectors / Linear Algebra',
         "triggers": ['3d vector', 'components', 'z-component', 'three-dimensional vector'],
         "caption": 'A 3D vector with dashed component drops to the coordinate axes.',
-        "skeleton": r"""\begin{tikzpicture}[scale=1, x={(-0.5cm,-0.3cm)}, y={(0.7cm,-0.3cm)}, z={(0cm,0.8cm)}]
-  % three-dimensional axes
-  \draw[cp axis] (0,0,0) -- (4,0,0) node[cp label,anchor=west] {$x$};
-  \draw[cp axis] (0,0,0) -- (0,3,0) node[cp label,anchor=south] {$y$};
-  \draw[cp axis] (0,0,0) -- (0,0,3) node[cp label,anchor=west] {$z$};
+        # Any fixed oblique view sends one direction to the origin; with the old
+        # single view (2, 1.5, 1) drew as a stub. The x-axis foreshortening is
+        # picked per vector: whichever of two views projects it longer.
+        "skeleton": r"""\begin{tikzpicture}[scale=.8,
+  x={({ifthenelse((-0.55*(__XVAL__)+(__YVAL__))^2+(-0.4*(__XVAL__)+(__ZVAL__))^2>=(-0.3*(__XVAL__)+(__YVAL__))^2+(-0.75*(__XVAL__)+(__ZVAL__))^2,-0.55,-0.3)*1cm},{ifthenelse((-0.55*(__XVAL__)+(__YVAL__))^2+(-0.4*(__XVAL__)+(__ZVAL__))^2>=(-0.3*(__XVAL__)+(__YVAL__))^2+(-0.75*(__XVAL__)+(__ZVAL__))^2,-0.4,-0.75)*1cm})},
+  y={(1cm,0cm)}, z={(0cm,1cm)}]
+  % three-dimensional axes, long enough (either way) to hold the vector
+  \draw[cp axis] ({min(__XVAL__-0.5,0)},0,0) -- ({max(__XVAL__+1,3)},0,0) node[cp label,anchor=north east] {$x$};
+  \draw[cp axis] (0,{min(__YVAL__-0.5,0)},0) -- (0,{max(__YVAL__+1,3)},0) node[cp label,anchor=west] {$y$};
+  \draw[cp axis] (0,0,{min(__ZVAL__-0.5,0)}) -- (0,0,{max(__ZVAL__+1,3)}) node[cp label,anchor=south] {$z$};
 
   \coordinate (O) at (0,0,0);
   \coordinate (P) at (__XVAL__,__YVAL__,__ZVAL__);
+  \coordinate (Q) at (__XVAL__,__YVAL__,0);
   \coordinate (Px) at (__XVAL__,0,0);
   \coordinate (Py) at (0,__YVAL__,0);
   \coordinate (Pz) at (0,0,__ZVAL__);
 
+  % component box: floor projection, then up to the tip
+  \draw[cp dashed] (Px) -- (Q) -- (Py);
+  \draw[cp dashed] (Q) -- (P) -- (Pz);
+
   % the vector
-  \draw[cp line,->] (O) -- (P) node[cp label,anchor=west] {$__LAB__$};
+  \draw[cp line,->] (O) -- (P) node[cp label,anchor=south west] {$__LAB__$};
 
-  % dashed drops to axes
-  \draw[cp dashed] (P) -- (Px);
-  \draw[cp dashed] (P) -- (Py);
-  \draw[cp dashed] (P) -- (Pz);
-
-  % component labels
-  \node[cp label,anchor=north east] at ($(Px)!0.55!(O)+(-0.12,0,0)$) {$__XVALLABEL__$};
-  \node[cp label,anchor=north west] at ($(Py)!0.55!(O)+(0,0.16,0)$) {$__YVALLABEL__$};
-  \node[cp label,anchor=west] at ($(Pz)!0.55!(O)+(0,0,0.16)$) {$__ZVALLABEL__$};
+  % component labels where each component ends on its axis, on the side
+  % away from the dashed box edge that leaves that point
+  \node[cp label,anchor={ifthenelse(__YVAL__<0,180,0)}] at (Px) {$__XVALLABEL__$};
+  \node[cp label,anchor={ifthenelse(__XVAL__<0,90,270)}] at (Py) {$__YVALLABEL__$};
+  \node[cp label,anchor={ifthenelse(-0.4*(__XVAL__)+(__YVAL__)<0,180,0)}] at (Pz) {$__ZVALLABEL__$};
 \end{tikzpicture}""",
         "params": {
             'XVAL': {'type': 'number', 'default': '2', 'desc': 'x-component of the vector'},

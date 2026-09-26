@@ -165,6 +165,22 @@ inverse_tikz = templates.fill(templates.get('function_inverse_reflection'), {
     'BASE':'2','F_LABEL':'$f$','INV_LABEL':'$f^{-1}$',
 }, target='worksheet')
 assert '{$f$}' in inverse_tikz and '{$f^{-1}$}' in inverse_tikz
+# Grids stay light: a dashed grid is indistinguishable from dashed asymptotes and tangents.
+assert not [t['id'] for t in templates.TEMPLATES if 'grid style={cp dashed}' in t['skeleton']]
+# 3D components: the x-axis view is chosen per vector, so no vector projects onto the origin
+# (the old fixed view drew (2, 1.5, 1) as a stub), and the component box is drawn through Q.
+vec3d = templates.fill(templates.get('3d_vector_components'), {'XVAL':'2','YVAL':'1.5','ZVAL':'1'}, target='worksheet')
+assert 'x={({ifthenelse(' in vec3d and r'\coordinate (Q) at (2,1.5,0);' in vec3d and '__' not in vec3d
+def _proj_len(x, y, z, xh, xv):
+    return math.hypot(xh*x + y, xv*x + z)
+for vec in ((2, 1.5, 1), (2, 1.1, 0.8), (1, 0.55, 0.4), (1, 0.3, 0.75), (3, 4, 5)):
+    best = max(_proj_len(*vec, -0.55, -0.4), _proj_len(*vec, -0.3, -0.75))
+    assert best >= 0.3 * math.dist(vec, (0, 0, 0)), vec
+# Head-to-tail labels sit at their own arrow's midpoint, not piled up on a shared tip.
+for tid, mids in (('vector_add_head_to_tail', ('(O)!0.5!(U)', '(U)!0.5!(Vend)', '(O)!0.5!(Vend)')),
+                  ('vector_subtraction_head_to_tail', ('(O)!0.5!(U)', '(O)!0.5!(V)', '(V)!0.5!(U)'))):
+    tikz = templates.fill(templates.get(tid), {}, target='worksheet')
+    assert all(m in tikz for m in mids) and not re.search(r'\((?:U|V|Vend)\) node', tikz), tid
 assert not templates.catalog_errors()
 
 # Reproduce the September 17 worksheet's question + visualDescription payloads.
