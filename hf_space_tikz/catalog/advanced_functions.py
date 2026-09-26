@@ -221,12 +221,21 @@ templates = [
     \node[cp label, anchor={ifthenelse(abs(__MIDLINE_VALUE__)<0.01,0,180)}, xshift={ifthenelse(abs(__MIDLINE_VALUE__)<0.01,-3,3)}] at ({rel axis cs:{ifthenelse(abs(__MIDLINE_VALUE__)<0.01,0,1)},0}|-{axis cs:0,__MIDLINE_VALUE__}) {__MIDLINE_LABEL__};
     % amplitude: midline to the extremum away from the x-axis, labelled at its
     % middle (at the tip the label sat on the curve)
-    \draw[cp axis,<->] (axis cs:{cpx(0)},__MIDLINE_VALUE__) -- (axis cs:{cpx(0)},{cpe(0)}) node[pos=.5, anchor=west, xshift=2pt] {__AMPLITUDE_LABEL__};
+    \draw[cp axis,<->] (axis cs:{cpx(0)},__MIDLINE_VALUE__) -- (axis cs:{cpx(0)},{cpe(0)}) node[@@ALT@@] {__AMPLITUDE_LABEL__};
     % period: peak to next peak, just beyond the wave (from the y-axis it ran
     % into the axis and its label)
     \draw[cp axis,<->] (axis cs:{cpx(0)},{cpe(0)+cps(0)}) -- (axis cs:{cpx(0)+cpp(0)},{cpe(0)+cps(0)}) node[midway, yshift={ifthenelse(__MIDLINE_VALUE__>=0,7,-7)}] {__PERIOD_LABEL__};
 \end{axis}
 \end{tikzpicture}""",
+        # amplitude label: either side of its arrow, at three heights (a steep wave can crowd one)
+        "layout_alternatives": [
+            'pos=.5, anchor=west, xshift=2pt',
+            'pos=.5, anchor=east, xshift=-2pt',
+            'pos=.3, anchor=west, xshift=2pt',
+            'pos=.3, anchor=east, xshift=-2pt',
+            'pos=.7, anchor=west, xshift=2pt',
+            'pos=.7, anchor=east, xshift=-2pt',
+        ],
         "params": {
             'AMPLITUDE_VALUE': {'type': 'number', 'default': 2, 'desc': 'A in y = A*sin(B*(x - C)) + D'},
             'FREQUENCY_VALUE': {'type': 'number', 'default': 1, 'desc': 'positive B in y = A*sin(B*(x - C)) + D; the period is 2*pi/B'},
@@ -343,10 +352,26 @@ templates = [
     \addplot[cp line, samples=201, domain=-3:5] { __A__*((x - __H__)^2) + __K__ };
     % vertex of the transformed parabola
     \addplot[only marks, cp point] coordinates {(__H__, __K__)};
-    % label outside the cup (below an upward parabola), where no curve passes
-    \node[cp label, anchor={ifthenelse(__A__>=0,90,270)}] at (axis cs:__H__, __K__) {__VERTEX_LABEL__};
+    % Vertex label: first against the vertex, outside the cup (below-right of an
+    % upward parabola), where the curve never passes. No single rule clears the
+    % dashed parent y = x^2, the axes and the tick labels for every vertex, so
+    % the renderer tries the other placements (layout_alternatives) in order
+    % when the picture shows a collision.
+    \node[cp label, @@ALT@@] at (axis cs:__H__, __K__) {__VERTEX_LABEL__};
 \end{axis}
 \end{tikzpicture}""",
+        # Tried in order; placements touching the vertex read best, so they come first.
+        "layout_alternatives": [
+            "anchor={ifthenelse(__A__>=0,135,-135)}", "anchor={ifthenelse(__A__>=0,45,-45)}",
+            "anchor={ifthenelse(__A__>=0,90,270)}", "anchor={ifthenelse(__A__>=0,270,90)}",
+            "anchor={ifthenelse(__A__>=0,-135,135)}", "anchor={ifthenelse(__A__>=0,-45,45)}",
+            "anchor=north west", "anchor=north east", "anchor=south west", "anchor=south east",
+            "anchor=south east, yshift=4pt", "anchor=south west, yshift=10pt", "anchor=south east, yshift=10pt",
+            "anchor=west", "anchor=east",
+            "anchor={ifthenelse(__A__>=0,90,270)}, xshift={ifthenelse(abs((__H__)^2-(__K__))<1.6,ifthenelse(__H__>=0,-1,1)*16,0)}",
+            "anchor=east, xshift=-12pt", "anchor=west, xshift=12pt",
+            "anchor=south east, xshift=-10pt, yshift=4pt", "anchor=south west, xshift=10pt, yshift=4pt",
+        ],
         "params": {
             'A': {'type': 'number', 'default': 1, 'desc': 'vertical stretch/compression factor'},
             'H': {'type': 'number', 'default': 1, 'desc': 'horizontal shift of the parabola'},
@@ -373,7 +398,9 @@ templates = [
     \draw[cp dashed] (B) -- ({2*cos(__THETA__)},0);
     % rotation angle, counterclockwise from the positive x-axis
     \draw[cp line,->] (0.45,0) arc[start angle=0,end angle=__THETA__,radius=0.45];
-    \node[cp label] at ({__THETA__/2}:0.8) {__THETA_LABEL__};
+    % rotation label in the widest gap the axes leave inside the rotation (on
+    % the bisector, 135 degrees put it on the y-axis), out far enough to fit
+    \node[cp label] at ({ifthenelse((min(__THETA__,90))-(0)>=max((min(__THETA__,180))-(min(__THETA__,90)),max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270)))),((0)+(min(__THETA__,90)))/2,ifthenelse((min(__THETA__,180))-(min(__THETA__,90))>=max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270))),((min(__THETA__,90))+(min(__THETA__,180)))/2,ifthenelse((min(__THETA__,270))-(min(__THETA__,180))>=(__THETA__)-(min(__THETA__,270)),((min(__THETA__,180))+(min(__THETA__,270)))/2,((min(__THETA__,270))+(__THETA__))/2)))}:{max(0.8,0.34/sin(max(4,(max((min(__THETA__,90))-(0),max((min(__THETA__,180))-(min(__THETA__,90)),max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270))))))/2)))}) {__THETA_LABEL__};
     % Reference angle: at the origin, between the terminal arm and the nearest
     % x-axis ray (180*round(theta/180) is 0, 180 or 360). The old mark sat at
     % the foot of the perpendicular, where the angle is always 90 degrees.

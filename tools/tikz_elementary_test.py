@@ -235,6 +235,97 @@ ns['_gemini'] = fail_model
 assert '429 quota exhausted' in ns['_reference_generate'](req)['error']
 assert ns['_readiness_verdict'](req, '')[0] == 'FAIL'
 
+# Render-based layout check (2026-09-27): label boxes come from the compiled
+# picture's log, lines from a text-hidden second page. Pure analysis, synthetic input.
+layout_constants = [n for n in tree.body if isinstance(n, ast.Assign)
+                    and any(isinstance(t, ast.Name) and t.id.startswith('_LAYOUT_') for t in n.targets)]
+exec(compile(ast.fix_missing_locations(ast.Module(body=layout_constants, type_ignores=[])), '<layout constants>', 'exec'), ns)
+assert '\\iftikz@is@matrix' in ns['_LAYOUT_INSTRUMENT'] and 'text opacity=0' in ns['_layout_document']('a\\begin{document}B\\end{document}')
+synthetic_log = '\n'.join([
+    # a 20x10pt label crossed by a line, two labels overlapping, an empty point, a
+    # measuring copy, and a legend (cells then container) that must be skipped
+    'CPNODE tikz@f@1 | 10 10 30 10 30 20 10 20 1.0pt 1.0pt N',
+    'CPNODE tikz@f@2 | 50 10 70 10 70 20 50 20 1.0pt 1.0pt N',
+    'CPNODE tikz@f@3 | 60 12 80 12 80 22 60 22 1.0pt 1.0pt N',
+    'CPNODE tikz@f@4 | 90 10 93 10 93 13 90 13 1.5pt 1.5pt N',
+    'CPNODE cpmX | 0 0 40 0 40 10 0 10 3.3pt 3.3pt N',
+    'CPNODE tikz@f@6 | 0 0 5 0 5 5 0 5 1pt 1pt M',
+    'CPNODE tikz@f@5 | 0 0 100 0 100 40 0 40 1pt 1pt N',
+    'CPBBOX 0 0 100 40',
+])
+nodes, bbox = ns['_layout_nodes'](synthetic_log)
+assert [n[0] for n in nodes] == ['tikz@f@1', 'tikz@f@2', 'tikz@f@3', 'tikz@f@4'] and bbox == (0.0, 0.0, 100.0, 40.0)
+k = ns['_LAYOUT_DPI'] / 72.27
+width, height = int((100 + 12) * k) + 1, int((40 + 12) * k) + 1
+pixels = bytearray([255]) * (width * height)
+line_x = int((20 + 6) * k)  # a vertical line through the middle of label 1
+for yy in range(height):
+    pixels[yy * width + line_x] = pixels[yy * width + line_x + 1] = 0
+def word(x0, y0, x1, y1, text):  # page-1 word box in bp from the top-left
+    to = lambda x, y: ((x + 6) * 72 / 72.27, (40 + 6 - y) * 72 / 72.27)
+    (a, b), (c, d) = to(x0, y1), to(x1, y0)
+    return (a, b, c, d, text)
+words = [word(12, 11, 28, 19, 'A'), word(52, 11, 68, 19, 'B'), word(62, 13, 78, 21, 'C')]
+report = ns['_layout_analyse'](synthetic_log, words, (width, height, bytes(pixels)))
+assert report['labels'] == 3, report
+assert [i['kind'] for i in report['issues']] == ['line-through-label', 'labels-overlap'], report
+assert report['issues'][0]['labels'] == ['A'] and report['issues'][1]['labels'] == ['B', 'C']
+assert ns['_layout_summary'](report) == 'a line runs through the label "A"; the labels "B" and "C" overlap'
+shown = bytearray(pixels)
+for x0, x1 in ((14, 26), (52, 58)):  # glyph ink for A and B (clear of C); C draws nothing (covered)
+    for yy in range(int((40 + 6 - 18) * k), int((40 + 6 - 12) * k)):
+        for xx in range(int((x0 + 6) * k), int((x1 + 6) * k)):
+            shown[yy * width + xx] = 0
+covered = ns['_layout_analyse'](synthetic_log, words, (width, height, bytes(pixels)), shown=bytes(shown))
+assert [i['kind'] for i in covered['issues']] == ['line-through-label', 'label-hidden', 'labels-overlap'], covered
+assert covered['issues'][1]['labels'] == ['C'] and 'is covered or cut off' in ns['_layout_summary'](covered)
+assert ns['_layout_inset']([(0, 0), (4, 0), (4, 4), (0, 4)], 2.5, 2.5) is None
+assert abs(ns['_layout_overlap']([(0, 0), (2, 0), (2, 2), (0, 2)], [(1, 1), (3, 1), (3, 3), (1, 3)]) - 1) < 1e-9
+# Model-drawn diagrams spend their one repair on reported collisions (the prompt
+# names them), and a colliding draft whose repair fails still gets its readiness check.
+prompts, renders = [], []
+def layout_gemini(prompt, as_json=False, temperature=0.2):
+    prompts.append(prompt)
+    return {'tikz': r'\begin{tikzpicture}\draw (0,0)--(1,1);\end{tikzpicture}'} if as_json else 'PASS'
+def layout_render(req):
+    renders.append(req)
+    if len(renders) == 1:
+        return {'ok': True, 'svg': '<svg/>', 'layout': {'labels': 1, 'issues': [{'kind': 'line-through-label', 'labels': ['x = ?'], 'ink': 30}]}}
+    return {'ok': True, 'svg': '<svg/>', 'layout': {'labels': 1, 'issues': []}}
+ns.update(_gemini=layout_gemini, _render=layout_render, _diagram_spec_prompt=lambda *a, **k: 'plan',
+          _visual_prompt=lambda req, repair_log='', **k: 'draw ' + repair_log)
+out = ns['_reference_generate'](req)
+assert out['ok'] and len(renders) == 2 and all(r.layout for r in renders)
+assert any('a line runs through the label "x = ?"' in p for p in prompts)
+assert sum(p.startswith('draw') for p in prompts) == 2
+renders.clear(); prompts.clear()
+def repair_breaks(req):
+    renders.append(req)
+    if len(renders) == 1:
+        return {'ok': True, 'svg': '<first/>', 'layout': {'labels': 1, 'issues': [{'kind': 'labels-overlap', 'labels': ['A', 'B'], 'area': 9}]}}
+    return {'ok': False, 'error': 'TikZ compile failed.', 'log': 'Undefined control sequence'}
+ns['_render'] = repair_breaks
+out = ns['_reference_generate'](req)
+assert out['ok'] and out['svg'] == '<first/>', out
+
+# Label placement alternatives: fill picks one; the catalog renderer tries them in
+# order when the picture shows collisions, and keeps the first clean one.
+parabola = templates.get('parabola_transformation')
+assert templates.alternatives(parabola) > 1 and templates.alternatives(templates.get('histogram')) == 1
+assert '@@ALT@@' not in templates.fill(parabola, {}) and 'anchor=north west]' in templates.fill(parabola, {}, alternative=6)
+assert not templates.catalog_errors()
+tried = []
+def alt_render(req, tikz, source='', run_critic=True):
+    tried.append(tikz)
+    clean = len(tried) == 3
+    return {'ok': True, 'svg': f'<svg n="{len(tried)}"/>', 'layout': {'labels': 1, 'issues': [] if clean else [{'kind': 'labels-overlap', 'labels': ['a', 'b'], 'area': 5}]}}
+ns.update(_verified_render=alt_render, tcatalog=templates)
+picked = ns['_catalog_render'](req, parabola, {}, source='catalog:test')
+assert picked['svg'] == '<svg n="3"/>' and len(tried) == 3 and len(set(tried)) == 3
+tried.clear()
+ns['_verified_render'] = lambda req, tikz, source='', run_critic=True: tried.append(tikz) or {'ok': True, 'svg': '<svg/>', 'layout': {'labels': 1, 'issues': []}}
+assert ns['_catalog_render'](req, parabola, {}, source='catalog:test')['ok'] and len(tried) == 1  # clean first try: no extra renders
+
 # Terminal status always retains the job's own trace, without configured secrets.
 def fake_generate(request):
     ns['_diagnostic']('render-error', 'test-secret compiler rejected input', template='fixture')
@@ -523,7 +614,7 @@ for tid in ('line_plane_intersection', 'plane_with_normal'):
 # use (a fixed "above right" was crossed by rising segments), and continue the
 # segment instead where that side would meet the axis tick labels.
 rising = generate('Points A(-4, 1) and B(2, 5). Find the midpoint of AB. Diagram: Show both axes from -5 to 5.')['tikz']
-assert r'\node[left,font=\small] at (axis cs:-4,1)' in rising and r'\node[above left,font=\small] at (axis cs:2,5)' in rising
+assert r'\node[left,font=\small] at (axis cs:-4,1)' in rising and r'\node[above right,font=\small] at (axis cs:2,5)' in rising
 # Angle labels are explicit nodes where the angle is computed: the angles library
 # splices angle eccentricity into a polar radius, where only a plain number behaves.
 for t in templates.TEMPLATES:

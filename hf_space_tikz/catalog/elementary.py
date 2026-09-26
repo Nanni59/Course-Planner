@@ -111,12 +111,13 @@ def _points(text):
     lo, hi = next(iter(bounds)) if bounds else (math.floor(min(0,*(v for _,x,y in values for v in (x,y))))-1, math.ceil(max(0,*(v for _,x,y in values for v in (x,y))))+1)
     if not lo < hi or hi-lo > 40 or any(not lo <= v <= hi for _,x,y in values for v in (x,y)):
         return None
-    # A label extends toward the middle of the grid (it is about two units
-    # wide), on the vertical side the segment does not use; when the segment
+    # A label (about two units wide) extends right when it fits inside the grid,
+    # else left, on the vertical side the segment does not use; when the segment
     # heads the other way, on the side away from the horizontal axis and its
-    # numbered ticks. A fixed "above right" was crossed by rising segments.
+    # numbered ticks. A fixed "above right" was crossed by rising segments, and
+    # leaning toward the middle ran top labels into the y-axis letter.
     def place(x, y, ox, oy):
-        horizontal = 'right' if x <= (lo + hi) / 2 else 'left'
+        horizontal = 'right' if x + 2.2 <= hi else 'left'
         toward_other = (ox > x) == (horizontal == 'right')
         vertical = ('below' if oy > y else 'above') if toward_other and oy != y else ('below' if y < 0 else 'above')
         if abs(y) < 1.3 and (vertical == 'above') == (y < 0):

@@ -55,6 +55,13 @@ PNG requests return base64:
 }
 ```
 
+Add `"layout": true` to also get a label-collision report for the rendered
+picture (see Layout check below):
+
+```json
+"layout": {"labels": 9, "issues": [{"kind": "line-through-label", "labels": ["x = ?"], "ink": 30}]}
+```
+
 ### `POST /generate`
 
 Starts a background job. Supported, fully specified elementary setups (a named
@@ -167,6 +174,38 @@ The frontend can then use:
 ```js
 const TIKZ_SPACE_URL = "https://yourname-tikz-renderer.hf.space";
 ```
+
+## Layout check
+
+Every catalog, exact and model-drawn diagram is checked in its rendered form
+for labels that a line, curve or axis runs through, labels that overlap each
+other, and labels covered by something drawn after them. The readiness
+verifier only reads TikZ source, so it cannot see these.
+
+How it works: the compiled document gets a second page with the same picture
+and every node's text invisible (fills kept). Page 1 logs each node's corners
+and inner sep (so rotated labels are exact), ink inside a label's text box on
+page 2 is a line crossing it, white-backed tick labels correctly count as
+clear, and `pdftotext` supplies the label text for reports. It costs one extra
+page in the same pdflatex run and two small greyscale rasters (0.03-0.3 s).
+If the instrumented compile fails, the diagram is compiled plainly and ships
+without a report. `TIKZ_LAYOUT_CHECK=0` turns the check off.
+
+What happens with a report:
+
+- Model-drawn diagrams spend their one repair on the collisions (the prompt
+  names each label). A repair that still collides is judged on readiness
+  alone; if the repair fails outright, the colliding draft still gets its
+  readiness check.
+- Catalog templates can list candidate label placements in
+  `layout_alternatives` (TikZ fragments substituted for the skeleton's
+  `@@ALT@@` slot, wherever it appears, preferred first). The renderer tries
+  them in order only when the default collides, and keeps the first clean one
+  (else the one with the fewest collisions). The model never sees them.
+- Otherwise the report is recorded as a `layout` diagnostic.
+
+`python tools/tikz_layout_check.py --variants` audits the whole catalog, the
+exact renderers and a set of value variants with the real compiler.
 
 ## Safety Model
 

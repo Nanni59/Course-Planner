@@ -198,14 +198,16 @@ templates = [
     node[cp label] at ($(A)!0.5!(B)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__CHORDLAB__$};
   \draw[cp line] (A) arc[start angle=0,end angle=__ANGLE__,radius=2.35];
   \node[cp label] at (__ARCMID__:2.65) {$__ARCLAB__$};
-  % Angle label on the bisector between its mark and the chord (which crosses
-  % the angle 2.35 cos(half-angle) from O): out far enough to fit between the
-  % radii, but never out to the chord. Inside the mark (the default) it met
-  % both radii.
+  % Angle label between its mark and the chord (which crosses the angle
+  % 2.35 cos(half-angle) from O): out far enough to fit between the radii, but
+  % never out to the chord in its direction. By default on the bisector; a wide
+  % angle brings the chord close there, so the renderer tries directions nearer
+  % either radius. Inside the mark (the angles default) it met both radii.
   \pic [draw=black, angle radius=0.5cm] {angle=A--O--B};
-  \node[cp label] at ({(__ANGLE__)/2}:{min(max(0.8,0.3/sin(max(4,abs(__ANGLE__)/2))),0.5*(0.5+2.35*cos(abs(__ANGLE__)/2)))}) {$__ANGLELAB__$};
+  \node[cp label] at ({(__ANGLE__)*(@@ALT@@)}:{min(max(0.8,0.3/sin(max(4,abs(__ANGLE__)/2))),0.5*(0.5+2.35*cos(abs(__ANGLE__)/2)/cos((__ANGLE__)*(@@ALT@@)-(__ANGLE__)/2)))}) {$__ANGLELAB__$};
   \node[cp label,below left] at (O) {$O$};
 \end{tikzpicture}""",
+        "layout_alternatives": ["0.5", "0.2", "0.8"],
         "params": {
             "ANGLE": {"type": "number", "default": "110", "desc": "central angle in degrees"},
             "ARCMID": {"type": "number", "default": "55", "desc": "half the central angle, for placing the arc label"},

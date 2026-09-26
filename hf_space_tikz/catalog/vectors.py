@@ -32,10 +32,10 @@ templates = [
     node[cp label,rotate={\n1-180*round(\n1/180)}] at ($(O)!0.78!(A)+({\n1+(ifthenelse(sin(__WINDANG__-(__AIRANG__))<0,90,-90))}:{0.5*\y2+2pt})$) {$__AIRLAB__$};
   \node[cp label,overlay,opacity=0] (cpmW) at (0,0) {$__WINDLAB__$};
   \path let \p1=($(G)-(A)$), \n1={atan2(\y1,\x1)+(ifthenelse(sin(__WINDANG__-(__AIRANG__))<0,90,-90))}, \p2=($(cpmW.north east)-(cpmW.south west)$) in
-    node[cp label] at ($(A)!0.5!(G)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__WINDLAB__$};
+    node[cp label] at ($(A)!@@ALT@@!(G)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__WINDLAB__$};
   \node[cp label,overlay,opacity=0] (cpmG) at (0,0) {$__GROUNDLAB__$};
   \path let \p1=($(G)-(O)$), \n1={atan2(\y1,\x1)}, \p2=($(cpmG.north east)-(cpmG.south west)$) in
-    node[cp label,rotate={\n1-180*round(\n1/180)}] at ($(O)!0.5!(G)+({\n1+(-ifthenelse(sin(__WINDANG__-(__AIRANG__))<0,90,-90))}:{0.5*\y2+2pt})$) {$__GROUNDLAB__$};
+    node[cp label,rotate={\n1-180*round(\n1/180)}] at ($(O)!@@ALT@@!(G)+({\n1+(-ifthenelse(sin(__WINDANG__-(__AIRANG__))<0,90,-90))}:{0.5*\y2+2pt})$) {$__GROUNDLAB__$};
   \draw[cp dashed] (90:0.62) arc[start angle=90,end angle=__AIRANG__,radius=0.62];
   % Bearing label on the arc's bisector, far enough out (n1) to fit between the
   % north axis and the heading. A wedge too narrow for that (over 1.7 cm out,
@@ -52,6 +52,14 @@ templates = [
     \n6={ifthenelse(\n1>1.7cm||(\n3-(__AIRANG__))*(\n3-90)<0,1,0)} in
     node[cp label] at ({ifthenelse(\n6>0,\n5,__BEARING_MID__)}:{ifthenelse(\n6>0,0.95cm,max(0.95cm,\n1))}) {$__BEARINGLAB__$};
 \end{tikzpicture}""",
+        # wind and ground labels slide along their arrows when an axis runs through them
+        "layout_alternatives": [
+            '0.5',
+            '0.35',
+            '0.65',
+            '0.25',
+            '0.75',
+        ],
         "params": {
             'AIRANG': {'type': 'number', 'default': '60', 'desc': 'airplane direction in standard math degrees; N30E is 60'},
             'WINDANG': {'type': 'number', 'default': '0', 'desc': 'wind vector direction in standard math degrees; from West means east, 0 degrees'},
@@ -87,7 +95,7 @@ templates = [
   \pic [draw=black, angle radius=0.58cm] {angle=A--O--B};
   % The resultant, and the y-axis when the angle passes 90 degrees, run through
   % the angle; its label goes in the widest gap they leave, out far enough to fit.
-  \node[cp label] at ({ifthenelse((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))-(0)>=max((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))),((__ANG__))-(min(__ANG__,90))),((0)+(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))))/2,ifthenelse((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))>=((__ANG__))-(min(__ANG__,90)),((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))+(min(__ANG__,90)))/2,((min(__ANG__,90))+((__ANG__)))/2))}:{max(0.83,0.34/sin(max(2,(max((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))-(0),max((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))),((__ANG__))-(min(__ANG__,90)))))/2)))}) {$__ANGLAB__$};
+  \node[cp label] at ({ifthenelse((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))-(0)>=max((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))),((__ANG__))-(min(__ANG__,90))),((0)+(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))))/2,ifthenelse((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))>=((__ANG__))-(min(__ANG__,90)),((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))+(min(__ANG__,90)))/2,((min(__ANG__,90))+((__ANG__)))/2))}:{max(1.0,0.34/sin(max(2,(max((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))-(0),max((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))),((__ANG__))-(min(__ANG__,90)))))/2)))}) {$__ANGLAB__$};
 \end{tikzpicture}""",
         "params": {
             'ANG': {'type': 'number', 'default': '60', 'desc': 'included angle between the vectors in degrees'},
@@ -183,8 +191,18 @@ templates = [
   \pic [draw=black, angle radius=0.45cm] {angle=U--O--V};
   % angle label outside its arc, in the widest gap the y-axis leaves
   \node[cp label] at ({ifthenelse((min(__ANG__,90))-(0)>=((__ANG__))-(min(__ANG__,90)),((0)+(min(__ANG__,90)))/2,((min(__ANG__,90))+((__ANG__)))/2)}:{max(0.7,0.34/sin(max(2,(max((min(__ANG__,90))-(0),((__ANG__))-(min(__ANG__,90))))/2)))}) {$__ANGLAB__$};
-  \draw[cp line,->] (O) -- (A) node[cp label,anchor=north] {$__ULAB__$};
-  \draw[cp line,->] (A) -- (B) node[cp label,anchor=west] {$__VLAB__$};
+  \draw[cp line,->] (O) -- (A);
+  \draw[cp line,->] (A) -- (B);
+  % 2u above its arrow near the tip and -3v beside its own arrow, both outside
+  % the triangle: at the tips the arrowheads ran through them
+  \node[cp label,overlay,opacity=0] (cpmU) at (0,0) {$__ULAB__$};
+  \path let \p1=($(A)-(O)$), \p3=($(B)-(O)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
+    \p2=($(cpmU.north east)-(cpmU.south west)$) in
+    node[cp label] at ($(O)!0.8!(A)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__ULAB__$};
+  \node[cp label,overlay,opacity=0] (cpmV) at (0,0) {$__VLAB__$};
+  \path let \p1=($(B)-(A)$), \p3=($(O)-(A)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
+    \p2=($(cpmV.north east)-(cpmV.south west)$) in
+    node[cp label] at ($(A)!0.5!(B)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__VLAB__$};
   \draw[cp line,->] (O) -- (B);
   % result label written along its own arrow, outside the triangle: beside it,
   % a wide label reached the y-axis whenever the arrow was steep (at the tip it
@@ -192,8 +210,15 @@ templates = [
   \node[cp label,overlay,opacity=0] (cpmL) at (0,0) {$__RLAB__$};
   \path let \p1=($(B)-(O)$), \p3=($(A)-(O)$), \n1={atan2(\y1,\x1)},
     \n3={ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)}, \p2=($(cpmL.north east)-(cpmL.south west)$) in
-    node[cp label,rotate={\n1-180*round(\n1/180)}] at ($(O)!0.6!(B)+({\n1+\n3}:{0.5*\y2+2pt})$) {$__RLAB__$};
+    node[cp label,rotate={\n1-180*round(\n1/180)}] at ($(O)!@@ALT@@!(B)+({\n1+\n3}:{0.5*\y2+2pt})$) {$__RLAB__$};
 \end{tikzpicture}""",
+        # result label slides along its arrow when the y-axis runs through it
+        "layout_alternatives": [
+            '0.6',
+            '0.75',
+            '0.85',
+            '0.45',
+        ],
         "params": {
             'ANG': {'type': 'number', 'default': '60', 'desc': 'angle from u to v in degrees'},
             'NEGANG': {'type': 'number', 'default': '240', 'desc': 'direction for the negative scaled v vector, usually ANG + 180'},
@@ -591,7 +616,7 @@ templates = [
         "caption": 'Two vectors spanning a parallelogram and their cross product vector.',
         "skeleton": r"""\begin{tikzpicture}[scale=1, x={(-0.5cm,-0.3cm)}, y={(0.7cm,-0.3cm)}, z={(0cm,0.8cm)}]
   % axes
-  \draw[cp axis] (0,0,0) -- (4,0,0) node[cp label,anchor=west] {$x$};
+  \draw[cp axis] (0,0,0) -- (4,0,0) node[cp label,anchor=north east] {$x$};
   \draw[cp axis] (0,0,0) -- (0,3,0) node[cp label,anchor=south] {$y$};
   \draw[cp axis] (0,0,0) -- (0,0,3) node[cp label,anchor=west] {$z$};
 
@@ -602,11 +627,21 @@ templates = [
   \coordinate (N) at (0,0,2.5);
 
   % vectors a and b
-  \draw[cp line,->] (O) -- (A) node[cp label,anchor=south east] {$__ALAB__$};
-  \draw[cp line,->] (O) -- (B) node[cp label,anchor=south west] {$__BLAB__$};
+  \draw[cp line,->] (O) -- (A);
+  \draw[cp line,->] (O) -- (B);
 
   % parallelogram face
   \draw[cp fill] (O) -- (A) -- (C) -- (B) -- cycle;
+  % vector labels beside their vectors, on the parallelogram's side (at the
+  % tips the axes ran through them), drawn after the face so it cannot cover them
+  \node[cp label,overlay,opacity=0] (cpmA) at (0,0) {$__ALAB__$};
+  \path let \p1=($(A)-(O)$), \p3=($(4,0,0)-(O)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
+    \p2=($(cpmA.north east)-(cpmA.south west)$) in
+    node[cp label] at ($(O)!0.6!(A)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__ALAB__$};
+  \node[cp label,overlay,opacity=0] (cpmB) at (0,0) {$__BLAB__$};
+  \path let \p1=($(B)-(O)$), \p3=($(0,3,0)-(O)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
+    \p2=($(cpmB.north east)-(cpmB.south west)$) in
+    node[cp label] at ($(O)!0.6!(B)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__BLAB__$};
 
   % cross product vector
   \draw[cp line,->] (O) -- (N) node[cp label,anchor=west] {$__CROSSLAB__$};
@@ -624,7 +659,7 @@ templates = [
         "caption": 'A parallelepiped spanned by three vectors showing hidden and visible edges.',
         "skeleton": r"""\begin{tikzpicture}[scale=0.9, x={(-0.5cm,-0.3cm)}, y={(0.8cm,-0.3cm)}, z={(0cm,0.8cm)}]
   % axes
-  \draw[cp axis] (0,0,0) -- (4,0,0) node[cp label,anchor=west] {$x$};
+  \draw[cp axis] (0,0,0) -- (4,0,0) node[cp label,anchor=north east] {$x$};
   \draw[cp axis] (0,0,0) -- (0,3,0) node[cp label,anchor=south] {$y$};
   \draw[cp axis] (0,0,0) -- (0,0,3) node[cp label,anchor=west] {$z$};
 
@@ -687,7 +722,7 @@ templates = [
         "caption": 'A plane in three dimensions together with its normal vector.',
         "skeleton": r"""\begin{tikzpicture}[scale=1, x={(-0.5cm,-0.3cm)}, y={(0.7cm,-0.3cm)}, z={(0cm,0.8cm)}]
   % axes
-  \draw[cp axis] (0,0,0) -- (4,0,0) node[cp label,anchor=west] {$x$};
+  \draw[cp axis] (0,0,0) -- (4,0,0) node[cp label,anchor=north east] {$x$};
   \draw[cp axis] (0,0,0) -- (0,3,0) node[cp label,anchor=south] {$y$};
   \draw[cp axis] (0,0,0) -- (0,0,3) node[cp label,anchor=west] {$z$};
 
@@ -719,7 +754,7 @@ templates = [
         "caption": 'A line intersecting a plane in three-dimensional space.',
         "skeleton": r"""\begin{tikzpicture}[scale=1, x={(-0.5cm,-0.3cm)}, y={(0.7cm,-0.3cm)}, z={(0cm,0.8cm)}]
   % axes
-  \draw[cp axis] (0,0,0) -- (4,0,0) node[cp label,anchor=west] {$x$};
+  \draw[cp axis] (0,0,0) -- (4,0,0) node[cp label,anchor=north east] {$x$};
   \draw[cp axis] (0,0,0) -- (0,3,0) node[cp label,anchor=south] {$y$};
   \draw[cp axis] (0,0,0) -- (0,0,3) node[cp label,anchor=west] {$z$};
 
@@ -734,15 +769,18 @@ templates = [
   \node[cp label] at ($0.85*(A)+0.15*(B)$) {$__PLANELAB__$};
 
   % The line is built through the intersection point (the old endpoints missed
-  % it), and the point sits in the plane (0.25A + 0.6B) clear of the z-axis.
-  \coordinate (I) at ($0.25*(A)+0.6*(B)$);
+  % it), and the point sits near the plane's centre (0.35A + 0.35B), clear of
+  % its edges and of the z- and y-axes on every side.
+  \coordinate (I) at ($0.35*(A)+0.35*(B)$);
   \coordinate (Lstart) at ($(I)+(-1.2,-1.5,1.3)$);
   \coordinate (Lend) at ($(I)+(1.2,1.5,-1.3)$);
   \draw[cp line,->] (Lstart) -- (Lend) node[cp label,anchor=west] {$__LINELAB__$};
 
   % intersection point
   \node[cp point] at (I) {};
-  \node[cp label,anchor=west,xshift=2pt] at (I) {$__PNTLAB__$};
+  % above right: the free quadrant between the line and the y-axis (to the
+  % right, the y-axis ran behind the label)
+  \node[cp label,above right] at (I) {$__PNTLAB__$};
 \end{tikzpicture}""",
         "params": {
             'PLANELAB': {'type': 'label', 'default': '\\pi', 'desc': 'label for the plane'},

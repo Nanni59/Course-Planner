@@ -52,7 +52,7 @@ templates = [
             'POINT_Y': {'type': 'number', 'default': '1', 'desc': 'y-coordinate of the point of tangency'},
             'SLOPE': {'type': 'number', 'default': '2', 'desc': 'slope of the drawn line at the point'},
             'INTERCEPT': {'type': 'number', 'default': '-1', 'desc': 'y-intercept of the drawn line'},
-            'LABEL_X': {'type': 'number', 'default': '2', 'desc': 'x-position for the line label, inside the window and away from the marked point'},
+            'LABEL_X': {'type': 'number', 'default': '2', 'desc': 'x-position for the line label, inside the window, away from the marked point, at least 1 unit from the y-axis, and where the line is clear of the x-axis'},
             'LINE_LABEL': {'type': 'label', 'default': 'tangent', 'desc': "name of the drawn line: 'tangent' for tangent-line questions, 'normal' for normal-line questions"},
         },
     },
@@ -331,7 +331,9 @@ templates = [
 \draw[cp axis,-Stealth] (O) -- (2,0);
 \node[cp label, above] at (1,0.06) {__R_LABEL__};
 \draw[cp axis,-Stealth] (2.04,0) -- (2.5,0);
-\node[cp label, above right] at (2.3,0.28) {__DR_LABEL__};
+% just beyond the growth arrow's tip, outside the dashed circle (above right
+% of the tip it sat on the dashed circle)
+\node[cp label, anchor=west] at (2.42,0) {__DR_LABEL__};
 \end{tikzpicture}""",
         "params": {
             'R_LABEL': {'type': 'label', 'default': '$r$', 'desc': "radius label using the question's given value, e.g. $r=5$ cm"},
