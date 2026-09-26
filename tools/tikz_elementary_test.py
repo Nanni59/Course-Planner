@@ -337,15 +337,17 @@ QUOTA_MINUTE = json.dumps({'error': {'code': 429, 'message': 'You exceeded your 
         {'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier'}]},
     {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '21s'}]}})
 QUOTA_DAY = QUOTA_MINUTE.replace('PerMinute', 'PerDay')
-def lane_trial(behaviour, prepare=None, max_wait=60):
+def lane_trial(behaviour, prepare=None, max_wait=60, models=('primary','secondary','healthy'), as_json=False, bodies=None):
     clock, calls = [1000.0], []
     def post(url, headers, json, timeout):
         model = url.split('/models/')[1].split(':')[0]
         key = headers['x-goog-api-key']
         calls.append((key, model))
+        if bodies is not None:
+            bodies.append((model, json))
         code, text = behaviour(key, model)
         return FakeResponse(code, text)
-    ns.update(GEMINI_KEYS=['k1','k2','k3','k4'], GEMINI_MODELS=['primary','secondary','healthy'],
+    ns.update(GEMINI_KEYS=['k1','k2','k3','k4'], GEMINI_MODELS=list(models),
               GEMINI_MAX_ATTEMPTS=4, GEMINI_DEADLINE=180, GEMINI_MAX_WAIT=max_wait, GEMINI_TIMEOUT=90,
               _lane_state=ns['_new_lane_state'](), _last_success_model=None,
               _last_success_model_lock=threading.Lock(),
@@ -354,7 +356,7 @@ def lane_trial(behaviour, prepare=None, max_wait=60):
     if prepare:
         prepare()
     try:
-        result = real_gemini('fixture')
+        result = real_gemini('fixture', as_json=as_json)
     except RuntimeError as exc:
         result = exc
     return result, calls, clock[0] - 1000.0
@@ -391,6 +393,18 @@ assert result == 'ok' and calls == [('k1', 'primary'), ('k2', 'primary')]
 assert {l['last_outcome'] for l in ns['_lane_report']() if l['key_slot'] == 1} == {'key rejected'}
 result, calls, _ = lane_trial(lambda k, m: (400, '{"error":{"message":"Request payload is invalid"}}'))
 assert isinstance(result, RuntimeError) and len(calls) == 1
+# Gemma (last-resort free models) is asked without JSON mode, which it may not
+# support, and its 400 rests Gemma alone instead of failing the whole call.
+REFUSED = (400, '{"error":{"message":"JSON mode is not enabled for models/gemma-4-31b-it"}}')
+JSON_OK = (200, '{"candidates":[{"content":{"parts":[{"text":"```json\\n{\\"a\\": 1}\\n```"}]}}]}')
+bodies = []
+result, calls, _ = lane_trial(lambda k, m: JSON_OK if m == 'gemma-4-31b-it' else (429, QUOTA_DAY),
+                              models=('primary', 'gemma-4-31b-it'), as_json=True, bodies=bodies)
+assert result == {'a': 1} and calls[-1] == ('k1', 'gemma-4-31b-it'), calls
+assert all(('responseMimeType' in b['generationConfig']) == (m == 'primary') for m, b in bodies), bodies
+result, calls, _ = lane_trial(lambda k, m: REFUSED if m.startswith('gemma') else OK,
+                              models=('gemma-4-31b-it', 'healthy'))
+assert result == 'ok' and [m for _k, m in calls] == ['gemma-4-31b-it', 'healthy'], calls
 # Repeated capacity failures back off 30 s, then 60 s; a success resets it.
 ns['_lane_state'] = ns['_new_lane_state']()
 assert ns['_cool_model']('primary', None, 'high demand', 0) == 30

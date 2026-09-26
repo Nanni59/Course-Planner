@@ -14109,21 +14109,29 @@
         const ST_VIDEOS = 'cp_study_videos';  // metadata index only; the mp4 blobs live in IndexedDB
         const MAX_INLINE = 18 * 1024 * 1024; // 18 MB per binary file
 
-        // Selectable models. 2.5 Pro = most accurate (best for transcription / dense materials);
-        // Flash = fast + accurate default; Flash-Lite = cheapest/fastest.
-        // Free tier (June 2026): Flash / Flash-Lite models are free; Pro and 3.5 Flash need
-        // the paid tier. Gemini 3 Flash is the best FREE model for writing animation code, so
-        // it's listed first. Default stays on the stable 2.5 Flash so a renamed preview id can
-        // never break the app — pick "Gemini 3 Flash" in settings for the best free quality.
+        // Selectable models, best first. Every `free` model is on the free tier (September 2026)
+        // and free quota is counted per model, so gemini() falls back through all of them in this
+        // order when the chosen one hits its limit: Flash models (best, only ~20 requests a day
+        // each), then Flash-Lite (hundreds a day), then the 2.5 models (announced to shut down in
+        // October 2026; a retired id just 404s and is skipped), then the open Gemma 4 models.
+        // The default is a stable (GA) id, so a renamed preview can never break the app.
         const ST_MODELS = [
-            { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash — best free, recommended' },
-            { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — free, most reliable' },
-            { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite — free, fastest' },
-            { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite — free, lowest cost' },
-            { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — most capable (paid tier)' },
+            { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash — best free, recommended', free: true },
+            { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash — free', free: true },
+            { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash — free', free: true },
+            { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — free', free: true },
+            { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (preview) — free', free: true },
+            { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite — free, high daily limit', free: true },
+            { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite — free, fastest', free: true },
+            { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — free, retiring Oct 2026', free: true },
+            { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite — free, retiring Oct 2026', free: true },
+            { id: 'gemma-4-31b-it', label: 'Gemma 4 31B — free open model', free: true },
+            { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4 26B — free open model, faster', free: true },
             { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro — most accurate (paid tier)' }
         ];
-        const DEFAULT_MODEL = 'gemini-2.5-flash';
+        const ST_FREE_MODELS = ST_MODELS.filter(m => m.free).map(m => m.id);
+        const DEFAULT_MODEL = 'gemini-3.8-flash';
+        const isGemma = model => /^gemma-/.test(model);
 
         // ── Phase 3 — Live Manim renderer (Hugging Face Space) ───────────────────────────
         // Paste your Space URL here once it's live (no trailing slash), e.g.
@@ -14620,9 +14628,12 @@
             // Schema calls occasionally come back as truncated/fenced JSON (more common with
             // YouTube-only sources), so retry a couple of times before surfacing a parse error.
             // Plain text / vision calls used for video source extraction can also hit brief Gemini
-            // 5xx/429 hiccups. Try the selected model first, then reliable free fallbacks.
-            const models = Array.from(new Set([getModel(), DEFAULT_MODEL, 'gemini-2.5-flash-lite'].filter(Boolean)));
+            // 5xx/429 hiccups. Try the selected model first, then every free model in order
+            // (each has its own daily quota, so a 429 on one says nothing about the next).
+            const models = Array.from(new Set([getModel(), ...ST_FREE_MODELS].filter(Boolean)));
             const tries = schema ? Math.max(3, models.length + 1) : Math.max(4, models.length * 2);
+            // Short pause while moving between models, longer once every model has been tried.
+            const backoff = attempt => 600 * Math.ceil(attempt / models.length);
             let lastErr;
             for (let attempt = 1; attempt <= tries; attempt++) {
                 const model = models[(attempt - 1) % models.length];
@@ -14633,19 +14644,24 @@
                         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
                         body: JSON.stringify({
                             contents: [{ parts }],
-                            generationConfig: schema ? { responseMimeType: 'application/json', responseSchema: schema } : {}
+                            // Gemma's structured-output support is not established; its JSON is
+                            // parsed from the text below either way.
+                            generationConfig: schema && !isGemma(model) ? { responseMimeType: 'application/json', responseSchema: schema } : {}
                         })
                     });
                 } catch (e) {
                     lastErr = e;
-                    if (attempt < tries) { await wait(800 * attempt); continue; }
+                    if (attempt < tries) { await wait(backoff(attempt)); continue; }
                     throw e;
                 }
                 if (!res.ok) {
                     const body = await res.text().catch(() => '');
                     lastErr = new Error('GEMINI_' + res.status + ': ' + body.slice(0, 300));
+                    // Gemma accepts fewer request options (and file types) than Gemini, so a
+                    // Gemma 400 is not a verdict on the request: move on to the next model.
+                    if (res.status === 400 && isGemma(model) && attempt < tries) continue;
                     if ((res.status === 404 || res.status === 429 || res.status >= 500) && attempt < tries) {
-                        await wait(900 * attempt);
+                        await wait(backoff(attempt));
                         continue;
                     }
                     throw lastErr;
@@ -17388,7 +17404,7 @@
             '<div class="st-field"><label>API key</label><input class="st-input" id="stKeyInput" type="password" placeholder="AIza…" autocomplete="off"></div>' +
             '<div class="st-field"><label>AI model</label>' +
             ddHTML('stModelInput', ST_MODELS.map(m => ({ v: m.id, label: m.label })), getModel()) +
-            '<div class="st-panel-hint" style="margin-top:8px">On the free tier, pick <strong>Gemini 3 Flash</strong> — it writes the best video-lesson animations at no cost. <strong>2.5 Flash</strong> is the most reliable free fallback. Models marked “paid tier” need billing enabled on your Google account.</div></div>' +
+            '<div class="st-panel-hint" style="margin-top:8px">On the free tier, pick <strong>Gemini 3.8 Flash</strong> for the best results. Each free model has its own daily limit, so when the one you pick runs out the app moves on to the next free model automatically. Models marked “paid tier” need billing enabled on your Google account.</div></div>' +
             '<div class="st-field"><label>Notifications</label>' +
             '<button type="button" class="st-toggle-pill" id="stNotifyToggle">' +
             '<span class="st-tp-ico">' + I.bell + '</span>' +

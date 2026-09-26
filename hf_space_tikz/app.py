@@ -97,17 +97,19 @@ GEMINI_DEADLINE = int(os.environ.get("GEMINI_DEADLINE", "180"))
 # Longest a single call may sit waiting for a cooling lane; the frontend gives
 # each visual about five minutes in total.
 GEMINI_MAX_WAIT = int(os.environ.get("GEMINI_MAX_WAIT", "60"))
-# Free-tier daily quota is per project AND per model, so every model here is a
-# separate allowance. Best Flash models first (small daily quota), then the
-# Flash-Lite models (much larger quota). gemini-2.5-flash is announced to shut
-# down in October 2026; once it is gone its lanes 404 and rest for an hour.
+# Every free-tier text model. Free daily quota is per project AND per model, so
+# each is a separate allowance. Best Flash models first (small daily quota),
+# then the Flash-Lite models (much larger quota), then the 2.5 models, which
+# are announced to shut down in October 2026 (their lanes then 404 and rest for
+# an hour), and last the hosted Gemma 4 models.
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 GEMINI_FALLBACK_MODELS = [
     m.strip()
     for m in os.environ.get(
         "GEMINI_FALLBACK_MODELS",
         "gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash-preview,"
-        "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash",
+        "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash,gemini-2.5-flash-lite,"
+        "gemma-4-31b-it,gemma-4-26b-a4b-it",
     ).split(",")
     if m.strip()
 ]
@@ -502,6 +504,10 @@ def _strip_fence(text: str) -> str:
     return text.strip()
 
 
+def _is_gemma(model: str) -> bool:
+    return model.startswith("gemma-")
+
+
 def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
     if not GEMINI_KEYS:
         raise RuntimeError("No Gemini API key is set on the Space.")
@@ -540,11 +546,17 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
         key = GEMINI_KEYS[key_idx]
         _diagnostic("model-attempt", model=model, key_slot=key_idx + 1)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        payload = body
+        if _is_gemma(model) and "responseMimeType" in body["generationConfig"]:
+            # Gemma's JSON-mode support is not established; the reply is parsed
+            # from text below either way.
+            payload = {**body, "generationConfig": {k: v for k, v in body["generationConfig"].items()
+                                                    if k != "responseMimeType"}}
         try:
             res = requests.post(
                 url,
                 headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-                json=body,
+                json=payload,
                 timeout=GEMINI_TIMEOUT,
             )
         except requests.exceptions.RequestException as exc:
@@ -586,6 +598,10 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
             _cool_model(model, 3600, "model not found", key_idx)
         elif status == 403 or (status == 400 and ("api key" in low_body or "api_key" in low_body)):
             _cool_key(key_idx, 3600, "key rejected")
+        elif status == 400 and _is_gemma(model):
+            # Gemma accepts fewer request options than Gemini; a refusal says
+            # nothing about the Gemini lanes, so rest Gemma and carry on.
+            _cool_model(model, 3600, "request refused", key_idx)
         elif status == 400:
             # The request itself was refused; every other lane would refuse it too.
             break

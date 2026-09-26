@@ -141,10 +141,13 @@ parameter failures do not render invented default givens.
    variables. The default model order is `gemini-3.8-flash`,
    `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`,
    `gemini-3-flash-preview`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`,
-   then `gemini-2.5-flash` (announced to shut down in October 2026). Free-tier
-   quota is counted per model as well as per project, so each model adds its
-   own daily allowance; the Flash models allow few requests a day, the
-   Flash-Lite models far more. A Space variable replaces this list entirely.
+   `gemini-2.5-flash`, `gemini-2.5-flash-lite` (both announced to shut down in
+   October 2026), then the hosted Gemma models `gemma-4-31b-it` and
+   `gemma-4-26b-a4b-it`. Free-tier quota is counted per model as well as per
+   project, so each model adds its own daily allowance; the Flash models allow
+   few requests a day, the Flash-Lite and Gemma models far more. Gemma is asked
+   without JSON mode, and a request Gemma refuses rests Gemma only. A Space
+   variable replaces this list entirely.
 
 ### How keys and models are used
 
