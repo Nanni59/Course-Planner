@@ -187,6 +187,8 @@ def catalog_errors() -> list[str]:
                 errors.append(f"{tid}.{name}: missing 'default'")
         if not t.get("triggers"):
             errors.append(f"{tid}: empty triggers list (unroutable by keyword)")
+        if (ALT_SLOT in skeleton) != bool(t.get("layout_alternatives")):
+            errors.append(f"{tid}: {ALT_SLOT} slot and layout_alternatives must come together")
     return errors
 
 
@@ -449,15 +451,31 @@ def get(template_id: str) -> dict | None:
     return _TEMPLATES_BY_ID.get(template_id)
 
 
-def fill(template: dict, ai_params: dict | None = None, target: str = "generic") -> str:
+ALT_SLOT = "@@ALT@@"
+
+
+def alternatives(template: dict) -> int:
+    """How many label placements a template offers (see "layout_alternatives")."""
+    return max(1, len(template.get("layout_alternatives", [])))
+
+
+def fill(template: dict, ai_params: dict | None = None, target: str = "generic", alternative: int = 0) -> str:
     """Substitute AI-supplied values into a template skeleton, deterministically.
 
     Every slot is sanitized by its declared type. Missing values fall back to
     the param default. On a worksheet target, a slot marked answer_safe=False
     whose value looks like a solved result is replaced by its unknown symbol.
+
+    A template whose best label placement depends on its values can list
+    candidate placements in "layout_alternatives" (TikZ fragments for its
+    @@ALT@@ slot, preferred first); the renderer tries them in order when the
+    rendered picture shows label collisions. The model never sees or fills them.
     """
     ai_params = ai_params or {}
     out = template["skeleton"]
+    options = template.get("layout_alternatives", [])
+    if options:
+        out = out.replace(ALT_SLOT, options[min(alternative, len(options) - 1)])
     for name, spec in template["params"].items():
         ptype = spec.get("type", "label")
         default = str(spec.get("default", ""))

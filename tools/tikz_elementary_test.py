@@ -165,6 +165,22 @@ inverse_tikz = templates.fill(templates.get('function_inverse_reflection'), {
     'BASE':'2','F_LABEL':'$f$','INV_LABEL':'$f^{-1}$',
 }, target='worksheet')
 assert '{$f$}' in inverse_tikz and '{$f^{-1}$}' in inverse_tikz
+# Grids stay light: a dashed grid is indistinguishable from dashed asymptotes and tangents.
+assert not [t['id'] for t in templates.TEMPLATES if 'grid style={cp dashed}' in t['skeleton']]
+# 3D components: the x-axis view is chosen per vector, so no vector projects onto the origin
+# (the old fixed view drew (2, 1.5, 1) as a stub), and the component box is drawn through Q.
+vec3d = templates.fill(templates.get('3d_vector_components'), {'XVAL':'2','YVAL':'1.5','ZVAL':'1'}, target='worksheet')
+assert 'x={({ifthenelse(' in vec3d and r'\coordinate (Q) at (2,1.5,0);' in vec3d and '__' not in vec3d
+def _proj_len(x, y, z, xh, xv):
+    return math.hypot(xh*x + y, xv*x + z)
+for vec in ((2, 1.5, 1), (2, 1.1, 0.8), (1, 0.55, 0.4), (1, 0.3, 0.75), (3, 4, 5)):
+    best = max(_proj_len(*vec, -0.55, -0.4), _proj_len(*vec, -0.3, -0.75))
+    assert best >= 0.3 * math.dist(vec, (0, 0, 0)), vec
+# Head-to-tail labels sit at their own arrow's midpoint, not piled up on a shared tip.
+for tid, mids in (('vector_add_head_to_tail', ('(O)!0.5!(U)', '(U)!0.5!(Vend)', '(O)!0.5!(Vend)')),
+                  ('vector_subtraction_head_to_tail', ('(O)!0.5!(U)', '(O)!0.5!(V)', '(V)!0.5!(U)'))):
+    tikz = templates.fill(templates.get(tid), {}, target='worksheet')
+    assert all(m in tikz for m in mids) and not re.search(r'\((?:U|V|Vend)\) node', tikz), tid
 assert not templates.catalog_errors()
 
 # Reproduce the September 17 worksheet's question + visualDescription payloads.
@@ -218,6 +234,97 @@ def fail_model(*args, **kwargs):
 ns['_gemini'] = fail_model
 assert '429 quota exhausted' in ns['_reference_generate'](req)['error']
 assert ns['_readiness_verdict'](req, '')[0] == 'FAIL'
+
+# Render-based layout check (2026-09-27): label boxes come from the compiled
+# picture's log, lines from a text-hidden second page. Pure analysis, synthetic input.
+layout_constants = [n for n in tree.body if isinstance(n, ast.Assign)
+                    and any(isinstance(t, ast.Name) and t.id.startswith('_LAYOUT_') for t in n.targets)]
+exec(compile(ast.fix_missing_locations(ast.Module(body=layout_constants, type_ignores=[])), '<layout constants>', 'exec'), ns)
+assert '\\iftikz@is@matrix' in ns['_LAYOUT_INSTRUMENT'] and 'text opacity=0' in ns['_layout_document']('a\\begin{document}B\\end{document}')
+synthetic_log = '\n'.join([
+    # a 20x10pt label crossed by a line, two labels overlapping, an empty point, a
+    # measuring copy, and a legend (cells then container) that must be skipped
+    'CPNODE tikz@f@1 | 10 10 30 10 30 20 10 20 1.0pt 1.0pt N',
+    'CPNODE tikz@f@2 | 50 10 70 10 70 20 50 20 1.0pt 1.0pt N',
+    'CPNODE tikz@f@3 | 60 12 80 12 80 22 60 22 1.0pt 1.0pt N',
+    'CPNODE tikz@f@4 | 90 10 93 10 93 13 90 13 1.5pt 1.5pt N',
+    'CPNODE cpmX | 0 0 40 0 40 10 0 10 3.3pt 3.3pt N',
+    'CPNODE tikz@f@6 | 0 0 5 0 5 5 0 5 1pt 1pt M',
+    'CPNODE tikz@f@5 | 0 0 100 0 100 40 0 40 1pt 1pt N',
+    'CPBBOX 0 0 100 40',
+])
+nodes, bbox = ns['_layout_nodes'](synthetic_log)
+assert [n[0] for n in nodes] == ['tikz@f@1', 'tikz@f@2', 'tikz@f@3', 'tikz@f@4'] and bbox == (0.0, 0.0, 100.0, 40.0)
+k = ns['_LAYOUT_DPI'] / 72.27
+width, height = int((100 + 12) * k) + 1, int((40 + 12) * k) + 1
+pixels = bytearray([255]) * (width * height)
+line_x = int((20 + 6) * k)  # a vertical line through the middle of label 1
+for yy in range(height):
+    pixels[yy * width + line_x] = pixels[yy * width + line_x + 1] = 0
+def word(x0, y0, x1, y1, text):  # page-1 word box in bp from the top-left
+    to = lambda x, y: ((x + 6) * 72 / 72.27, (40 + 6 - y) * 72 / 72.27)
+    (a, b), (c, d) = to(x0, y1), to(x1, y0)
+    return (a, b, c, d, text)
+words = [word(12, 11, 28, 19, 'A'), word(52, 11, 68, 19, 'B'), word(62, 13, 78, 21, 'C')]
+report = ns['_layout_analyse'](synthetic_log, words, (width, height, bytes(pixels)))
+assert report['labels'] == 3, report
+assert [i['kind'] for i in report['issues']] == ['line-through-label', 'labels-overlap'], report
+assert report['issues'][0]['labels'] == ['A'] and report['issues'][1]['labels'] == ['B', 'C']
+assert ns['_layout_summary'](report) == 'a line runs through the label "A"; the labels "B" and "C" overlap'
+shown = bytearray(pixels)
+for x0, x1 in ((14, 26), (52, 58)):  # glyph ink for A and B (clear of C); C draws nothing (covered)
+    for yy in range(int((40 + 6 - 18) * k), int((40 + 6 - 12) * k)):
+        for xx in range(int((x0 + 6) * k), int((x1 + 6) * k)):
+            shown[yy * width + xx] = 0
+covered = ns['_layout_analyse'](synthetic_log, words, (width, height, bytes(pixels)), shown=bytes(shown))
+assert [i['kind'] for i in covered['issues']] == ['line-through-label', 'label-hidden', 'labels-overlap'], covered
+assert covered['issues'][1]['labels'] == ['C'] and 'is covered or cut off' in ns['_layout_summary'](covered)
+assert ns['_layout_inset']([(0, 0), (4, 0), (4, 4), (0, 4)], 2.5, 2.5) is None
+assert abs(ns['_layout_overlap']([(0, 0), (2, 0), (2, 2), (0, 2)], [(1, 1), (3, 1), (3, 3), (1, 3)]) - 1) < 1e-9
+# Model-drawn diagrams spend their one repair on reported collisions (the prompt
+# names them), and a colliding draft whose repair fails still gets its readiness check.
+prompts, renders = [], []
+def layout_gemini(prompt, as_json=False, temperature=0.2):
+    prompts.append(prompt)
+    return {'tikz': r'\begin{tikzpicture}\draw (0,0)--(1,1);\end{tikzpicture}'} if as_json else 'PASS'
+def layout_render(req):
+    renders.append(req)
+    if len(renders) == 1:
+        return {'ok': True, 'svg': '<svg/>', 'layout': {'labels': 1, 'issues': [{'kind': 'line-through-label', 'labels': ['x = ?'], 'ink': 30}]}}
+    return {'ok': True, 'svg': '<svg/>', 'layout': {'labels': 1, 'issues': []}}
+ns.update(_gemini=layout_gemini, _render=layout_render, _diagram_spec_prompt=lambda *a, **k: 'plan',
+          _visual_prompt=lambda req, repair_log='', **k: 'draw ' + repair_log)
+out = ns['_reference_generate'](req)
+assert out['ok'] and len(renders) == 2 and all(r.layout for r in renders)
+assert any('a line runs through the label "x = ?"' in p for p in prompts)
+assert sum(p.startswith('draw') for p in prompts) == 2
+renders.clear(); prompts.clear()
+def repair_breaks(req):
+    renders.append(req)
+    if len(renders) == 1:
+        return {'ok': True, 'svg': '<first/>', 'layout': {'labels': 1, 'issues': [{'kind': 'labels-overlap', 'labels': ['A', 'B'], 'area': 9}]}}
+    return {'ok': False, 'error': 'TikZ compile failed.', 'log': 'Undefined control sequence'}
+ns['_render'] = repair_breaks
+out = ns['_reference_generate'](req)
+assert out['ok'] and out['svg'] == '<first/>', out
+
+# Label placement alternatives: fill picks one; the catalog renderer tries them in
+# order when the picture shows collisions, and keeps the first clean one.
+parabola = templates.get('parabola_transformation')
+assert templates.alternatives(parabola) > 1 and templates.alternatives(templates.get('histogram')) == 1
+assert '@@ALT@@' not in templates.fill(parabola, {}) and 'anchor=north west]' in templates.fill(parabola, {}, alternative=6)
+assert not templates.catalog_errors()
+tried = []
+def alt_render(req, tikz, source='', run_critic=True):
+    tried.append(tikz)
+    clean = len(tried) == 3
+    return {'ok': True, 'svg': f'<svg n="{len(tried)}"/>', 'layout': {'labels': 1, 'issues': [] if clean else [{'kind': 'labels-overlap', 'labels': ['a', 'b'], 'area': 5}]}}
+ns.update(_verified_render=alt_render, tcatalog=templates)
+picked = ns['_catalog_render'](req, parabola, {}, source='catalog:test')
+assert picked['svg'] == '<svg n="3"/>' and len(tried) == 3 and len(set(tried)) == 3
+tried.clear()
+ns['_verified_render'] = lambda req, tikz, source='', run_critic=True: tried.append(tikz) or {'ok': True, 'svg': '<svg/>', 'layout': {'labels': 1, 'issues': []}}
+assert ns['_catalog_render'](req, parabola, {}, source='catalog:test')['ok'] and len(tried) == 1  # clean first try: no extra renders
 
 # Terminal status always retains the job's own trace, without configured secrets.
 def fake_generate(request):
@@ -321,15 +428,17 @@ QUOTA_MINUTE = json.dumps({'error': {'code': 429, 'message': 'You exceeded your 
         {'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier'}]},
     {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '21s'}]}})
 QUOTA_DAY = QUOTA_MINUTE.replace('PerMinute', 'PerDay')
-def lane_trial(behaviour, prepare=None, max_wait=60):
+def lane_trial(behaviour, prepare=None, max_wait=60, models=('primary','secondary','healthy'), as_json=False, bodies=None):
     clock, calls = [1000.0], []
     def post(url, headers, json, timeout):
         model = url.split('/models/')[1].split(':')[0]
         key = headers['x-goog-api-key']
         calls.append((key, model))
+        if bodies is not None:
+            bodies.append((model, json))
         code, text = behaviour(key, model)
         return FakeResponse(code, text)
-    ns.update(GEMINI_KEYS=['k1','k2','k3','k4'], GEMINI_MODELS=['primary','secondary','healthy'],
+    ns.update(GEMINI_KEYS=['k1','k2','k3','k4'], GEMINI_MODELS=list(models),
               GEMINI_MAX_ATTEMPTS=4, GEMINI_DEADLINE=180, GEMINI_MAX_WAIT=max_wait, GEMINI_TIMEOUT=90,
               _lane_state=ns['_new_lane_state'](), _last_success_model=None,
               _last_success_model_lock=threading.Lock(),
@@ -338,7 +447,7 @@ def lane_trial(behaviour, prepare=None, max_wait=60):
     if prepare:
         prepare()
     try:
-        result = real_gemini('fixture')
+        result = real_gemini('fixture', as_json=as_json)
     except RuntimeError as exc:
         result = exc
     return result, calls, clock[0] - 1000.0
@@ -375,6 +484,18 @@ assert result == 'ok' and calls == [('k1', 'primary'), ('k2', 'primary')]
 assert {l['last_outcome'] for l in ns['_lane_report']() if l['key_slot'] == 1} == {'key rejected'}
 result, calls, _ = lane_trial(lambda k, m: (400, '{"error":{"message":"Request payload is invalid"}}'))
 assert isinstance(result, RuntimeError) and len(calls) == 1
+# Gemma (last-resort free models) is asked without JSON mode, which it may not
+# support, and its 400 rests Gemma alone instead of failing the whole call.
+REFUSED = (400, '{"error":{"message":"JSON mode is not enabled for models/gemma-4-31b-it"}}')
+JSON_OK = (200, '{"candidates":[{"content":{"parts":[{"text":"```json\\n{\\"a\\": 1}\\n```"}]}}]}')
+bodies = []
+result, calls, _ = lane_trial(lambda k, m: JSON_OK if m == 'gemma-4-31b-it' else (429, QUOTA_DAY),
+                              models=('primary', 'gemma-4-31b-it'), as_json=True, bodies=bodies)
+assert result == {'a': 1} and calls[-1] == ('k1', 'gemma-4-31b-it'), calls
+assert all(('responseMimeType' in b['generationConfig']) == (m == 'primary') for m, b in bodies), bodies
+result, calls, _ = lane_trial(lambda k, m: REFUSED if m.startswith('gemma') else OK,
+                              models=('gemma-4-31b-it', 'healthy'))
+assert result == 'ok' and [m for _k, m in calls] == ['gemma-4-31b-it', 'healthy'], calls
 # Repeated capacity failures back off 30 s, then 60 s; a success resets it.
 ns['_lane_state'] = ns['_new_lane_state']()
 assert ns['_cool_model']('primary', None, 'high demand', 0) == 30
@@ -457,7 +578,51 @@ lin = templates.get('linear_transformation_unit_square')['skeleton']
 assert lin.index(r'\draw[cp fill]') < lin.index(r'\draw[cp dashed] (O) -- (U1)')
 removable = templates.fill(templates.get('removable_discontinuity'), {'X0':'3','M':'1','B':'3'})
 assert '{x+1}' not in removable and 'cpf(3)' in removable
-assert 'max(6.2832,6.2832/0.5)' in templates.fill(templates.get('sinusoid_amplitude_period'), {'FREQUENCY_VALUE':'0.5'})
+slow_wave = templates.fill(templates.get('sinusoid_amplitude_period'), {'FREQUENCY_VALUE':'0.5'})
+assert 'max(6.2832,6.2832/0.5,' in slow_wave
+# Label collisions (2026-09-27): the period arrow runs peak to peak instead of
+# from the y-axis, and the amplitude label sits mid-arrow instead of on the peak.
+assert '(axis cs:0,{' not in slow_wave and '(axis cs:{cpx(0)+cpp(0)},' in slow_wave
+assert 'node[pos=.5, anchor=west' in slow_wave and 'node[pos=1, anchor=west' not in slow_wave
+# Root labels are drawn once each, on the side of the axis where the curve is not.
+assert cubic.count(r'\node[cp label, font=\scriptsize, anchor={ifthenelse(') == 3 and 'xticklabels={}' in cubic
+# Asymptote graphs put each tick label on the side of its axis away from the curve.
+for tid in ('reciprocal_asymptotes', 'rational_asymptotes'):
+    skeleton = templates.get(tid)['skeleton']
+    assert r'xticklabel style={anchor={ifthenelse(' in skeleton and r'yticklabel style={anchor={ifthenelse(' in skeleton, tid
+    assert '/(\\tick' not in skeleton, tid  # sign tests never divide: pgfmath cannot divide by zero
+# Vector labels (2026-09-27): placed beside their own segment, clear by their
+# measured size (an invisible copy is typeset to measure it) instead of at fixed
+# anchors that let wide labels cross steep vectors.
+for tid in ('airplane_wind_ground_velocity', 'boat_current_resultant', 'collinear_vectors',
+            'vector_difference_from_angle', 'vector_linear_combination', 'triangle_midpoint_vector_sum',
+            'vector_subtraction_as_addition', 'vector_closed_triangle_sum', 'parallelepiped_volume'):
+    skeleton = templates.get(tid)['skeleton']
+    assert 'overlay,opacity=0]' in skeleton and '.north east)-(' in skeleton, tid
+# Comments count as TikZ: none in a vector template may look like a raw arc path,
+# or the vector-angle guard rejects the diagram (the bearing arc is exempt there).
+for t in templates.TEMPLATES:
+    if t['subject'].startswith('Vectors') and t['id'] != 'airplane_wind_ground_velocity':
+        assert not re.search(r"\barc\s*(?:\[|\()", t['skeleton']), t['id']
+# The line passes through the marked intersection point, and plane labels no
+# longer sit under the normal / on the point.
+line_plane = templates.get('line_plane_intersection')['skeleton']
+assert '($(I)+(-1.2,-1.5,1.3)$)' in line_plane and '($(I)+(1.2,1.5,-1.3)$)' in line_plane
+for tid in ('line_plane_intersection', 'plane_with_normal'):
+    assert r'\node[cp label] at ($(A)!0.5!(B)$)' not in templates.get(tid)['skeleton'], tid
+# Midpoint labels extend toward the grid's middle on the side the segment does not
+# use (a fixed "above right" was crossed by rising segments), and continue the
+# segment instead where that side would meet the axis tick labels.
+rising = generate('Points A(-4, 1) and B(2, 5). Find the midpoint of AB. Diagram: Show both axes from -5 to 5.')['tikz']
+assert r'\node[left,font=\small] at (axis cs:-4,1)' in rising and r'\node[above right,font=\small] at (axis cs:2,5)' in rising
+# Angle labels are explicit nodes where the angle is computed: the angles library
+# splices angle eccentricity into a polar radius, where only a plain number behaves.
+for t in templates.TEMPLATES:
+    assert 'angle eccentricity={' not in t['skeleton'], t['id']
+# Middle axes put the axis letters beyond the arrow tips, clear of the last tick label.
+for t in templates.TEMPLATES:
+    if 'axis lines=middle' in t['skeleton'] or 'axis lines=center' in t['skeleton']:
+        assert 'xlabel style={anchor=west}, ylabel style={anchor=south}' in t['skeleton'], t['id']
 
 # Fifty specific questions across topics, written like generated worksheet
 # items (question + model-authored diagram description), must reach the right

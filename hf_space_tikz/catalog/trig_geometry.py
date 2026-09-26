@@ -91,15 +91,19 @@ templates = [
   \coordinate (Q) at ({90-(__B2__)}:2.3);
   \draw[cp axis,-Stealth] (O)--(0,3.0) node[above] {$N$};
   \draw[cp axis,-Stealth] (O)--(3.0,0) node[right] {$E$};
-  \draw[cp line,-Stealth] (O)--(P) node[midway,above left] {\ensuremath{__L1__}};
+  % d1 out along its arrow on the free side (toward Q), past both bearing labels
+  \draw[cp line,-Stealth] (O)--(P) node[pos=.78,below right] {\ensuremath{__L1__}};
   \draw[cp line,-Stealth] (O)--(Q) node[midway,below right] {\ensuremath{__L2__}};
   % d sits near P, away from the bearing arcs at the origin
   \draw[cp dashed] (P)--(Q) node[pos=.25,above right] {$__DLAB__$};
-  % Separate radii keep the two bearing labels off each other.
+  % Separate radii keep the two bearing arcs apart. The first label sits on its
+  % bisector, out far enough to fit its wedge; the second inside its larger arc,
+  % in the part of its wedge the first does not cover (outside the arc, at the
+  % bisector, it met the dashed d).
   \draw[cp dashed] (90:0.5) arc[start angle=90,end angle={90-(__B1__)},radius=0.5];
-  \node at ({90-(__B1__)/2}:0.82) {$__B1__^\circ$};
+  \node at ({90-(__B1__)/2}:{max(0.82,0.3/sin(max(4,abs(__B1__)/2)))}) {$__B1__^\circ$};
   \draw[cp dashed] (90:1.2) arc[start angle=90,end angle={90-(__B2__)},radius=1.2];
-  \node at ({90-(__B2__)/2}:1.52) {$__B2__^\circ$};
+  \node at ({90-((__B1__)+(__B2__))/2}:{max(0.85,0.3/sin(max(4,abs((__B2__)-(__B1__))/2)))}) {$__B2__^\circ$};
 \end{tikzpicture}""",
         "params": {
             "B1": {"type": "number", "default": "20", "desc": "first bearing value in degrees, clockwise from north"},
@@ -124,7 +128,12 @@ templates = [
   \coordinate (C) at (3.8,2.5);
   \draw[cp line] (A) -- (B) -- (C) -- cycle;
   \pic [draw=black, angle radius=0.45cm] {right angle=C--B--A};
-  \pic [draw=black, angle radius=0.55cm, "$__ANGLAB__$"] {angle=B--A--C};
+  % Angle label on the bisector, outside its mark, out far enough to fit between
+  % the sides (the angle at A is atan(2.5/3.8) = 33.3 degrees). A computed angle
+  % eccentricity is not usable: the angles library splices it into a polar
+  % radius, where only a plain number behaves.
+  \pic [draw=black, angle radius=0.55cm] {angle=B--A--C};
+  \node[cp label] at ($(A)+(16.65:{max(0.85,0.3/sin(16.65))})$) {$__ANGLAB__$};
   \node[cp label, below] at ($(A)!0.5!(B)$) {$__BASELAB__$};
   \node[cp label, right] at ($(B)!0.5!(C)$) {$__HEIGHTLAB__$};
   \node[cp label, above left] at ($(A)!0.5!(C)$) {$__HYPLAB__$};
@@ -153,7 +162,10 @@ templates = [
   \draw[cp line] (O) -- (B);
   \draw[cp line] (A) arc[start angle=0, end angle=__ANGLE__, radius=2.7];
   \node[cp label, below] at (0:1.4) {$__RLABEL__$};
-  \pic [draw=black, angle radius=0.8cm, "$__ANGLELAB__$"] {angle=A--O--B};
+  % angle label on the bisector, outside its mark (inside it, the default, it met
+  % both radii), out far enough to fit between them
+  \pic [draw=black, angle radius=0.8cm] {angle=A--O--B};
+  \node[cp label] at ({(__ANGLE__)/2}:{max(1.1,0.3/sin(max(4,abs(__ANGLE__)/2)))}) {$__ANGLELAB__$};
 \end{tikzpicture}""",
         "params": {
             "ANGLE": {"type": "number", "default": "60", "desc": "central angle of the sector in degrees (use the given value; keep it 20-160 for a readable wedge)"},
@@ -176,12 +188,26 @@ templates = [
   \draw[cp line] (O) circle (2.35);
   \draw[cp line] (O) -- (A) node[cp label,midway,below] {$__RLABEL__$};
   \draw[cp line] (O) -- (B);
-  \draw[cp line] (A) -- (B) node[cp label,midway,anchor=south west] {$__CHORDLAB__$};
+  % Chord label clear of the chord by its measured size: on the centre's side
+  % for a short chord (outside, it crowded the arc label s), outside for a long
+  % one, whose midpoint is on the bisector with the angle label inside.
+  \draw[cp line] (A) -- (B);
+  \node[cp label,overlay,opacity=0] (cpmC) at (0,0) {$__CHORDLAB__$};
+  \path let \p1=($(B)-(A)$), \p3=($(__ARCMID__:2.35)-(A)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)*ifthenelse(__ANGLE__<80,1,-1)},
+    \p2=($(cpmC.north east)-(cpmC.south west)$) in
+    node[cp label] at ($(A)!0.5!(B)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__CHORDLAB__$};
   \draw[cp line] (A) arc[start angle=0,end angle=__ANGLE__,radius=2.35];
   \node[cp label] at (__ARCMID__:2.65) {$__ARCLAB__$};
-  \pic [draw=black, angle radius=0.7cm, "$__ANGLELAB__$"] {angle=A--O--B};
+  % Angle label between its mark and the chord (which crosses the angle
+  % 2.35 cos(half-angle) from O): out far enough to fit between the radii, but
+  % never out to the chord in its direction. By default on the bisector; a wide
+  % angle brings the chord close there, so the renderer tries directions nearer
+  % either radius. Inside the mark (the angles default) it met both radii.
+  \pic [draw=black, angle radius=0.5cm] {angle=A--O--B};
+  \node[cp label] at ({(__ANGLE__)*(@@ALT@@)}:{min(max(0.8,0.3/sin(max(4,abs(__ANGLE__)/2))),0.5*(0.5+2.35*cos(abs(__ANGLE__)/2)/cos((__ANGLE__)*(@@ALT@@)-(__ANGLE__)/2)))}) {$__ANGLELAB__$};
   \node[cp label,below left] at (O) {$O$};
 \end{tikzpicture}""",
+        "layout_alternatives": ["0.5", "0.2", "0.8"],
         "params": {
             "ANGLE": {"type": "number", "default": "110", "desc": "central angle in degrees"},
             "ARCMID": {"type": "number", "default": "55", "desc": "half the central angle, for placing the arc label"},

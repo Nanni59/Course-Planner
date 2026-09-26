@@ -13,7 +13,9 @@ slides, worksheets, study guides, and all-in-one study sets.
 """
 
 import base64
+import html
 import json
+import math
 import os
 import re
 import shutil
@@ -97,10 +99,20 @@ GEMINI_DEADLINE = int(os.environ.get("GEMINI_DEADLINE", "180"))
 # Longest a single call may sit waiting for a cooling lane; the frontend gives
 # each visual about five minutes in total.
 GEMINI_MAX_WAIT = int(os.environ.get("GEMINI_MAX_WAIT", "60"))
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
+# Every free-tier text model. Free daily quota is per project AND per model, so
+# each is a separate allowance. Best Flash models first (small daily quota),
+# then the Flash-Lite models (much larger quota), then the 2.5 models, which
+# are announced to shut down in October 2026 (their lanes then 404 and rest for
+# an hour), and last the hosted Gemma 4 models.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 GEMINI_FALLBACK_MODELS = [
     m.strip()
-    for m in os.environ.get("GEMINI_FALLBACK_MODELS", "gemini-3.5-flash,gemini-2.5-flash").split(",")
+    for m in os.environ.get(
+        "GEMINI_FALLBACK_MODELS",
+        "gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash-preview,"
+        "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash,gemini-2.5-flash-lite,"
+        "gemma-4-31b-it,gemma-4-26b-a4b-it",
+    ).split(",")
     if m.strip()
 ]
 GEMINI_MODELS = list(dict.fromkeys([GEMINI_MODEL] + GEMINI_FALLBACK_MODELS))
@@ -121,6 +133,10 @@ jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", "3600"))
 TEMPLATE_REPAIR_ATTEMPTS = int(os.environ.get("TEMPLATE_REPAIR_ATTEMPTS", "3"))
+# Render-based layout check: labels crossed by lines or overlapping each other,
+# read from the compiled picture (the readiness verifier only sees TikZ source).
+# Set TIKZ_LAYOUT_CHECK=0 to turn it off.
+LAYOUT_CHECK_ENABLED = os.environ.get("TIKZ_LAYOUT_CHECK", "1").strip().lower() not in ("0", "false", "no", "off")
 
 # Constrained catalog path (parallel rollout). Tried first; on no-match or render
 # failure it falls through to the legacy pipeline, so enabling it can only improve
@@ -155,6 +171,7 @@ class RenderReq(BaseModel):
     format: Literal["svg", "png"] = "svg"
     theme: Literal["green", "mono"] = "green"
     target: Literal["slide", "worksheet", "guide", "flashcard", "generic"] = "generic"
+    layout: bool = Field(False, description="Also report label collisions found in the rendered picture")
 
 
 class GenerateReq(BaseModel):
@@ -434,8 +451,14 @@ def _template(tikz: str, theme: str, target: str) -> str:
     # Worksheets always print on a white A4 sheet, so tick labels can knock out
     # a curve or asymptote passing through them (centred axes put the numbers
     # right where graphs cross). Other targets may sit on tinted backgrounds.
+    # Worksheet tick labels carry a white knockout, and are drawn above the plots
+    # (pgfplots' standard layers put them under "main", so curves crossed them
+    # anyway).
     tick_labels = (
-        r"\pgfplotsset{every tick label/.append style={fill=white,inner sep=1pt}}"
+        r"\pgfplotsset{every tick label/.append style={fill=white,inner sep=1pt},"
+        r"layers/cp worksheet/.define layer set={axis background,axis grid,axis ticks,axis lines,"
+        r"pre main,main,axis tick labels,axis descriptions,axis foreground}{/pgfplots/layers/standard},"
+        r"set layers=cp worksheet}"
         if target == "worksheet" else ""
     )
 
@@ -471,6 +494,8 @@ def _clean_env() -> dict[str, str]:
         upper = name.upper()
         if any(marker in upper for marker in ("TOKEN", "SECRET", "PASSWORD", "API_KEY", "GEMINI")):
             env.pop(name, None)
+    # TeX wraps log lines at 79 characters; the layout records are longer.
+    env["max_print_line"] = "100000"
     return env
 
 
@@ -492,6 +517,10 @@ def _strip_fence(text: str) -> str:
     text = re.sub(r"^```(?:json|tex|latex|tikz)?\s*", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text)
     return text.strip()
+
+
+def _is_gemma(model: str) -> bool:
+    return model.startswith("gemma-")
 
 
 def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
@@ -532,11 +561,17 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
         key = GEMINI_KEYS[key_idx]
         _diagnostic("model-attempt", model=model, key_slot=key_idx + 1)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        payload = body
+        if _is_gemma(model) and "responseMimeType" in body["generationConfig"]:
+            # Gemma's JSON-mode support is not established; the reply is parsed
+            # from text below either way.
+            payload = {**body, "generationConfig": {k: v for k, v in body["generationConfig"].items()
+                                                    if k != "responseMimeType"}}
         try:
             res = requests.post(
                 url,
                 headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-                json=body,
+                json=payload,
                 timeout=GEMINI_TIMEOUT,
             )
         except requests.exceptions.RequestException as exc:
@@ -578,6 +613,10 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
             _cool_model(model, 3600, "model not found", key_idx)
         elif status == 403 or (status == 400 and ("api key" in low_body or "api_key" in low_body)):
             _cool_key(key_idx, 3600, "key rejected")
+        elif status == 400 and _is_gemma(model):
+            # Gemma accepts fewer request options than Gemini; a refusal says
+            # nothing about the Gemini lanes, so rest Gemma and carry on.
+            _cool_model(model, 3600, "request refused", key_idx)
         elif status == 400:
             # The request itself was refused; every other lane would refuse it too.
             break
@@ -3123,7 +3162,11 @@ def _verified_render(req: GenerateReq, tikz: str, source: str = "draft", run_cri
         semantic_issue = _semantic_visual_issue(req, checked_tikz)
         if semantic_issue:
             return {"ok": False, "error": semantic_issue, "log": semantic_issue}
-    rendered = _render(RenderReq(code=checked_tikz, format=req.format, theme=req.theme, target=req.target))
+    rendered = _render(RenderReq(code=checked_tikz, format=req.format, theme=req.theme, target=req.target, layout=True))
+    if rendered.get("layout", {}).get("issues"):
+        # Catalog and exact renderers fix their own label placement; the model
+        # cannot move these labels, so collisions are reported, not repaired.
+        _diagnostic("layout", _layout_summary(rendered["layout"]), source=source)
     if rendered.get("ok"):
         rendered["tikz"] = checked_tikz
         if critic_note:
@@ -3131,6 +3174,246 @@ def _verified_render(req: GenerateReq, tikz: str, source: str = "draft", run_cri
     elif critic_note:
         rendered["critic"] = critic_note
     return rendered
+
+
+# ---- Render-based layout check ------------------------------------------------
+# The document gets a second page: the same picture with every node's text made
+# invisible (fills kept). Page 1 logs each node's four corners and inner sep, so
+# ink inside a label's text box on page 2 is a line crossing that label, while a
+# white-filled label drawn over a line correctly counts as clear. Overlapping
+# labels come straight from the logged boxes; pdftotext names the labels.
+_LAYOUT_INSTRUMENT = r"""
+\makeatletter
+\newif\ifcp@log \cp@logtrue
+\newcount\cp@count \newcount\cp@depth
+\def\cp@acc{}\def\cp@isx{0pt}\def\cp@isy{0pt}
+\def\cp@corner#1#2{\pgfpointanchor{#1}{#2}\edef\cp@acc{\cp@acc\space\strip@pt\pgf@x\space\strip@pt\pgf@y}}
+\def\cp@lognode{\ifcp@log\pgfutil@ifundefined{pgf@sh@ns@\tikzlastnode}{}{\cp@lognodeyes}\fi}
+\def\cp@lognodeyes{\begingroup\pgftransformreset\def\cp@acc{}%
+  \cp@corner{\tikzlastnode}{south west}\cp@corner{\tikzlastnode}{south east}%
+  \cp@corner{\tikzlastnode}{north east}\cp@corner{\tikzlastnode}{north west}%
+  \typeout{CPNODE \tikzlastnode\space|\cp@acc\space\cp@isx\space\cp@isy\space\iftikz@is@matrix M\else N\fi}%
+  \endgroup}
+% Angle-pic labels are created as \node() with an empty name, so nothing can
+% find them afterwards; this is the angles library's foreground step with a
+% unique name given to that label node.
+\def\tikz@lib@angle@foreground#1--#2--#3\pgf@stop{%
+  \path [name prefix ..] [pic actions, fill=none, shade=none]
+  ([shift={(\tikz@start@angle@temp:\tikz@lib@angle@rad pt)}]#2.center)
+    arc [start angle=\tikz@start@angle@temp, end
+    angle=\tikz@end@angle@temp, radius=\tikz@lib@angle@rad pt];
+  \ifx\tikzpictext\relax\else%
+    \global\advance\cp@count by 1\relax
+    \def\pgf@temp{\node(cpa\the\cp@count)[name prefix
+      ..,at={([shift={({.5*\tikz@start@angle@temp+.5*\tikz@end@angle@temp}:\pgfkeysvalueof{/tikz/angle
+            eccentricity}*\tikz@lib@angle@rad pt)}]#2.center)}]}
+    \expandafter\pgf@temp\expandafter[\tikzpictextoptions]{\tikzpictext};%
+  \fi
+}%
+\tikzset{every node/.append style={
+  execute at begin node={\xdef\cp@isx{\the\dimexpr\pgfkeysvalueof{/pgf/inner xsep}\relax}\xdef\cp@isy{\the\dimexpr\pgfkeysvalueof{/pgf/inner ysep}\relax}},
+  append after command={\pgfextra{\cp@lognode}}},
+  % only the outermost picture ends the log: pgfplots draws legend images as
+  % nested pictures
+  every picture/.append style={execute at begin picture={\global\advance\cp@depth by 1\relax},
+    execute at end picture={\global\advance\cp@depth by -1\relax
+    \ifnum\cp@depth=0\ifcp@log\begingroup\pgftransformreset\def\cp@acc{}%
+    \cp@corner{current bounding box}{south west}\cp@corner{current bounding box}{north east}%
+    \typeout{CPBBOX\cp@acc}\endgroup\global\cp@logfalse\fi\fi}}}
+\makeatother
+"""
+_LAYOUT_BORDER_PT = 6.0   # standalone border in _template
+_LAYOUT_DPI = 150
+_LAYOUT_INK = 170         # grey level counted as ink: black and gray lines, not light grids or fills
+_LAYOUT_MIN_INK = 8       # pixels of ink inside a text box before a label counts as crossed
+_LAYOUT_EDGE_PT = 0.5     # tolerance at the text box edge: a tick mark ending at its label is normal
+_LAYOUT_MIN_TEXT = 0.07   # share of its text box a label's own glyphs must darken (visible labels measured 0.10+; a clipped one 0.045)
+_LAYOUT_MIN_SPAN = 0.45   # share of its box width the glyphs of a 2+ character label must span (visible 0.61+; clipped 0.09-0.24)
+
+
+def _layout_document(doc: str) -> str:
+    head, body = doc.split("\\begin{document}", 1)
+    body = body.rsplit("\\end{document}", 1)[0]
+    hidden = "{\\tikzset{every node/.append style={text opacity=0}}" + body + "}\n"
+    return head + _LAYOUT_INSTRUMENT + "\\begin{document}" + body + "\n" + hidden + "\\end{document}"
+
+
+def _layout_nodes(log: str) -> tuple[list, tuple | None]:
+    """(nodes, bbox) from the instrumented log; nodes are (name, corners, isx, isy)."""
+    nodes, after_cells = [], False
+    for m in re.finditer(r"^CPNODE (\S+) \|(.*)$", log, re.M):
+        vals = m.group(2).split()
+        if len(vals) < 11:
+            continue
+        # Matrix cells (legends) are logged in the matrix's own frame before it is
+        # placed; the matrix itself is the node logged right after its cells.
+        if vals[10] == "M":
+            after_cells = True
+            continue
+        if after_cells:
+            after_cells = False
+            continue
+        if m.group(1).startswith("cpm"):
+            continue  # invisible copies typeset only to measure a label
+        c = [float(v) for v in vals[:8]]
+        isx, isy = (float(v.replace("pt", "")) for v in vals[8:10])
+        nodes.append((m.group(1), [(c[0], c[1]), (c[2], c[3]), (c[4], c[5]), (c[6], c[7])], isx, isy))
+    bb = re.search(r"^CPBBOX (.*)$", log, re.M)
+    bbox = tuple(float(v) for v in bb.group(1).split()) if bb else None
+    return nodes, bbox
+
+
+def _layout_inset(quad: list, dx: float, dy: float) -> list | None:
+    """Shrink a (possibly rotated) node box along its own axes; None if nothing is left."""
+    (x0, y0), (x1, y1), _, (x3, y3) = quad
+    lu, lv = math.hypot(x1 - x0, y1 - y0), math.hypot(x3 - x0, y3 - y0)
+    if lu <= 2 * dx or lv <= 2 * dy:
+        return None
+    ux, uy, vx, vy = (x1 - x0) / lu, (y1 - y0) / lu, (x3 - x0) / lv, (y3 - y0) / lv
+    return [(x0 + ux * a + vx * b, y0 + uy * a + vy * b)
+            for a, b in ((dx, dy), (lu - dx, dy), (lu - dx, lv - dy), (dx, lv - dy))]
+
+
+def _layout_inside(poly: list, x: float, y: float) -> bool:
+    sign = None
+    for i in range(len(poly)):
+        (ax, ay), (bx, by) = poly[i], poly[(i + 1) % len(poly)]
+        cross = (bx - ax) * (y - ay) - (by - ay) * (x - ax)
+        if cross:
+            if sign is None:
+                sign = cross > 0
+            elif (cross > 0) != sign:
+                return False
+    return True
+
+
+def _layout_area(poly: list) -> float:
+    n = len(poly)
+    return abs(sum(poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1] for i in range(n))) / 2 if n > 2 else 0.0
+
+
+def _layout_overlap(a: list, b: list) -> float:
+    """Area shared by two convex quads (Sutherland-Hodgman clipping)."""
+    def ccw(poly):
+        return poly if sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1]
+                           for i in range(len(poly))) >= 0 else poly[::-1]
+    out, clipper = ccw(a), ccw(b)
+    for i in range(len(clipper)):
+        (ax, ay), (bx, by) = clipper[i], clipper[(i + 1) % len(clipper)]
+        side = lambda p: (bx - ax) * (p[1] - ay) - (by - ay) * (p[0] - ax) >= 0
+        def cut(p, q):
+            d = (p[0] - q[0]) * (ay - by) - (p[1] - q[1]) * (ax - bx)
+            t = ((p[0] - ax) * (ay - by) - (p[1] - ay) * (ax - bx)) / d
+            return (p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1]))
+        points, out = out, []
+        for j in range(len(points)):
+            p, q = points[j], points[(j + 1) % len(points)]
+            if side(q):
+                if not side(p):
+                    out.append(cut(p, q))
+                out.append(q)
+            elif side(p):
+                out.append(cut(p, q))
+        if not out:
+            return 0.0
+    return _layout_area(out)
+
+
+def _layout_analyse(log: str, words: list, raster: tuple, shown: bytes | None = None) -> dict:
+    """Label collisions from the page-1 log, the page-1 words (bp, top-left origin)
+    and the text-hidden page-2 raster (width, height, grey bytes at _LAYOUT_DPI).
+    With the page-1 raster (`shown`, same size), a label whose glyphs darken
+    almost nothing is reported as covered, e.g. by a fill drawn after it."""
+    nodes, bbox = _layout_nodes(log)
+    if not bbox:
+        return {"labels": 0, "issues": []}
+    llx, _lly, _urx, ury = bbox
+    width, height, pixels = raster
+    k = _LAYOUT_DPI / 72.27
+
+    def to_px(x, y):
+        return ((x - llx + _LAYOUT_BORDER_PT) * k, (ury + _LAYOUT_BORDER_PT - y) * k)
+
+    def to_bp(x, y):
+        return ((x - llx + _LAYOUT_BORDER_PT) * 72 / 72.27, (ury + _LAYOUT_BORDER_PT - y) * 72 / 72.27)
+
+    labels = []
+    for _name, quad, isx, isy in nodes:
+        box = _layout_inset(quad, isx + _LAYOUT_EDGE_PT, isy + _LAYOUT_EDGE_PT)
+        if not box:
+            continue  # empty nodes: points, coordinates
+        box_bp = [to_bp(*p) for p in box]
+        text = " ".join(w[4] for w in words if _layout_inside(box_bp, (w[0] + w[2]) / 2, (w[1] + w[3]) / 2)).strip()
+        if text:
+            labels.append((text, box))
+    issues = []
+    for text, box in labels:
+        poly = [to_px(*p) for p in box]
+        xs, ys = [p[0] for p in poly], [p[1] for p in poly]
+        (x0, y0), (x1, y1) = poly[0], poly[1]
+        run = (x1 - x0) ** 2 + (y1 - y0) ** 2 or 1.0
+        ink = glyphs = area = 0
+        low, high = 1.0, 0.0  # extent of the visible glyphs along the text direction
+        for yy in range(max(0, int(min(ys))), min(height, int(max(ys)) + 1)):
+            row = yy * width
+            for xx in range(max(0, int(min(xs))), min(width, int(max(xs)) + 1)):
+                if not _layout_inside(poly, xx + 0.5, yy + 0.5):
+                    continue
+                area += 1
+                if pixels[row + xx] < _LAYOUT_INK:
+                    ink += 1
+                if shown is not None and shown[row + xx] + 60 < pixels[row + xx]:
+                    glyphs += 1
+                    along = ((xx + 0.5 - x0) * (x1 - x0) + (yy + 0.5 - y0) * (y1 - y0)) / run
+                    low, high = min(low, along), max(high, along)
+        if ink >= _LAYOUT_MIN_INK:
+            issues.append({"kind": "line-through-label", "labels": [text], "ink": ink})
+        if shown is not None and (glyphs < max(4, _LAYOUT_MIN_TEXT * area)
+                                  or (len(text.replace(" ", "")) >= 2 and high - low < _LAYOUT_MIN_SPAN)):
+            # covered by something drawn later, or clipped (e.g. by an axis window):
+            # too little of it shows, or what shows spans only part of its box
+            issues.append({"kind": "label-hidden", "labels": [text]})
+    for i in range(len(labels)):
+        for j in range(i + 1, len(labels)):
+            shared = _layout_overlap(labels[i][1], labels[j][1])
+            if shared > 2 and shared > 0.05 * min(_layout_area(labels[i][1]), _layout_area(labels[j][1])):
+                issues.append({"kind": "labels-overlap", "labels": [labels[i][0], labels[j][0]], "area": round(shared, 1)})
+    return {"labels": len(labels), "issues": issues}
+
+
+def _layout_summary(layout: dict) -> str:
+    parts = []
+    for issue in layout.get("issues", []):
+        if issue["kind"] == "line-through-label":
+            parts.append(f'a line runs through the label "{issue["labels"][0]}"')
+        elif issue["kind"] == "label-hidden":
+            parts.append(f'the label "{issue["labels"][0]}" is covered or cut off')
+        else:
+            parts.append(f'the labels "{issue["labels"][0]}" and "{issue["labels"][1]}" overlap')
+    return "; ".join(parts)
+
+
+def _layout_check(work: Path, stem: str) -> dict | None:
+    """Run the analysis on a compiled instrumented document; None if it cannot."""
+    log = (work / f"{stem}.log").read_text(encoding="utf-8", errors="replace")
+    pdf = work / f"{stem}.pdf"
+    pages = []
+    for page in (1, 2):
+        raster = work / f"{stem}_layout{page}"
+        if _run(["pdftoppm", "-f", str(page), "-l", str(page), "-r", str(_LAYOUT_DPI), "-gray", "-singlefile",
+                 str(pdf), str(raster)], work).returncode:
+            return None
+        data = raster.with_suffix(".pgm").read_bytes()
+        head = re.match(rb"P5\s+(\d+)\s+(\d+)\s+(\d+)\s", data)
+        if not head:
+            return None
+        pages.append((int(head.group(1)), int(head.group(2)), data[head.end():]))
+    if pages[0][:2] != pages[1][:2]:
+        return None
+    text = _run(["pdftotext", "-f", "1", "-l", "1", "-bbox", str(pdf), "-"], work).stdout
+    words = [tuple(float(v) for v in m.groups()[:4]) + (html.unescape(m.group(5)),)
+             for m in re.finditer(r'<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)">(.*?)</word>', text)]
+    return _layout_analyse(log, words, pages[1], shown=pages[0][2])
 
 
 def _render(req: RenderReq) -> dict:
@@ -3150,28 +3433,33 @@ def _render(req: RenderReq) -> dict:
         pdf_path = work / f"{stem}.pdf"
         svg_path = work / f"{stem}.svg"
         png_path = work / f"{stem}.png"
-        tex_path.write_text(_template(tikz, req.theme, req.target), encoding="utf-8")
-
-        compile_result = _run(
-            [
-                "pdflatex",
-                "-interaction=nonstopmode",
-                "-halt-on-error",
-                "-no-shell-escape",
-                tex_path.name,
-            ],
-            work,
-        )
+        document = _template(tikz, req.theme, req.target)
+        pdflatex = ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "-no-shell-escape", tex_path.name]
+        inspect = req.layout and LAYOUT_CHECK_ENABLED
+        tex_path.write_text(_layout_document(document) if inspect else document, encoding="utf-8")
+        compile_result = _run(pdflatex, work)
+        if inspect and (compile_result.returncode != 0 or not pdf_path.exists()):
+            # The instrumentation must never cost a diagram: compile it plainly.
+            inspect = False
+            pdf_path.unlink(missing_ok=True)
+            tex_path.write_text(document, encoding="utf-8")
+            compile_result = _run(pdflatex, work)
         if compile_result.returncode != 0 or not pdf_path.exists():
             return {
                 "ok": False,
                 "error": "TikZ compile failed.",
                 "log": _plain_log(compile_result.stdout),
             }
+        layout = None
+        if inspect:
+            try:
+                layout = _layout_check(work, stem)
+            except Exception as exc:  # a failed check reports nothing; the render stands
+                print(f"[layout] check failed: {str(exc)[:160]}", flush=True)
 
         if req.format == "png":
             convert_result = _run(
-                ["pdftocairo", "-singlefile", "-png", "-r", "180", str(pdf_path), str(png_path.with_suffix(""))],
+                ["pdftocairo", "-f", "1", "-l", "1", "-singlefile", "-png", "-r", "180", str(pdf_path), str(png_path.with_suffix(""))],
                 work,
             )
             if convert_result.returncode != 0 or not png_path.exists():
@@ -3183,14 +3471,17 @@ def _render(req: RenderReq) -> dict:
             if png_path.stat().st_size > MAX_OUTPUT_BYTES:
                 return {"ok": False, "error": "Rendered PNG is too large."}
             payload = base64.b64encode(png_path.read_bytes()).decode("ascii")
-            return {
+            result = {
                 "ok": True,
                 "format": "png",
                 "mime": "image/png",
                 "base64": payload,
             }
+            if layout is not None:
+                result["layout"] = layout
+            return result
 
-        convert_result = _run(["pdf2svg", str(pdf_path), str(svg_path)], work)
+        convert_result = _run(["pdf2svg", str(pdf_path), str(svg_path), "1"], work)
         if convert_result.returncode != 0 or not svg_path.exists():
             return {
                 "ok": False,
@@ -3200,12 +3491,15 @@ def _render(req: RenderReq) -> dict:
         if svg_path.stat().st_size > MAX_OUTPUT_BYTES:
             return {"ok": False, "error": "Rendered SVG is too large."}
         svg = svg_path.read_text(encoding="utf-8", errors="replace")
-        return {
+        result = {
             "ok": True,
             "format": "svg",
             "mime": "image/svg+xml",
             "svg": svg,
         }
+        if layout is not None:
+            result["layout"] = layout
+        return result
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": f"TikZ render timed out after {RENDER_TIMEOUT} seconds."}
     finally:
@@ -3599,6 +3893,25 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
     return overrides
 
 
+def _catalog_render(req: GenerateReq, tmpl: dict, params: dict, source: str) -> dict:
+    """Render a filled catalog template; when the picture shows label collisions
+    and the template offers other label placements, try them in order and keep
+    the first clean one (else the one with the fewest collisions)."""
+    best = None
+    for alternative in range(tcatalog.alternatives(tmpl)):
+        filled = tcatalog.fill(tmpl, params, target=req.target, alternative=alternative)
+        rendered = _verified_render(req, filled, source=source, run_critic=False)
+        if not rendered.get("ok"):
+            return rendered if best is None else best  # a placement that breaks the compile is no option
+        count = len(rendered.get("layout", {}).get("issues", []))
+        if best is None or count < best_count:
+            best, best_count = rendered, count
+        if count == 0 or "layout" not in rendered:
+            break
+        _diagnostic("layout-alternative", f"placement {alternative + 1} collides", template=tmpl["id"])
+    return best
+
+
 def _catalog_generate(req: GenerateReq) -> dict | None:
     """Constrained path: route to a catalog template, let Gemini judge whether it
     actually fits the question (it sees the caption + skeleton) and fill ONLY the
@@ -3633,7 +3946,8 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
     spec = tcatalog.ai_spec(tmpl)
     _diagnostic("catalog-route", template=tmpl["id"])
     caption = tmpl.get("caption", "")
-    skeleton = str(tmpl.get("skeleton", ""))
+    # The model sees the default label placement, never the alternatives slot.
+    skeleton = str(tmpl.get("skeleton", "")).replace("@@ALT@@", (tmpl.get("layout_alternatives") or [""])[0])
     params = dict(spec["defaults"])
     if not spec["defaults"]:
         # Static templates still need a confirmed family match before shipping.
@@ -3654,7 +3968,7 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
                 _diagnostic("catalog-fit-error", str(exc), template=tmpl['id'])
                 return None
         filled = tcatalog.fill(tmpl, {}, target=req.target)
-        rendered = _verified_render(req, filled, source=f"catalog-static:{tmpl['id']}", run_critic=False)
+        rendered = _catalog_render(req, tmpl, {}, source=f"catalog-static:{tmpl['id']}")
         if rendered.get("ok"):
             rendered["tikz"] = rendered.get("tikz", filled)
             rendered["caption"] = caption
@@ -3697,7 +4011,7 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
         params.update(_catalog_local_param_overrides(req, tmpl["id"]))
         filled = tcatalog.fill(tmpl, params, target=req.target)
         print(f"[catalog] {tmpl['id']} params={json.dumps(params, ensure_ascii=False)[:1200]}", flush=True)
-        rendered = _verified_render(req, filled, source=f"catalog:{tmpl['id']}", run_critic=False)
+        rendered = _catalog_render(req, tmpl, params, source=f"catalog:{tmpl['id']}")
         if rendered.get("ok"):
             rendered["tikz"] = rendered.get("tikz", filled)
             rendered["caption"] = caption
@@ -3790,6 +4104,7 @@ def _reference_generate(req: GenerateReq) -> dict | None:
     tikz = ""
     caption = ""
     repair_log = ""
+    colliding = None  # a draft set aside for label collisions, kept in case the repair fails
     for attempt in range(2):  # initial draft + one repair
         try:
             spec = _gemini(
@@ -3816,11 +4131,26 @@ def _reference_generate(req: GenerateReq) -> dict | None:
             _diagnostic("semantic-rejection", repair_log)
             continue
         enlarged = _enlarge_visual_code(req, safe)
-        rendered = _render(RenderReq(code=enlarged, format=req.format, theme=req.theme, target=req.target))
+        rendered = _render(RenderReq(code=enlarged, format=req.format, theme=req.theme, target=req.target, layout=True))
         if not rendered.get("ok"):
             repair_log = rendered.get("log") or rendered.get("error") or "TikZ compile failed."
             _diagnostic("render-error", repair_log)
             continue
+        collisions = _layout_summary(rendered.get("layout", {}))
+        if collisions:
+            _diagnostic("layout", collisions)
+            if attempt == 0:
+                # The rendered picture shows label collisions the source-reading
+                # readiness check cannot see: spend the one repair on them. A
+                # repair that still collides is judged on readiness alone.
+                print(f"[reference] layout collisions, repairing: {collisions[:200]}", flush=True)
+                repair_log = (
+                    "In the rendered diagram, " + collisions + ". Move each of those labels "
+                    "(anchor, position or offset) so no line, curve or axis passes through it and "
+                    "no two labels overlap; keep everything else the same."
+                )
+                colliding = (rendered, enlarged, caption)
+                continue
         verdict, reason = _readiness_verdict(req, enlarged)
         _diagnostic("readiness", reason or verdict)
         if verdict == "PASS":
@@ -3833,6 +4163,18 @@ def _reference_generate(req: GenerateReq) -> dict | None:
         if reason.startswith('verifier'):
             return {"ok": False, "error": "Diagram verification unavailable: " + reason}
         repair_log = "The previous diagram failed the readiness check: " + reason
+        colliding = None  # the repair was judged; the colliding draft is no longer the fallback
+    if colliding:
+        # The repair of a colliding draft produced nothing usable: the draft itself,
+        # whose only fault was label placement, still gets its readiness check.
+        rendered, enlarged, caption = colliding
+        verdict, reason = _readiness_verdict(req, enlarged)
+        _diagnostic("readiness", reason or verdict)
+        if verdict == "PASS":
+            rendered["tikz"] = enlarged
+            rendered["caption"] = caption
+            rendered["customized"] = "reference-fallback"
+            return rendered
     return {"ok": False, "error": repair_log[:500] or "No verified diagram was produced."}
 
 

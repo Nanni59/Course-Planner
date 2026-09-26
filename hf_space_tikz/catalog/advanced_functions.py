@@ -25,18 +25,25 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
-    % The root labels are the x tick labels, so they are never printed twice
-    % (and a root at the origin keeps its label).
+    % Axis letters beyond the arrow tips, never beside the last tick label.
+    xlabel style={anchor=west}, ylabel style={anchor=south},
+    % Root ticks carry no tick label: each root's label is drawn once, below
+    % the axis on the side where the curve is above it (the curve crossed a
+    % label centred on its root).
     xtick={__ROOTA__,__ROOTB__,__ROOTC__},
-    xticklabels={__LABELA__,__LABELB__,__LABELC__},
+    xticklabels={},
     hide obscured x ticks=false,
     tick label style={font=\scriptsize},
     samples=201,
 ]
     % cubic polynomial defined by its three roots
     \addplot[cp line, domain={min(__ROOTA__,__ROOTB__,__ROOTC__)-1.5}:{max(__ROOTA__,__ROOTB__,__ROOTC__)+1.5}] { (x - (__ROOTA__))*(x - (__ROOTB__))*(x - (__ROOTC__)) };
-    % roots marked on the x-axis
+    % roots marked on the x-axis; f' > 0 at a root means the curve rises
+    % through it, so the label goes below-right, and below-left when it falls
     \addplot[only marks, cp point] coordinates {(__ROOTA__,0) (__ROOTB__,0) (__ROOTC__,0)};
+    \node[cp label, font=\scriptsize, anchor={ifthenelse(((__ROOTA__)-(__ROOTB__))*((__ROOTA__)-(__ROOTC__))>0,135,ifthenelse(((__ROOTA__)-(__ROOTB__))*((__ROOTA__)-(__ROOTC__))<0,45,90))}] at (axis cs:__ROOTA__,0) {__LABELA__};
+    \node[cp label, font=\scriptsize, anchor={ifthenelse(((__ROOTB__)-(__ROOTA__))*((__ROOTB__)-(__ROOTC__))>0,135,ifthenelse(((__ROOTB__)-(__ROOTA__))*((__ROOTB__)-(__ROOTC__))<0,45,90))}] at (axis cs:__ROOTB__,0) {__LABELB__};
+    \node[cp label, font=\scriptsize, anchor={ifthenelse(((__ROOTC__)-(__ROOTA__))*((__ROOTC__)-(__ROOTB__))>0,135,ifthenelse(((__ROOTC__)-(__ROOTA__))*((__ROOTC__)-(__ROOTB__))<0,45,90))}] at (axis cs:__ROOTC__,0) {__LABELC__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -64,11 +71,18 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
+    % Axis letters beyond the arrow tips, never beside the last tick label.
+    xlabel style={anchor=west}, ylabel style={anchor=south},
     unbounded coords=jump,
     % A sample landing on the asymptote overflowed TeX ("Dimension too
     % large"); drop samples far outside the window. (restrict y to domain
     % cannot take expressions, so filter per sample.)
     y filter/.expression={abs(y-(__K__))>8*(max(3,abs(__A__))+1) ? nan : y},
+    % Each tick label goes on the side of its axis away from the curve (for y,
+    % the side of the y-axis where the curve reaches that height). Signs are
+    % taken without dividing: A/(t-H)+K has the sign of (A+K(t-H))(t-H).
+    xticklabel style={anchor={ifthenelse(((__A__)+(__K__)*(\tick-(__H__)))*(\tick-(__H__))<0,270,90)},yshift={ifthenelse(((__A__)+(__K__)*(\tick-(__H__)))*(\tick-(__H__))<0,2,0)}},
+    yticklabel style={anchor={ifthenelse(((__A__)+(__H__)*(\tick-(__K__)))*(\tick-(__K__))<0,180,0)},xshift={ifthenelse(((__A__)+(__H__)*(\tick-(__K__)))*(\tick-(__K__))<0,2,0)}},
     % Clip the curves only; the asymptote labels sit just outside the window.
     clip mode=individual,
 ]
@@ -107,6 +121,8 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
+    % Axis letters beyond the arrow tips, never beside the last tick label.
+    xlabel style={anchor=west}, ylabel style={anchor=south},
     xtick={-2,-1,0,1,2,3},
     % Clip the curve only; the asymptote label sits just left of the window.
     clip mode=individual,
@@ -143,6 +159,8 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
+    % Axis letters beyond the arrow tips, never beside the last tick label.
+    xlabel style={anchor=west}, ylabel style={anchor=south},
     % Clip the curve only; the asymptote label sits just below the window.
     clip mode=individual,
 ]
@@ -169,8 +187,18 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[
     width=7cm, height=4cm,
-    % At least one full period: a period above 2 pi, as in cos(0.5t), was cut off.
-    xmin=0, xmax={max(6.2832,6.2832/__FREQUENCY_VALUE__)},
+    % cpp = period; cps = +1/-1, the side of the midline away from the x-axis;
+    % cpx = an extremum on that side, kept off the y-axis; cpe = its height.
+    declare function={cpp(\t)=6.2832/(__FREQUENCY_VALUE__);
+      cps(\t)=ifthenelse(__MIDLINE_VALUE__>=0,1,-1);
+      cpr(\t)=(__PHASE_SHIFT_VALUE__)+(2-cps(0)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/(__FREQUENCY_VALUE__);
+      cpm(\t)=cpr(0)-cpp(0)*floor(cpr(0)/cpp(0));
+      cpx(\t)=cpm(0)+ifthenelse(cpm(0)<0.3,cpp(0),0);
+      cpe(\t)=(__MIDLINE_VALUE__)+cps(0)*abs(__AMPLITUDE_VALUE__);
+      cpw(\t)=max(6.2832,6.2832/__FREQUENCY_VALUE__,cpx(0)+cpp(0)+0.3);},
+    % At least one full period (a period above 2 pi, as in cos(0.5t), was cut
+    % off), and room for the peak-to-peak period arrow.
+    xmin=0, xmax={cpw(0)},
     % The window always contains the full wave and the x-axis; the old fixed
     % -4..4 range cut off the trough of y = 3 sin x - 2.
     ymin={min(0,__MIDLINE_VALUE__-abs(__AMPLITUDE_VALUE__))-ifthenelse(__MIDLINE_VALUE__<0,1.8,0.8)},
@@ -178,23 +206,36 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
+    % Axis letters beyond the arrow tips, never beside the last tick label.
+    xlabel style={anchor=west}, ylabel style={anchor=south},
     xtick={0,1.5708,3.1416,4.7124,6.2832,9.4248,12.5664},
     xticklabels={$0$,$\frac{\pi}{2}$,$\pi$,$\frac{3\pi}{2}$,$2\pi$,$3\pi$,$4\pi$},
     % Clip the curve only; the midline label sits just right of the window.
     clip mode=individual,
 ]
     % sinusoidal function f(x) = A*sin(B*(x - C)) + D
-    \addplot[cp line, samples=241, domain=0:{max(6.2832,6.2832/__FREQUENCY_VALUE__)}] { __AMPLITUDE_VALUE__*sin(deg(__FREQUENCY_VALUE__*(x - (__PHASE_SHIFT_VALUE__)))) + __MIDLINE_VALUE__ };
-    % midline across the whole window
+    \addplot[cp line, samples=241, domain=0:{cpw(0)}] { __AMPLITUDE_VALUE__*sin(deg(__FREQUENCY_VALUE__*(x - (__PHASE_SHIFT_VALUE__)))) + __MIDLINE_VALUE__ };
+    % midline across the whole window; its label clears the x-axis arrow when
+    % the midline is the x-axis (it moves to the free space left of the origin)
     \draw[cp dashed] ({rel axis cs:0,0}|-{axis cs:0,__MIDLINE_VALUE__}) -- ({rel axis cs:1,0}|-{axis cs:0,__MIDLINE_VALUE__});
-    \node[cp label, anchor=west] at ({rel axis cs:1,0}|-{axis cs:0,__MIDLINE_VALUE__}) {__MIDLINE_LABEL__};
-    % amplitude: midline to the extremum on the side away from the x-axis, so
-    % the arrow never crosses the axis or its tick labels (x kept off the y-axis)
-    \draw[cp axis,<->] (axis cs:{((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))+ifthenelse(((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))<0.3,(6.2832/__FREQUENCY_VALUE__),0)},__MIDLINE_VALUE__) -- (axis cs:{((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))+ifthenelse(((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)-(6.2832/__FREQUENCY_VALUE__)*floor((__PHASE_SHIFT_VALUE__+(2-ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*ifthenelse(__AMPLITUDE_VALUE__>=0,1,-1))*1.5708/__FREQUENCY_VALUE__)/(6.2832/__FREQUENCY_VALUE__)))<0.3,(6.2832/__FREQUENCY_VALUE__),0)},{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*abs(__AMPLITUDE_VALUE__)}) node[pos=1, anchor=west, xshift=2pt] {__AMPLITUDE_LABEL__};
-    % period: one cycle long, drawn on the side of the wave away from the x-axis
-    \draw[cp axis,<->] (axis cs:0,{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*(abs(__AMPLITUDE_VALUE__)+1)}) -- (axis cs:{6.2832/__FREQUENCY_VALUE__},{__MIDLINE_VALUE__+ifthenelse(__MIDLINE_VALUE__>=0,1,-1)*(abs(__AMPLITUDE_VALUE__)+1)}) node[midway, yshift={ifthenelse(__MIDLINE_VALUE__>=0,7,-7)}] {__PERIOD_LABEL__};
+    \node[cp label, anchor={ifthenelse(abs(__MIDLINE_VALUE__)<0.01,0,180)}, xshift={ifthenelse(abs(__MIDLINE_VALUE__)<0.01,-3,3)}] at ({rel axis cs:{ifthenelse(abs(__MIDLINE_VALUE__)<0.01,0,1)},0}|-{axis cs:0,__MIDLINE_VALUE__}) {__MIDLINE_LABEL__};
+    % amplitude: midline to the extremum away from the x-axis, labelled at its
+    % middle (at the tip the label sat on the curve)
+    \draw[cp axis,<->] (axis cs:{cpx(0)},__MIDLINE_VALUE__) -- (axis cs:{cpx(0)},{cpe(0)}) node[@@ALT@@] {__AMPLITUDE_LABEL__};
+    % period: peak to next peak, just beyond the wave (from the y-axis it ran
+    % into the axis and its label)
+    \draw[cp axis,<->] (axis cs:{cpx(0)},{cpe(0)+cps(0)}) -- (axis cs:{cpx(0)+cpp(0)},{cpe(0)+cps(0)}) node[midway, yshift={ifthenelse(__MIDLINE_VALUE__>=0,7,-7)}] {__PERIOD_LABEL__};
 \end{axis}
 \end{tikzpicture}""",
+        # amplitude label: either side of its arrow, at three heights (a steep wave can crowd one)
+        "layout_alternatives": [
+            'pos=.5, anchor=west, xshift=2pt',
+            'pos=.5, anchor=east, xshift=-2pt',
+            'pos=.3, anchor=west, xshift=2pt',
+            'pos=.3, anchor=east, xshift=-2pt',
+            'pos=.7, anchor=west, xshift=2pt',
+            'pos=.7, anchor=east, xshift=-2pt',
+        ],
         "params": {
             'AMPLITUDE_VALUE': {'type': 'number', 'default': 2, 'desc': 'A in y = A*sin(B*(x - C)) + D'},
             'FREQUENCY_VALUE': {'type': 'number', 'default': 1, 'desc': 'positive B in y = A*sin(B*(x - C)) + D; the period is 2*pi/B'},
@@ -218,8 +259,15 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
+    % Axis letters beyond the arrow tips, never beside the last tick label.
+    xlabel style={anchor=west}, ylabel style={anchor=south},
     % Every unit was a crowded tick label along the curve's path.
     xtick={-4,-2,2,4}, ytick={-4,-2,2,4},
+    % Each tick label goes on the side of its axis away from the curve: below
+    % the x-axis where the curve is above it, and so on (the curve hugs both
+    % axes, so a fixed side ran through half the labels).
+    xticklabel style={anchor={ifthenelse((__COEFF__)*\tick<0,270,90)},yshift={ifthenelse((__COEFF__)*\tick<0,2,0)}},
+    yticklabel style={anchor={ifthenelse((__COEFF__)*\tick<0,180,0)},xshift={ifthenelse((__COEFF__)*\tick<0,2,0)}},
     unbounded coords=jump,
     % Clip the curve only; the asymptote labels sit just outside the window.
     clip mode=individual,
@@ -294,6 +342,8 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
+    % Axis letters beyond the arrow tips, never beside the last tick label.
+    xlabel style={anchor=west}, ylabel style={anchor=south},
     xtick={-3,-2,-1,0,1,2,3,4,5}, ytick={-2,0,2,4,6,8},
 ]
     % parent function f(x) = x^2
@@ -302,9 +352,26 @@ templates = [
     \addplot[cp line, samples=201, domain=-3:5] { __A__*((x - __H__)^2) + __K__ };
     % vertex of the transformed parabola
     \addplot[only marks, cp point] coordinates {(__H__, __K__)};
-    \node[cp label, anchor=south west] at (axis cs:__H__, __K__) {__VERTEX_LABEL__};
+    % Vertex label: first against the vertex, outside the cup (below-right of an
+    % upward parabola), where the curve never passes. No single rule clears the
+    % dashed parent y = x^2, the axes and the tick labels for every vertex, so
+    % the renderer tries the other placements (layout_alternatives) in order
+    % when the picture shows a collision.
+    \node[cp label, @@ALT@@] at (axis cs:__H__, __K__) {__VERTEX_LABEL__};
 \end{axis}
 \end{tikzpicture}""",
+        # Tried in order; placements touching the vertex read best, so they come first.
+        "layout_alternatives": [
+            "anchor={ifthenelse(__A__>=0,135,-135)}", "anchor={ifthenelse(__A__>=0,45,-45)}",
+            "anchor={ifthenelse(__A__>=0,90,270)}", "anchor={ifthenelse(__A__>=0,270,90)}",
+            "anchor={ifthenelse(__A__>=0,-135,135)}", "anchor={ifthenelse(__A__>=0,-45,45)}",
+            "anchor=north west", "anchor=north east", "anchor=south west", "anchor=south east",
+            "anchor=south east, yshift=4pt", "anchor=south west, yshift=10pt", "anchor=south east, yshift=10pt",
+            "anchor=west", "anchor=east",
+            "anchor={ifthenelse(__A__>=0,90,270)}, xshift={ifthenelse(abs((__H__)^2-(__K__))<1.6,ifthenelse(__H__>=0,-1,1)*16,0)}",
+            "anchor=east, xshift=-12pt", "anchor=west, xshift=12pt",
+            "anchor=south east, xshift=-10pt, yshift=4pt", "anchor=south west, xshift=10pt, yshift=4pt",
+        ],
         "params": {
             'A': {'type': 'number', 'default': 1, 'desc': 'vertical stretch/compression factor'},
             'H': {'type': 'number', 'default': 1, 'desc': 'horizontal shift of the parabola'},
@@ -331,12 +398,17 @@ templates = [
     \draw[cp dashed] (B) -- ({2*cos(__THETA__)},0);
     % rotation angle, counterclockwise from the positive x-axis
     \draw[cp line,->] (0.45,0) arc[start angle=0,end angle=__THETA__,radius=0.45];
-    \node[cp label] at ({__THETA__/2}:0.8) {__THETA_LABEL__};
+    % rotation label in the widest gap the axes leave inside the rotation (on
+    % the bisector, 135 degrees put it on the y-axis), out far enough to fit
+    \node[cp label] at ({ifthenelse((min(__THETA__,90))-(0)>=max((min(__THETA__,180))-(min(__THETA__,90)),max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270)))),((0)+(min(__THETA__,90)))/2,ifthenelse((min(__THETA__,180))-(min(__THETA__,90))>=max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270))),((min(__THETA__,90))+(min(__THETA__,180)))/2,ifthenelse((min(__THETA__,270))-(min(__THETA__,180))>=(__THETA__)-(min(__THETA__,270)),((min(__THETA__,180))+(min(__THETA__,270)))/2,((min(__THETA__,270))+(__THETA__))/2)))}:{max(0.8,0.34/sin(max(4,(max((min(__THETA__,90))-(0),max((min(__THETA__,180))-(min(__THETA__,90)),max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270))))))/2)))}) {__THETA_LABEL__};
     % Reference angle: at the origin, between the terminal arm and the nearest
     % x-axis ray (180*round(theta/180) is 0, 180 or 360). The old mark sat at
     % the foot of the perpendicular, where the angle is always 90 degrees.
     \draw[cp line] ({min(__THETA__,180*round(__THETA__/180))}:1.15) arc[start angle={min(__THETA__,180*round(__THETA__/180))},end angle={max(__THETA__,180*round(__THETA__/180))},radius=1.15];
-    \node[cp label] at ({(__THETA__+180*round(__THETA__/180))/2}:1.5) {__REF_LABEL__};
+    % Its label sits inside its wedge; at 1.5 it landed on the dashed drop line.
+    % A narrow wedge (under 25 degrees) has no room, and in quadrant I the
+    % rotation label already fills it, so there the label goes outside the circle.
+    \node[cp label] at ({(__THETA__+180*round(__THETA__/180))/2}:{ifthenelse(abs(__THETA__-180*round(__THETA__/180))<25||180*round(__THETA__/180)==0,2.45,0.85)}) {__REF_LABEL__};
 \end{tikzpicture}""",
         "params": {
             'THETA': {'type': 'number', 'default': 135, 'desc': 'terminal angle in degrees'},
@@ -360,6 +432,8 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
+    % Axis letters beyond the arrow tips, never beside the last tick label.
+    xlabel style={anchor=west}, ylabel style={anchor=south},
     xtick={-5,-4,-3,-2,-1,0,1,2,3,4,5},
     % Clip the pieces only; the break label sits just above the window.
     clip mode=individual,
@@ -372,9 +446,10 @@ templates = [
     \addplot[cp line, domain=__C__:5, samples=2] { __M2__*x + __B2__ };
     % closed circle at the break point for the second piece
     \addplot[only marks, cp point] coordinates {(__C__, __M2__*__C__ + __B2__)};
-    % label for the break point, above the window so it never overlaps the
-    % x-axis tick labels or either piece
-    \node[cp label, anchor=south] at (rel axis cs:{(__C__+5)/10},1) {__LABEL_BREAK__};
+    % the break: a light dotted line at x = C, labelled above the window so the
+    % label never overlaps the x-axis tick labels or either piece
+    \draw[densely dotted, gray] ({axis cs:__C__,0}|-{rel axis cs:0,0}) -- ({axis cs:__C__,0}|-{rel axis cs:0,1});
+    \node[cp label, anchor=south] at ({axis cs:__C__,0}|-{rel axis cs:0,1}) {__LABEL_BREAK__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -399,6 +474,8 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
+    % Axis letters beyond the arrow tips, never beside the last tick label.
+    xlabel style={anchor=west}, ylabel style={anchor=south},
     xtick={-2,-1,0,1,2,3,4}, ytick={-2,-1,0,1,2,3,4},
     samples=201,
     % Clip the curves but not the labels.
@@ -440,6 +517,8 @@ templates = [
     axis lines=middle,
     axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$},
+    % Axis letters beyond the arrow tips, never beside the last tick label.
+    xlabel style={anchor=west}, ylabel style={anchor=south},
     samples=161,
     % y fits the curves; far-off samples are dropped so steep curves still fit
     restrict y to domain=-60:60,
