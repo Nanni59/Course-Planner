@@ -111,10 +111,12 @@ templates = [
             'area under curve', 'area from', 'area between', 'rate curve',
             'net area', 'bounded by', 'bounded region', 'x-axis',
             'accumulated', 'total distance travelled',
+            # F(x) = integral of f(t) from a to x: the shaded area up to a moving x
+            'accumulation function', 'integral of', 'from 0 to x',
         ],
         "caption": 'Definite integral represented as shaded area under a curve between $x=a$ and $x=b$.',
         "skeleton": r"""\begin{tikzpicture}
-\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$__XVAR__$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
   xtick={__A__,__B__ __EXTRA_TICKS__}, xticklabels={__A_LABEL__,__B_LABEL__ __EXTRA_TICK_LABELS__}, hide obscured x ticks=false,
   % a tick label where the area is below the axis goes above it (its white box
@@ -152,8 +154,47 @@ templates = [
             'EXTRA_TICKS': {'type': 'label', 'default': '', 'local': True},
             'EXTRA_TICK_LABELS': {'type': 'label', 'default': '', 'local': True},
             'TICK_DOWN': {'type': 'label', 'default': '1', 'local': True},
+            # the axis variable: t for an accumulation function F(x) = integral of f(t)
+            'XVAR': {'type': 'label', 'default': 'x', 'local': True},
             'LF0': {'type': 'number', 'default': '0', 'local': True},
             'LF1': {'type': 'number', 'default': '1', 'local': True},
+        },
+    },
+    {
+        # Two curves and the region between them. Model drawings of this family
+        # ran each curve through its own label or spilled the shading; here the
+        # curves carry a legend, the shading stops at the crossings, and no
+        # crossing gets a label or a guide line (finding them is the question).
+        "id": 'area_between_curves',
+        "subject": 'Calculus',
+        "triggers": ['area enclosed', 'enclosed by', 'enclosed between', 'region enclosed',
+                     'area between the curves', 'between the curves', 'bounded by the curves',
+                     'area between two curves', 'region between'],
+        "caption": 'Two curves on one set of axes with the region enclosed between them shaded.',
+        "skeleton": r"""\begin{tikzpicture}
+\begin{axis}[width=7cm, height=5cm, axis lines=middle, axis line style=cp axis,
+    xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
+    xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
+    legend pos=outer north east, legend style={draw=none, font=\small}]
+  \addplot[cp line, name path=cpf, samples=161, domain=__XMIN__:__XMAX__] {__F__};
+  \addlegendentry{__F_LABEL__}
+  \addplot[cp dashed, name path=cpg, samples=161, domain=__XMIN__:__XMAX__] {__G__};
+  \addlegendentry{__G_LABEL__}
+  % the fill goes on the layer below the curves; only between the crossings
+  \addplot[cp fill, draw=none, forget plot] fill between[of=cpf and cpg, soft clip={domain=__A__:__B__}];
+\end{axis}
+\end{tikzpicture}""",
+        "params": {
+            'F': {'type': 'label', 'default': '4-x^2', 'desc': 'pgfplots expression in x for the first curve; write * for every product'},
+            'G': {'type': 'label', 'default': 'x+2', 'desc': 'pgfplots expression in x for the second curve'},
+            'F_LABEL': {'type': 'label', 'default': '$y=4-x^2$', 'desc': 'legend entry for the first curve, e.g. $y=4-x^2$'},
+            'G_LABEL': {'type': 'label', 'default': '$y=x+2$', 'desc': 'legend entry for the second curve'},
+            'A': {'type': 'number', 'default': '-2', 'desc': 'x where the enclosed region starts (the left crossing); used only for the shading, never labelled'},
+            'B': {'type': 'number', 'default': '1', 'desc': 'x where the enclosed region ends (the right crossing)'},
+            'XMIN': {'type': 'number', 'default': '-3.5', 'desc': 'left edge of the window, beyond the left crossing'},
+            'XMAX': {'type': 'number', 'default': '2.5', 'desc': 'right edge of the window, beyond the right crossing'},
+            'YMIN': {'type': 'number', 'default': '-3', 'desc': 'bottom edge of the window'},
+            'YMAX': {'type': 'number', 'default': '5', 'desc': 'top edge of the window'},
         },
     },
     {
@@ -290,17 +331,17 @@ templates = [
         "id": 'optimization_rectangle',
         "subject": 'Calculus',
         "triggers": ['optimization', 'rectangle', 'constraint', 'fencing', 'enclose'],
-        "caption": 'A rectangle with labelled dimensions and a perimeter constraint for optimization problems.',
+        # The sides carry symbols only: the constraint equation (2x + 2y = 200)
+        # is the student's first step.
+        "caption": 'A rectangle with its dimensions labelled by symbols for an optimization problem.',
         "skeleton": r"""\begin{tikzpicture}
 \draw[cp line] (0,0) rectangle (4,2);
 \draw[cp dashed,<->] (0,-0.4) -- (4,-0.4) node[midway,below] {$__WIDTH_LABEL__$};
 \draw[cp dashed,<->] (-0.4,0) -- (-0.4,2) node[midway,left] {$__HEIGHT_LABEL__$};
-\node[cp label] at (2,2.5) {$2__WIDTH_LABEL__ + 2__HEIGHT_LABEL__ = __P__$};
 \end{tikzpicture}""",
         "params": {
             'WIDTH_LABEL': {'type': 'label', 'default': 'x', 'desc': "symbol for the rectangle's width"},
             'HEIGHT_LABEL': {'type': 'label', 'default': 'y', 'desc': "symbol for the rectangle's height"},
-            'P': {'type': 'label', 'default': 'P', 'desc': 'perimeter constant in the constraint'},
         },
     },
     {
@@ -328,12 +369,11 @@ templates = [
 \draw[cp dashed,<->] (-0.45,0) -- (-0.45,2) node[midway,left] {$__SIDE_LABEL__$};
 \draw[cp dashed,<->] (4.45,0) -- (4.45,2) node[midway,right] {$__SIDE_LABEL__$};
 \draw[cp dashed,<->] (0,2.4) -- (4,2.4) node[midway,above] {$__TOP_LABEL__$};
-\node[cp label] at (2,3.05) {$2__SIDE_LABEL__ + __TOP_LABEL__ = __P__$};
+% no constraint equation (2x + y = 600): setting it up is the student's step
 \end{tikzpicture}""",
         "params": {
             'SIDE_LABEL': {'type': 'label', 'default': 'x', 'desc': 'symbol for each of the two fenced sides perpendicular to the open side'},
             'TOP_LABEL': {'type': 'label', 'default': 'y', 'desc': 'symbol for the fenced side parallel to the open side'},
-            'P': {'type': 'label', 'default': 'P', 'desc': 'total length of fencing available (given constant)'},
             'OPEN_SIDE_LABEL': {'type': 'label', 'default': 'river', 'desc': 'what the unfenced side borders: river, barn, wall or house'},
         },
     },

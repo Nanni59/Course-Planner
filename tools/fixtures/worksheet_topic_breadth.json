@@ -95,7 +95,7 @@
   {"id": "calc_right_riemann", "topic": "Integration", "subject": "Calculus", "expect": "catalog:riemann_sum_rectangles",
    "question": "Use four left-endpoint rectangles to estimate the area under y = 9 - x^2 from x = 0 to x = 3.",
    "brief": "Graph y = 9 - x^2 on [0, 3] and draw four equal-width left-endpoint rectangles under it."},
-  {"id": "calc_area_between", "topic": "Integration", "subject": "Calculus", "expect": "reference",
+  {"id": "calc_area_between", "topic": "Integration", "subject": "Calculus", "expect": "catalog:area_between_curves",
    "question": "Find the area enclosed between y = 6 - x^2 and y = x.",
    "brief": "Graph y = 6 - x^2 and y = x and shade the region they enclose. Do not label the intersection coordinates or the area."},
   {"id": "vec_resultant_forces", "topic": "Vectors", "subject": "Vectors", "expect": "catalog:vector_resultant_from_angle",

@@ -40,6 +40,10 @@ Append a dict to TEMPLATES with these keys:
               local     (optional) The model never sees or fills this slot; only
                         the backend's deterministic overrides set it (drawing
                         geometry computed from the question), else its default.
+              stated_only (optional) On a worksheet, a value with any number the
+                        question does not state becomes `unknown`: the student
+                        works out region counts, branch probabilities and the
+                        like, so the diagram shows only what the question gives.
               flag_of   (optional, implies local) A number slot that is 1 when
                         the named label slot's final value is non-empty, else 0
                         (an angle arc drawn only when its angle is labelled).
@@ -514,12 +518,17 @@ def fill(template: dict, ai_params: dict | None = None, target: str = "generic",
         default = str(spec.get("default", ""))
         raw = ai_params.get(name, default)
         value = _SANITIZERS[ptype](raw, default)
-        if ptype == "label" and "$__" + name + "__$" in out:
+        if ptype == "label" and _in_math(out, "__" + name + "__"):
             # A model often wraps a label in its own $...$; inside the slot's
             # math that makes $$...$$, which breaks the compile.
             value = re.sub(r"^\$(.+)\$$", r"\1", value) if value.count("$") == 2 else value
         if ptype == "label":
-            value = _upright_unit(value, math_slot="$__" + name + "__$" in out or "\\ensuremath{__" + name + "__}" in out)
+            math_slot = _in_math(out, "__" + name + "__")
+            value = _upright_unit(value, math_slot=math_slot)
+            if not math_slot:
+                value = _math_wrapped(value)
+        if target == "worksheet" and spec.get("stated_only") and not _stated_in(value, question) and re.search(r"\d", value):
+            value = str(spec.get("unknown", "?"))
         if target == "worksheet" and not spec.get("answer_safe", True):
             if _looks_like_answer(value) and not (spec.get("keep_if_given") and _stated_in(value, question)):
                 value = str(spec.get("unknown", "?"))
@@ -542,6 +551,30 @@ def _upright_unit(value: str, math_slot: bool) -> str:
     if not m or not (math_slot or (m.group(1) and m.group(4))):
         return value
     return m.group(1) + m.group(2) + "\\,\\mathrm{" + m.group(3) + "}" + m.group(4)
+
+
+_MATH_ONLY = re.compile(r"[\^_]|\\(?:frac|sqrt|log|ln|sin|cos|tan|pi|theta|alpha|beta|vec|cdot|times|le|ge|leq|geq|circ|infty|sum|int)\b")
+
+
+def _in_math(text: str, slot: str) -> bool:
+    """Whether the slot sits inside math: an odd number of unescaped $ before it
+    on its line (a {$__X__^\\circ$} slot is math too), or in \\ensuremath{...}."""
+    at = text.find(slot)
+    if at < 0:
+        return False
+    line = text[text.rfind("\n", 0, at) + 1:at]
+    return len(re.findall(r"(?<!\\)\$", line)) % 2 == 1 or line.rstrip().endswith("\\ensuremath{")
+
+
+def _math_wrapped(value: str) -> str:
+    """A label in a text slot with maths but no $...$ (the model sent
+    f(x) = 2^x for the inverse template's plain node) is wrapped, or the
+    ^ stops the compile."""
+    # only label-like values: an equation or a TeX command. A plot expression
+    # such as 4-x^2 sits in a text-looking slot too, and must stay bare.
+    if "$" in value or not _MATH_ONLY.search(value) or not re.search(r"=|\\[A-Za-z]", value):
+        return value
+    return "$" + value + "$"
 
 
 def _stated_in(value: str, question: str) -> bool:

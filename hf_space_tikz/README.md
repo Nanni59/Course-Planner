@@ -274,6 +274,21 @@ model (the model's values are kept only when the question does not settle them):
   asked for the circle). A question that asks for a solution on a number line
   never falls back to a model drawing: blank beats the answer. The readiness
   rules fail a drawn solution even when the description asks for one.
+- Labels show only numbers the question states (the strict rule). Params marked
+  `stated_only` become ? on worksheets when they hold any other number: Venn
+  region counts (13 from 18 - 5 was the answer to "only soccer") and tree
+  branch probabilities (3/9 on a second draw). The optimization rectangles
+  carry x and y only, with no constraint equation. The readiness rules fail
+  a model drawing that labels such a value, and the worksheet writer is told
+  not to ask for one.
+- Two curves and the region between them (`area_between_curves`): both curves
+  from the question with a legend, shading only between the crossings (pgfplots
+  fillbetween), and no label or guide line at a crossing.
+- An accumulation function F(x) = integral of f(t) from a to x uses the shaded
+  integral with a t axis, the endpoint labelled x and F(x) inside the area.
+- A label with maths but no $...$ in a text slot (`f(x) = 2^x`) is wrapped in
+  math mode; the inverse template failed to compile on one. Plot expressions
+  (no "=" or TeX command) stay bare.
 - A linear system to solve graphically routes to the two-function template:
   both lines from the question, a legend, and no label at their crossing.
 - The two-leg bearing legs are in proportion (the shorter at least 0.45 of the
