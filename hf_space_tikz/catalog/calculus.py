@@ -18,6 +18,10 @@ templates = [
         # landed outside the plot. The fill prompt shows the model this skeleton,
         # so it can frame the window around the actual point of tangency.
         "skeleton": r"""\begin{tikzpicture}
+% where the line label goes: the model's LABEL_X, else across the window when
+% an axis or the window edge cuts it (x = 1 ran it across the y-axis); a
+% macro, since samples at takes no expression
+@@ALT@@
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
   grid=both, grid style={gray!25,thin},
@@ -34,7 +38,7 @@ templates = [
   % LABEL_X is the sign of curve - line there, computed as this point's meta
   % value; the transformed meta is above 500 exactly when it is positive (then
   % the label goes below the line: below-right of a rising line).
-  \addplot[draw=none, samples at={__LABEL_X__},
+  \addplot[draw=none, samples at={\cplx},
     point meta={(__CURVE__)-(__SLOPE__*x + __INTERCEPT__)}, point meta min=-0.001, point meta max=0.001,
     nodes near coords={__LINE_LABEL__},
     nodes near coords style={cp label, anchor={ifthenelse(\pgfplotspointmetatransformed>500,90,270)},
@@ -42,6 +46,8 @@ templates = [
     {__SLOPE__*x + __INTERCEPT__};
 \end{axis}
 \end{tikzpicture}""",
+        "layout_alternatives": [r'\pgfmathsetmacro\cplx{__LABEL_X__}'] + [
+            rf'\pgfmathsetmacro\cplx{{(__XMIN__)+{f}*((__XMAX__)-(__XMIN__))}}' for f in ('0.75', '0.25', '0.9', '0.6', '0.4', '0.1')],
         "params": {
             'CURVE': {'type': 'label', 'default': 'x^2', 'desc': "pgfplots expression for the question's curve in terms of x, e.g. x^2, sqrt(x), x^3 - 6*x^2 + 5*x - 1 (write * for every product; keep it defined over the whole axis window)"},
             'XMIN': {'type': 'number', 'default': '-2', 'desc': 'left edge of the axis window; choose bounds so the marked point sits comfortably inside'},

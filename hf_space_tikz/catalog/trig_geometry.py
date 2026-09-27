@@ -62,10 +62,12 @@ templates = [
   \draw[cp line,-Stealth] (P)--(Q) node[midway,above] {\ensuremath{__L2__}};
   \draw[cp dashed] (O)--(Q) node[midway,below] {$d$};
   \draw[cp dashed] (90:.62) arc[start angle=90,end angle={90-(__B1__)},radius=.62];
-  \node at ({90-(__B1__)/2}:.88) {$__B1__^\circ$};
+  % bearing labels past their arcs by their own size (at a fixed .88 and .84
+  % the arc ran through a wide label such as 115)
+  \cpanglelabel{O}{90-(__B1__)/2}{0.62}{abs(__B1__)/2}{$__B1__^\circ$}
   \draw[cp axis,-Stealth] (P)--($(P)+(0,1.15)$) node[above] {$N$};
   \draw[cp dashed] ($(P)+(0,.58)$) arc[start angle=90,end angle={90-(__B2__)},radius=.58];
-  \node at ($(P)+({90-(__B2__)/2}:.84)$) {$__B2__^\circ$};
+  \cpanglelabel{P}{90-(__B2__)/2}{0.58}{abs(__B2__)/2}{$__B2__^\circ$}
 \end{tikzpicture}""",
         "params": {
             "B1": {"type": "number", "default": "45", "desc": "first bearing value in degrees, clockwise from north"},
@@ -91,20 +93,46 @@ templates = [
   \coordinate (Q) at ({90-(__B2__)}:2.3);
   \draw[cp axis,-Stealth] (O)--(0,3.0) node[above] {$N$};
   \draw[cp axis,-Stealth] (O)--(3.0,0) node[right] {$E$};
-  % d1 out along its arrow on the free side (toward Q), past both bearing labels
-  \draw[cp line,-Stealth] (O)--(P) node[pos=.78,below right] {\ensuremath{__L1__}};
-  \draw[cp line,-Stealth] (O)--(Q) node[midway,below right] {\ensuremath{__L2__}};
-  % d sits near P, away from the bearing arcs at the origin
-  \draw[cp dashed] (P)--(Q) node[pos=.25,above right] {$__DLAB__$};
-  % Separate radii keep the two bearing arcs apart. The first label sits on its
-  % bisector, out far enough to fit its wedge; the second inside its larger arc,
-  % in the part of its wedge the first does not cover (outside the arc, at the
-  % bisector, it met the dashed d).
+  % Distance labels beside their own segments by their measured size (fixed
+  % sides fitted only the default bearings): d1 and d2 out past the bearing
+  % labels and arcs, on the side away from reference point R1 / R2 (the other
+  % leg's end, or its mirror image to put the label inside the triangle when an
+  % axis crowds the outside), at fraction l along their legs, and d at fraction
+  % f of P to Q; placement from the renderer.
+  \draw[cp line,-Stealth] (O)--(P);
+  \draw[cp line,-Stealth] (O)--(Q);
+  \draw[cp dashed] (P)--(Q);
+  \coordinate (Qr) at ($($(O)!(Q)!(P)$)!-1!(Q)$);
+  \coordinate (Pr) at ($($(O)!(P)!(Q)$)!-1!(P)$);
+  @@ALT@@
+  \cpsidelabel{O}{P}{R1}{\cpfl}{\ensuremath{__L1__}}
+  \cpsidelabel{O}{Q}{R2}{\cpfl}{\ensuremath{__L2__}}
+  \cpsidelabel{P}{Q}{O}{\cpfd}{$__DLAB__$}
+  % Separate radii keep the two bearing arcs apart. Each label goes in its own
+  % part of its wedge, out past its arc by its own size: the first between N
+  % and P, the second between P and Q (the part the first does not cover), each
+  % in the wider side of the E axis when that axis runs through it (a bearing
+  % over 90 put the 140 label on it).
   \draw[cp dashed] (90:0.5) arc[start angle=90,end angle={90-(__B1__)},radius=0.5];
-  \node at ({90-(__B1__)/2}:{max(0.82,0.3/sin(max(4,abs(__B1__)/2)))}) {$__B1__^\circ$};
-  \draw[cp dashed] (90:1.2) arc[start angle=90,end angle={90-(__B2__)},radius=1.2];
-  \node at ({90-((__B1__)+(__B2__))/2}:{max(0.85,0.3/sin(max(4,abs((__B2__)-(__B1__))/2)))}) {$__B2__^\circ$};
+  \pgfmathsetmacro\cpal{90-(__B1__)}
+  \pgfmathsetmacro\cpbl{90-(__B2__)}
+  \pgfmathsetmacro\cpsa{ifthenelse(\cpal<0,ifthenelse(-\cpal>=90,\cpal/2,45),(\cpal+90)/2)}
+  \pgfmathsetmacro\cpha{ifthenelse(\cpal<0,max(-\cpal,90)/2,(90-\cpal)/2)}
+  \cpanglelabel{O}{\cpsa}{0.5}{\cpha}{$__B1__^\circ$}
+  \pgfmathsetmacro\cpia{\cplabelin}\pgfmathsetmacro\cpoa{\cplabelout}
+  \pgfmathsetmacro\cpsb{ifthenelse(\cpbl<0&&\cpal>0,ifthenelse(-\cpbl>=\cpal,\cpbl/2,\cpal/2),(\cpbl+\cpal)/2)}
+  \pgfmathsetmacro\cphb{ifthenelse(\cpbl<0&&\cpal>0,max(-\cpbl,\cpal)/2,(\cpal-\cpbl)/2)}
+  \cpanglelabel{O}{\cpsb}{0}{\cphb}{$__B2__^\circ$}
+  \pgfmathsetmacro\cpib{\cplabelin}\pgfmathsetmacro\cpob{\cplabelout}
+  % The second arc sweeps past both labels: it passes outside each one whose
+  % inner edge is within reach, inside one that sits far out (a narrow wedge).
+  \pgfmathsetmacro\cprr{max(1.2,ifthenelse(\cpia<1.35,\cpoa+0.12,0),ifthenelse(\cpib<1.35,\cpob+0.12,0))}
+  \draw[cp dashed] (90:\cprr) arc[start angle=90,end angle={90-(__B2__)},radius=\cprr];
 \end{tikzpicture}""",
+        "layout_alternatives": [rf'\coordinate (R1) at ({r1});\coordinate (R2) at ({r2});\pgfmathsetmacro\cpfd{{{f}}}\pgfmathsetmacro\cpfl{{{l}}}'
+                                for l in ('0.78', '0.55')
+                                for r1, r2 in (('Q', 'P'), ('Q', 'Pr'), ('Qr', 'P'), ('Qr', 'Pr'))
+                                for f in ('0.5', '0.3', '0.7')],
         "params": {
             "B1": {"type": "number", "default": "20", "desc": "first bearing value in degrees, clockwise from north"},
             "B2": {"type": "number", "default": "110", "desc": "second bearing value in degrees, clockwise from north"},
@@ -198,13 +226,22 @@ templates = [
     node[cp label] at ($(A)!0.5!(B)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__CHORDLAB__$};
   \draw[cp line] (A) arc[start angle=0,end angle=__ANGLE__,radius=2.35];
   \node[cp label] at (__ARCMID__:2.65) {$__ARCLAB__$};
-  % Angle label between its mark and the chord (which crosses the angle
-  % 2.35 cos(half-angle) from O): out far enough to fit between the radii, but
-  % never out to the chord in its direction. By default on the bisector; a wide
-  % angle brings the chord close there, so the renderer tries directions nearer
-  % either radius. Inside the mark (the angles default) it met both radii.
-  \pic [draw=black, angle radius=0.5cm] {angle=A--O--B};
-  \node[cp label] at ({(__ANGLE__)*(@@ALT@@)}:{min(max(0.8,0.3/sin(max(4,abs(__ANGLE__)/2))),0.5*(0.5+2.35*cos(abs(__ANGLE__)/2)/cos((__ANGLE__)*(@@ALT@@)-(__ANGLE__)/2)))}) {$__ANGLELAB__$};
+  % Angle label between its mark and the chord, which crosses the angle
+  % d = 2.35 cos(half-angle) from O. The mark shrinks with d (a wide angle's
+  % chord left no room past a fixed mark), and the label sits in direction q
+  % (the bisector by default; the renderer tries directions nearer either
+  % radius) as far out as the band allows for its measured extent e along q
+  % (in picture units: the label's pt over one unit's length on the canvas, so
+  % the worksheet scale-up counts; scalar() drops the pt a let value carries).
+  \pgfmathsetmacro\cpd{2.35*cos(abs(__ANGLE__)/2)}
+  \pgfmathsetmacro\cpm{min(0.5,0.22*\cpd)}
+  \pgfmathsetmacro\cpq{(__ANGLE__)*(@@ALT@@)}
+  \draw (\cpm,0) arc[start angle=0,end angle=__ANGLE__,radius=\cpm];
+  \node[cp label,overlay,opacity=0] (cpmT) at (0,0) {$__ANGLELAB__$};
+  \path let \p2=($(cpmT.north east)-(cpmT.south west)$), \p9=($(1,0)-(0,0)$),
+    \n1={(0.5*scalar(\x2)*abs(cos(\cpq))+0.5*scalar(\y2)*abs(sin(\cpq)))/scalar(\x9)},
+    \n2={\cpd/cos(\cpq-(__ANGLE__)/2)} in
+    node[cp label] at (\cpq:{min(\n2-\n1-0.04,max(\cpm+\n1+0.04,(\cpm+\n2)/2))}) {$__ANGLELAB__$};
   \node[cp label,below left] at (O) {$O$};
 \end{tikzpicture}""",
         "layout_alternatives": ["0.5", "0.2", "0.8"],

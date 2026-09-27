@@ -509,6 +509,32 @@ def _template(tikz: str, theme: str, target: str) -> str:
   cp point/.style={{circle, fill={accent}, inner sep=1.7pt}},
   cp label/.style={{font=\small}},
 }}
+% \cpanglelabel{{vertex}}{{direction}}{{mark radius}}{{half gap}}{{text}}: an angle label
+% on its direction, out past its mark by its own measured extent that way and
+% far enough to clear both sides of the gap by its extent across each (a fixed
+% distance let wide labels' corners reach back over the mark). Sizes are in
+% picture units: the label's pt over one unit's canvas length, measured
+% without inner sep, as the layout check measures text. The label's
+% inner and outer radius along its direction are left in \cplabelin and
+% \cplabelout, for an arc drawn later to pass clear of it.
+\newcommand{{\cpanglelabel}}[5]{{%
+  \node[cp label,overlay,opacity=0,inner sep=0pt] (cpmL) at (0,0) {{#5}};
+  \path let \p2=($(cpmL.north east)-(cpmL.south west)$), \p9=($(1,0)-(0,0)$),
+    \n1={{(0.5*scalar(\x2)*abs(cos(#2))+0.5*scalar(\y2)*abs(sin(#2)))/scalar(\x9)}},
+    \n2={{max(0.5*scalar(\x2)*abs(sin(#2+#4))+0.5*scalar(\y2)*abs(cos(#2+#4)),
+             0.5*scalar(\x2)*abs(sin(#2-#4))+0.5*scalar(\y2)*abs(cos(#2-#4)))/scalar(\x9)}},
+    \n3={{max(#3+\n1+0.06,(\n2+0.06)/sin(max(2,#4)))}} in
+    node[cp label] at ($(#1)+({{#2}}:{{\n3}})$) {{#5}} \pgfextra{{\xdef\cplabelin{{\n3-\n1}}\xdef\cplabelout{{\n3+\n1}}}};}}
+% \cpsidelabel[margin]{{P}}{{Q}}{{R}}{{fraction}}{{text}}: a label beside segment PQ at the
+% fraction, on the side away from point R, out by its measured extent across
+% the segment plus the margin (in picture units). An anchor on the label's
+% border let a wide label's corner cross its own line.
+\newcommand{{\cpsidelabel}}[6][0.06]{{%
+  \node[cp label,overlay,opacity=0,inner sep=0pt] (cpmS) at (0,0) {{#6}};
+  \path let \p1=($(#3)-(#2)$), \p3=($(#4)-(#2)$), \p2=($(cpmS.north east)-(cpmS.south west)$), \p9=($(1,0)-(0,0)$),
+    \n1={{atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)}},
+    \n2={{(0.5*scalar(\x2)*abs(cos(\n1))+0.5*scalar(\y2)*abs(sin(\n1)))/scalar(\x9)+#1}} in
+    node[cp label] at ($(#2)!#5!(#3)+({{\n1}}:{{\n2}})$) {{#6}};}}
 \begin{{document}}
 {tikz}
 \end{{document}}
@@ -544,6 +570,36 @@ def _strip_fence(text: str) -> str:
     text = re.sub(r"^```(?:json|tex|latex|tikz)?\s*", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text)
     return text.strip()
+
+
+# TeX commands whose first letter is a JSON escape. A model that writes "\tiny"
+# unescaped in its JSON gets a TAB and "iny" back (tick labels read "iny6"),
+# and "\node" becomes a newline and "ode".
+_JSON_TEX_WORDS = {
+    "t": {"tiny", "text", "textbf", "textit", "textrm", "texttt", "textsf", "textsc", "textup", "textnormal",
+          "theta", "times", "tan", "tanh", "to", "top", "tau", "tfrac", "tilde", "triangle", "tikz", "tikzset",
+          "therefore", "textwidth", "thinspace"},
+    "n": {"node", "nabla", "neq", "not", "nu", "newline", "noindent", "normalsize", "nearrow", "neg", "nexists"},
+    "r": {"right", "rightarrow", "rho", "rangle", "rbrace", "rceil", "rfloor", "rm", "rule", "raisebox"},
+}
+
+
+def _json_tex_escapes(text: str) -> str:
+    """Restore the backslash of TeX commands a model left unescaped in JSON.
+    \b (backspace) and \f (form feed) never occur in its output, so \beta,
+    \frac or \foreach are always commands; \t, \n and \r are real tabs and
+    line breaks unless the whole word is a known command. Only JSON text goes
+    through here, before it is parsed."""
+    def repair(m):
+        lead, letter, rest = m.group(1), m.group(2), m.group(3)
+        if letter in "bf" or letter + rest in _JSON_TEX_WORDS[letter]:
+            return lead + "\\\\" + letter + rest
+        return m.group(0)
+    # an even run of backslashes before is escaped backslashes, not an escape
+    text = re.sub(r"(?<!\\)((?:\\\\)*)\\([bfnrt])([A-Za-z]+)", repair, text)
+    # an escape JSON does not define (\draw, \sqrt, \underline) failed the
+    # whole response; it can only be a TeX command
+    return re.sub(r'(?<!\\)((?:\\\\)*)\\(?=[^"\\/bfnrtu]|u(?![0-9a-fA-F]{4}))', r"\1\\\\", text)
 
 
 def _is_gemma(model: str) -> bool:
@@ -627,7 +683,7 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25, image
                 _diagnostic("model-success", model=model, key_slot=key_idx + 1)
                 print(f"[gemini] success using model {model} on key slot {key_idx + 1}.", flush=True)
                 if as_json:
-                    return json.loads(_strip_fence(text))
+                    return json.loads(_json_tex_escapes(_strip_fence(text)))
                 return text
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 last_err = f"Gemini returned unusable output: {type(exc).__name__}"
@@ -3836,7 +3892,7 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
         text = _question_text(req)
         air = _speed_after_word(text, "airspeed") or _speed_after_word(text, "air speed")
         wind = _speed_after_word(text, "wind")
-        airang, mid, bearing_label = _bearing_n_e(text)
+        airang, _mid, bearing_label = _bearing_n_e(text)
         windang = "0"
         if re.search(r"\bfrom\s+the\s+east\b", text, re.I):
             windang = "180"
@@ -3847,7 +3903,6 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
         overrides.update({
             "AIRANG": airang,
             "WINDANG": windang,
-            "BEARING_MID": mid,
             "AIRLAB": (air or "500km/h").replace("km/h", r"\,\mathrm{km/h}"),
             "WINDLAB": (wind or "80km/h").replace("km/h", r"\,\mathrm{km/h}"),
             "GROUNDLAB": r"\vec{v}_g",
