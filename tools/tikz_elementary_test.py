@@ -741,7 +741,7 @@ ns['GEMINI_MODELS'] = ['gemini-9-flash', 'gemini-9-flash-lite', 'gemma-9-it']
 # be made, passed on to the next path when the check fails.
 box_q = SimpleNamespace(title='A box is 30 cm long, 20 cm wide and 10 cm high. Find the length of the longest rod that fits inside.',
                         brief='', subject='', equation='', target='worksheet', format='svg', theme='mono')
-saved = {k: ns[k] for k in ('_verified_render', '_readiness_verdict', '_question_should_stay_blank')}
+saved = {k: ns[k] for k in ('_verified_render', '_readiness_verdict', '_question_should_stay_blank', '_reference_generate')}
 ns.update(elementary_diagram=generate, CATALOG_ENABLED=False, LEGACY_TEMPLATES_ENABLED=False, _question_should_stay_blank=lambda r: False,
           _verified_render=lambda req, tikz, source='', run_critic=True: {'ok': True, 'svg': '<svg/>', 'tikz': tikz, 'preview_png': 'png'},
           _reference_generate=lambda req: {'ok': False, 'error': 'model path'})
@@ -821,6 +821,64 @@ assert all('max(max((__XMIN__)+0.08' in alt for alt in templates.get('function_t
 ns['_job_trace'].last_model, ns['_job_trace'].last_pictured = 'gemini-x', True
 assert ns['_verifier_facts']() == {'model': 'gemini-x', 'picture': True} and ns['_verifier_facts']() == {}
 assert 'Guide lines, dashed drops, or tick labels that locate an unknown point' in ns['_readiness_prompt'](request, 'x')
+
+# 2026-09-28 feedback. A correct graph went blank over its y ticks: the check now
+# tells cosmetic problems from mathematical ones, and a correct drawing ships.
+ns['_gemini'] = lambda *a, **k: 'COSMETIC: y ticks differ from the description'
+assert ns['_readiness_verdict'](req, 'code') == ('COSMETIC', 'COSMETIC: y ticks differ from the description')
+ns['_gemini'] = lambda *a, **k: 'COSMETIC B: a label touches the curve'
+assert ns['_readiness_choice'](req, ('a', 'b'), (None, None), ('', '')) == (1, 'COSMETIC B: a label touches the curve')
+assert 'Never FAIL a correct diagram for a cosmetic reason' in ns['_READINESS_RULES'] and '"COSMETIC: <one short reason>"' in ns['_readiness_prompt'](req, 'x')
+saved = {k: ns[k] for k in ('_render', '_gemini', '_readiness_verdict', '_diagram_spec_prompt', '_visual_prompt')}
+def one_render(req_):
+    renders.append(req_)
+    return {'ok': True, 'svg': f'<svg n="{len(renders)}"/>', 'preview_png': 'png', 'layout': {'labels': 1, 'issues': []}}
+ns.update(_render=one_render, _gemini=drafts, _diagram_spec_prompt=lambda *a, **k: 'plan',
+          _visual_prompt=lambda req, repair_log='', **k: 'draw ' + repair_log)
+for answers, shipped, repair_note in (
+        ((('COSMETIC', 'COSMETIC: y ticks'), ('PASS', '')), '<svg n="2"/>', 'cosmetic problem: COSMETIC: y ticks'),  # the repair is better
+        ((('COSMETIC', 'COSMETIC: y ticks'), ('COSMETIC', 'COSMETIC: still')), '<svg n="2"/>', None),  # the repair ships
+        ((('COSMETIC', 'COSMETIC: y ticks'), ('FAIL', 'FAIL: the curve moved')), '<svg n="1"/>', None),  # the correct draft ships
+        ((('COSMETIC', 'COSMETIC: y ticks'), ('FAIL', 'verifier error: lanes cooling')), '<svg n="1"/>', None),
+        ((('FAIL', 'FAIL: wrong period'), ('FAIL', 'FAIL: wrong period')), None, None)):  # wrong maths stays blank
+    renders.clear(); prompts.clear()
+    queue = list(answers)
+    ns['_readiness_verdict'] = lambda req_, code, image=None: queue.pop(0)
+    ns['_job_trace'].events = []
+    out = ns['_reference_generate'](req)
+    assert (out.get('svg') if out.get('ok') else None) == shipped, (answers, out)
+    if repair_note:
+        assert repair_note in prompts[-1], prompts
+del ns['_job_trace'].events
+ns.update(saved)
+# a template diagram judged cosmetic ships
+ns['_readiness_verdict'] = lambda req_, code, image=None: ('COSMETIC', 'COSMETIC: tick spacing')
+ns['_job_trace'].events = []
+assert ns['_check_built'](req, {'tikz': 'x', 'preview_png': 'png'}, 'catalog') == ('PASS', 'COSMETIC: tick spacing')
+del ns['_job_trace'].events
+ns['_readiness_verdict'] = real_readiness
+# "The graph below shows a sinusoid ...": the wave comes from the described
+# maximum and minimum (a refill flipped the phase), and the curve stands alone.
+graph_q = SimpleNamespace(title='The graph below shows a sinusoidal wave of the form y = a\\cos(k(x - d)) + c with a > 0. Determine the values of a, k, c and d.\nDiagram: A maximum point occurs at (\\frac{\\pi}{2}, 1), a minimum occurs at (\\frac{3\\pi}{2}, -5), and the next maximum occurs at (\\frac{5\\pi}{2}, 1). The centerline y = -2 is dashed.',
+                          brief='', subject='', equation='', target='worksheet')
+assert ns['_reads_graph'](graph_q) and not ns['_reads_graph'](SimpleNamespace(title='Graph y = 3sin(x) - 2.', brief=''))
+got = ns['_catalog_local_param_overrides'](graph_q, 'sinusoid_amplitude_period')
+assert got == {'AMPLITUDE_LABEL': '', 'PERIOD_LABEL': '', 'MIDLINE_LABEL': '', 'READ': '1', 'AMPLITUDE_VALUE': '3',
+               'FREQUENCY_VALUE': '1', 'PHASE_SHIFT_VALUE': '0', 'MIDLINE_VALUE': '-2'}, got
+bare = templates.fill(templates.get('sinusoid_amplitude_period'), got, target='worksheet')
+assert bare.count('opacity=0]') == 3 and 'cp read 1,' in bare, bare  # no arrows, no midline; unit ticks and a grid
+assert templates.fill(templates.get('sinusoid_amplitude_period'), {}, target='worksheet').count('opacity=1]') == 3
+assert ns['_sinusoid_from_extrema']('a maximum at (0, 5) and a minimum at (pi, 1)') == {'A': 2.0, 'B': 1.0, 'C': -math.pi / 2, 'D': 3.0}
+assert ns['_sinusoid_from_extrema']('a maximum at (\\frac{\\pi}{2}, 1), a minimum at (\\frac{3\\pi}{2}, -5), a maximum at (3\\pi, 1)') is None  # maxima not a period apart
+assert ns['_sinusoid_from_extrema']('a maximum at (0, 1), a minimum at (2, 3)') is None
+# its labels are read against the description too: the points to read off are givens
+assert ns['_label_check'](graph_q, r'\node {$(\frac{\pi}{2}, 1)$}; \node {$(\frac{3\pi}{2}, -5)$};') == ''
+# templates that cannot draw a hole or a slant asymptote are not routed to
+for q, bad in (('Analyze f(x) = (2x^2 - 8)/(x^2 - x - 6). Determine any holes and the vertical and horizontal asymptotes.', ('rational_asymptotes', 'asymptotes_graph', 'logarithmic_asymptote')),
+               ('Determine the equation of the slant (oblique) asymptote of the rational function g(x) = (3x^2 + 5x - 4)/(x + 2).', ('rational_asymptotes', 'asymptotes_graph', 'logarithmic_asymptote', 'exponential_asymptote'))):
+    hit = templates.route(q, 'Mathematics')
+    assert not hit or hit['id'] not in bad, (q, hit and hit['id'])
+assert templates.route('Sketch f(x) = 3/(x - 2) + 1 and label its asymptotes.', 'Mathematics')['id'] == 'rational_asymptotes'
 
 # Terminal status always retains the job's own trace, without configured secrets.
 def fake_generate(request):

@@ -4247,6 +4247,34 @@ def _sinusoid_from_text(text: str) -> dict[str, float] | None:
     return first
 
 
+def _sinusoid_from_extrema(text: str) -> dict[str, float] | None:
+    """A, B, C, D of y = A sin(B(x - C)) + D from a described maximum and
+    minimum ("a maximum occurs at (pi/2, 1), a minimum at (3pi/2, -5)"). None
+    unless every maximum shares one height, every minimum another, and the
+    maxima are a whole number of periods apart."""
+    point = r"\(\s*([^,()]{1,40}?)\s*,\s*([^,()]{1,20}?)\s*\)"
+    found = {}
+    for kind in ("max", "min"):
+        pts = []
+        for x, y in re.findall(r"\b" + kind + r"im(?:um|a)\b[^()]{0,60}?" + point, text, re.I):
+            px, py = _arith_value(x.strip(), "x", 0.0), _arith_value(y.strip(), "x", 0.0)
+            if px is None or py is None:
+                return None
+            pts.append((px, py))
+        if not pts or len({round(py, 9) for _px, py in pts}) != 1:
+            return None
+        found[kind] = pts
+    (xM, yM), (xm, ym) = found["max"][0], found["min"][0]
+    half = abs(xm - xM)
+    if yM <= ym or half < 1e-9:
+        return None
+    for px, _py in found["max"][1:]:
+        if abs(((px - xM) / (2 * half)) - round((px - xM) / (2 * half))) > 1e-6:
+            return None
+    b = math.pi / half
+    return {"A": (yM - ym) / 2, "B": b, "C": xM - math.pi / (2 * b), "D": (yM + ym) / 2}
+
+
 def _sinusoid_at(text: str, m: re.Match) -> dict[str, float] | None:
     lead, fn = m.group(1), m.group(2)
     depth, i = 1, m.end()
@@ -4710,10 +4738,17 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str, params: d
             # asked for any of these, the arrows carry symbols: amplitude,
             # midline and period labels together gave the range away
             overrides.update({"AMPLITUDE_LABEL": "$A$", "PERIOD_LABEL": "$P$", "MIDLINE_LABEL": "midline"})
+        if _reads_graph(req):
+            # the student reads amplitude, period and midline off the graph:
+            # arrows and a dashed midline would point at them (the check
+            # failed Q7's labelled arrows twice), so the curve stands alone
+            overrides.update({"AMPLITUDE_LABEL": "", "PERIOD_LABEL": "", "MIDLINE_LABEL": "", "READ": "1"})
         named = re.search(r"\b[A-Za-z]\s*\(\s*([a-z])\s*\)\s*=", _question_text(req))
         if named and named.group(1) != "x":
             overrides["XVAR"] = named.group(1)
-        wave = _sinusoid_from_text(_question_text(req))
+        # the equation, else the described maximum and minimum (a graph question
+        # gives no equation; the model's cosine-to-sine phase flipped on refill)
+        wave = _sinusoid_from_text(_question_text(req)) or _sinusoid_from_extrema(_question_text(req))
         if wave:
             overrides.update({slot: _clean_number(round(wave[key], 4) + 0.0) for slot, key in (
                 ("AMPLITUDE_VALUE", "A"), ("FREQUENCY_VALUE", "B"), ("PHASE_SHIFT_VALUE", "C"), ("MIDLINE_VALUE", "D"))})
@@ -4964,7 +4999,9 @@ A visual is READY only if ALL of these hold:
 - Drawn to the givens: stated measurements look like their labels. Of two labelled lengths the larger is drawn longer, and in about their ratio (a box labelled 3 by 4 by 12 is about three times as tall as it is wide, not a cube); an angle labelled 60 degrees looks like 60 degrees, not 30 or 90. Rough proportions are enough: a very short side may be drawn somewhat longer so it stays visible, and force or velocity arrows only need to be longer for larger magnitudes. Each given sits on the side, edge or angle the question names it for (side XY runs between X and Y; angle Y is at vertex Y): FAIL a given on the wrong part, a measurement shown twice, or an angle value marked at a vertex the question does not give it for.
 - Interior angles: in a named angle XYZ, Y is the vertex. Unless the question explicitly asks for an exterior, reflex, or major angle, the mark and its label must lie in the smaller interior sector between YX and YZ. For circle theorems, FAIL angle AOB = 80 degrees if the diagram marks the exterior 280-degree sector, and FAIL angle ACB if its mark is outside the inscribed triangle rather than between CA and CB.
 - Answer-safe: it does not reveal a value the student is asked to find (a solved magnitude, coordinate, angle, or final answer); such values appear only as a symbol or ?, and placeholders like ? or (?, ?) are correct. Values STATED IN THE QUESTION are givens and may be labelled, including given vectors, points, coordinates, and lengths (e.g. v = <2, 3, 4> when the question gives it). Guide lines, dashed drops, or tick labels that locate an unknown point on the axes reveal its coordinates: FAIL them unless the question gives that point. When the student must solve an inequality or show its solution, a circle or dot at the boundary and shading or an arrow in one direction IS the answer: FAIL it, even if the description asks for it. A label (axis tick numbers aside) may show only numbers the question states: FAIL a label with a value the student has to work out, including an intermediate result such as a Venn region count, a branch probability, a constraint equation or a distance computed from speed and time, even if the description asks for it.
-- Legible: labels are not degenerate - nothing tiny, collapsed, overlapping, or cramped into the origin. FAIL a diagram whose supposedly independent vectors are drawn nearly collinear, or whose parallelogram/triangle collapses to a sliver."""
+- Legible: every label can be read and sits by what it names - nothing tiny, collapsed, or cramped into the origin. FAIL a diagram whose supposedly independent vectors are drawn nearly collinear, or whose parallelogram/triangle collapses to a sliver.
+
+Tell mathematical problems from cosmetic ones. FAIL is for a diagram that is wrong or unsafe: wrong mathematics or geometry, not drawn to its givens, a given on the wrong part, a revealed answer, the wrong kind of diagram, or a label that cannot be read or seems to name the wrong object. COSMETIC is for a diagram that is correct and safe but looks off: tick marks, tick spacing, grid or window that differ from the description (while the student can still read every value the question needs), or a label touching a line or another label while still readable. Trivial cosmetic flaws are PASS. Never FAIL a correct diagram for a cosmetic reason."""
 
 
 def _skip_group(s: str, i: int, opening: str, closing: str) -> int:
@@ -5034,7 +5071,10 @@ def _label_check(req: GenerateReq, tikz: str) -> str:
     the question does not state, and measurements the question states that no
     label shows. Leads for the verifier, which rules on them; "" when clean."""
     question = re.split(r"\bDiagram\s*:", _question_text(req))[0]
-    stated = {abs(float(n)) for n in re.findall(r"\d+(?:\.\d+)?", question)} | {0.0, 1.0}
+    # "the graph below shows ...": the diagram is the given, so what its
+    # description specifies (the points a student reads off) is stated too
+    source = _question_text(req) if _reads_graph(req) else question
+    stated = {abs(float(n)) for n in re.findall(r"\d+(?:\.\d+)?", source)} | {0.0, 1.0}
     if re.search(r"\b(?:right|perpendicular|rectangle|rectangular|square|box|cuboid|prism)\b", question, re.I):
         stated.add(90.0)
     labels = _label_texts(tikz)
@@ -5048,6 +5088,16 @@ def _label_check(req: GenerateReq, tikz: str) -> str:
     if missing:
         parts.append("measurements the question states that no label shows: " + ", ".join(missing))
     return "; ".join(parts)
+
+
+def _reads_graph(req: GenerateReq) -> bool:
+    """The question sends the student to its diagram ("the graph below shows"):
+    the student reads the answer from it, so the diagram must exist and must
+    not annotate what is to be read off."""
+    question = re.split(r"\bDiagram\s*:", _question_text(req))[0]
+    return bool(re.search(r"\b(?:graph|diagram|figure|curve|picture)\s+(?:below|above|shown)\b|\bshown\s+(?:below|above)\b"
+                          r"|\bfrom\s+the\s+(?:graph|diagram|figure)\b|\bthe\s+(?:given|following|accompanying)\s+(?:graph|diagram|figure)\b",
+                          question, re.I))
 
 
 def _label_check_note(notes: str) -> str:
@@ -5069,7 +5119,7 @@ def _readiness_prompt(req: GenerateReq, tikz: str) -> str:
 
 {_READINESS_RULES}
 {_label_check_note(_label_check(req, tikz))}
-Respond with EXACTLY "PASS" if the visual is READY, otherwise "FAIL: <one short reason>".
+Respond with EXACTLY "PASS" if the visual is READY, "COSMETIC: <one short reason>" if it is correct and safe but has a cosmetic problem worth fixing, otherwise "FAIL: <one short reason>".
 
 QUESTION:
 {_raw_request_text(req)[:2200]}
@@ -5092,7 +5142,7 @@ An automatic check of the label text (leads, not verdicts: FAIL a label with a n
 A: {_label_check(req, first) or "nothing found"}
 B: {_label_check(req, second) or "nothing found"}
 
-Judge both versions by the same rules. Respond with EXACTLY "PASS A" or "PASS B", naming the better version that is READY (the one with fewer label problems when both are, A on a tie), or "FAIL: <one short reason>" if neither is READY.
+Judge both versions by the same rules. Respond with EXACTLY "PASS A" or "PASS B", naming the better version that is READY (the one with fewer label problems when both are, A on a tie); when neither is READY but one is correct and safe with only cosmetic problems, "COSMETIC A: <one short reason>" or "COSMETIC B: <one short reason>" naming it; otherwise "FAIL: <one short reason>".
 
 QUESTION:
 {_raw_request_text(req)[:2200]}
@@ -5120,8 +5170,9 @@ def _readiness_call(prompt: str, images: list[str]) -> str:
 
 
 def _readiness_verdict(req: GenerateReq, tikz: str, image: str | None = None) -> tuple[str, str]:
-    """Readiness gate for a custom drawing: its code and, when given, its rendered
-    picture. A verifier outage is not a PASS."""
+    """Readiness gate for a drawing: its code and, when given, its rendered
+    picture. "PASS", "COSMETIC" (correct and safe, looks off: shippable) or
+    "FAIL". A verifier outage is not a PASS."""
     if not GEMINI_KEYS:
         return "FAIL", "verifier unavailable"
     try:
@@ -5130,6 +5181,8 @@ def _readiness_verdict(req: GenerateReq, tikz: str, image: str | None = None) ->
         return "FAIL", "verifier error: " + str(exc)[:120]
     if out.upper() == "PASS":
         return "PASS", ""
+    if re.match(r"\W*COSMETIC\b", out.upper()):
+        return "COSMETIC", out[:220]
     return "FAIL", out[:220] or "readiness check failed"
 
 
@@ -5144,9 +5197,10 @@ def _readiness_choice(req: GenerateReq, codes: tuple[str, str], images: tuple, r
                               [i for i in images if i] if all(images) else [])
     except Exception as exc:
         return None, "verifier error: " + str(exc)[:120]
-    m = re.match(r"\W*PASS\W*([AB])?\b", out.upper())
+    m = re.match(r"\W*(PASS|COSMETIC)\W*([AB])?\b", out.upper())
     if m:
-        return (1 if m.group(1) == "B" else 0), ""
+        # a cosmetic choice ships too (its reason is kept for the trace)
+        return (1 if m.group(2) == "B" else 0), ("" if m.group(1) == "PASS" else out[:220])
     return None, out[:220] or "readiness check failed"
 
 
@@ -5233,7 +5287,8 @@ def _check_built(req: GenerateReq, rendered: dict, path: str) -> tuple[str, str]
     verdict, reason = _readiness_verdict(req, rendered.get("tikz", ""), rendered.get("preview_png"))
     _diagnostic("readiness", reason or verdict, path=path, **_verifier_facts())
     rendered.pop("preview_png", None)
-    return verdict, reason
+    # a template's labels and layout are fixed: correct with a cosmetic flaw ships
+    return ("PASS", reason) if verdict == "COSMETIC" else (verdict, reason)
 
 
 def _judge_reference_pair(req: GenerateReq, pair: list) -> tuple[int | None, str]:
@@ -5248,7 +5303,7 @@ def _judge_reference_pair(req: GenerateReq, pair: list) -> tuple[int | None, str
     unlogged = [c for c in pair if not c[0].get("layout", {}).get("issues")]
     if index is not None and not pair[index][0].get("layout", {}).get("issues"):
         unlogged = [pair[index]]
-    detail = reason if index is None else "PASS " + "AB"[index]
+    detail = reason if index is None or reason else "PASS " + "AB"[index]
     _diagnostic("readiness", detail, **_verifier_facts(), **({"tikz": unlogged[0][1]} if unlogged else {}))
     return index, reason
 
@@ -5277,6 +5332,9 @@ def _reference_generate(req: GenerateReq) -> dict | None:
     caption = ""
     repair_log = ""
     colliding = None  # a draft set aside for label collisions, kept in case the repair fails
+    # A draft judged correct but cosmetically off: its repair ships if it is
+    # better, else this does. A correct graph went blank over its y ticks.
+    cosmetic = None
     for attempt in range(2):  # initial draft + one repair
         try:
             spec = _gemini(
@@ -5343,7 +5401,19 @@ def _reference_generate(req: GenerateReq) -> dict | None:
             verdict, reason = _judge_reference(req, rendered, enlarged, caption)
             if verdict == "PASS":
                 return rendered
+            if verdict == "COSMETIC":
+                if attempt == 1:
+                    _diagnostic("readiness-cosmetic", "shipped: correct, with a cosmetic problem")
+                    return _ship_reference(rendered, enlarged, caption)
+                cosmetic = (rendered, enlarged, caption)
+                repair_log = ("The previous diagram is mathematically correct but has a cosmetic problem: "
+                              + reason + ". Fix only that and keep everything else the same.")
+                print(f"[reference] cosmetic, repairing: {reason}", flush=True)
+                continue
         if reason.startswith('verifier'):
+            if cosmetic:  # already judged correct
+                _diagnostic("layout-choice", "shipped the draft: correct with a cosmetic problem; its repair could not be checked")
+                return _ship_reference(*cosmetic)
             return {"ok": False, "error": "Diagram verification unavailable: " + reason}
         repair_log = "The previous diagram failed the readiness check: " + reason
         print(f"[reference] readiness FAIL, {'repairing' if attempt == 0 else 'blanking'}: {reason}", flush=True)
@@ -5352,9 +5422,13 @@ def _reference_generate(req: GenerateReq) -> dict | None:
         # whose only fault was label placement, still gets its readiness check.
         rendered, enlarged, caption = colliding
         verdict, _reason = _judge_reference(req, rendered, enlarged, caption)
-        if verdict == "PASS":
+        if verdict in ("PASS", "COSMETIC"):
             _diagnostic("layout-choice", "shipped the draft: its repair produced no usable drawing")
-            return rendered
+            return _ship_reference(rendered, enlarged, caption)
+    if cosmetic:
+        # the repair broke or failed: the correct draft beats a blank
+        _diagnostic("layout-choice", "shipped the draft: correct with a cosmetic problem; its repair was not usable")
+        return _ship_reference(*cosmetic)
     return {"ok": False, "error": repair_log[:500] or "No verified diagram was produced."}
 
 

@@ -3581,6 +3581,7 @@
         .st-q-tikz { margin:9px 0 3px 34px; width:min(336px,calc(100% - 34px)); max-width:336px; overflow:visible; break-inside:avoid; }
         .st-q-tikz svg,
         .st-q-tikz img { display:block; width:100%; max-width:100%; height:auto; max-height:336px; object-fit:contain; object-position:left center; overflow:visible; }
+        .st-q-novisual { margin:9px 0 3px 34px; max-width:336px; padding:8px 11px; border:1px dashed #d4a13d; border-radius:8px; background:#fff8e6; color:#7a5a12; font-size:12px; line-height:1.45; }
         .st-q .st-worklines { margin-top:10px; }
         .st-q .st-worklines div { height:26px; }
         /* Answer-section view options (toggled per worksheet) */
@@ -3743,6 +3744,7 @@
             #stPrintArea .st-q { margin-bottom:4.6mm; break-inside:auto; page-break-inside:auto; }
             #stPrintArea .st-q.has-visual { margin-bottom:3.6mm; break-inside:avoid; page-break-inside:avoid; }
             #stPrintArea .st-q-tikz { width:68mm; max-width:calc(100% - 34px); margin-top:2.5mm; margin-bottom:1mm; overflow:visible; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+            #stPrintArea .st-q-novisual { display:none !important; }
             #stPrintArea .st-q-tikz svg,
             #stPrintArea .st-q-tikz img { width:100% !important; height:auto !important; max-height:68mm; object-fit:contain; object-position:left center; overflow:visible; color:#111; }
             /* Preserve SVG grid contrast, opacity, and line weights when printing. */
@@ -16238,6 +16240,14 @@
             if (png) return '<div class="st-q-tikz"><img alt="" src="data:image/png;base64,' + esc(png) + '"></div>';
             return '';
         }
+        // "The graph below shows ...": the question cannot be answered without its diagram.
+        function worksheetVisualRequired(q) {
+            return /\b(?:graph|diagram|figure|curve|picture)\s+(?:below|above|shown)\b|\bshown\s+(?:below|above)\b|\bfrom\s+the\s+(?:graph|diagram|figure)\b|\bthe\s+(?:given|following|accompanying)\s+(?:graph|diagram|figure)\b/i
+                .test(worksheetStudentText(q));
+        }
+        function worksheetMissingVisuals(d) {
+            return ((d && d.questions) || []).map((q, i) => (worksheetVisualRequired(q) && !worksheetTikzHTML(q) ? i + 1 : 0)).filter(Boolean);
+        }
         function worksheetHasDiagrams(d) {
             return !!(d && Array.isArray(d.questions) && d.questions.some(q => {
                 const svg = cleanEmbeddedSvg(q && q.tikzSvg);
@@ -16464,8 +16474,11 @@
             const ans = isKey ? '<div class="st-answer">' +
                 (steps.length ? '<ol class="st-solution-steps">' + steps.map(s => '<li>' + escMath(s) + '</li>').join('') + '</ol>' : '') +
                 '<b>Answer:</b> ' + escMath(q.answer) + '</div>' : '';
-            const visual = WS_DIAGRAMS ? worksheetTikzHTML(q) : '';
+            let visual = WS_DIAGRAMS ? worksheetTikzHTML(q) : '';
             const hasVisual = !!visual;
+            // on screen only: the question points at a graph that could not be made
+            if (WS_DIAGRAMS && !visual && worksheetVisualRequired(q))
+                visual = '<div class="st-q-novisual">This question refers to a graph that could not be generated. Regenerate the worksheet before printing.</div>';
             return '<div class="st-q' + (hasVisual ? ' has-visual' : '') + '"><div class="st-q-head"><span class="st-q-num">' + (idx + 1) + '.</span>' +
                 '<div class="st-q-text">' + escMathFlow(worksheetStudentText(q)) + '</div></div>' + visual + body + ans + '</div>';
         }
@@ -16640,6 +16653,20 @@
         }
         function printWorksheet(which) {
             if (!WS_DATA) return;
+            // A question that points at a graph must not reach paper without it unnoticed.
+            const missing = WS_DIAGRAMS ? worksheetMissingVisuals(WS_DATA) : [];
+            if (missing.length) {
+                const msg = (missing.length === 1 ? 'Question ' + missing[0] + ' refers to a graph' : 'Questions ' + missing.join(', ') + ' refer to graphs')
+                    + ' that could not be generated, so the PDF would print ' + (missing.length === 1 ? 'it' : 'them') + ' without one.';
+                const go = () => printWorksheetNow(which);
+                if (typeof window.cpConfirm === 'function') {
+                    window.cpConfirm(msg, go, { title: 'Missing graph', confirmText: 'Download anyway', cancelText: 'Cancel' });
+                } else if (window.confirm(msg + ' Download anyway?')) go();
+                return;
+            }
+            printWorksheetNow(which);
+        }
+        function printWorksheetNow(which) {
             printArea.innerHTML = sheetHTML(WS_DATA, which === 'key');
             // Typeset the math first, then print so the PDF captures rendered equations.
             ensureMath().then(() => {

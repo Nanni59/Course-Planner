@@ -163,6 +163,17 @@ reference-guided path; with no verifier available it is blank. An exact
 renderer's diagram that fails goes to the next path, and ships unchecked when no
 verifier is available (its drawing uses no model).
 
+Verdicts separate mathematics from looks: `FAIL` (wrong mathematics, not drawn to
+its givens, a revealed answer, an unreadable label), `COSMETIC` (correct and safe,
+but ticks, grid or label spacing are off) or `PASS`. A cosmetic model drawing gets
+one repair; the repair ships if it is at least as good, otherwise the correct draft
+does (`readiness-cosmetic` / `layout-choice` events). A catalog or exact diagram
+judged cosmetic ships. Only a mathematical failure, or no verifier at all, leaves
+a question blank. When the question sends the student to its graph ("the graph
+below shows ..."), the sinusoid template draws the bare curve (no amplitude or
+period arrows, no midline) with unit ticks and a grid, read from the described
+maximum and minimum.
+
 ## Hugging Face Setup
 
 1. Create a new Hugging Face Space.

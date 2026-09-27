@@ -201,8 +201,13 @@ templates = [
   cp ticks 1/.style={xtick={0,3.1416,6.2832,9.4248,12.5664,15.708,18.8496,21.9911,25.1327},
     xticklabels={$0$,$\pi$,$2\pi$,$3\pi$,$4\pi$,$5\pi$,$6\pi$,$7\pi$,$8\pi$}}}
 \pgfmathtruncatemacro\cpq{ifthenelse(6.2832/(__FREQUENCY_VALUE__)>7,1,0)}
+% a wave the student reads off its graph gets y ticks every 1 (2, 5 for a
+% tall wave) and a light grid; the default ticks every 2 hid a maximum of 1
+\pgfmathtruncatemacro\cpys{ifthenelse(abs(__AMPLITUDE_VALUE__)<=5,1,ifthenelse(abs(__AMPLITUDE_VALUE__)<=10,2,5))}
+\pgfplotsset{cp read 0/.style={}, cp read 1/.style={ytick distance=\cpys, grid=major, grid style={gray!25, thin}}}
 \begin{axis}[
     width=7cm, height=4cm,
+    cp read __READ__,
     % cpp = period; cps = +1/-1, the side of the midline away from the x-axis;
     % cpx = an extremum on that side, kept off the y-axis; cpe = its height.
     declare function={cpp(\t)=6.2832/(__FREQUENCY_VALUE__);
@@ -231,15 +236,17 @@ templates = [
     % sinusoidal function f(x) = A*sin(B*(x - C)) + D
     \addplot[cp line, samples=241, domain=0:{cpw(0)}] { __AMPLITUDE_VALUE__*sin(deg(__FREQUENCY_VALUE__*(x - (__PHASE_SHIFT_VALUE__)))) + __MIDLINE_VALUE__ };
     % midline across the whole window; its label clears the x-axis arrow when
-    % the midline is the x-axis (it moves to the free space left of the origin)
-    \draw[cp dashed] ({rel axis cs:0,0}|-{axis cs:0,__MIDLINE_VALUE__}) -- ({rel axis cs:1,0}|-{axis cs:0,__MIDLINE_VALUE__});
+    % the midline is the x-axis (it moves to the free space left of the origin).
+    % Each annotation is drawn only with its label: a question that has the
+    % student read the wave off its graph gets the bare curve.
+    \draw[cp dashed, opacity=__SHOW_MID__] ({rel axis cs:0,0}|-{axis cs:0,__MIDLINE_VALUE__}) -- ({rel axis cs:1,0}|-{axis cs:0,__MIDLINE_VALUE__});
     \node[cp label, anchor={ifthenelse(abs(__MIDLINE_VALUE__)<0.01,0,180)}, xshift={ifthenelse(abs(__MIDLINE_VALUE__)<0.01,-3,3)}] at ({rel axis cs:{ifthenelse(abs(__MIDLINE_VALUE__)<0.01,0,1)},0}|-{axis cs:0,__MIDLINE_VALUE__}) {__MIDLINE_LABEL__};
     % amplitude: midline to the extremum away from the x-axis, labelled at its
     % middle (at the tip the label sat on the curve)
-    \draw[cp axis,<->] (axis cs:{cpx(0)},__MIDLINE_VALUE__) -- (axis cs:{cpx(0)},{cpe(0)}) node[@@ALT@@] {__AMPLITUDE_LABEL__};
+    \draw[cp axis,<->, opacity=__SHOW_AMP__] (axis cs:{cpx(0)},__MIDLINE_VALUE__) -- (axis cs:{cpx(0)},{cpe(0)}) node[@@ALT@@] {__AMPLITUDE_LABEL__};
     % period: peak to next peak, just beyond the wave (from the y-axis it ran
     % into the axis and its label)
-    \draw[cp axis,<->] (axis cs:{cpx(0)},{cpe(0)+cps(0)}) -- (axis cs:{cpx(0)+cpp(0)},{cpe(0)+cps(0)}) node[midway, yshift={ifthenelse(__MIDLINE_VALUE__>=0,7,-7)}] {__PERIOD_LABEL__};
+    \draw[cp axis,<->, opacity=__SHOW_PER__] (axis cs:{cpx(0)},{cpe(0)+cps(0)}) -- (axis cs:{cpx(0)+cpp(0)},{cpe(0)+cps(0)}) node[midway, yshift={ifthenelse(__MIDLINE_VALUE__>=0,7,-7)}] {__PERIOD_LABEL__};
 \end{axis}
 \end{tikzpicture}""",
         # amplitude label: either side of its arrow, at three heights (a steep wave can crowd one)
@@ -254,13 +261,18 @@ templates = [
         "params": {
             'AMPLITUDE_VALUE': {'type': 'number', 'default': 2, 'desc': 'A in y = A*sin(B*(x - C)) + D'},
             'FREQUENCY_VALUE': {'type': 'number', 'default': 1, 'desc': 'positive B in y = A*sin(B*(x - C)) + D; the period is 2*pi/B'},
-            'PHASE_SHIFT_VALUE': {'type': 'number', 'default': 0, 'desc': 'C in radians; for a cosine y = A*cos(B*(x - C)) + D use C - 1.5708/B'},
+            'PHASE_SHIFT_VALUE': {'type': 'number', 'default': 0, 'desc': 'C in radians; for a cosine y = A*cos(B*(x - C)) + D use C - 1.5708/B (so y = 3cos(x - pi/2) - 2 has C = 0)'},
             'MIDLINE_VALUE': {'type': 'number', 'default': 0, 'desc': 'D, the vertical midline of the sinusoid'},
             'AMPLITUDE_LABEL': {'type': 'label', 'default': '$A$', 'desc': 'symbolic label for the amplitude arrow; never the requested numeric answer', 'answer_safe': False, 'unknown': '$A$'},
             'MIDLINE_LABEL': {'type': 'label', 'default': 'midline', 'desc': 'symbolic midline label; never the requested equation', 'answer_safe': False, 'unknown': 'midline'},
             # the question's variable (d(t) = ... was drawn against x); set by the backend
             'XVAR': {'type': 'label', 'default': 'x', 'local': True},
             'PERIOD_LABEL': {'type': 'label', 'default': '$P$', 'desc': 'symbolic label for the period arrow; never the requested numeric answer', 'answer_safe': False, 'unknown': '$P$'},
+            # 1 when the student reads the wave off its graph; set by the backend
+            'READ': {'type': 'number', 'default': '0', 'local': True},
+            'SHOW_MID': {'type': 'number', 'default': '1', 'flag_of': 'MIDLINE_LABEL'},
+            'SHOW_AMP': {'type': 'number', 'default': '1', 'flag_of': 'AMPLITUDE_LABEL'},
+            'SHOW_PER': {'type': 'number', 'default': '1', 'flag_of': 'PERIOD_LABEL'},
         },
     },
     {

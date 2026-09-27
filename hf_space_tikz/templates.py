@@ -244,6 +244,15 @@ def _compatible(template: dict, text_low: str) -> bool:
     if template['id'] == 'triangle_general' and re.search(
             r'\btransversal\b|\b(?:similar|congruent)\s+(?:to|triangles?)\b', text_low):
         return False
+    # The rational templates draw A/(x - H) + K only: no hole, no slant
+    # asymptote. A fill and a failed check were spent finding that out.
+    if template['id'] in ('rational_asymptotes', 'asymptotes_graph') and re.search(
+            r'\bholes?\b|\bremovable\b|point of discontinuity|\bslant\b|\boblique\b', text_low):
+        return False
+    # ...and a rational function is no exponential or logarithm, whose templates
+    # share the word "asymptote" (a question with a hole landed on the log curve)
+    if template['id'] in ('exponential_asymptote', 'logarithmic_asymptote') and re.search(r'\brational\b', text_low):
+        return False
     # The fence rectangles need an optimization question; "area enclosed
     # between two curves" and a boat moving "along the river" matched them.
     if template['id'] in ('optimization_rectangle', 'optimization_river_rectangle') and not re.search(
@@ -511,12 +520,18 @@ def fill(template: dict, ai_params: dict | None = None, target: str = "generic",
     if options:
         out = out.replace(ALT_SLOT, options[min(alternative, len(options) - 1)])
     values: dict[str, str] = {}
+    # a label that has a flag is optional: an explicit empty value hides it
+    # (and whatever its flag draws) instead of falling back to the default
+    optional = {spec["flag_of"] for spec in template["params"].values() if spec.get("flag_of")}
     for name, spec in template["params"].items():
         if spec.get("flag_of"):
             continue
         ptype = spec.get("type", "label")
         default = str(spec.get("default", ""))
         raw = ai_params.get(name, default)
+        if name in optional and not str(raw or "").strip():
+            values[name] = ""
+            continue
         value = _SANITIZERS[ptype](raw, default)
         if ptype == "label" and _in_math(out, "__" + name + "__"):
             # A model often wraps a label in its own $...$; inside the slot's
