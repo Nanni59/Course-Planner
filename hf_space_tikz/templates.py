@@ -481,6 +481,10 @@ def fill(template: dict, ai_params: dict | None = None, target: str = "generic",
         default = str(spec.get("default", ""))
         raw = ai_params.get(name, default)
         value = _SANITIZERS[ptype](raw, default)
+        if ptype == "label" and "$__" + name + "__$" in out:
+            # A model often wraps a label in its own $...$; inside the slot's
+            # math that makes $$...$$, which breaks the compile.
+            value = re.sub(r"^\$(.+)\$$", r"\1", value) if value.count("$") == 2 else value
         if target == "worksheet" and not spec.get("answer_safe", True):
             if _looks_like_answer(value):
                 value = str(spec.get("unknown", "?"))

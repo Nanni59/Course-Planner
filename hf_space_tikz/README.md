@@ -127,6 +127,15 @@ Poll until `status` is `completed` or `failed`. Completion includes `svg` (or
 template IDs, model attempts, and available error details. Failure includes `error`
 and the same diagnostic trail. No API keys or full request prompts are included.
 
+So a failure can be reproduced from the trace alone, a `catalog-params` event
+holds a catalog template's final parameter values. `render-error`, `layout`,
+failed `readiness`, `semantic-rejection` and `catalog-render-error` events for
+model-drawn code carry a `tikz` field with that attempt's drawing code
+(whitespace collapsed, head and tail of long code, at most 2400 characters per
+event and 6000 per job). `layout-alternative` events appear only for templates
+with several label placements ("placement 2 of 5 collides", then "no clean
+placement; kept placement ..." when none is clean).
+
 The worksheet's Report issue JSON preserves this information. It does not label
 every failure as a rate limit. Custom TikZ readiness is a source-code check, not an
 image inspection; an unavailable verifier no longer counts as success. Template
