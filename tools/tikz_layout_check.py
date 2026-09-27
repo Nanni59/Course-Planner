@@ -49,6 +49,15 @@ VARIANTS = {
     'asymptotes_graph': [{'C': '-2', 'K': '1'}, {'C': '2', 'K': '-1.5'}],
     'rational_asymptotes': [{'A': '7', 'H': '3', 'K': '2'}, {'A': '-7', 'H': '-2', 'K': '3'}],
     'poly_roots_end': [{'ROOTA': '-4', 'ROOTB': '1', 'ROOTC': '5', 'LABELA': '$-4$', 'LABELB': '$1$', 'LABELC': '$5$'}],
+    'angle_between_vectors': [dict(zip(('AX', 'AY', 'BX', 'BY'), v.split(',')), ALAB='\\vec{u}', BLAB='\\vec{v}')
+                              for v in ('2,1,-1,3', '3,-1,1,2', '-2,-1,1,-3', '0,3,4,0', '1,4,-3,-1', '5,0,1,1')]
+                             + [{'ANG': '150', 'ANGLAB': '150^\\circ'}, {'ANG': '25', 'ANGLAB': '25^\\circ'}],
+    'probability_tree': [{'P1': '\\frac{4}{10}', 'P2': '\\frac{6}{10}', 'P3': '\\frac{3}{9}', 'P4': '\\frac{6}{9}', 'P5': '\\frac{4}{9}', 'P6': '\\frac{5}{9}'},
+                         {'P1': '4/10', 'P2': '6/10', 'P3': '3/9', 'P4': '6/9', 'P5': '4/9', 'P6': '5/9'}],
+    'network_graph': [{'WAE': '7'}, {'WAE': '12', 'WCE': '10', 'WAC': '15'}],
+    'riemann_sum_rectangles': [{'CURVE': '9-x^2', 'XMIN': '0', 'XMAX': '3.2', 'YMIN': '0', 'YMAX': '10',
+                                'X0': '0', 'X1': '0.75', 'X2': '1.5', 'X3': '2.25', 'X4': '3',
+                                'H1': '9', 'H2': '8.4375', 'H3': '6.75', 'H4': '3.9375'}],
 }
 MIDPOINTS = [
     'Points A(-4, 1) and B(2, 5). Find the midpoint of AB. Diagram: Show both axes from -5 to 5.',

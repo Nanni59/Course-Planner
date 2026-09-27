@@ -136,11 +136,12 @@ templates = [
   grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
-  \addplot[cp line, samples=100, domain=__X0__:__X4__]{__CURVE__};
   \path[cp fill] (axis cs:__X0__,0) -- (axis cs:__X1__,0) -- (axis cs:__X1__, __H1__) -- (axis cs:__X0__, __H1__) -- cycle;
   \path[cp fill] (axis cs:__X1__,0) -- (axis cs:__X2__,0) -- (axis cs:__X2__, __H2__) -- (axis cs:__X1__, __H2__) -- cycle;
   \path[cp fill] (axis cs:__X2__,0) -- (axis cs:__X3__,0) -- (axis cs:__X3__, __H3__) -- (axis cs:__X2__, __H3__) -- cycle;
   \path[cp fill] (axis cs:__X3__,0) -- (axis cs:__X4__,0) -- (axis cs:__X4__, __H4__) -- (axis cs:__X3__, __H4__) -- cycle;
+  % the curve after the rectangles, or their fills hide it
+  \addplot[cp line, samples=100, domain=__X0__:__X4__]{__CURVE__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {

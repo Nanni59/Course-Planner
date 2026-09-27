@@ -4,6 +4,8 @@ One dict per diagram. Authoring contract lives in ../templates.py.
 Slots are __UPPER__; skeletons are raw strings; every slot has a params entry.
 """
 
+PROB_DESC = 'probability as the question gives it: a decimal such as 0.4, or a fraction written \\frac{4}{10} (no $ signs),'
+
 templates = [
     {
         "id": 'histogram',
@@ -146,12 +148,12 @@ templates = [
 \coordinate (A2) at (4,0.5);
 \coordinate (B1) at (4,-0.5);
 \coordinate (B2) at (4,-1.5);
-\draw[cp line] (O) -- (A) node[midway, above left=2pt]{__P1__};
-\draw[cp line] (O) -- (B) node[midway, below left=2pt]{__P2__};
-\draw[cp line] (A) -- (A1) node[midway, above left=2pt]{__P3__};
-\draw[cp line] (A) -- (A2) node[midway, below left=2pt]{__P4__};
-\draw[cp line] (B) -- (B1) node[midway, above left=2pt]{__P5__};
-\draw[cp line] (B) -- (B2) node[midway, below left=2pt]{__P6__};
+\draw[cp line] (O) -- (A) node[midway, above left=2pt]{$__P1__$};
+\draw[cp line] (O) -- (B) node[midway, below left=2pt]{$__P2__$};
+\draw[cp line] (A) -- (A1) node[midway, above left=2pt]{$__P3__$};
+\draw[cp line] (A) -- (A2) node[midway, below left=2pt]{$__P4__$};
+\draw[cp line] (B) -- (B1) node[midway, above left=2pt]{$__P5__$};
+\draw[cp line] (B) -- (B2) node[midway, below left=2pt]{$__P6__$};
 \node[cp point] at (O) {};
 \node[cp point, label=right:{Outcome 1}] at (A1) {};
 \node[cp point, label=right:{Outcome 2}] at (A2) {};
@@ -159,12 +161,14 @@ templates = [
 \node[cp point, label=right:{Outcome 4}] at (B2) {};
 \end{tikzpicture}""",
         "params": {
-            'P1': {'type': 'number', 'default': '0.5', 'desc': 'Probability on the first branch from the root'},
-            'P2': {'type': 'number', 'default': '0.5', 'desc': 'Probability on the second branch from the root'},
-            'P3': {'type': 'number', 'default': '0.6', 'desc': 'Probability on the first sub-branch of branch 1'},
-            'P4': {'type': 'number', 'default': '0.4', 'desc': 'Probability on the second sub-branch of branch 1'},
-            'P5': {'type': 'number', 'default': '0.7', 'desc': 'Probability on the first sub-branch of branch 2'},
-            'P6': {'type': 'number', 'default': '0.3', 'desc': 'Probability on the second sub-branch of branch 2'},
+            # Labels, not numbers: a number field kept only the first number of
+            # "4/10" (a without-replacement tree printed 4, 3, 6 ...).
+            'P1': {'type': 'label', 'default': '0.5', 'desc': PROB_DESC + ' on the first branch from the root'},
+            'P2': {'type': 'label', 'default': '0.5', 'desc': PROB_DESC + ' on the second branch from the root'},
+            'P3': {'type': 'label', 'default': '0.6', 'desc': PROB_DESC + ' on the first sub-branch of branch 1'},
+            'P4': {'type': 'label', 'default': '0.4', 'desc': PROB_DESC + ' on the second sub-branch of branch 1'},
+            'P5': {'type': 'label', 'default': '0.7', 'desc': PROB_DESC + ' on the first sub-branch of branch 2'},
+            'P6': {'type': 'label', 'default': '0.3', 'desc': PROB_DESC + ' on the second sub-branch of branch 2'},
         },
     },
     {
@@ -307,7 +311,7 @@ templates = [
             'travelling salesman', 'visit each location exactly once', 'starting and ending',
             'central depot', 'depot', 'hamiltonian', 'euler circuit',
         ],
-        "caption": 'Network graph with labelled vertices and representative weighted edges.',
+        "caption": 'Network graph with labelled vertices and weighted edges AB, AC, BC, BD, CE, DE, and AE when given.',
         "skeleton": r"""\begin{tikzpicture}[scale=0.9]
   \coordinate (A) at (0,1.5);
   \coordinate (B) at (2.2,2.1);
@@ -325,7 +329,9 @@ templates = [
   \draw[cp line] (B)--(D) node[pos=.8,right] {$__WBD__$};
   \draw[cp line] (C)--(E) node[pos=.25,above] {$__WCE__$};
   \draw[cp line] (D)--(E) node[midway,below] {$__WDE__$};
-  \draw[cp dashed] (A)--(E);
+  % AE only when the question has it: an empty weight is an empty list, so
+  % nothing is drawn
+  \foreach \w in {__WAE__} {\draw[cp line] (A)--(E) node[midway,left] {$\w$};}
 \end{tikzpicture}""",
         "params": {
             'WAB': {'type': 'label', 'default': '4', 'desc': 'weight label for edge AB, if given'},
@@ -334,6 +340,7 @@ templates = [
             'WBD': {'type': 'label', 'default': '5', 'desc': 'weight label for edge BD, if given'},
             'WCE': {'type': 'label', 'default': '10', 'desc': 'weight label for edge CE, if given'},
             'WDE': {'type': 'label', 'default': '2', 'desc': 'weight label for edge DE, if given'},
+            'WAE': {'type': 'label', 'default': '', 'desc': 'weight label for edge AE; leave empty unless the question has an edge AE (an empty value draws no edge)'},
         },
     },
     {

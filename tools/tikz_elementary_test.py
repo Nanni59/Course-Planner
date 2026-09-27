@@ -24,6 +24,9 @@ module = ast.Module(body=[ast.ImportFrom(module='__future__', names=[ast.alias(n
 ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, threading=threading, GEMINI_KEYS=['test-secret'],
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
+helper_constants = [n for n in tree.body if isinstance(n, ast.Assign)
+                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id == '_NUM') for t in n.targets)]
+exec(compile(ast.fix_missing_locations(ast.Module(body=helper_constants, type_ignores=[])), '<helper constants>', 'exec'), ns)
 real_gemini = ns['_gemini']
 
 questions = [
@@ -138,6 +141,15 @@ riemann_tikz = templates.fill(templates.get('riemann_sum_rectangles'), {
     'H1':'1', 'H2':'2', 'H3':'3', 'H4':'4',
 }, target='worksheet')
 assert riemann_tikz.count(r'\path[cp fill]') == 4 and 'domain=0:4' in riemann_tikz
+assert riemann_tikz.index(r'\addplot') > riemann_tikz.rindex(r'\path[cp fill]')  # the fills no longer hide the curve
+# Tree probabilities are labels: a number field cut "4/10" to "4". A model's own
+# $...$ around a label inside the slot's math is dropped.
+tree_tikz = templates.fill(templates.get('probability_tree'), {'P1': '4/10', 'P2': '$\\frac{6}{10}$', 'P3': '3/9', 'P4': '6/9', 'P5': '0.4', 'P6': '$5/9$'})
+assert '{$4/10$}' in tree_tikz and '{$\\frac{6}{10}$}' in tree_tikz and '{$5/9$}' in tree_tikz and '$$' not in tree_tikz
+# The network draws AE only with a weight for it (it drew a dashed AE always).
+network = templates.get('network_graph')
+assert '\\foreach \\w in {}' in templates.fill(network, {}) and '\\foreach \\w in {7}' in templates.fill(network, {'WAE': '7'})
+assert 'cp dashed' not in network['skeleton']
 histogram_tikz = templates.fill(templates.get('histogram'), {
     'YMAX':'10', 'L1':'0--9', 'L2':'10--19', 'L3':'20--29', 'L4':'30--39', 'L5':'40--49',
     'F1':'3', 'F2':'7', 'F3':'9', 'F4':'5', 'F5':'2',
@@ -305,8 +317,14 @@ def repair_breaks(req):
         return {'ok': True, 'svg': '<first/>', 'layout': {'labels': 1, 'issues': [{'kind': 'labels-overlap', 'labels': ['A', 'B'], 'area': 9}]}}
     return {'ok': False, 'error': 'TikZ compile failed.', 'log': 'Undefined control sequence'}
 ns['_render'] = repair_breaks
+ns['_job_trace'].events = []
 out = ns['_reference_generate'](req)
 assert out['ok'] and out['svg'] == '<first/>', out
+# both the colliding draft and the repair that broke the compile keep their code
+coded = {e['stage']: e.get('tikz', '') for e in ns['_job_trace'].events}
+assert '\\draw (0,0)--(1,1);' in coded['layout'] and '\\draw (0,0)--(1,1);' in coded['render-error'], ns['_job_trace'].events
+assert not ns['_job_trace'].events[-1].get('tikz')  # a passing readiness verdict carries no code
+del ns['_job_trace'].events
 
 # Label placement alternatives: fill picks one; the catalog renderer tries them in
 # order when the picture shows collisions, and keeps the first clean one.
@@ -325,6 +343,53 @@ assert picked['svg'] == '<svg n="3"/>' and len(tried) == 3 and len(set(tried)) =
 tried.clear()
 ns['_verified_render'] = lambda req, tikz, source='', run_critic=True: tried.append(tikz) or {'ok': True, 'svg': '<svg/>', 'layout': {'labels': 1, 'issues': []}}
 assert ns['_catalog_render'](req, parabola, {}, source='catalog:test')['ok'] and len(tried) == 1  # clean first try: no extra renders
+# Collision reports name how many placements a template has; one without
+# alternatives adds nothing to its layout event (it used to say "placement 1 collides").
+colliding = lambda req, tikz, source='', run_critic=True: {'ok': True, 'svg': '<svg/>', 'layout': {'labels': 1, 'issues': [{'kind': 'labels-overlap', 'labels': ['a', 'b'], 'area': 5}]}}
+ns.update(_verified_render=colliding)
+ns['_job_trace'].events = []
+ns['_catalog_render'](req, templates.get('histogram'), {}, source='catalog:test')
+assert ns['_job_trace'].events == []
+ns['_catalog_render'](req, parabola, {}, source='catalog:test')
+notes = [e['detail'] for e in ns['_job_trace'].events]
+n = templates.alternatives(parabola)
+assert notes[0] == f'placement 1 of {n} collides' and notes[-1] == 'no clean placement; kept placement 1 (1 collision)' and len(notes) == n + 1
+del ns['_job_trace'].events
+
+# The trace keeps the drawing code of failed or colliding attempts, bounded per
+# event and per job, whitespace-collapsed and without configured secrets.
+ns['_job_trace'].events = []
+ns['_diagnostic']('render-error', 'Undefined control sequence', tikz='\\begin{tikzpicture}\n   \\draw   (0,0) -- (1,1); % test-secret\n\n\\end{tikzpicture}')
+event = ns['_job_trace'].events[0]
+assert event['tikz'] == '\\begin{tikzpicture}\n\\draw (0,0) -- (1,1); % [redacted]\n\\end{tikzpicture}', event
+long_code = '\n'.join(f'\\draw (0,{i}) -- (1,{i});' for i in range(400))
+ns['_diagnostic']('layout', 'x', tikz=long_code)
+kept = ns['_job_trace'].events[1]['tikz']
+assert '[...]' in kept and kept.startswith('\\draw (0,0)') and kept.endswith('(1,399);') and len(kept) <= ns['_TIKZ_EXCERPT_CHARS'] + 7
+ns['_diagnostic']('layout', 'x', tikz=long_code)
+ns['_diagnostic']('layout', 'x', tikz=long_code)  # past the job's budget: the event stays, its code does not
+assert 'tikz' in ns['_job_trace'].events[2] and 'tikz' not in ns['_job_trace'].events[3]
+assert sum(len(e.get('tikz', '')) for e in ns['_job_trace'].events) <= ns['_TIKZ_EXCERPT_BUDGET']
+del ns['_job_trace'].events
+
+# Givens the backend reads from the question rather than trusting the model.
+def overrides(question, template_id):
+    request = SimpleNamespace(title=question, brief='Question: ' + question, subject='', equation='', target='worksheet')
+    return ns['_catalog_local_param_overrides'](request, template_id)
+# The model gave v's direction (108 degrees) as the angle between u and v (81.9):
+# with 2D components the skeleton draws the true directions instead.
+got = overrides('Find the angle between the vectors u = (2, 1) and v = (-1, 3).', 'angle_between_vectors')
+assert got == {'ALAB': '\\vec{u}', 'BLAB': '\\vec{v}', 'AX': '2', 'AY': '1', 'BX': '-1', 'BY': '3'}, got
+got = overrides('Find the angle between \\vec{a} = \\langle 1, 0, 1 \\rangle and \\vec{b} = <0, 1, 1>.', 'angle_between_vectors')
+assert got['ANG'] == '60' and got['AX'] == got['BY'] == '0', got
+assert ns['_named_vectors']('Points A = (1, 2) and B = (3, 4); p = [2, −5]') == [('p', (2.0, -5.0))]
+assert 'AX' not in overrides('Find the angle between two vectors of 5 N and 3 N at 40 degrees.', 'angle_between_vectors')
+# Network weights are read as "AB = 4" too, and a question that lists its edges without AE gets none.
+got = overrides('Find a minimum spanning tree for the weighted graph with edges AB = 4, AC = 2, BC = 1, BD = 5, CE = 10, and DE = 2.', 'network_graph')
+assert got == {'WAB': '4', 'WAC': '2', 'WBC': '1', 'WBD': '5', 'WCE': '10', 'WDE': '2', 'WAE': ''}, got
+assert overrides('Edges: AB 3, EA 6.', 'network_graph') == {'WAB': '3', 'WAE': '6'}
+assert overrides('Edges: A–B is 3 and A–E is 6.', 'network_graph') == {'WAB': '3', 'WAE': '6'}
+assert overrides('Draw a weighted graph.', 'network_graph') == {}
 
 # Terminal status always retains the job's own trace, without configured secrets.
 def fake_generate(request):

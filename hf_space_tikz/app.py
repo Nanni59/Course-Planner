@@ -72,12 +72,35 @@ def _diagnostic(stage: str, detail: str = "", **metadata) -> None:
     error_at = detail.find("\n!")
     if len(detail) > 500 and error_at != -1:
         detail = detail[error_at + 1:]
+    if "tikz" in metadata:
+        metadata["tikz"] = _tikz_excerpt(metadata["tikz"], events)
+        if not metadata["tikz"]:
+            del metadata["tikz"]
     events.append({"stage": stage, "detail": detail[:500], **metadata})
     # Model retries used to push the routing decision and the reason a path
     # gave up out of the window; drop the oldest retry chatter first.
     while len(events) > 24:
         chatter = next((e for e in events if e["stage"].startswith("model-")), None)
         events.remove(chatter if chatter is not None else events[0])
+
+
+_TIKZ_EXCERPT_CHARS = 2400      # per event: head and tail of the picture
+_TIKZ_EXCERPT_BUDGET = 6000     # per job, across all events
+
+
+def _tikz_excerpt(code: str, events: list) -> str:
+    """The drawing code behind a failed or colliding attempt, so a compile error
+    or a label collision can be reproduced from the job trace alone. Whitespace
+    is collapsed; long code keeps its head and tail (a compile error at
+    \\end{tikzpicture} can come from either); one job keeps at most the budget."""
+    code = "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in str(code or "").splitlines() if line.strip())
+    for key in GEMINI_KEYS:
+        code = code.replace(key, "[redacted]")
+    if len(code) > _TIKZ_EXCERPT_CHARS:
+        head = _TIKZ_EXCERPT_CHARS * 2 // 3
+        code = code[:head] + "\n[...]\n" + code[-(_TIKZ_EXCERPT_CHARS - head):]
+    room = _TIKZ_EXCERPT_BUDGET - sum(len(e.get("tikz", "")) for e in events)
+    return code if len(code) <= room else ""
 
 
 app = FastAPI(title="Course Planner TikZ Renderer")
@@ -3166,7 +3189,10 @@ def _verified_render(req: GenerateReq, tikz: str, source: str = "draft", run_cri
     if rendered.get("layout", {}).get("issues"):
         # Catalog and exact renderers fix their own label placement; the model
         # cannot move these labels, so collisions are reported, not repaired.
-        _diagnostic("layout", _layout_summary(rendered["layout"]), source=source)
+        # A catalog picture is reproducible from its catalog-params event; its
+        # code would only spend the trace's code budget.
+        code = {} if source.startswith("catalog") else {"tikz": checked_tikz}
+        _diagnostic("layout", _layout_summary(rendered["layout"]), source=source, **code)
     if rendered.get("ok"):
         rendered["tikz"] = checked_tikz
         if critic_note:
@@ -3717,6 +3743,29 @@ def _label_with_magnitude(symbol: str, mag: str) -> str:
     return symbol + (f"={mag}" if mag else "")
 
 
+_NUM = r"\s*(-?\d+(?:\.\d+)?)\s*"
+
+
+def _named_vectors(text: str) -> list[tuple[str, tuple[float, ...]]]:
+    """Named 2D/3D vectors given by components, in question order: u = (2, 1),
+    \\vec{v} = <1, -2, 3>, w = [0, 4] or \\langle 1, 2 \\rangle."""
+    text = _repair_transport_escapes(text).replace("−", "-")
+    found: list[tuple[str, tuple[float, ...]]] = []
+    for m in re.finditer(
+        r"(\\+vec\s*\{?\s*)?\b([A-Za-z])(?:_?\{?(\d)\}?)?\s*\}?\s*=\s*"
+        r"(?:\(|\[|<|⟨|\\left\s*[(<\[]|\\langle)" + _NUM + "," + _NUM + r"(?:," + _NUM + r")?"
+        r"(?:\)|\]|>|⟩|\\right\s*[)>\]]|\\rangle)",
+        text,
+    ):
+        if m.group(2).isupper() and not m.group(1):
+            continue  # "A = (1, 2)" is usually a point, not a vector
+        name = m.group(2) + (m.group(3) or "")
+        coords = tuple(float(g) for g in m.groups()[3:] if g is not None)
+        if all(name != other for other, _coords in found):
+            found.append((name, coords))
+    return found
+
+
 def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[str, str]:
     """Deterministic repairs for exact catalog matches.
 
@@ -3790,6 +3839,24 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
         })
         if angle:
             overrides.update({"ANG": angle, "ANGLAB": angle_label})
+    elif template_id == "angle_between_vectors":
+        vectors = _named_vectors(_question_text(req))
+        if len(vectors) >= 2 and len(vectors[0][1]) == len(vectors[1][1]):
+            (na, va), (nb, vb) = vectors[:2]
+            overrides.update({"ALAB": _plain_vector_symbol(na), "BLAB": _plain_vector_symbol(nb)})
+            if len(va) == 2:
+                # The skeleton draws the true directions from the components.
+                overrides.update({"AX": _clean_number(va[0]), "AY": _clean_number(va[1]),
+                                  "BX": _clean_number(vb[0]), "BY": _clean_number(vb[1])})
+            else:
+                # 3D: the included angle, computed here rather than by the model,
+                # drawn with the first vector along the x-axis.
+                dot = sum(x * y for x, y in zip(va, vb))
+                norms = math.sqrt(sum(x * x for x in va)) * math.sqrt(sum(y * y for y in vb))
+                if norms:
+                    ang = math.degrees(math.acos(max(-1.0, min(1.0, dot / norms))))
+                    overrides.update({"ANG": _clean_number(round(ang, 1)),
+                                      "AX": "0", "AY": "0", "BX": "0", "BY": "0"})
     elif template_id == "vector_difference_from_angle":
         overrides.update({
             "ALAB": _label_with_magnitude(avec, mag_a),
@@ -3881,10 +3948,16 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
             overrides["RLABEL"] = radius.group(1) + (r"\,\mathrm{" + unit + "}" if unit else "")
     elif template_id in {"network_graph", "complete_graph_sketch"}:
         text = _question_text(req)
-        for edge in ("AB", "AC", "BC", "BD", "CE", "DE"):
-            m = re.search(r"\b" + edge[0] + r"\s*(?:to|-|:)?\s*" + edge[1] + r"\b\s*(?:is|:)?\s*([-+]?\d+(?:\.\d+)?)", text, re.I)
+        found = False
+        for edge in ("AB", "AC", "BC", "BD", "CE", "DE", "AE"):
+            ends = edge[0] + r"\s*(?:to|-|–|—|:)?\s*" + edge[1] + "|" + edge[1] + r"\s*(?:to|-|–|—|:)?\s*" + edge[0]
+            m = re.search(r"\b(?:" + ends + r")\b\s*(?:is|:|=)?\s*([-+]?\d+(?:\.\d+)?)", text, re.I)
             if m and template_id == "network_graph":
                 overrides["W" + edge] = m.group(1)
+                found = True
+        if found and "WAE" not in overrides:
+            # The question lists its edges and AE is not among them.
+            overrides["WAE"] = ""
         if template_id == "complete_graph_sketch":
             m = re.search(r"\bK_?\{?(\d+)\}?", text)
             if m:
@@ -3898,17 +3971,25 @@ def _catalog_render(req: GenerateReq, tmpl: dict, params: dict, source: str) -> 
     and the template offers other label placements, try them in order and keep
     the first clean one (else the one with the fewest collisions)."""
     best = None
-    for alternative in range(tcatalog.alternatives(tmpl)):
+    options = tcatalog.alternatives(tmpl)
+    for alternative in range(options):
         filled = tcatalog.fill(tmpl, params, target=req.target, alternative=alternative)
         rendered = _verified_render(req, filled, source=source, run_critic=False)
         if not rendered.get("ok"):
             return rendered if best is None else best  # a placement that breaks the compile is no option
         count = len(rendered.get("layout", {}).get("issues", []))
         if best is None or count < best_count:
-            best, best_count = rendered, count
+            best, best_index, best_count = rendered, alternative, count
         if count == 0 or "layout" not in rendered:
             break
-        _diagnostic("layout-alternative", f"placement {alternative + 1} collides", template=tmpl["id"])
+        if options > 1:
+            # A template without alternatives has only its layout event: it
+            # used to read "placement 1 collides", as if others had been tried.
+            _diagnostic("layout-alternative", f"placement {alternative + 1} of {options} collides", template=tmpl["id"])
+    else:
+        if options > 1:
+            _diagnostic("layout-alternative", f"no clean placement; kept placement {best_index + 1} "
+                        f"({best_count} collision{'s' if best_count != 1 else ''})", template=tmpl["id"])
     return best
 
 
@@ -4011,6 +4092,7 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
         params.update(_catalog_local_param_overrides(req, tmpl["id"]))
         filled = tcatalog.fill(tmpl, params, target=req.target)
         print(f"[catalog] {tmpl['id']} params={json.dumps(params, ensure_ascii=False)[:1200]}", flush=True)
+        _diagnostic("catalog-params", json.dumps(params, ensure_ascii=False), template=tmpl["id"])
         rendered = _catalog_render(req, tmpl, params, source=f"catalog:{tmpl['id']}")
         if rendered.get("ok"):
             rendered["tikz"] = rendered.get("tikz", filled)
@@ -4018,7 +4100,7 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
             rendered["customized"] = "catalog:" + tmpl["id"]
             return rendered
         repair_log = rendered.get("log") or rendered.get("error") or "TikZ render failed."
-        _diagnostic("catalog-render-error", repair_log, template=tmpl['id'])
+        _diagnostic("catalog-render-error", repair_log, template=tmpl['id'], tikz=filled)
     return rendered if rendered.get("ok") else None
 
 
@@ -4128,17 +4210,17 @@ def _reference_generate(req: GenerateReq) -> dict | None:
         semantic_issue = _semantic_visual_issue(req, safe)
         if semantic_issue:
             repair_log = semantic_issue
-            _diagnostic("semantic-rejection", repair_log)
+            _diagnostic("semantic-rejection", repair_log, tikz=safe)
             continue
         enlarged = _enlarge_visual_code(req, safe)
         rendered = _render(RenderReq(code=enlarged, format=req.format, theme=req.theme, target=req.target, layout=True))
         if not rendered.get("ok"):
             repair_log = rendered.get("log") or rendered.get("error") or "TikZ compile failed."
-            _diagnostic("render-error", repair_log)
+            _diagnostic("render-error", repair_log, tikz=enlarged)
             continue
         collisions = _layout_summary(rendered.get("layout", {}))
         if collisions:
-            _diagnostic("layout", collisions)
+            _diagnostic("layout", collisions, tikz=enlarged)
             if attempt == 0:
                 # The rendered picture shows label collisions the source-reading
                 # readiness check cannot see: spend the one repair on them. A
@@ -4152,7 +4234,7 @@ def _reference_generate(req: GenerateReq) -> dict | None:
                 colliding = (rendered, enlarged, caption)
                 continue
         verdict, reason = _readiness_verdict(req, enlarged)
-        _diagnostic("readiness", reason or verdict)
+        _diagnostic("readiness", reason or verdict, **({} if verdict == "PASS" else {"tikz": enlarged}))
         if verdict == "PASS":
             rendered["tikz"] = enlarged
             rendered["caption"] = caption
@@ -4169,7 +4251,7 @@ def _reference_generate(req: GenerateReq) -> dict | None:
         # whose only fault was label placement, still gets its readiness check.
         rendered, enlarged, caption = colliding
         verdict, reason = _readiness_verdict(req, enlarged)
-        _diagnostic("readiness", reason or verdict)
+        _diagnostic("readiness", reason or verdict)  # its code is on its layout event
         if verdict == "PASS":
             rendered["tikz"] = enlarged
             rendered["caption"] = caption

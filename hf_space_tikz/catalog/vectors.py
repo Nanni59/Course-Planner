@@ -455,18 +455,54 @@ templates = [
                      'angle between the vectors', 'angle between the two vectors'],
         "caption": 'Two vectors with the marked angle between them.',
         "skeleton": r"""\begin{tikzpicture}[scale=1]
-  \draw[cp axis] (-0.5,0) -- (4.5,0) node[cp label,anchor=west] {$x$};
-  \draw[cp axis] (0,-0.5) -- (0,4.0) node[cp label,anchor=south] {$y$};
+  % Directions: the given components when both vectors have them, so the
+  % marked angle is the true included angle (the model used to give the second
+  % vector's direction as the angle); otherwise the first vector along the
+  % x-axis and the second at ANG. Components also set the lengths: the longer
+  % vector 3.4, the shorter in proportion but at least 1.5.
+  \pgfmathsetmacro\cpuse{ifthenelse(veclen(__AX__,__AY__)>0 && veclen(__BX__,__BY__)>0,1,0)}
+  \pgfmathsetmacro\cpta{atan2(\cpuse*(__AY__),\cpuse*(__AX__)+1-\cpuse)}
+  \pgfmathsetmacro\cptb{\cpuse*atan2(\cpuse*(__BY__),\cpuse*(__BX__)+1-\cpuse)+(1-\cpuse)*(__ANG__)}
+  \pgfmathsetmacro\cpma{veclen(__AX__,__AY__)}
+  \pgfmathsetmacro\cpmb{veclen(__BX__,__BY__)}
+  \pgfmathsetmacro\cpla{ifthenelse(\cpuse>0,max(1.5,3.4*\cpma/max(\cpma,\cpmb,0.001)),3.4)}
+  \pgfmathsetmacro\cplb{ifthenelse(\cpuse>0,max(1.5,3.4*\cpmb/max(\cpma,\cpmb,0.001)),3.2)}
+  % d: counterclockwise turn from the first vector to the second. The arc runs
+  % from the clockwise-most vector (P) through the smaller angle to Q, and each
+  % vector's label sits on its outer side (s = 1 when the first vector is P).
+  \pgfmathsetmacro\cpd{mod(\cptb-\cpta+720,360)}
+  \pgfmathsetmacro\cps{ifthenelse(\cpd<=180,1,-1)}
+  \pgfmathsetmacro\cpp{ifthenelse(\cpd<=180,\cpta,\cptb)}
+  \pgfmathsetmacro\cpq{\cpp+min(\cpd,360-\cpd)}
   \coordinate (O) at (0,0);
-  % fixed geometry: first vector on the x-axis, second at the given angle
-  \coordinate (A) at (3.4,0);
-  \coordinate (B) at (__ANG__:3.2);
-  \draw[cp line,->] (O) -- (A) node[cp label,anchor=north] {$__ALAB__$};
-  \draw[cp line,->] (O) -- (B) node[cp label,anchor=south west] {$__BLAB__$};
-  \pic [draw=black, angle radius=0.7cm, "$__ANGLAB__$"] {angle=A--O--B};
+  \coordinate (A) at (\cpta:\cpla);
+  \coordinate (B) at (\cptb:\cplb);
+  \coordinate (P) at (\cpp:1);
+  \coordinate (Q) at (\cpq:1);
+  \draw[cp axis] ({min(-0.5,\cpla*cos(\cpta)-0.6,\cplb*cos(\cptb)-0.6)},0) -- ({max(1,\cpla*cos(\cpta),\cplb*cos(\cptb))+1.1},0) node[cp label,anchor=west] {$x$};
+  \draw[cp axis] (0,{min(-0.5,\cpla*sin(\cpta)-0.6,\cplb*sin(\cptb)-0.6)}) -- (0,{max(1,\cpla*sin(\cpta),\cplb*sin(\cptb))+0.8}) node[cp label,anchor=south] {$y$};
+  \draw[cp line,->] (O) -- (A) node[cp label,anchor={\cpta+90*\cps}] {$__ALAB__$};
+  \draw[cp line,->] (O) -- (B) node[cp label,anchor={\cptb-90*\cps}] {$__BLAB__$};
+  \pic [draw=black, angle radius=0.7cm] {angle=P--O--Q};
+  % Angle label in the widest gap the axes leave inside the angle (at most two
+  % axis directions, c1 and c2, fall inside it), on that gap's bisector and far
+  % enough out for its measured size to clear both sides (the pic's own label
+  % sat on the y-axis at 150 degrees and on the vectors at 25).
+  \pgfmathsetmacro\cpca{90*(floor(\cpp/90)+1)}
+  \pgfmathsetmacro\cpcb{min(\cpca+90,\cpq)}
+  \pgfmathsetmacro\cpca{min(\cpca,\cpq)}
+  \pgfmathsetmacro\cpg{max(\cpca-\cpp,\cpcb-\cpca,\cpq-\cpcb)}
+  \pgfmathsetmacro\cpm{ifthenelse(\cpca-\cpp>=\cpg,(\cpp+\cpca)/2,ifthenelse(\cpcb-\cpca>=\cpg,(\cpca+\cpcb)/2,(\cpcb+\cpq)/2))}
+  \node[cp label,overlay,opacity=0] (cpmT) at (0,0) {$__ANGLAB__$};
+  \path let \p2=($(cpmT.north east)-(cpmT.south west)$) in
+    node[cp label] at (\cpm:{max(0.95cm,(0.5*veclen(\x2,\y2)+2pt)/sin(max(2,\cpg/2)))}) {$__ANGLAB__$};
 \end{tikzpicture}""",
         "params": {
-            'ANG': {'type': 'number', 'default': '55', 'desc': 'angle between the vectors in degrees; drives the drawing. Use the given angle, or ~55 if the angle is the unknown being solved'},
+            'ANG': {'type': 'number', 'default': '55', 'desc': 'angle between the vectors in degrees, used only when the question gives the angle rather than components. Use the given angle, or ~55 if the angle is the unknown being solved'},
+            'AX': {'type': 'number', 'default': '0', 'desc': 'x-component of the first vector when the question gives 2D components, else 0'},
+            'AY': {'type': 'number', 'default': '0', 'desc': 'y-component of the first vector when the question gives 2D components, else 0'},
+            'BX': {'type': 'number', 'default': '0', 'desc': 'x-component of the second vector when the question gives 2D components, else 0'},
+            'BY': {'type': 'number', 'default': '0', 'desc': 'y-component of the second vector when the question gives 2D components, else 0'},
             'ALAB': {'type': 'label', 'default': '\\vec{a}', 'desc': 'first vector label; include its given magnitude if provided, e.g. \\vec{u}=5'},
             'BLAB': {'type': 'label', 'default': '\\vec{b}', 'desc': 'second vector label; include its given magnitude if provided, e.g. \\vec{v}=3'},
             'ANGLAB': {'type': 'label', 'default': '\\theta', 'desc': 'label for the angle: a given value like 60^\\circ, or \\theta / ? if the angle is the unknown'},
