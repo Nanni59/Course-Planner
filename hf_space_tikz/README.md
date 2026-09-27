@@ -242,6 +242,36 @@ clear of both sides of its gap (it leaves the label's inner and outer radius in
 the side away from R by its measured extent. Both measure in picture units,
 without inner sep, so the worksheet scale-up and the check agree.
 
+Shapes follow the question's numbers, computed by the backend rather than the
+model (the model's values are kept only when the question does not settle them):
+
+- The general triangle is solved from its givens (SSS, SAS, SSA, or two
+  angles). The largest angle goes on top so the base is the longest side, and
+  every label comes from the question: givens with their values, the side or
+  angle asked for with the brief's symbol (else its own letter or ?), and
+  nothing on the rest. An angle is marked only when it is labelled.
+- The right triangle draws its given angle at its size. An angle with the wall
+  or the vertical is marked at the top.
+- The two-object bearing legs are in proportion to their distances (or to the
+  speeds when both travel for the same time).
+- A sinusoid's A, B, C and D are read from its equation, with a cosine
+  converted to the sine form the template plots.
+- A definite integral takes its bounds and stated function from the question.
+  When the question only says where the curve crosses the x-axis, a model curve
+  that crosses elsewhere is replaced by one that crosses there. Area below the
+  axis is hatched, area above it filled.
+- A related-rates circle and a boat crossing read their rates from the question.
+- An inequality's number line (`number_line_blank`) carries ticks only, since
+  the boundary circle and the arrow are the answer. The readiness rules fail a
+  drawn solution even when the description asks for one.
+
+Template params may be `local` (the model never sees them; overrides set them)
+or `flag_of` another slot (1 when that label is non-empty, for marks drawn only
+with their label). A label arriving with doubled backslashes (`4\\,\\mathrm`) is
+repaired. The answer guard judges the value after "=": a stated rate such as
+dr/dt = 3 cm/s stays, and a \frac, \sqrt or rate value the question does not
+state becomes ?.
+
 The "covered or cut off" test needs two characters on one text line before it
 checks how much of its box a label's glyphs span, so a stacked one-digit
 fraction such as 3/9 is not reported.

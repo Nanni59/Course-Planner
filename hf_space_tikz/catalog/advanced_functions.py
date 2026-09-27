@@ -545,4 +545,32 @@ templates = [
             'G_LABEL': {'type': 'label', 'default': '$y=x+2$', 'desc': 'legend entry for the second function'},
         },
     },
+    {
+        "id": 'number_line_blank',
+        "subject": 'Mathematics',
+        "triggers": ['number line', 'on a number line', 'number-line'],
+        # A number line question asks the student to mark the solution; a drawn
+        # circle and shading is the answer (a model drawing put an open circle
+        # on 4 with an arrow left for 2x - 3 < 5). The line carries ticks only.
+        "caption": 'A blank number line with integer ticks for the student to mark a solution on.',
+        "skeleton": r"""\begin{tikzpicture}
+  % one tick per unit up to 12 units, else every 2 or 5, on a 9 cm line
+  \pgfmathsetmacro\cpr{max(2,(__XMAX__)-(__XMIN__))}
+  \pgfmathtruncatemacro\cps{ifthenelse(\cpr>24,5,ifthenelse(\cpr>12,2,1))}
+  \pgfmathtruncatemacro\cpa{floor((__XMIN__)/\cps)*\cps}
+  \pgfmathtruncatemacro\cpz{ceil(max(__XMAX__,\cpa+2)/\cps)*\cps}
+  \pgfmathtruncatemacro\cpb{\cpa+\cps}
+  \pgfmathsetmacro\cpu{9/(\cpz-\cpa)}
+  \begin{scope}[x=\cpu cm]
+    \draw[cp axis,<->] ({\cpa-0.6/\cpu},0) -- ({\cpz+0.6/\cpu},0);
+    \foreach \t in {\cpa,\cpb,...,\cpz} {
+      \draw[cp axis,-] (\t,0.12) -- (\t,-0.12) node[cp label,below] {$\t$};
+    }
+  \end{scope}
+\end{tikzpicture}""",
+        "params": {
+            'XMIN': {'type': 'number', 'default': '-5', 'desc': 'left end of the number line (an integer, a little below every number that matters in the question; the range the description asks for when it gives one)'},
+            'XMAX': {'type': 'number', 'default': '5', 'desc': 'right end of the number line (an integer, a little above every number that matters)'},
+        },
+    },
 ]

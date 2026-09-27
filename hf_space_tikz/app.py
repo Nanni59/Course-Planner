@@ -532,7 +532,7 @@ def _template(tikz: str, theme: str, target: str) -> str:
 \newcommand{{\cpsidelabel}}[6][0.06]{{%
   \node[cp label,overlay,opacity=0,inner sep=0pt] (cpmS) at (0,0) {{#6}};
   \path let \p1=($(#3)-(#2)$), \p3=($(#4)-(#2)$), \p2=($(cpmS.north east)-(cpmS.south west)$), \p9=($(1,0)-(0,0)$),
-    \n1={{atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)}},
+    \n1={{atan2(\y1,\x1)+ifthenelse(scalar(\x1)/100*scalar(\y3)-scalar(\y1)/100*scalar(\x3)>0,-90,90)}},
     \n2={{(0.5*scalar(\x2)*abs(cos(\n1))+0.5*scalar(\y2)*abs(sin(\n1)))/scalar(\x9)+#1}} in
     node[cp label] at ($(#2)!#5!(#3)+({{\n1}}:{{\n2}})$) {{#6}};}}
 \begin{{document}}
@@ -1151,6 +1151,149 @@ def _extract_triangle_sides(text: str, vertices: tuple[str, str, str]) -> dict[s
         b + c: out.get(b + c) or out.get(c + b) or defaults[b + c],
     }
     return edge_labels
+
+
+def _first_number(value: str) -> float | None:
+    m = re.search(r"-?\d+(?:\.\d+)?", str(value or ""))
+    return float(m.group(0)) if m else None
+
+
+def _solve_triangle(vertices: tuple[str, str, str], sides: dict[str, float], angles: dict[str, float]) -> dict[str, float] | None:
+    """The three interior angles (degrees, keyed by vertex) from the givens, or
+    None when they do not fix the shape. sides are keyed by their OPPOSITE
+    vertex. Handles two angles, SSS, SAS and SSA (the acute case)."""
+    vs = list(vertices)
+    ang = {v: a for v, a in angles.items() if v in vs and 0 < a < 180}
+    side = {v: x for v, x in sides.items() if v in vs and x and x > 0}
+    if len(ang) >= 2:
+        if len(ang) == 3:
+            return ang if abs(sum(ang.values()) - 180) < 1 else None
+        rest = 180 - sum(ang.values())
+        missing = [v for v in vs if v not in ang]
+        return {**ang, missing[0]: rest} if rest > 0 and len(missing) == 1 else None
+    if len(side) == 2 and len(ang) == 1:
+        (v, a), = ang.items()
+        if v not in side:  # SAS: the angle between the two given sides
+            (p, b), (q, c) = side.items()
+            side[v] = math.sqrt(max(0.0, b * b + c * c - 2 * b * c * math.cos(math.radians(a))))
+        else:  # SSA: the other given side's opposite angle by the sine law
+            (w, b), = [(k, x) for k, x in side.items() if k != v]
+            sin_w = b * math.sin(math.radians(a)) / side[v]
+            if sin_w > 1:
+                return None
+            aw = math.degrees(math.asin(sin_w))
+            (u,) = [k for k in vs if k not in (v, w)]
+            return {v: a, w: aw, u: 180 - a - aw} if 180 - a - aw > 0 else None
+    if len(side) == 3:
+        (p, a), (q, b), (r, c) = side.items()
+        if a + b <= c or a + c <= b or b + c <= a:
+            return None
+        def opposite(x, y, z):  # angle opposite x
+            return math.degrees(math.acos(max(-1.0, min(1.0, (y * y + z * z - x * x) / (2 * y * z)))))
+        return {p: opposite(a, b, c), q: opposite(b, a, c), r: opposite(c, a, b)}
+    return None
+
+
+def _unit_label(value: str) -> str:
+    """8 cm -> 8\\,\\mathrm{cm}; anything else unchanged."""
+    m = re.fullmatch(r"\s*(-?\d+(?:\.\d+)?)\s*([A-Za-z]+(?:/[A-Za-z]+)?)\s*", str(value or ""))
+    return m.group(1) + r"\,\mathrm{" + m.group(2) + "}" if m else str(value or "")
+
+
+def _triangle_asked(question: str, brief: str, vertices: tuple[str, str, str],
+                    angles: dict[str, float], given_sides: set[str]) -> dict[str, str]:
+    """What the question asks for, as {slot key: symbol}: an edge ("EF") or a
+    vertex ("F"). The symbol is the one the brief names ("label EF as x"),
+    the side's own letter ("find b"), else ?."""
+    asked: dict[str, str] = {}
+    m = re.search(r"\b(?:find|calculate|determine|work out|solve for|what is|how (?:long|far|wide|tall))\b(.*)", question, re.I)
+    if not m:
+        return asked
+    clause = m.group(1)
+    verts = set(vertices)
+
+    def symbol(names: list[str], default: str) -> str:
+        for name in names:
+            s = re.search(r"\b" + name + r"\b[^.;]{0,30}?\b(?:labell?ed|as)\s+([a-z]|\\theta)\b", brief)
+            s = s or re.search(r"\blabel\s+" + name + r"\s+as\s+([a-z]|\\theta)\b", brief)
+            if s:
+                return s.group(1)
+        return default
+
+    for name in re.findall(r"(?:∠|\bangle\s+)([A-Z]{3}|[A-Z])\b", clause):
+        v = name[1] if len(name) == 3 else name
+        if v in verts:
+            asked[v] = symbol([r"angle\s+" + name, name], "?")
+    for pair in re.findall(r"\b([A-Z]{2})\b", clause):
+        if set(pair) <= verts and pair[0] != pair[1] and not re.search(r"angle\s+\w?" + pair, clause):
+            asked[pair] = symbol([pair], "?")
+    for letter in re.findall(r"(?:\b(?:find|side|length(?: of)?|calculate|determine)\s+)([a-z])(?=\s*(?:[.,?;]|$|and\b))", "find " + clause):
+        v = letter.upper()
+        if v in verts:
+            a, b = [x for x in vertices if x != v]
+            asked[a + b] = symbol([r"side\s+" + letter, letter], letter)
+    if angles and re.search(r"\b(largest|smallest)\s+(?:interior\s+)?angle\b", clause, re.I):
+        pick = max if re.search(r"largest", clause, re.I) else min
+        v = pick(angles, key=angles.get)
+        asked.setdefault(v, "?")
+    if re.search(r"\b(third|remaining|unknown|missing)\s+side\b", clause, re.I):
+        edges = [a + b for a, b in ((vertices[0], vertices[1]), (vertices[0], vertices[2]), (vertices[1], vertices[2]))]
+        rest = [e for e in edges if e not in given_sides]
+        if len(rest) == 1:
+            asked.setdefault(rest[0], symbol([rest[0]], "?"))
+    return asked
+
+
+def _triangle_overrides(req: GenerateReq) -> dict[str, str]:
+    """triangle_general: vertex names, and when the givens fix the triangle, its
+    true shape (largest angle at the top, so the base is the longest side) and
+    every label from the question: givens with values, the asked side or angle
+    with its symbol, the rest blank. A slot the question does not settle keeps
+    the model's value only when the shape is not solved."""
+    text = _request_text(req)
+    vertices = _triangle_vertices(text) or ("A", "B", "C")
+    ta, tb, tc = vertices
+    side_labels = _extract_triangle_sides(text, vertices)
+    angle_labels = _extract_triangle_angles(text, vertices)
+    overrides = {"A": ta, "B": tb, "C": tc}
+    edges = {ta + tb: tc, ta + tc: tb, tb + tc: ta}  # edge -> opposite vertex
+    sides = {edges[e]: _first_number(v) for e, v in side_labels.items() if re.search(r"\d", str(v))}
+    angles = {v: _first_number(a) for v, a in angle_labels.items() if _first_number(a) is not None}
+    solved = _solve_triangle(vertices, sides, angles)
+    if not solved or set(solved) != set(vertices):
+        # Not enough to fix the shape: only pin the parsed measures (a missed slot
+        # overridden with a bare letter used to wipe a good model fill).
+        for slot, edge in (("AB", ta + tb), ("AC", ta + tc), ("BC", tb + tc)):
+            val = str(side_labels.get(edge, ""))
+            if re.search(r"\d", val):
+                overrides[slot] = _unit_label(_tex_label(val))
+        for slot, vtx in (("ANG_A", ta), ("ANG_B", tb), ("ANG_C", tc)):
+            if angle_labels.get(vtx):
+                overrides[slot] = _tex_label(angle_labels[vtx])
+        return overrides
+    order = list(vertices)
+    while solved[order[2]] < max(solved.values()) - 1e-9:
+        order = order[1:] + order[:1]
+    a, b, c = order
+    given_edges = {e for e, v in side_labels.items() if re.search(r"\d", str(v))}
+    asked = _triangle_asked(_question_text(req), _raw_request_text(req), vertices, solved, given_edges)
+
+    def edge_label(p: str, q: str) -> str:
+        for e in (p + q, q + p):
+            if e in given_edges:
+                return _unit_label(_tex_label(side_labels[e]))
+            if e in asked:
+                return asked[e]
+        return ""
+
+    overrides.update({
+        "A": a, "B": b, "C": c,
+        "DEG_A": _clean_number(round(solved[a], 2)), "DEG_B": _clean_number(round(solved[b], 2)),
+        "AB": edge_label(a, b), "AC": edge_label(a, c), "BC": edge_label(b, c),
+    })
+    for slot, v in (("ANG_A", a), ("ANG_B", b), ("ANG_C", c)):
+        overrides[slot] = _tex_label(angle_labels[v]) if v in angles else asked.get(v, "")
+    return overrides
 
 
 def _has_triangle_measure(text: str) -> bool:
@@ -3178,6 +3321,7 @@ def _worksheet_answer_safe_tikz(req: GenerateReq, tikz: str) -> str:
     if req.target != "worksheet":
         return tikz
     original_compact = re.sub(r"\s+", "", _raw_request_text(req))
+    original_text = _raw_request_text(req)
     out = str(tikz or "")
 
     # A vector label like \vec{u}=(3,-2,6) is readable but often duplicates or
@@ -3220,10 +3364,25 @@ def _worksheet_answer_safe_tikz(req: GenerateReq, tikz: str) -> str:
             and re.search(r"[-+]?\d", clean)
             and ("+" in clean or "-" in clean)
         )
+        # Judge what follows the "=": a rate written \frac{dr}{dt} = 3 cm/s is
+        # a given (the guard hid it as ?), a \frac or \sqrt value is a result
+        # unless the question states its numbers, and a rate's value the
+        # question does not state is the answer (\frac{dA}{dt} = 60\pi).
+        lhs, _eq, rhs = clean.partition("=")
+
+        def plain(text: str) -> str:
+            return re.sub(r"\\(?:mathrm|text|,|;|!)|[\s{}$]", "", text)
+        result_stated = bool(plain(rhs)) and plain(rhs) in plain(original_text)
+        rhs_numbers = re.findall(r"\d+(?:\.\d+)?", rhs)
+        rate_stated = bool(rhs_numbers) and all(
+            float(n) in {float(x) for x in re.findall(r"\d+(?:\.\d+)?", original_text)} for n in rhs_numbers)
         derived_expression = (
             "=" in clean
-            and re.search(r"\\(?:sqrt|frac|pm)|\([^)]*,[^)]*\)", clean)
             and not re.search(r"\^\s*\\circ", clean)
+            and (
+                (re.search(r"\\(?:sqrt|frac|pm)|\([^)]*,[^)]*\)", rhs) and not result_stated)
+                or (re.search(r"\\frac\s*\{\s*d", lhs) and re.search(r"\d", rhs) and not rate_stated)
+            )
         )
         if unit_component_answer or derived_expression:
             clean = "?"
@@ -3834,7 +3993,8 @@ def _bearing_values_from_text(text: str) -> list[int]:
 def _distance_labels_from_text(text: str) -> list[str]:
     labels: list[str] = []
     for num, unit in re.findall(
-        r"\b([-+]?\d+(?:\.\d+)?)\s*(nautical\s+miles?|miles?|km|cm|mm|nmi|nm|mi|yd|ft|m)\b",
+        # not a speed: "40 km/h" is no distance
+        r"\b([-+]?\d+(?:\.\d+)?)\s*(nautical\s+miles?|miles?|km|cm|mm|nmi|nm|mi|yd|ft|m)\b(?!\s*/|\s+per\b)",
         text,
         re.I,
     ):
@@ -3874,7 +4034,232 @@ def _named_vectors(text: str) -> list[tuple[str, tuple[float, ...]]]:
     return found
 
 
-def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[str, str]:
+def _arith_tree(expr: str, var: str = ""):
+    """A plain arithmetic expression in one variable (pi and implicit
+    multiplication allowed: 2(x - pi/4), 0.5t, pi t/6, x^2 - 4) as a Python
+    AST, or None for anything else. Nothing is ever executed: only numbers,
+    the variable and + - * / ^ are accepted."""
+    import ast
+    text = str(expr or "").replace("−", "-").replace("\\pi", " pi ").replace("π", " pi ")
+    text = re.sub(r"\\(?:left|right)", "", text).replace("\\cdot", "*").replace("{", "(").replace("}", ")")
+    text = re.sub(r"\\frac\s*\(([^()]*)\)\s*\(([^()]*)\)", r"((\1)/(\2))", text).replace("²", "^2").replace("³", "^3")
+    if re.search(r"[^0-9A-Za-z.+\-*/^()\s]", text):
+        return None
+    names = set(re.findall(r"[A-Za-z]+", text)) - {"pi"}
+    if names - ({var} if var else set()):
+        return None
+    tokens = re.findall(r"\d+(?:\.\d+)?|\.\d+|pi|[A-Za-z]|[-+*/^()]", text)
+    out: list[str] = []
+    for tok in tokens:
+        if out and (re.fullmatch(r"[\d.]+|pi|[A-Za-z]|\)", out[-1]) and re.fullmatch(r"[\d.]+|pi|[A-Za-z]|\(", tok)):
+            out.append("*")
+        out.append("**" if tok == "^" else tok)
+    try:
+        tree = ast.parse("".join(out), mode="eval").body
+    except SyntaxError:
+        return None
+    ok = (ast.Constant, ast.Name, ast.UnaryOp, ast.BinOp, ast.USub, ast.UAdd, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Load)
+    if not all(isinstance(n, ok) for n in ast.walk(tree)):
+        return None
+    if any(isinstance(n, ast.Constant) and not isinstance(n.value, (int, float)) for n in ast.walk(tree)):
+        return None
+    return tree
+
+
+def _arith_eval(tree, at: float = 0.0) -> float | None:
+    import ast
+
+    def ev(node):
+        if isinstance(node, ast.Constant):
+            return float(node.value)
+        if isinstance(node, ast.Name):
+            return math.pi if node.id == "pi" else at
+        if isinstance(node, ast.UnaryOp):
+            return -ev(node.operand) if isinstance(node.op, ast.USub) else ev(node.operand)
+        a, b = ev(node.left), ev(node.right)
+        if isinstance(node.op, ast.Add):
+            return a + b
+        if isinstance(node.op, ast.Sub):
+            return a - b
+        if isinstance(node.op, ast.Mult):
+            return a * b
+        if isinstance(node.op, ast.Div):
+            return a / b
+        if abs(b) > 6 or abs(a) > 1e6:
+            raise ValueError("power too large")
+        return a ** b
+    try:
+        value = ev(tree)
+    except (ValueError, ZeroDivisionError, OverflowError, TypeError):
+        return None
+    return value if isinstance(value, float) and math.isfinite(value) else None
+
+
+def _arith_pgf(tree, var: str) -> str:
+    """The expression for pgfplots in x, every operation parenthesised (pgfmath
+    reads -x^2 as (-x)^2)."""
+    import ast
+    if isinstance(tree, ast.Constant):
+        return _clean_number(tree.value)
+    if isinstance(tree, ast.Name):
+        return "pi" if tree.id == "pi" else "x"
+    if isinstance(tree, ast.UnaryOp):
+        return ("(-" if isinstance(tree.op, ast.USub) else "(") + _arith_pgf(tree.operand, var) + ")"
+    op = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/", ast.Pow: "^"}[type(tree.op)]
+    return "(" + _arith_pgf(tree.left, var) + op + _arith_pgf(tree.right, var) + ")"
+
+
+def _arith_value(expr: str, var: str = "", at: float = 0.0) -> float | None:
+    tree = _arith_tree(expr, var)
+    return None if tree is None else _arith_eval(tree, at)
+
+
+def _sinusoid_from_text(text: str) -> dict[str, float] | None:
+    """A, B, C, D of the question's y = A sin(B(x - C)) + D, a cosine converted
+    to that sine form (cos u = sin(u + pi/2)), so the graph starts where the
+    question's function does. None when there is no single such equation."""
+    text = _repair_transport_escapes(str(text or "")).replace("−", "-")
+    m = re.search(r"=\s*([^=]*?)\\?(?<![A-Za-z])(sin|cos)\s*(?:\\left)?\(", text)
+    if not m or len(re.findall(r"(?<![A-Za-z])(?:sin|cos)\s*(?:\\left)?\(", text)) != 1:
+        return None
+    lead, fn = m.group(1), m.group(2)
+    depth, i = 1, m.end()
+    while i < len(text) and depth:
+        depth += {"(": 1, ")": -1}.get(text[i], 0)
+        i += 1
+    if depth:
+        return None
+    arg = re.sub(r"\\right$", "", text[m.end():i - 1].strip())
+    tail = re.match(r"\s*([-+]\s*\d+(?:\.\d+)?)?(?=\s*(?:[,.;:?$]|\s+[A-Za-z]|$))", text[i:])
+    if tail is None:
+        return None
+    lead_m = re.fullmatch(r"\s*(?:(\d+(?:\.\d+)?)\s*([-+])\s*)?([-+]?\s*\d*(?:\.\d+)?)\s*\*?\s*", lead)
+    if not lead_m:
+        return None
+    var_m = re.search(r"\b([a-zA-Z])\b|(?<=\d)([a-zA-Z])\b|θ", arg.replace("pi", " "))
+    var = (var_m.group(1) or var_m.group(2)) if var_m and (var_m.group(1) or var_m.group(2)) else ""
+    if not var:
+        return None
+    f0, f1 = _arith_value(arg, var, 0.0), _arith_value(arg, var, 1.0)
+    f2 = _arith_value(arg, var, 2.0)
+    if f0 is None or f1 is None or f2 is None or abs((f2 - f1) - (f1 - f0)) > 1e-9:
+        return None  # not linear in the variable
+    b = f1 - f0
+    if abs(b) < 1e-9:
+        return None
+    coef = lead_m.group(3).replace(" ", "")
+    a = -1.0 if coef == "-" else 1.0 if coef in ("", "+") else float(coef)
+    d = 0.0
+    if lead_m.group(1):  # 4 + 2 sin(3x), 4 - 2 sin(3x)
+        d = float(lead_m.group(1))
+        if lead_m.group(2) == "-":
+            a = -a
+    if tail.group(1):
+        d += float(tail.group(1).replace(" ", ""))
+    c = -f0 / b
+    if b < 0:  # sin(-u) = -sin(u), cos(-u) = cos(u)
+        b = -b
+        if fn == "sin":
+            a = -a
+    if fn == "cos":
+        c -= math.pi / (2 * b)
+    return {"A": a, "B": b, "C": c, "D": d}
+
+
+def _integral_overrides(req: GenerateReq, params: dict) -> dict[str, str]:
+    """definite_integral_shaded from the question: its bounds, its function when
+    it states one, and when it only says where the curve crosses the x-axis, a
+    curve that crosses exactly there (the model drew one crossing at x = 2 for
+    a stated x = 1). The window fits the curve, stated crossings get ticks, and
+    the area label sits in the largest region above the axis."""
+    text = _request_text(req)
+    question = _question_text(req)
+    num = r"(-?\d+(?:\.\d+)?)"
+    out: dict[str, str] = {}
+    bounds = (re.search(r"\bfrom\s+x\s*=\s*" + num + r"\s+to\s+x\s*=\s*" + num, question, re.I)
+              or re.search(r"\bbetween\s+x\s*=\s*" + num + r"\s+and\s+x\s*=\s*" + num, question, re.I)
+              or re.search(r"\bfrom\s+" + num + r"\s+to\s+" + num + r"\b", question, re.I))
+    lo_hi = None
+    if bounds:
+        lo, hi = float(bounds.group(1)), float(bounds.group(2))
+        if lo < hi:
+            lo_hi = (lo, hi)
+            out.update({"A": _clean_number(lo), "B": _clean_number(hi),
+                        "A_LABEL": "$" + _clean_number(lo) + "$", "B_LABEL": "$" + _clean_number(hi) + "$"})
+    if lo_hi is None:
+        a, b = _first_number(params.get("A", "")), _first_number(params.get("B", ""))
+        if a is None or b is None or a >= b:
+            return out
+        lo_hi = (a, b)
+    lo, hi = lo_hi
+    tree = None
+    stated = re.search(r"\b(?:f|g|y)\s*(?:\(\s*x\s*\))?\s*=\s*(.+?)(?=\s*(?:,|;|\bfrom\b|\bbetween\b|\bon\b|\bover\b|\bfor\b|\band\b|\.\s|\.?$))", question)
+    if stated:
+        tree = _arith_tree(stated.group(1), "x")
+    roots = []
+    cross = re.search(r"\bcross(?:es|ing)?\s+the\s+x-?\s*axis\s+(?:only\s+)?at\s+((?:x\s*=\s*-?\d+(?:\.\d+)?(?:\s*(?:,|and|,\s*and)\s*)?)+)", text, re.I)
+    if cross:
+        roots = sorted({float(r) for r in re.findall(num, cross.group(1)) if lo < float(r) < hi})
+    if tree is None:
+        model = _arith_tree(str(params.get("CURVE", "")), "x")
+        if roots:
+            def fits(t) -> bool:
+                span = hi - lo
+                xs = [lo + span * i / 400 for i in range(401)]
+                ys = [_arith_eval(t, x) for x in xs]
+                if any(y is None for y in ys):
+                    return False
+                changes = [xs[i] for i in range(400) if ys[i] * ys[i + 1] < 0 or (ys[i + 1] == 0 and 0 < i + 1 < 400)]
+                return len(changes) == len(roots) and all(abs(c - r) <= span / 200 + 1e-9 for c, r in zip(changes, roots))
+            if model is None or not fits(model):
+                below_first = re.search(r"\b(below|negative)\b", text, re.I)
+                above_first = re.search(r"\b(above|positive)\b", text, re.I)
+                sign = -1.0 if below_first and (not above_first or below_first.start() < above_first.start()) else 1.0
+                body = "*".join(f"({_clean_number(r)}-x)" for r in roots) + f"*(x-({_clean_number(lo - 1)}))"
+                probe = _arith_tree(body, "x")
+                peak = max(abs(_arith_eval(probe, lo + (hi - lo) * i / 200) or 0) for i in range(201)) or 1.0
+                scale = sign * 3.0 / peak
+                out["CURVE"] = f"{_clean_number(round(scale, 4))}*{body}"
+                tree = _arith_tree(out["CURVE"], "x")
+            else:
+                tree = model
+        else:
+            tree = model
+    else:
+        out["CURVE"] = _arith_pgf(tree, "x")
+    if roots:
+        out["EXTRA_TICKS"] = "".join("," + _clean_number(r) for r in roots)
+        out["EXTRA_TICK_LABELS"] = "".join(",$" + _clean_number(r) + "$" for r in roots)
+    if tree is None:
+        return out
+    pad = max(0.5, 0.15 * (hi - lo))
+    xmin, xmax = lo - pad, hi + pad
+    xs = [xmin + (xmax - xmin) * i / 300 for i in range(301)]
+    ys = [_arith_eval(tree, x) for x in xs]
+    if any(y is None for y in ys):
+        return out
+    ymin, ymax = min(0.0, min(ys)), max(0.0, max(ys))
+    ypad = max(0.5, 0.15 * (ymax - ymin))
+    out.update({"XMIN": _clean_number(round(xmin, 3)), "XMAX": _clean_number(round(xmax, 3)),
+                "YMIN": _clean_number(round(ymin - ypad, 3)), "YMAX": _clean_number(round(ymax + ypad, 3))})
+    # the label in the largest stretch above the axis when the area is signed
+    inner = [(lo + (hi - lo) * i / 200, _arith_eval(tree, lo + (hi - lo) * i / 200) or 0.0) for i in range(201)]
+    if any(y > 0 for _x, y in inner) and any(y < 0 for _x, y in inner):
+        best, run = (0.0, 0, 0), []
+        for i, (_x, y) in enumerate(inner + [(hi, -1.0)]):
+            if y > 0:
+                run.append(i)
+            elif run:
+                area = sum(inner[j][1] for j in run)
+                if area > best[0]:
+                    best = (area, run[0], run[-1])
+                run = []
+        if best[0] > 0:
+            out.update({"LF0": _clean_number(round(best[1] / 200, 3)), "LF1": _clean_number(round(best[2] / 200, 3))})
+    return out
+
+
+def _catalog_local_param_overrides(req: GenerateReq, template_id: str, params: dict | None = None) -> dict[str, str]:
     """Deterministic repairs for exact catalog matches.
 
     Gemini is useful for filling open-ended template values, but for common vector
@@ -3910,15 +4295,24 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
         })
     elif template_id == "boat_current_resultant":
         text = _question_text(req)
-        boat = _speed_after_word(text, "travelling") or _speed_after_word(text, "traveling") or _speed_after_word(text, "still water")
-        current = _speed_after_word(text, "flows") or _speed_after_word(text, "current")
+        # every speed in the question; the current's is the one after current/
+        # flow/stream, the boat's the other (only "travelling" and "still water"
+        # were read, so "heads across at 4 m/s" was left to the model)
+        speeds = [(m.start(), m.group(1) + re.sub(r"\s+", "", m.group(2)).replace("perhour", "/h"))
+                  for m in re.finditer(r"(\d+(?:\.\d+)?)\s*(km\s*/\s*h|km\s+per\s+hour|m\s*/\s*s|mph|knots?)\b", text, re.I)]
+        at = next((pos for pos, _v in speeds if re.search(r"\b(?:current|flow\w*|stream\w*|river\s+moves)\b", text[max(0, pos - 60):pos], re.I)), None)
+        current = dict(speeds).get(at, "")
+        boat = next((v for pos, v in speeds if pos != at), "") if current else ""
+        if not current:
+            boat = _speed_after_word(text, "travelling") or _speed_after_word(text, "traveling") or _speed_after_word(text, "still water")
+            current = _speed_after_word(text, "flows") or _speed_after_word(text, "current")
         width_m = re.search(r"\b(?:river\s+)?(?:is\s+)?([-+]?\d+(?:\.\d+)?)\s*(km|m|cm|mi|ft)\s+wide\b", text, re.I)
         if width_m:
             overrides["WIDTHLAB"] = width_m.group(1) + r"\,\mathrm{" + width_m.group(2) + "}"
         if boat:
-            overrides["BOATLAB"] = boat.replace("km/h", r"\,\mathrm{km/h}")
+            overrides["BOATLAB"] = _unit_label(boat)
         if current:
-            overrides["CURRENTLAB"] = current.replace("km/h", r"\,\mathrm{km/h}")
+            overrides["CURRENTLAB"] = _unit_label(current)
         overrides["RESULTLAB"] = r"\vec{v}_g"
     elif template_id == "bearing_two_leg":
         text = _question_text(req)
@@ -3932,6 +4326,20 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
             overrides.update({"B1": str(b1), "B2": str(b2)})
             for slot, distance in zip(("L1", "L2"), _distance_labels_from_text(text)):
                 overrides[slot] = distance
+    elif template_id == "bearing_two_objects":
+        text = _question_text(req)
+        bearings = _travel_bearing_values_from_text(text) or _bearing_values_from_text(text)
+        if len(bearings) == 2:
+            overrides.update({"B1": str(bearings[0]), "B2": str(bearings[1])})
+        distances = _distance_labels_from_text(text)
+        speeds = re.findall(r"\b(\d+(?:\.\d+)?)\s*(?:km\s*/\s*h|km\s+per\s+hour|kph|mph|knots?|m\s*/\s*s)\b", text, re.I)
+        if len(distances) == 2:
+            overrides.update({"L1": distances[0], "L2": distances[1],
+                              "LEN1": _clean_number(_first_number(distances[0])),
+                              "LEN2": _clean_number(_first_number(distances[1]))})
+        elif len(speeds) == 2:
+            # same time for both, so the legs are in the ratio of the speeds
+            overrides.update({"LEN1": _clean_number(float(speeds[0])), "LEN2": _clean_number(float(speeds[1]))})
     elif template_id in {"vector_add_head_to_tail", "vector_add_parallelogram"}:
         overrides.update({"ULAB": avec, "VLAB": bvec, "SUM": avec + "+" + bvec})
     elif template_id == "vector_resultant_from_angle":
@@ -4049,23 +4457,37 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
     elif template_id == "vector_closed_triangle_sum":
         overrides["SUM_LAB"] = r"\overrightarrow{AB}+\overrightarrow{BC}+\overrightarrow{CA}=\vec{0}"
     elif template_id == "triangle_general":
-        text = _request_text(req)
-        vertices = _triangle_vertices(text) or ("A", "B", "C")
-        ta, tb, tc = vertices
-        sides = _extract_triangle_sides(text, vertices)
-        angles = _extract_triangle_angles(text, vertices)
-        # Vertex labels are reliable, so always pin them. But only override a side or
-        # angle slot when we actually PARSED a measure for it: overriding a missed slot
-        # with a bare letter / empty arc used to WIPE a good Gemini fill. Missed slots
-        # now fall through to the model's value (or the template default when offline).
-        overrides.update({"A": ta, "B": tb, "C": tc})
-        for slot, edge in (("AB", ta + tb), ("AC", ta + tc), ("BC", tb + tc)):
-            val = str(sides.get(edge, ""))
-            if re.search(r"\d", val):
-                overrides[slot] = _tex_label(val)
-        for slot, vtx in (("ANG_A", ta), ("ANG_B", tb), ("ANG_C", tc)):
-            if angles.get(vtx):
-                overrides[slot] = _tex_label(angles[vtx])
+        overrides.update(_triangle_overrides(req))
+    elif template_id == "definite_integral_shaded":
+        overrides.update(_integral_overrides(req, params or {}))
+    elif template_id == "number_line_blank":
+        span = re.search(r"\bnumber\s+line\b[^.]{0,40}?\bfrom\s+(-?\d+)\s+to\s+(-?\d+)", _request_text(req), re.I)
+        if span and int(span.group(1)) < int(span.group(2)):
+            overrides.update({"XMIN": span.group(1), "XMAX": span.group(2)})
+    elif template_id == "related_rates_circle":
+        text = _question_text(req)
+        rate = re.search(r"\bradius\b[^.?]{0,60}?\b(?:increas|grow|expand)\w*\s+(?:at|by)\s+(?:a\s+(?:constant\s+)?rate\s+of\s+)?"
+                         r"(\d+(?:\.\d+)?)\s*([a-z]+\s*/\s*[a-z]+)", text, re.I)
+        if rate:
+            unit = re.sub(r"\s+", "", rate.group(2))
+            overrides["DR_LABEL"] = r"$\frac{dr}{dt}=" + rate.group(1) + r"\,\mathrm{" + unit + "}$"
+    elif template_id == "sinusoid_amplitude_period":
+        wave = _sinusoid_from_text(_question_text(req))
+        if wave:
+            overrides.update({slot: _clean_number(round(wave[key], 4) + 0.0) for slot, key in (
+                ("AMPLITUDE_VALUE", "A"), ("FREQUENCY_VALUE", "B"), ("PHASE_SHIFT_VALUE", "C"), ("MIDLINE_VALUE", "D"))})
+    elif template_id == "right_triangle":
+        # The one acute angle the question gives sets the drawn shape and its label.
+        found = {float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*degrees?\b", _question_text(req), re.I)} - {90.0}
+        if len(found) == 1:
+            (deg,) = found
+            if 0 < deg < 90 and re.search(r"\b(?:with|from|and)\s+the\s+(?:wall|vertical)\b", _question_text(req), re.I):
+                # an angle with the wall is the top angle; the base angle is the rest
+                overrides.update({"ANGLE_DEG": _clean_number(90 - deg), "ANGLAB": "",
+                                  "TOPANGLAB": _clean_number(deg) + "^\\circ"})
+            elif 0 < deg < 90:
+                overrides.update({"ANGLE_DEG": _clean_number(deg), "ANGLAB": _clean_number(deg) + "^\\circ",
+                                  "TOPANGLAB": ""})
     elif template_id == "circle_chord_arc":
         text = _question_text(req)
         angle = _angle_from_question(req, "110")
@@ -4223,7 +4645,7 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
             _diagnostic("catalog-parameter-error", str(exc), template=tmpl['id'])
             return None  # Default labels/values are not the student's givens.
         filled = tcatalog.fill(tmpl, params, target=req.target, question=_question_text(req))
-        params.update(_catalog_local_param_overrides(req, tmpl["id"]))
+        params.update(_catalog_local_param_overrides(req, tmpl["id"], params))
         filled = tcatalog.fill(tmpl, params, target=req.target, question=_question_text(req))
         print(f"[catalog] {tmpl['id']} params={json.dumps(params, ensure_ascii=False)[:1200]}", flush=True)
         _diagnostic("catalog-params", json.dumps(params, ensure_ascii=False), template=tmpl["id"])
@@ -4270,7 +4692,7 @@ A visual is READY only if ALL of these hold:
 - Correct type: the diagram is the right kind of visual for the question and actually illustrates it (not a formula poster, not an unrelated shape).
 - Consistent: it agrees with the givens in the question (labels, counts, signs, angles, and quantities match). A shaded region must be exactly the region the question describes (FAIL shading that spills outside the region between two curves). For cross products, the drawn result vector must obey the right-hand rule for the two drawn vectors (e.g. j x i points along -z, NOT +z); FAIL a cross-product arrow pointing the wrong way.
 - Interior angles: in a named angle XYZ, Y is the vertex. Unless the question explicitly asks for an exterior, reflex, or major angle, the mark and its label must lie in the smaller interior sector between YX and YZ. For circle theorems, FAIL angle AOB = 80 degrees if the diagram marks the exterior 280-degree sector, and FAIL angle ACB if its mark is outside the inscribed triangle rather than between CA and CB.
-- Answer-safe: it does not reveal a value the student is asked to find (a solved magnitude, coordinate, angle, or final answer); such values appear only as a symbol or ?, and placeholders like ? or (?, ?) are correct. Values STATED IN THE QUESTION are givens and may be labelled, including given vectors, points, coordinates, and lengths (e.g. v = <2, 3, 4> when the question gives it). Guide lines, dashed drops, or tick labels that locate an unknown point on the axes reveal its coordinates: FAIL them unless the question gives that point.
+- Answer-safe: it does not reveal a value the student is asked to find (a solved magnitude, coordinate, angle, or final answer); such values appear only as a symbol or ?, and placeholders like ? or (?, ?) are correct. Values STATED IN THE QUESTION are givens and may be labelled, including given vectors, points, coordinates, and lengths (e.g. v = <2, 3, 4> when the question gives it). Guide lines, dashed drops, or tick labels that locate an unknown point on the axes reveal its coordinates: FAIL them unless the question gives that point. When the student must solve an inequality or show its solution, a circle or dot at the boundary and shading or an arrow in one direction IS the answer: FAIL it, even if the description asks for it.
 - Legible: labels are not degenerate - nothing tiny, collapsed, overlapping, or cramped into the origin. FAIL a diagram whose supposedly independent vectors are drawn nearly collinear, or whose parallelogram/triangle collapses to a sliver."""
 
 

@@ -547,6 +547,79 @@ for other in ('Find the unit vector in the direction of \\vec{v} = (2, 3, 4).',
 request = SimpleNamespace(title=threed, brief='Question: ' + threed, subject='', equation='', target='worksheet')
 threed_tikz = templates.fill(templates.get('3d_vector_components'), got, target='worksheet')
 assert ns['_worksheet_answer_safe_tikz'](request, threed_tikz) == threed_tikz  # the given components stay
+
+# Round 3 found fixed shapes labelled with other values (42 degrees drawn as
+# 60, an 8 cm side longer than 11 cm, a 33 degree ladder labelled 72, a 12 km
+# leg longer than 18 km). The backend now solves the shape from the givens.
+def tri(question, brief=''):
+    request = SimpleNamespace(title=question, brief=brief or 'Question: ' + question, subject='', equation='', target='worksheet')
+    return ns['_catalog_local_param_overrides'](request, 'triangle_general')
+got = tri('In triangle ABC, angle A = 42 degrees, angle B = 71 degrees, and a = 15 cm. Find b.',
+          'Draw triangle ABC with angle A = 42 degrees and angle B = 71 degrees marked, side a = 15 cm opposite A, and side b labelled x opposite B.')
+# largest angle (B, 71) on top, so the base is the longest side; every label from the question
+assert got == {'A': 'C', 'B': 'A', 'C': 'B', 'DEG_A': '67', 'DEG_B': '42', 'AB': 'x', 'AC': '15\\,\\mathrm{cm}',
+               'BC': '', 'ANG_A': '', 'ANG_B': '42^\\circ', 'ANG_C': '71^\\circ'}, got
+got = tri('In triangle DEF, DE = 8 cm, DF = 11 cm, and angle EDF = 64 degrees. Find EF.',
+          'Draw triangle DEF with DE = 8 cm and DF = 11 cm, mark angle EDF = 64 degrees at D, and label EF as x.')
+assert (got['A'], got['B'], got['C'], got['DEG_B']) == ('F', 'D', 'E', '64') and abs(float(got['DEG_A']) - 43.82) < 0.01, got
+assert (got['AB'], got['AC'], got['BC'], got['ANG_B'], got['ANG_A'], got['ANG_C']) == ('11\\,\\mathrm{cm}', 'x', '8\\,\\mathrm{cm}', '64^\\circ', '', ''), got
+got = tri('In triangle PQR, p = 7 cm, q = 9 cm and r = 12 cm. Find the largest angle.')
+assert got['ANG_C'] == '?' and got['C'] == 'R' and got['AB'] == '12\\,\\mathrm{cm}', got
+assert tri('In triangle XYZ, angle X = 40 degrees and XY = 12 m. Find YZ.') == {'A': 'X', 'B': 'Y', 'C': 'Z', 'AB': '12\\,\\mathrm{m}', 'ANG_A': '40^\\circ'}
+angles = ns['_solve_triangle'](('A', 'B', 'C'), {'A': 10.0, 'B': 7.0}, {'A': 50.0})  # SSA, acute case
+assert abs(angles['B'] - 32.43) < 0.01 and abs(sum(angles.values()) - 180) < 1e-9, angles
+assert ns['_solve_triangle'](('A', 'B', 'C'), {'A': 1.0, 'B': 2.0, 'C': 5.0}, {}) is None  # no such triangle
+filled = templates.fill(templates.get('triangle_general'), {'ANG_A': '64^\\circ'}, target='worksheet')
+assert 'draw opacity=1] ($(A)' in filled and 'draw opacity=0] ($(B)' in filled  # arcs only where labelled
+assert not {'SHOW_A', 'DEG_A'} - set(templates.get('triangle_general')['params']) and 'SHOW_A' not in templates.ai_spec(templates.get('triangle_general'))['keys']
+def rt(question):
+    request = SimpleNamespace(title=question, brief='Question: ' + question, subject='', equation='', target='worksheet')
+    return ns['_catalog_local_param_overrides'](request, 'right_triangle')
+assert rt('A 6 m ladder leans against a vertical wall and makes an angle of 72 degrees with the ground. How high up the wall does it reach?') == {'ANGLE_DEG': '72', 'ANGLAB': '72^\\circ', 'TOPANGLAB': ''}
+assert rt('A 5 m ladder makes an angle of 20 degrees with the wall. How far is its foot from the wall?') == {'ANGLE_DEG': '70', 'ANGLAB': '', 'TOPANGLAB': '20^\\circ'}
+got = overrides('Two boats leave the same harbour at the same time. One travels 12 km on a bearing of 035 degrees and the other travels 18 km on a bearing of 140 degrees. How far apart are they?', 'bearing_two_objects')
+assert got == {'B1': '35', 'B2': '140', 'L1': '12\\,\\mathrm{km}', 'L2': '18\\,\\mathrm{km}', 'LEN1': '12', 'LEN2': '18'}, got
+got = overrides('Two ships leave port. One sails at 20 km/h on a bearing of 070 and the other at 30 km/h on a bearing of 190. How far apart are they after 2 hours?', 'bearing_two_objects')
+assert got == {'B1': '70', 'B2': '190', 'LEN1': '20', 'LEN2': '30'}, got  # a speed is no distance label
+# A cosine's phase was the model's to convert; it gave +pi for -pi and the
+# graph started at its minimum. The equation is read here.
+wave = ns['_sinusoid_from_text']('The depth of water in a harbour is modelled by d(t) = 2 cos(0.5t) + 5.')
+assert (wave['A'], wave['B'], wave['D']) == (2.0, 0.5, 5.0) and abs(wave['C'] + math.pi) < 1e-12, wave
+assert ns['_sinusoid_from_text']('Sketch y = 4 - sin(3x) for x from 0 to 2pi') == {'A': -1.0, 'B': 3.0, 'C': -0.0, 'D': 4.0}
+assert abs(ns['_sinusoid_from_text']('Sketch y = 3sin(2(x - π/4)) - 1.')['C'] - math.pi / 4) < 1e-12
+assert ns['_sinusoid_from_text']('y = cos(x) + sin(x)') is None and ns['_sinusoid_from_text']('y = 5 sin(x^2)') is None
+assert overrides('d(t) = 2 cos(0.5t) + 5 models the depth.', 'sinusoid_amplitude_period')['PHASE_SHIFT_VALUE'] == '-3.1416'
+assert ns['_arith_value']("__import__('os').system('x')", 'x') is None and ns['_arith_value']('2(x - 1)', 'x', 3) == 4.0
+assert ns['_arith_pgf'](ns['_arith_tree']('-x^2 + 4x', 'x'), 'x') == '((-(x^2))+(4*x))'  # pgfmath reads -x^2 as (-x)^2
+# The model drew a signed-area curve crossing at x = 2 for a stated x = 1.
+signed = SimpleNamespace(title='Interpret the integral of f(x) from x = -2 to x = 3 as signed area when f crosses the x-axis at x = 1.',
+                         brief='Draw one smooth curve above the x-axis on [-2,1] and below it on [1,3].', subject='', equation='', target='worksheet')
+got = ns['_catalog_local_param_overrides'](signed, 'definite_integral_shaded', {'CURVE': '(x+2)*(2-x)', 'A': '-2', 'B': '3'})
+curve = ns['_arith_tree'](got['CURVE'], 'x')
+assert abs(ns['_arith_eval'](curve, 1.0)) < 1e-12 and ns['_arith_eval'](curve, 0.0) > 0 > ns['_arith_eval'](curve, 2.0), got
+assert (got['A'], got['B'], got['EXTRA_TICKS'], got['EXTRA_TICK_LABELS'], got['LF0']) == ('-2', '3', ',1', ',$1$', '0'), got
+kept = ns['_catalog_local_param_overrides'](signed, 'definite_integral_shaded', {'CURVE': '(1-x)*(x+3)', 'A': '-2', 'B': '3'})
+assert 'CURVE' not in kept  # a model curve that crosses where stated stays
+got = overrides('Find the area under f(x) = x^2 + 1 from x = 0 to x = 2.', 'definite_integral_shaded')
+assert got['CURVE'] == '((x^2)+1)' and float(got['YMAX']) > 5, got
+assert 'pattern=north east lines' in templates.get('definite_integral_shaded')['skeleton']
+# A given rate was hidden as ?: the guard judges the value after "=".
+ripple = 'The radius of a circular ripple increases at 3 cm/s. How fast is the area increasing when the radius is 10 cm?'
+got = overrides(ripple, 'related_rates_circle')
+assert got == {'DR_LABEL': '$\\frac{dr}{dt}=3\\,\\mathrm{cm/s}$'}, got
+request = SimpleNamespace(title=ripple, brief='', subject='Calculus', equation='', target='worksheet')
+for label, kept_label in ((r'{$\frac{dr}{dt}=3\text{ cm/s}$}', True), (r'{$\frac{dA}{dt}=60\pi$}', False),
+                          (r'{$r=10\,\mathrm{cm}$}', True), (r'{$x=\frac{3}{10}$}', False), (r'{$\frac{dA}{dt}=?$}', True)):
+    code = '\\node at (0,0) ' + label + ';'
+    assert (ns['_worksheet_answer_safe_tikz'](request, code) == code) == kept_label, label
+# A doubled JSON escape printed "4, mathrmm/s"; the boat speed is read from the question.
+assert templates.sanitize_label('4\\\\,\\\\mathrm{m/s}') == '4\\,\\mathrm{m/s}'
+got = overrides('A boat heads straight across a 200 m wide river at 4 m/s while the current flows downstream at 3 m/s. Find the resultant velocity.', 'boat_current_resultant')
+assert (got['BOATLAB'], got['CURRENTLAB'], got['WIDTHLAB']) == ('4\\,\\mathrm{m/s}', '3\\,\\mathrm{m/s}', '200\\,\\mathrm{m}'), got
+# An inequality's number line is blank: a drawn circle and arrow was the answer.
+assert templates.route('Solve 2x - 3 < 5 and show the solution on a number line.', 'Mathematics')['id'] == 'number_line_blank'
+assert overrides('Solve 2x - 3 < 5. Draw a number line from -2 to 8.', 'number_line_blank') == {'XMIN': '-2', 'XMAX': '8'}
+assert 'circle' not in templates.get('number_line_blank')['skeleton'] and 'IS the answer' in ns['_READINESS_RULES']
 # The paired verdict records the model that answered and whether it saw the picture.
 ns['_job_trace'].last_model, ns['_job_trace'].last_pictured = 'gemini-x', True
 assert ns['_verifier_facts']() == {'model': 'gemini-x', 'picture': True} and ns['_verifier_facts']() == {}

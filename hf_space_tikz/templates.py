@@ -37,6 +37,12 @@ Append a dict to TEMPLATES with these keys:
                         fills it with a solved-looking value it is replaced by
                         `unknown` on worksheet targets.
               unknown   (optional, default "?") Replacement symbol above.
+              local     (optional) The model never sees or fills this slot; only
+                        the backend's deterministic overrides set it (drawing
+                        geometry computed from the question), else its default.
+              flag_of   (optional, implies local) A number slot that is 1 when
+                        the named label slot's final value is non-empty, else 0
+                        (an angle arc drawn only when its angle is labelled).
 
   reference (optional) A richer worked TikZ example of this diagram, shown to
             the AI verbatim only when this template is used as a few-shot
@@ -87,6 +93,11 @@ def sanitize_label(value, default: str = "") -> str:
     # A bare/unbalanced % or $ only fails the compile, which the repair loop catches.
     # "?" is the unknown marker ("x = ?"); stripping it turned "$?$" into "$$".
     value = re.sub(r"[^A-Za-z0-9_+\-*/=.,:(){}\\^\s/|%$°?]", "", value)
+    # A model sometimes escapes its JSON twice: a boat speed arrived as
+    # 4\\,\\mathrm{m/s}, a TeX line break and the text "mathrm". A one-line label
+    # never wants a line break, so a doubled backslash before a command or a
+    # spacing mark is one backslash.
+    value = re.sub(r"\\\\+(?=[A-Za-z,;:! ])", r"\\", value)
     value = re.sub(r"\s+", " ", value).strip()
     return value or default
 
@@ -186,6 +197,8 @@ def catalog_errors() -> list[str]:
                 continue
             if "default" not in spec:
                 errors.append(f"{tid}.{name}: missing 'default'")
+            if spec.get("flag_of") and (spec["flag_of"] not in params or ptype != "number"):
+                errors.append(f"{tid}.{name}: flag_of must name a param and be a number slot")
         if not t.get("triggers"):
             errors.append(f"{tid}: empty triggers list (unroutable by keyword)")
         if (ALT_SLOT in skeleton) != bool(t.get("layout_alternatives")):
@@ -493,7 +506,10 @@ def fill(template: dict, ai_params: dict | None = None, target: str = "generic",
     options = template.get("layout_alternatives", [])
     if options:
         out = out.replace(ALT_SLOT, options[min(alternative, len(options) - 1)])
+    values: dict[str, str] = {}
     for name, spec in template["params"].items():
+        if spec.get("flag_of"):
+            continue
         ptype = spec.get("type", "label")
         default = str(spec.get("default", ""))
         raw = ai_params.get(name, default)
@@ -505,6 +521,11 @@ def fill(template: dict, ai_params: dict | None = None, target: str = "generic",
         if target == "worksheet" and not spec.get("answer_safe", True):
             if _looks_like_answer(value) and not (spec.get("keep_if_given") and _stated_in(value, question)):
                 value = str(spec.get("unknown", "?"))
+        values[name] = value
+    for name, spec in template["params"].items():
+        if spec.get("flag_of"):
+            values[name] = "1" if values.get(spec["flag_of"], "").strip() else "0"
+    for name, value in values.items():
         out = out.replace("__" + name + "__", value)
     return out
 
@@ -535,15 +556,17 @@ def ai_spec(template: dict) -> dict:
     """The constrained instruction the AI receives: fill THESE keys, nothing else.
 
     Returns a plain dict (the caller serializes it into the model prompt). The
-    AI must never emit TikZ - only a flat {slot: value} object.
+    AI must never emit TikZ - only a flat {slot: value} object. Local slots
+    (geometry the backend computes, flags) are not the model's to fill.
     """
+    params = {k: v for k, v in template["params"].items() if not (v.get("local") or v.get("flag_of"))}
     return {
         "template_id": template["id"],
-        "keys": list(template["params"].keys()),
-        "defaults": {k: v.get("default", "") for k, v in template["params"].items()},
+        "keys": list(params.keys()),
+        "defaults": {k: v.get("default", "") for k, v in params.items()},
         "fields": {
             k: {"type": v.get("type", "label"), "desc": v.get("desc", "")}
-            for k, v in template["params"].items()
+            for k, v in params.items()
         },
     }
 
