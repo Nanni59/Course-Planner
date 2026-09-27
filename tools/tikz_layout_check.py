@@ -114,9 +114,16 @@ def audit(name, tikz_options):
         if 'layout' not in out:
             return f'{name}: no layout report'
         if not out['layout']['issues']:
-            return None
+            return svg_problem(name, tikz)
         summary = summary or app._layout_summary(out['layout'])
     return f'{name}: {summary}'
+
+
+def svg_problem(name, tikz):
+    """Worksheets ship SVG: a hatch pattern rendered clean as PNG but converted
+    past the SVG size limit, so the job failed live."""
+    out = app._render(app.RenderReq(code=tikz, format='svg', theme='mono', target='worksheet'))
+    return None if out.get('ok') else f'{name}: SVG failed: {out.get("error")}'
 
 
 def fills(template, params):

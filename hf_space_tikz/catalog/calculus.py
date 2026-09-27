@@ -110,11 +110,12 @@ templates = [
   grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
-  % Fill first so it cannot paint over half of the curve's stroke. Area above
-  % the axis is filled and area below it hatched, so a signed area reads as
-  % two different regions (one fill showed both the same).
+  % Fill first so it cannot paint over half of the curve's stroke. Area below
+  % the axis is a darker grey than area above it, so a signed area reads as two
+  % regions (one fill showed both the same; a hatch pattern made the SVG too
+  % large to ship).
   \addplot[cp fill, draw=none, samples=160, domain=__A__:__B__] {max(0,__CURVE__)} \closedcycle;
-  \addplot[draw=none, pattern=north east lines, pattern color=gray, samples=160, domain=__A__:__B__] {min(0,__CURVE__)} \closedcycle;
+  \addplot[fill=black!35, draw=none, samples=160, domain=__A__:__B__] {min(0,__CURVE__)} \closedcycle;
   \addplot[cp line, samples=160, domain=__XMIN__:__XMAX__]{__CURVE__};
   % The label rides an invisible copy of the curve at 40% height, so it stays
   % between the curve and the x-axis for any bounds; the backend narrows its
