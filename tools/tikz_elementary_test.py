@@ -581,7 +581,7 @@ def rt(question):
     request = SimpleNamespace(title=question, brief='Question: ' + question, subject='', equation='', target='worksheet')
     return ns['_catalog_local_param_overrides'](request, 'right_triangle')
 assert rt('A 6 m ladder leans against a vertical wall and makes an angle of 72 degrees with the ground. How high up the wall does it reach?') == {'ANGLE_DEG': '72', 'ANGLAB': '72^\\circ', 'TOPANGLAB': ''}
-assert rt('A 5 m ladder makes an angle of 20 degrees with the wall. How far is its foot from the wall?') == {'ANGLE_DEG': '70', 'ANGLAB': '', 'TOPANGLAB': '20^\\circ'}
+assert rt('A 5 m ladder makes an angle of 20 degrees with the wall. How far is its foot from the wall?') == {'HEIGHTLAB': '', 'ANGLE_DEG': '70', 'ANGLAB': '', 'TOPANGLAB': '20^\\circ'}  # no unasked h
 got = overrides('Two boats leave the same harbour at the same time. One travels 12 km on a bearing of 035 degrees and the other travels 18 km on a bearing of 140 degrees. How far apart are they?', 'bearing_two_objects')
 assert got == {'B1': '35', 'B2': '140', 'L1': '12\\,\\mathrm{km}', 'L2': '18\\,\\mathrm{km}', 'LEN1': '12', 'LEN2': '18'}, got
 got = overrides('Two ships leave port. One sails at 20 km/h on a bearing of 070 and the other at 30 km/h on a bearing of 190. How far apart are they after 2 hours?', 'bearing_two_objects')
@@ -651,6 +651,42 @@ assert ns['_sinusoid_from_text']('y = 2cos(x) + 1 and y = 3cos(x)') is None
 got = overrides('Sketch y = -2cos(x) + 1 over one period and state its range.', 'sinusoid_amplitude_period')
 assert (got['AMPLITUDE_LABEL'], got['PERIOD_LABEL'], got['MIDLINE_LABEL']) == ('$A$', '$P$', 'midline'), got
 assert 'AMPLITUDE_LABEL' not in overrides('Sketch y = 3sin(x) over one period.', 'sinusoid_amplitude_period')
+
+# Round 4b. The model vetoed the blank number line (the brief asked for the
+# circle and shading) and the drawing that replaced it was the answer.
+inequality = SimpleNamespace(title='Solve 2x - 3 < 5 and show the solution on a number line.', brief='Draw a number line from -2 to 8 with an open circle at the boundary.',
+                             subject='Mathematics', equation='', target='worksheet', format='svg', theme='mono')
+saved = {k: ns[k] for k in ('_gemini', '_catalog_render')}
+ns['_gemini'] = lambda *args, **kwargs: {'_fit': 'no', '_why': 'the brief asks for a circle and shading'}
+ns['_catalog_render'] = lambda request, tmpl, params, source: {'ok': True, 'svg': '<svg/>', 'tikz': templates.fill(tmpl, params, target='worksheet')}
+got = ns['_catalog_generate'](inequality)
+assert got['ok'] and got['customized'] == 'catalog:number_line_blank' and 'circle' not in got['tikz'], got
+ns.update(saved)
+assert ns['_number_line_solution'](inequality) and not ns['_number_line_solution'](SimpleNamespace(title='Plot -2, 0.5 and 3 on a number line.'))
+# "5 m" as a math label printed an italic 5m
+assert '5\\,\\mathrm{m}' in templates.fill(templates.get('right_triangle'), {'HYPLAB': '5 m'}, target='worksheet')
+assert templates._upright_unit('2x', True) == '2x' and templates._upright_unit('5 m', False) == '5 m'
+# the arc follows its label out (a narrow top angle left its label mid-ladder)
+assert '\\cpn{max(\\cpn,min(\\cplabelin-0.1' in templates.get('right_triangle')['skeleton']
+# two-leg bearings: legs in proportion, labels beside their own legs
+got = overrides('A ship sails 40 km on a bearing of 065 degrees, then 30 km on a bearing of 150 degrees. How far is it from its starting point?', 'bearing_two_leg')
+assert (got['LEN1'], got['LEN2'], got['L1']) == ('40', '30', '40\\,\\mathrm{km}'), got
+assert templates.alternatives(templates.get('bearing_two_leg')) == 24 and 'midway,above' not in templates.get('bearing_two_leg')['skeleton']
+assert ns['_travel_bearing_values_from_text']('Two hikers leave camp on bearings of 050 and 160.') == [50, 160]
+# tick labels off the marked points and the window's edge
+assert 'xtick={\\cpxa,\\cpxb,...,\\cpxz}' in templates.get('rational_asymptotes')['skeleton']
+assert '\\cpdn<\\cpup,270,90' in templates.get('piecewise_linear')['skeleton']
+assert templates.alternatives(templates.get('function_tangent')) == 28
+assert 'ymax={max(6,__Y1__+1,__Y2__+1)}' in templates.get('secant_and_tangent')['skeleton']
+assert templates.alternatives(templates.get('function_inverse_reflection')) == 4
+got = ns['_catalog_local_param_overrides'](signed, 'definite_integral_shaded', {'CURVE': '(x+2)*(2-x)', 'A': '-2', 'B': '3'})
+assert got['TICK_DOWN'] == 'min(abs(round(\\tick*100)-(300)),1)', got  # the 3 goes above the dark fill
+got = overrides('The depth of water is modelled by d(t) = 2 cos(0.5t) + 5. State the amplitude.', 'sinusoid_amplitude_period')
+assert got['XVAR'] == 't' and 'cp ticks \\cpq' in templates.get('sinusoid_amplitude_period')['skeleton'], got
+# a linear system solved graphically: both lines from the question, no crossing label
+system = 'Solve the system y = 2x + 1 and y = -x + 4 graphically.'
+assert templates.route(system, 'Mathematics')['id'] == 'function_intersection_two_curves'
+assert overrides(system, 'function_intersection_two_curves') == {'XMIN': '-2', 'XMAX': '4', 'F': '((2*x)+1)', 'G': '((-x)+4)', 'F_LABEL': '$y=2x+1$', 'G_LABEL': '$y=-x+4$'}
 # The paired verdict records the model that answered and whether it saw the picture.
 ns['_job_trace'].last_model, ns['_job_trace'].last_pictured = 'gemini-x', True
 assert ns['_verifier_facts']() == {'model': 'gemini-x', 'picture': True} and ns['_verifier_facts']() == {}

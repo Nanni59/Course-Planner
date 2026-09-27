@@ -80,13 +80,29 @@ templates = [
   % Directions and label angles derive from the bearings (standard angle =
   % 90 - bearing; the arc label sits at 90 - bearing/2) instead of asking the
   % model to do that arithmetic.
-  \coordinate (P) at ({90-(__B1__)}:2.45);
-  \coordinate (Q) at ($(P)+({90-(__B2__)}:2.1)$);
+  % Legs in proportion to their distances (fixed lengths could draw a 10 km
+  % leg longer than a 50 km one), the shorter at least 0.45 of the longer (at
+  % 0.3 the first leg was shorter than its bearing label).
+  \pgfmathsetmacro\cpda{max(0.45,min(1,(__LEN1__)/max(__LEN2__,0.001)))}
+  \pgfmathsetmacro\cpdb{max(0.45,min(1,(__LEN2__)/max(__LEN1__,0.001)))}
+  \coordinate (P) at ({90-(__B1__)}:{2.6*\cpda});
+  \coordinate (Q) at ($(P)+({90-(__B2__)}:{2.6*\cpdb})$);
+  % label placement from the renderer: R1 / R2 (the other leg's far end or its
+  % mirror image), the fraction l along each leg, and the E label's side
+  \coordinate (Qr) at ($($(O)!(Q)!(P)$)!-1!(Q)$);
+  \coordinate (Or) at ($($(P)!(O)!(Q)$)!-1!(O)$);
+  @@ALT@@
   \draw[cp axis,-Stealth] (O)--(0,2.4) node[above] {$N$};
-  \draw[cp axis,-Stealth] (O)--(2.3,0) node[right] {$E$};
-  \draw[cp line,-Stealth] (O)--(P) node[midway,above right] {\ensuremath{__L1__}};
-  \draw[cp line,-Stealth] (P)--(Q) node[midway,above] {\ensuremath{__L2__}};
-  \draw[cp dashed] (O)--(Q) node[midway,below] {$d$};
+  % a short east reference: at 2.3 the second leg often crossed its E
+  \draw[cp axis,-Stealth] (O)--(1.5,0) node[cp east] {$E$};
+  \draw[cp line,-Stealth] (O)--(P);
+  \draw[cp line,-Stealth] (P)--(Q);
+  \draw[cp dashed] (O)--(Q);
+  % Distance labels beside their own legs by their measured size (midway above
+  % right ran each leg through its label), on the side away from R1 / R2.
+  \cpsidelabel[0.1]{O}{P}{R1}{\cpfl}{\ensuremath{__L1__}}
+  \cpsidelabel[0.1]{P}{Q}{R2}{\cpfl}{\ensuremath{__L2__}}
+  \cpsidelabel{O}{Q}{P}{0.65}{$d$}  % past the E label when d runs near due east
   \draw[cp dashed] (90:.62) arc[start angle=90,end angle={90-(__B1__)},radius=.62];
   % bearing labels past their arcs by their own size (at a fixed .88 and .84
   % the arc ran through a wide label such as 115)
@@ -98,9 +114,17 @@ templates = [
         "params": {
             "B1": {"type": "number", "default": "45", "desc": "first bearing value in degrees, clockwise from north"},
             "B2": {"type": "number", "default": "115", "desc": "second bearing value in degrees, clockwise from north"},
+            "LEN1": {"type": "number", "default": "1", "desc": "the first leg's distance as a plain number, for the drawn proportions"},
+            "LEN2": {"type": "number", "default": "1", "desc": "the second leg's distance as a plain number, in the same unit as LEN1"},
             "L1": {"type": "label", "default": "", "desc": "given distance of the first leg with unit, e.g. 12\\,\\mathrm{km}; empty when none is given (the bearing is already marked on its arc)"},
             "L2": {"type": "label", "default": "", "desc": "given distance of the second leg with unit; empty when none is given"},
         },
+        # the E label beside or below its arrow (a displacement near due east ran
+        # along it) x the distance labels' sides and fraction
+        "layout_alternatives": [rf'\tikzset{{cp east/.style={{{e}}}}}\coordinate (R1) at ({r1});\coordinate (R2) at ({r2});\pgfmathsetmacro\cpfl{{{l}}}'
+                                for e in ('anchor=west', 'anchor=north west')
+                                for l in ('0.5', '0.35', '0.65')
+                                for r1, r2 in (('Q', 'O'), ('Qr', 'O'), ('Q', 'Or'), ('Qr', 'Or'))],
     },
     {
         "id": "bearing_two_objects",
@@ -135,8 +159,8 @@ templates = [
   \coordinate (Qr) at ($($(O)!(Q)!(P)$)!-1!(Q)$);
   \coordinate (Pr) at ($($(O)!(P)!(Q)$)!-1!(P)$);
   @@ALT@@
-  \cpsidelabel{O}{P}{R1}{\cpfl}{\ensuremath{__L1__}}
-  \cpsidelabel{O}{Q}{R2}{\cpfl}{\ensuremath{__L2__}}
+  \cpsidelabel[0.1]{O}{P}{R1}{\cpfl}{\ensuremath{__L1__}}
+  \cpsidelabel[0.1]{O}{Q}{R2}{\cpfl}{\ensuremath{__L2__}}
   \cpsidelabel{P}{Q}{O}{\cpfd}{$__DLAB__$}
   % Separate radii keep the two bearing arcs apart. Each label goes in its own
   % part of its wedge, out past its arc by its own size: the first between N
@@ -160,7 +184,7 @@ templates = [
   \draw[cp dashed] (90:\cprr) arc[start angle=90,end angle={90-(__B2__)},radius=\cprr];
 \end{tikzpicture}""",
         "layout_alternatives": [rf'\coordinate (R1) at ({r1});\coordinate (R2) at ({r2});\pgfmathsetmacro\cpfd{{{f}}}\pgfmathsetmacro\cpfl{{{l}}}'
-                                for l in ('0.78', '0.55')
+                                for l in ('0.78', '0.55', '0.9', '0.35')
                                 for r1, r2 in (('Q', 'P'), ('Q', 'Pr'), ('Qr', 'P'), ('Qr', 'Pr'))
                                 for f in ('0.5', '0.3', '0.7')],
         "params": {
@@ -191,23 +215,27 @@ templates = [
   \coordinate (C) at ({4.4*cos(\cpt)},{4.4*sin(\cpt)});
   \draw[cp line] (A) -- (B) -- (C) -- cycle;
   \pic [draw=black, angle radius={min(0.45,0.3*4.4*min(cos(\cpt),sin(\cpt)))*1cm}] {right angle=C--B--A};
+  % Each angle label first, then its arc just inside it: in a narrow angle
+  % the label sits far out, and a small arc left it floating mid-side.
   \pgfmathsetmacro\cpm{min(0.55,0.4*4.4*cos(\cpt))}
-  \draw[draw opacity=__SHOWBASE__] ($(A)+(0:\cpm)$) arc[start angle=0,end angle=\cpt,radius=\cpm];
   \cpanglelabel{A}{\cpt/2}{\cpm}{\cpt/2}{$__ANGLAB__$}
+  \pgfmathsetmacro\cpm{max(\cpm,min(\cplabelin-0.1,0.6*4.4*cos(\cpt)))}
+  \draw[draw opacity=__SHOWBASE__] ($(A)+(0:\cpm)$) arc[start angle=0,end angle=\cpt,radius=\cpm];
   % the angle at the top (with a wall or the vertical), marked only when labelled
   \pgfmathsetmacro\cpn{min(0.55,0.4*4.4*sin(\cpt))}
-  \draw[draw opacity=__SHOWTOP__] ($(C)+(-90:\cpn)$) arc[start angle=-90,end angle={\cpt-180},radius=\cpn];
   \cpanglelabel{C}{(\cpt-270)/2}{\cpn}{(90-\cpt)/2}{$__TOPANGLAB__$}
-  \cpsidelabel{A}{B}{C}{0.5}{$__BASELAB__$}
-  \cpsidelabel{B}{C}{A}{0.5}{$__HEIGHTLAB__$}
-  \cpsidelabel{A}{C}{B}{0.5}{$__HYPLAB__$}
+  \pgfmathsetmacro\cpn{max(\cpn,min(\cplabelin-0.1,0.6*4.4*sin(\cpt)))}
+  \draw[draw opacity=__SHOWTOP__] ($(C)+(-90:\cpn)$) arc[start angle=-90,end angle={\cpt-180},radius=\cpn];
+  \cpsidelabel[0.12]{A}{B}{C}{0.5}{$__BASELAB__$}
+  \cpsidelabel[0.12]{B}{C}{A}{0.5}{$__HEIGHTLAB__$}
+  \cpsidelabel[0.12]{A}{C}{B}{0.5}{$__HYPLAB__$}
 \end{tikzpicture}""",
         "params": {
             "ANGLE_DEG": {"type": "number", "default": "34", "desc": "the true size of the base angle in degrees: the given angle, else found from the given sides, so the triangle has the right shape"},
             "ANGLAB": {"type": "label", "default": "", "desc": "angle label at the base vertex: a given value like 32^\\circ, \\theta / ? if it is the unknown, or empty when the angle given is at the top"},
             "SHOWBASE": {"type": "number", "default": "0", "flag_of": "ANGLAB"},
             "BASELAB": {"type": "label", "default": "", "desc": "label on the horizontal leg (given distance with unit, a symbol if it is the unknown, or empty)"},
-            "HEIGHTLAB": {"type": "label", "default": "h", "desc": "label on the vertical leg (given height with unit, or a symbol like h)", "answer_safe": False},
+            "HEIGHTLAB": {"type": "label", "default": "", "desc": "label on the vertical leg (given height with unit, a symbol like h if it is the unknown, or empty)", "answer_safe": False},
             "HYPLAB": {"type": "label", "default": "", "desc": "label on the hypotenuse / line of sight (e.g. the ladder length, or empty)"},
             "TOPANGLAB": {"type": "label", "default": "", "desc": "label for the angle at the top vertex, between the hypotenuse and the vertical side (an angle with a wall or the vertical), or empty"},
             "SHOWTOP": {"type": "number", "default": "0", "flag_of": "TOPANGLAB"},
