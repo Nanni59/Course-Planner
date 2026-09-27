@@ -106,16 +106,20 @@ templates = [
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
-  xtick={__A__,__B__}, xticklabels={__A_LABEL__,__B_LABEL__}, hide obscured x ticks=false,
+  xtick={__A__,__B__ __EXTRA_TICKS__}, xticklabels={__A_LABEL__,__B_LABEL__ __EXTRA_TICK_LABELS__}, hide obscured x ticks=false,
   grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
-  % Fill first so it cannot paint over half of the curve's stroke.
-  \addplot[cp fill, draw=none, samples=120, domain=__A__:__B__] {__CURVE__} \closedcycle;
-  \addplot[cp line, samples=120, domain=__XMIN__:__XMAX__]{__CURVE__};
+  % Fill first so it cannot paint over half of the curve's stroke. Area above
+  % the axis is filled and area below it hatched, so a signed area reads as
+  % two different regions (one fill showed both the same).
+  \addplot[cp fill, draw=none, samples=160, domain=__A__:__B__] {max(0,__CURVE__)} \closedcycle;
+  \addplot[draw=none, pattern=north east lines, pattern color=gray, samples=160, domain=__A__:__B__] {min(0,__CURVE__)} \closedcycle;
+  \addplot[cp line, samples=160, domain=__XMIN__:__XMAX__]{__CURVE__};
   % The label rides an invisible copy of the curve at 40% height, so it stays
-  % between the curve and the x-axis for any bounds.
-  \addplot[draw=none, samples=41, domain=__A__:__B__] {0.4*(__CURVE__)} node[cp label, pos=0.5] {__AREA_LABEL__};
+  % between the curve and the x-axis for any bounds; the backend narrows its
+  % stretch (fractions of the interval) to the filled part of a signed area.
+  \addplot[draw=none, samples=41, domain={__A__+(__B__-(__A__))*__LF0__}:{__A__+(__B__-(__A__))*__LF1__}] {0.4*(__CURVE__)} node[cp label, pos=0.5] {__AREA_LABEL__};
 \end{axis}
 \end{tikzpicture}""",
         "params": {
@@ -129,6 +133,12 @@ templates = [
             'A_LABEL': {'type': 'label', 'default': '$a$', 'desc': 'short x-axis label for the lower bound, using the given value when stated'},
             'B_LABEL': {'type': 'label', 'default': '$b$', 'desc': 'short x-axis label for the upper bound, using the given value when stated'},
             'AREA_LABEL':{'type': 'label', 'default': 'area', 'desc': 'short symbolic region label such as area or accumulated change; never the evaluated value'},
+            # set by the backend: the ticks where the curve crosses the axis inside
+            # the interval (",1" / ",$1$"), and the label's stretch of the interval
+            'EXTRA_TICKS': {'type': 'label', 'default': '', 'local': True},
+            'EXTRA_TICK_LABELS': {'type': 'label', 'default': '', 'local': True},
+            'LF0': {'type': 'number', 'default': '0', 'local': True},
+            'LF1': {'type': 'number', 'default': '1', 'local': True},
         },
     },
     {

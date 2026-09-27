@@ -17,31 +17,57 @@ templates = [
             "largest interior angle", "two sides of a triangle",
         ],
         "caption": "Triangle with interior angle and side labels.",
+        # The shape follows the interior angles at A and B (C gets the rest): a
+        # fixed shape drew 42 degrees as 60 and an 8 cm side longer than 11 cm.
+        # The backend solves the triangle from the question's givens when it can
+        # (SSS, SAS, SSA, two angles) and puts the largest angle at C, so AB, the
+        # longest side, is the base; otherwise the model supplies the angles.
         "skeleton": r"""\begin{tikzpicture}[scale=.9]
-  \coordinate (A) at (0,0); \coordinate (B) at (4.2,0); \coordinate (C) at (1.35,2.35);
+  \pgfmathsetmacro\cpa{min(170,max(4,__DEG_A__))}
+  \pgfmathsetmacro\cpb{min(176-\cpa,max(4,__DEG_B__))}
+  \pgfmathsetmacro\cpc{180-\cpa-\cpb}
+  \pgfmathsetmacro\cpl{4.2*sin(\cpb)/sin(\cpa+\cpb)}
+  \pgfmathsetmacro\cpr{4.2*sin(\cpa)/sin(\cpa+\cpb)}
+  % angle marks shrink with the shortest side and the height (in a flat
+  % triangle the label of the wide angle sat on the base)
+  \pgfmathsetmacro\cpm{min(0.55,0.3*min(\cpl,\cpr),0.35*\cpl*sin(\cpa))}
+  \coordinate (A) at (0,0); \coordinate (B) at (4.2,0); \coordinate (C) at (\cpa:\cpl);
+  \coordinate (G) at ($1/3*(A)+1/3*(B)+1/3*(C)$);
   \draw[cp line] (A)--(B)--(C)--cycle;
-  \node[below left] at (A) {$__A__$};
-  \node[below right] at (B) {$__B__$};
-  \node[above] at (C) {$__C__$};
-  \node[below] at ($(A)!0.5!(B)$) {$__AB__$};
-  \node[left] at ($(A)!0.5!(C)$) {$__AC__$};
-  \node[right] at ($(B)!0.5!(C)$) {$__BC__$};
-  \pic[draw=black,angle radius=6mm,"$__ANG_A__$",angle eccentricity=1.4]{angle=B--A--C};
-  \pic[draw=black,angle radius=6mm,"$__ANG_B__$",angle eccentricity=1.4]{angle=C--B--A};
-  \pic[draw=black,angle radius=6mm,"$__ANG_C__$",angle eccentricity=1.4]{angle=A--C--B};
+  % vertex names straight out from the centroid
+  \node[cp label] at ($(A)!-0.32cm!(G)$) {$__A__$};
+  \node[cp label] at ($(B)!-0.32cm!(G)$) {$__B__$};
+  \node[cp label] at ($(C)!-0.32cm!(G)$) {$__C__$};
+  \cpsidelabel{A}{B}{C}{0.5}{$__AB__$}
+  \cpsidelabel{A}{C}{B}{0.5}{$__AC__$}
+  \cpsidelabel{B}{C}{A}{0.5}{$__BC__$}
+  % an arc only where the angle is labelled; the label on its bisector, past
+  % its mark and clear of both sides
+  \draw[draw opacity=__SHOW_A__] ($(A)+(0:\cpm)$) arc[start angle=0,end angle=\cpa,radius=\cpm];
+  \draw[draw opacity=__SHOW_B__] ($(B)+({180-\cpb}:\cpm)$) arc[start angle={180-\cpb},end angle=180,radius=\cpm];
+  \draw[draw opacity=__SHOW_C__] ($(C)+({\cpa-180}:\cpm)$) arc[start angle={\cpa-180},end angle={-\cpb},radius=\cpm];
+  \cpanglelabel{A}{\cpa/2}{\cpm}{\cpa/2}{$__ANG_A__$}
+  \cpanglelabel{B}{180-\cpb/2}{\cpm}{\cpb/2}{$__ANG_B__$}
+  \cpanglelabel{C}{(\cpa-180-\cpb)/2}{\cpm}{\cpc/2}{$__ANG_C__$}
 \end{tikzpicture}""",
         "params": {
-            "A": {"type": "label", "default": "A", "desc": "bottom-left vertex label"},
-            "B": {"type": "label", "default": "B", "desc": "bottom-right vertex label"},
+            "A": {"type": "label", "default": "A", "desc": "vertex label at one end of the base"},
+            "B": {"type": "label", "default": "B", "desc": "vertex label at the other end of the base"},
             "C": {"type": "label", "default": "C", "desc": "top vertex label"},
-            "AB": {"type": "label", "default": "c", "desc": "label on side A-B (given value or symbol)"},
-            "AC": {"type": "label", "default": "b", "desc": "label on side A-C (given value or symbol)"},
-            "BC": {"type": "label", "default": "a", "desc": "label on side B-C (given value or symbol)"},
-            # All three angle arcs are always drawn; the ANG_* value only sets the
-            # arc's label. Empty => an unlabeled arc at that vertex (not a hidden one).
-            "ANG_A": {"type": "label", "default": "", "desc": "label for the angle arc at vertex A: a given value like 40^\\circ, ? if this angle is the unknown, or empty for an unlabeled arc"},
-            "ANG_B": {"type": "label", "default": "", "desc": "label for the angle arc at vertex B: given value like 60^\\circ, ?, or empty for an unlabeled arc"},
-            "ANG_C": {"type": "label", "default": "", "desc": "label for the angle arc at vertex C: given value, ?, or empty for an unlabeled arc"},
+            "DEG_A": {"type": "number", "default": "60", "desc": "the true interior angle at vertex A in degrees (the given value, else found from the givens), so the drawing has the right shape"},
+            "DEG_B": {"type": "number", "default": "50", "desc": "the true interior angle at vertex B in degrees"},
+            # Empty defaults: an empty value falls back to the default, and a
+            # stray side letter reads as another quantity to find.
+            "AB": {"type": "label", "default": "", "desc": "label on side A-B: its given length with unit, a symbol like x or ? if it is the unknown, or empty"},
+            "AC": {"type": "label", "default": "", "desc": "label on side A-C: given length, symbol if unknown, or empty"},
+            "BC": {"type": "label", "default": "", "desc": "label on side B-C: given length, symbol if unknown, or empty"},
+            # An angle is marked only when labelled: a given value, ? for the unknown.
+            "ANG_A": {"type": "label", "default": "", "desc": "label for the angle at vertex A: a given value like 40^\\circ, ? if this angle is the unknown, or empty for no mark"},
+            "ANG_B": {"type": "label", "default": "", "desc": "label for the angle at vertex B: given value like 60^\\circ, ?, or empty for no mark"},
+            "ANG_C": {"type": "label", "default": "", "desc": "label for the angle at vertex C: given value, ?, or empty for no mark"},
+            "SHOW_A": {"type": "number", "default": "0", "flag_of": "ANG_A"},
+            "SHOW_B": {"type": "number", "default": "0", "flag_of": "ANG_B"},
+            "SHOW_C": {"type": "number", "default": "0", "flag_of": "ANG_C"},
         },
     },
     {
@@ -88,9 +114,13 @@ templates = [
         "caption": "Two objects leaving a common point along two bearings, with the distance between them.",
         "skeleton": r"""\begin{tikzpicture}[scale=0.9]
   \coordinate (O) at (0,0);
-  % Directions and label angles derive from the bearings, as above.
-  \coordinate (P) at ({90-(__B1__)}:2.7);
-  \coordinate (Q) at ({90-(__B2__)}:2.3);
+  % Directions and label angles derive from the bearings, as above; the legs
+  % are in proportion to the distances (fixed lengths drew a 12 km leg longer
+  % than an 18 km one), the shorter at least 0.3 of the longer.
+  \pgfmathsetmacro\cpda{max(0.3,min(1,(__LEN1__)/max(__LEN2__,0.001)))}
+  \pgfmathsetmacro\cpdb{max(0.3,min(1,(__LEN2__)/max(__LEN1__,0.001)))}
+  \coordinate (P) at ({90-(__B1__)}:{3.2*\cpda});
+  \coordinate (Q) at ({90-(__B2__)}:{3.2*\cpdb});
   \draw[cp axis,-Stealth] (O)--(0,3.0) node[above] {$N$};
   \draw[cp axis,-Stealth] (O)--(3.0,0) node[right] {$E$};
   % Distance labels beside their own segments by their measured size (fixed
@@ -136,6 +166,8 @@ templates = [
         "params": {
             "B1": {"type": "number", "default": "20", "desc": "first bearing value in degrees, clockwise from north"},
             "B2": {"type": "number", "default": "110", "desc": "second bearing value in degrees, clockwise from north"},
+            "LEN1": {"type": "number", "default": "1", "desc": "the first object's distance travelled as a plain number (speed times time when only those are given), for the drawn proportions"},
+            "LEN2": {"type": "number", "default": "1", "desc": "the second object's distance travelled as a plain number, in the same unit as LEN1"},
             "L1": {"type": "label", "default": "d_1", "desc": "label on the first object's path (its distance travelled with unit, e.g. 45\\,\\mathrm{km})"},
             "L2": {"type": "label", "default": "d_2", "desc": "label on the second object's path (its distance travelled with unit)"},
             "DLAB": {"type": "label", "default": "d", "desc": "label for the distance between the two objects (the unknown); keep it symbolic like d", "answer_safe": False},
@@ -150,27 +182,35 @@ templates = [
             "slides away", "height of the", "elevation of",
         ],
         "caption": "Right triangle with a horizontal base, vertical height, hypotenuse, and the angle at the base.",
+        # The base angle is drawn at its size (a fixed 33 degree shape was
+        # labelled 72 for a ladder); the hypotenuse keeps one length.
         "skeleton": r"""\begin{tikzpicture}[scale=1]
+  \pgfmathsetmacro\cpt{min(82,max(8,__ANGLE_DEG__))}
   \coordinate (A) at (0,0);
-  \coordinate (B) at (3.8,0);
-  \coordinate (C) at (3.8,2.5);
+  \coordinate (B) at ({4.4*cos(\cpt)},0);
+  \coordinate (C) at ({4.4*cos(\cpt)},{4.4*sin(\cpt)});
   \draw[cp line] (A) -- (B) -- (C) -- cycle;
-  \pic [draw=black, angle radius=0.45cm] {right angle=C--B--A};
-  % Angle label on the bisector, outside its mark, out far enough to fit between
-  % the sides (the angle at A is atan(2.5/3.8) = 33.3 degrees). A computed angle
-  % eccentricity is not usable: the angles library splices it into a polar
-  % radius, where only a plain number behaves.
-  \pic [draw=black, angle radius=0.55cm] {angle=B--A--C};
-  \node[cp label] at ($(A)+(16.65:{max(0.85,0.3/sin(16.65))})$) {$__ANGLAB__$};
-  \node[cp label, below] at ($(A)!0.5!(B)$) {$__BASELAB__$};
-  \node[cp label, right] at ($(B)!0.5!(C)$) {$__HEIGHTLAB__$};
-  \node[cp label, above left] at ($(A)!0.5!(C)$) {$__HYPLAB__$};
+  \pic [draw=black, angle radius={min(0.45,0.3*4.4*min(cos(\cpt),sin(\cpt)))*1cm}] {right angle=C--B--A};
+  \pgfmathsetmacro\cpm{min(0.55,0.4*4.4*cos(\cpt))}
+  \draw[draw opacity=__SHOWBASE__] ($(A)+(0:\cpm)$) arc[start angle=0,end angle=\cpt,radius=\cpm];
+  \cpanglelabel{A}{\cpt/2}{\cpm}{\cpt/2}{$__ANGLAB__$}
+  % the angle at the top (with a wall or the vertical), marked only when labelled
+  \pgfmathsetmacro\cpn{min(0.55,0.4*4.4*sin(\cpt))}
+  \draw[draw opacity=__SHOWTOP__] ($(C)+(-90:\cpn)$) arc[start angle=-90,end angle={\cpt-180},radius=\cpn];
+  \cpanglelabel{C}{(\cpt-270)/2}{\cpn}{(90-\cpt)/2}{$__TOPANGLAB__$}
+  \cpsidelabel{A}{B}{C}{0.5}{$__BASELAB__$}
+  \cpsidelabel{B}{C}{A}{0.5}{$__HEIGHTLAB__$}
+  \cpsidelabel{A}{C}{B}{0.5}{$__HYPLAB__$}
 \end{tikzpicture}""",
         "params": {
-            "ANGLAB": {"type": "label", "default": "\\theta", "desc": "angle label at the base vertex: a given value like 32^\\circ, or \\theta / ? if it is the unknown"},
-            "BASELAB": {"type": "label", "default": "x", "desc": "label on the horizontal leg (given distance with unit, or a symbol)"},
+            "ANGLE_DEG": {"type": "number", "default": "34", "desc": "the true size of the base angle in degrees: the given angle, else found from the given sides, so the triangle has the right shape"},
+            "ANGLAB": {"type": "label", "default": "", "desc": "angle label at the base vertex: a given value like 32^\\circ, \\theta / ? if it is the unknown, or empty when the angle given is at the top"},
+            "SHOWBASE": {"type": "number", "default": "0", "flag_of": "ANGLAB"},
+            "BASELAB": {"type": "label", "default": "", "desc": "label on the horizontal leg (given distance with unit, a symbol if it is the unknown, or empty)"},
             "HEIGHTLAB": {"type": "label", "default": "h", "desc": "label on the vertical leg (given height with unit, or a symbol like h)", "answer_safe": False},
             "HYPLAB": {"type": "label", "default": "", "desc": "label on the hypotenuse / line of sight (e.g. the ladder length, or empty)"},
+            "TOPANGLAB": {"type": "label", "default": "", "desc": "label for the angle at the top vertex, between the hypotenuse and the vertical side (an angle with a wall or the vertical), or empty"},
+            "SHOWTOP": {"type": "number", "default": "0", "flag_of": "TOPANGLAB"},
         },
     },
     {

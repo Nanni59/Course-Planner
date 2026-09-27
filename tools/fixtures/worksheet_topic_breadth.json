@@ -140,7 +140,7 @@
   {"id": "disc_complete_graph", "topic": "Graph theory", "subject": "Data Management", "expect": "catalog:complete_graph_sketch",
    "question": "How many edges does the complete graph K5 have?",
    "brief": "Draw the complete graph K5 with five vertices and every pair connected."},
-  {"id": "alg_number_line", "topic": "Inequalities", "subject": "Mathematics", "expect": "reference",
+  {"id": "alg_number_line", "topic": "Inequalities", "subject": "Mathematics", "expect": "catalog:number_line_blank",
    "question": "Solve 2x - 3 < 5 and show the solution on a number line.",
    "brief": "Draw a number line from -2 to 8 with an open circle at the boundary and shading in the solution direction. Do not label the boundary value."},
   {"id": "alg_linear_system", "topic": "Linear systems", "subject": "Mathematics", "expect": "any",
