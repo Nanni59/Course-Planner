@@ -232,7 +232,8 @@ What happens with a report:
 
 `python tools/tikz_layout_check.py --variants` audits the whole catalog, the
 exact renderers and a set of value variants with the real compiler, at the
-worksheet scale-up the backend applies (1.22).
+worksheet scale-up the backend applies (1.22), and converts each chosen
+placement to SVG, as worksheets ship it, to catch one that exceeds the size limit.
 
 The wrapper defines two label macros templates use: `\cpanglelabel{vertex}{direction}{mark radius}{half gap}{text}`
 puts an angle label on its direction past its mark by its measured extent and
@@ -253,17 +254,27 @@ model (the model's values are kept only when the question does not settle them):
 - The right triangle draws its given angle at its size. An angle with the wall
   or the vertical is marked at the top.
 - The two-object bearing legs are in proportion to their distances (or to the
-  speeds when both travel for the same time).
+  speeds when both travel for the same time). A leg shows a distance only when
+  the question states it, else its speed or a symbol: speed times time is the
+  student's step.
+- A sinusoid's arrows carry the symbols A, P and midline whenever the question
+  asks for its amplitude, period, midline, range, maximum or minimum.
 - A sinusoid's A, B, C and D are read from its equation, with a cosine
-  converted to the sine form the template plots.
+  converted to the sine form the template plots. A diagram description that
+  repeats the equation is fine; two different equations are left to the model.
 - A definite integral takes its bounds and stated function from the question.
   When the question only says where the curve crosses the x-axis, a model curve
-  that crosses elsewhere is replaced by one that crosses there. Area below the
-  axis is hatched, area above it filled.
+  that crosses elsewhere, or on the wrong side of the axis, is replaced by one
+  that matches. Area below the axis is a darker grey than area above it (a
+  hatch pattern made the SVG too large to ship).
 - A related-rates circle and a boat crossing read their rates from the question.
 - An inequality's number line (`number_line_blank`) carries ticks only, since
   the boundary circle and the arrow are the answer. The readiness rules fail a
   drawn solution even when the description asks for one.
+
+Catalog renders skip the semantic checks written for model drawings (such as
+the rule against raw arcs in triangles, which rejected every triangle
+template). The template's structure is fixed; only its values are filled.
 
 Template params may be `local` (the model never sees them; overrides set them)
 or `flag_of` another slot (1 when that label is non-empty, for marks drawn only

@@ -30,6 +30,7 @@ exec(compile(ast.fix_missing_locations(ast.Module(body=helper_constants, type_ig
 real_gemini = ns['_gemini']
 real_readiness = ns['_readiness_verdict']
 real_choice = ns['_readiness_choice']
+real_verified_render = ns['_verified_render']
 
 questions = [
     'Triangle ABC is right-angled at A. AB = 6 cm and AC = 8 cm. Find BC. Diagram: Draw AB vertically and AC horizontally, label the vertices, and label BC as x.',
@@ -563,6 +564,10 @@ got = tri('In triangle DEF, DE = 8 cm, DF = 11 cm, and angle EDF = 64 degrees. F
           'Draw triangle DEF with DE = 8 cm and DF = 11 cm, mark angle EDF = 64 degrees at D, and label EF as x.')
 assert (got['A'], got['B'], got['C'], got['DEG_B']) == ('F', 'D', 'E', '64') and abs(float(got['DEG_A']) - 43.82) < 0.01, got
 assert (got['AB'], got['AC'], got['BC'], got['ANG_B'], got['ANG_A'], got['ANG_C']) == ('11\\,\\mathrm{cm}', 'x', '8\\,\\mathrm{cm}', '64^\\circ', '', ''), got
+# live, the worksheet title carries the drawing notes: "triangle DEF" there read as angle DEF
+noted = SimpleNamespace(title='In triangle DEF, DE = 8 cm, DF = 11 cm, and angle EDF = 64 degrees. Find EF.\nDiagram: Draw triangle DEF with DE = 8 cm and DF = 11 cm, mark angle EDF = 64 degrees at D, and label EF as x.',
+                        brief='Draw triangle DEF with DE = 8 cm and DF = 11 cm, mark angle EDF = 64 degrees at D, and label EF as x.', subject='', equation='', target='worksheet')
+assert ns['_catalog_local_param_overrides'](noted, 'triangle_general')['AC'] == 'x'
 got = tri('In triangle PQR, p = 7 cm, q = 9 cm and r = 12 cm. Find the largest angle.')
 assert got['ANG_C'] == '?' and got['C'] == 'R' and got['AB'] == '12\\,\\mathrm{cm}', got
 assert tri('In triangle XYZ, angle X = 40 degrees and XY = 12 m. Find YZ.') == {'A': 'X', 'B': 'Y', 'C': 'Z', 'AB': '12\\,\\mathrm{m}', 'ANG_A': '40^\\circ'}
@@ -580,7 +585,12 @@ assert rt('A 5 m ladder makes an angle of 20 degrees with the wall. How far is i
 got = overrides('Two boats leave the same harbour at the same time. One travels 12 km on a bearing of 035 degrees and the other travels 18 km on a bearing of 140 degrees. How far apart are they?', 'bearing_two_objects')
 assert got == {'B1': '35', 'B2': '140', 'L1': '12\\,\\mathrm{km}', 'L2': '18\\,\\mathrm{km}', 'LEN1': '12', 'LEN2': '18'}, got
 got = overrides('Two ships leave port. One sails at 20 km/h on a bearing of 070 and the other at 30 km/h on a bearing of 190. How far apart are they after 2 hours?', 'bearing_two_objects')
-assert got == {'B1': '70', 'B2': '190', 'LEN1': '20', 'LEN2': '30'}, got  # a speed is no distance label
+assert got == {'B1': '70', 'B2': '190', 'LEN1': '20', 'LEN2': '30', 'L1': '20\\,\\mathrm{km/h}', 'L2': '30\\,\\mathrm{km/h}'}, got
+# speed x time is the student's step: legs show speeds, and a distance the question
+# does not state becomes a symbol (a model labelled the legs 40 km and 60 km)
+hikers = SimpleNamespace(title='Two hikers leave camp on bearings of 050 and 160. How far apart are they?', brief='', subject='', equation='', target='worksheet')
+got = ns['_catalog_local_param_overrides'](hikers, 'bearing_two_objects', {'L1': '8\\,\\mathrm{km}', 'L2': 'd_2'})
+assert got == {'B1': '50', 'B2': '160', 'L1': 'd_1', 'L2': 'd_2'}, got
 # A cosine's phase was the model's to convert; it gave +pi for -pi and the
 # graph started at its minimum. The equation is read here.
 wave = ns['_sinusoid_from_text']('The depth of water in a harbour is modelled by d(t) = 2 cos(0.5t) + 5.')
@@ -602,7 +612,11 @@ kept = ns['_catalog_local_param_overrides'](signed, 'definite_integral_shaded', 
 assert 'CURVE' not in kept  # a model curve that crosses where stated stays
 got = overrides('Find the area under f(x) = x^2 + 1 from x = 0 to x = 2.', 'definite_integral_shaded')
 assert got['CURVE'] == '((x^2)+1)' and float(got['YMAX']) > 5, got
-assert 'pattern=north east lines' in templates.get('definite_integral_shaded')['skeleton']
+# a hatch pattern made the SVG too large to ship; below the axis is a darker grey
+assert 'pattern=' not in templates.get('definite_integral_shaded')['skeleton'] and 'fill=black!35' in templates.get('definite_integral_shaded')['skeleton']
+# the model's curve crossed at the stated x = 1 but upside down
+flipped = ns['_catalog_local_param_overrides'](signed, 'definite_integral_shaded', {'CURVE': '0.5*(x-1)*(x+3)', 'A': '-2', 'B': '3'})
+assert ns['_arith_eval'](ns['_arith_tree'](flipped['CURVE'], 'x'), 0.0) > 0, flipped
 # A given rate was hidden as ?: the guard judges the value after "=".
 ripple = 'The radius of a circular ripple increases at 3 cm/s. How fast is the area increasing when the radius is 10 cm?'
 got = overrides(ripple, 'related_rates_circle')
@@ -620,6 +634,23 @@ assert (got['BOATLAB'], got['CURRENTLAB'], got['WIDTHLAB']) == ('4\\,\\mathrm{m/
 assert templates.route('Solve 2x - 3 < 5 and show the solution on a number line.', 'Mathematics')['id'] == 'number_line_blank'
 assert overrides('Solve 2x - 3 < 5. Draw a number line from -2 to 8.', 'number_line_blank') == {'XMIN': '-2', 'XMAX': '8'}
 assert 'circle' not in templates.get('number_line_blank')['skeleton'] and 'IS the answer' in ns['_READINESS_RULES']
+# Live, the arc check meant for model drawings rejected every triangle template.
+ladder = SimpleNamespace(title='A 6 m ladder leans against a vertical wall and makes an angle of 72 degrees with the ground.', brief='', subject='', equation='', target='worksheet', format='svg', theme='mono')
+ladder_tikz = templates.fill(templates.get('right_triangle'), ns['_catalog_local_param_overrides'](ladder, 'right_triangle'), target='worksheet')
+assert ns['_semantic_visual_issue'](ladder, ladder_tikz)  # still guards model drawings
+saved_render, saved_enlarge = ns['_render'], ns.get('_enlarge_visual_code')
+ns['_render'] = lambda request: {'ok': True, 'svg': '<svg/>', 'layout': {'labels': 4, 'issues': []}}
+ns['_enlarge_visual_code'] = lambda request, code: code
+assert real_verified_render(ladder, ladder_tikz, source='catalog:right_triangle', run_critic=False)['ok']
+assert not real_verified_render(ladder, ladder_tikz, source='draft', run_critic=False)['ok']
+ns['_render'], ns['_enlarge_visual_code'] = saved_render, saved_enlarge
+# A worksheet's diagram description repeats the question's equation.
+wave = ns['_sinusoid_from_text']('d(t) = 2 cos(0.5t) + 5. State the amplitude. Diagram: Graph one cycle of d(t) = 2 cos(0.5t) + 5.')
+assert wave is not None and abs(wave['C'] + math.pi) < 1e-12, wave
+assert ns['_sinusoid_from_text']('y = 2cos(x) + 1 and y = 3cos(x)') is None
+got = overrides('Sketch y = -2cos(x) + 1 over one period and state its range.', 'sinusoid_amplitude_period')
+assert (got['AMPLITUDE_LABEL'], got['PERIOD_LABEL'], got['MIDLINE_LABEL']) == ('$A$', '$P$', 'midline'), got
+assert 'AMPLITUDE_LABEL' not in overrides('Sketch y = 3sin(x) over one period.', 'sinusoid_amplitude_period')
 # The paired verdict records the model that answered and whether it saw the picture.
 ns['_job_trace'].last_model, ns['_job_trace'].last_pictured = 'gemini-x', True
 assert ns['_verifier_facts']() == {'model': 'gemini-x', 'picture': True} and ns['_verifier_facts']() == {}

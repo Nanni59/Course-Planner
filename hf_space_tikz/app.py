@@ -1153,6 +1153,13 @@ def _extract_triangle_sides(text: str, vertices: tuple[str, str, str]) -> dict[s
     return edge_labels
 
 
+def _numbers_stated(value: str, text: str) -> bool:
+    """True when value has no number, or every number in it appears in text."""
+    numbers = re.findall(r"\d+(?:\.\d+)?", str(value or ""))
+    stated = {float(n) for n in re.findall(r"\d+(?:\.\d+)?", str(text or ""))}
+    return all(float(n) in stated for n in numbers)
+
+
 def _first_number(value: str) -> float | None:
     m = re.search(r"-?\d+(?:\.\d+)?", str(value or ""))
     return float(m.group(0)) if m else None
@@ -1209,7 +1216,7 @@ def _triangle_asked(question: str, brief: str, vertices: tuple[str, str, str],
     m = re.search(r"\b(?:find|calculate|determine|work out|solve for|what is|how (?:long|far|wide|tall))\b(.*)", question, re.I)
     if not m:
         return asked
-    clause = m.group(1)
+    clause = re.split(r"\bDiagram\s*:", m.group(1))[0]  # the question's ask, not the drawing notes
     verts = set(vertices)
 
     def symbol(names: list[str], default: str) -> str:
@@ -1225,7 +1232,8 @@ def _triangle_asked(question: str, brief: str, vertices: tuple[str, str, str],
         if v in verts:
             asked[v] = symbol([r"angle\s+" + name, name], "?")
     for pair in re.findall(r"\b([A-Z]{2})\b", clause):
-        if set(pair) <= verts and pair[0] != pair[1] and not re.search(r"angle\s+\w?" + pair, clause):
+        # not the arms of a named angle ("triangle DEF" once read as angle DEF)
+        if set(pair) <= verts and pair[0] != pair[1] and not re.search(r"\bangle\s+\w?" + pair + r"\b", clause):
             asked[pair] = symbol([pair], "?")
     for letter in re.findall(r"(?:\b(?:find|side|length(?: of)?|calculate|determine)\s+)([a-z])(?=\s*(?:[.,?;]|$|and\b))", "find " + clause):
         v = letter.upper()
@@ -1469,12 +1477,16 @@ def _extract_vector_magnitudes(text: str) -> list[str]:
 def _travel_bearing_values_from_text(text: str) -> list[int]:
     repaired = _repair_transport_escapes(text)
     directions: list[tuple[int, int]] = []
+    deg = r"(?:\s*(?:degrees?|deg|[°º˚∘]|\\circ|\^?\\circ))?"
     for m in re.finditer(
-        r"\b(?:bearing|heading)\s*(?:of|=|is|at)?\s*0*([0-9]{1,3})(?:\s*(?:degrees?|deg|[°º˚∘]|\\circ|\^?\\circ))?",
+        # "on bearings of 050 and 160" names two at once
+        r"\b(?:bearings?|headings?)\s*(?:of|=|is|at)?\s*0*([0-9]{1,3})" + deg + r"(?:\s*(?:,|and|,\s*and)\s*0*([0-9]{1,3})" + deg + r")?",
         repaired,
         re.I,
     ):
         directions.append((m.start(), int(float(m.group(1))) % 360))
+        if m.group(2):
+            directions.append((m.start(2), int(float(m.group(2))) % 360))
     for m in re.finditer(r"\b(?:due\s+)?(north|east|south|west)\b", repaired, re.I):
         window = repaired[max(0, m.start() - 24): m.end() + 24].lower()
         if "from north" in window or "clockwise from" in window:
@@ -3396,7 +3408,11 @@ def _worksheet_answer_safe_tikz(req: GenerateReq, tikz: str) -> str:
 
 def _verified_render(req: GenerateReq, tikz: str, source: str = "draft", run_critic: bool = True) -> dict:
     tikz = _worksheet_answer_safe_tikz(req, tikz)
-    semantic_issue = _semantic_visual_issue(req, tikz)
+    # The semantic checks guard model drawings (raw arcs a model drew outside
+    # an angle, a stray generic triangle). A catalog template's structure is
+    # fixed, and its triangles mark angles with arcs computed from the shape:
+    # the arc check rejected every triangle template.
+    semantic_issue = None if source.startswith("catalog") else _semantic_visual_issue(req, tikz)
     if semantic_issue:
         return {"ok": False, "error": semantic_issue, "log": semantic_issue}
     enlarged_tikz = _enlarge_visual_code(req, tikz)
@@ -4117,11 +4133,21 @@ def _arith_value(expr: str, var: str = "", at: float = 0.0) -> float | None:
 def _sinusoid_from_text(text: str) -> dict[str, float] | None:
     """A, B, C, D of the question's y = A sin(B(x - C)) + D, a cosine converted
     to that sine form (cos u = sin(u + pi/2)), so the graph starts where the
-    question's function does. None when there is no single such equation."""
+    question's function does. None unless every sine or cosine in the text is
+    in such an equation and they all agree (a worksheet's diagram description
+    repeats the question's equation)."""
     text = _repair_transport_escapes(str(text or "")).replace("−", "-")
-    m = re.search(r"=\s*([^=]*?)\\?(?<![A-Za-z])(sin|cos)\s*(?:\\left)?\(", text)
-    if not m or len(re.findall(r"(?<![A-Za-z])(?:sin|cos)\s*(?:\\left)?\(", text)) != 1:
+    calls = [c.start(1) for c in re.finditer(r"(?<![A-Za-z])(sin|cos)\s*(?:\\left)?\(", text)]
+    waves = [(m.start(2), _sinusoid_at(text, m)) for m in re.finditer(r"=\s*([^=]*?)\\?(?<![A-Za-z])(sin|cos)\s*(?:\\left)?\(", text)]
+    if not calls or sorted(pos for pos, _w in waves) != calls or any(w is None for _p, w in waves):
         return None
+    first = waves[0][1]
+    if any(any(abs(w[k] - first[k]) > 1e-9 for k in first) for _p, w in waves[1:]):
+        return None
+    return first
+
+
+def _sinusoid_at(text: str, m: re.Match) -> dict[str, float] | None:
     lead, fn = m.group(1), m.group(2)
     depth, i = 1, m.end()
     while i < len(text) and depth:
@@ -4203,6 +4229,13 @@ def _integral_overrides(req: GenerateReq, params: dict) -> dict[str, str]:
     if tree is None:
         model = _arith_tree(str(params.get("CURVE", "")), "x")
         if roots:
+            # the side of the axis the curve starts on, when the text says (the
+            # model's curve crossed at the stated x = 1 but upside down)
+            below_first = re.search(r"\b(below|negative)\b", text, re.I)
+            above_first = re.search(r"\b(above|positive)\b", text, re.I)
+            stated_sign = (-1.0 if below_first and (not above_first or below_first.start() < above_first.start())
+                           else 1.0 if above_first else 0.0)
+
             def fits(t) -> bool:
                 span = hi - lo
                 xs = [lo + span * i / 400 for i in range(401)]
@@ -4210,11 +4243,11 @@ def _integral_overrides(req: GenerateReq, params: dict) -> dict[str, str]:
                 if any(y is None for y in ys):
                     return False
                 changes = [xs[i] for i in range(400) if ys[i] * ys[i + 1] < 0 or (ys[i + 1] == 0 and 0 < i + 1 < 400)]
-                return len(changes) == len(roots) and all(abs(c - r) <= span / 200 + 1e-9 for c, r in zip(changes, roots))
+                first = _arith_eval(t, (lo + roots[0]) / 2) or 0.0
+                return (len(changes) == len(roots) and all(abs(c - r) <= span / 200 + 1e-9 for c, r in zip(changes, roots))
+                        and first * (stated_sign or first) > 0)
             if model is None or not fits(model):
-                below_first = re.search(r"\b(below|negative)\b", text, re.I)
-                above_first = re.search(r"\b(above|positive)\b", text, re.I)
-                sign = -1.0 if below_first and (not above_first or below_first.start() < above_first.start()) else 1.0
+                sign = stated_sign or 1.0
                 body = "*".join(f"({_clean_number(r)}-x)" for r in roots) + f"*(x-({_clean_number(lo - 1)}))"
                 probe = _arith_tree(body, "x")
                 peak = max(abs(_arith_eval(probe, lo + (hi - lo) * i / 200) or 0) for i in range(201)) or 1.0
@@ -4338,8 +4371,18 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str, params: d
                               "LEN1": _clean_number(_first_number(distances[0])),
                               "LEN2": _clean_number(_first_number(distances[1]))})
         elif len(speeds) == 2:
-            # same time for both, so the legs are in the ratio of the speeds
-            overrides.update({"LEN1": _clean_number(float(speeds[0])), "LEN2": _clean_number(float(speeds[1]))})
+            # same time for both, so the legs are in the ratio of the speeds. They
+            # are labelled with the speeds: speed x time is the student's step (a
+            # model labelled the legs 40 km and 60 km).
+            units = re.findall(r"\b\d+(?:\.\d+)?\s*(km\s*/\s*h|km\s+per\s+hour|kph|mph|knots?|m\s*/\s*s)\b", text, re.I)
+            overrides.update({"LEN1": _clean_number(float(speeds[0])), "LEN2": _clean_number(float(speeds[1])),
+                              "L1": _unit_label(speeds[0] + re.sub(r"\s+", "", units[0]).replace("perhour", "/h")),
+                              "L2": _unit_label(speeds[1] + re.sub(r"\s+", "", units[1]).replace("perhour", "/h"))})
+        else:
+            # a distance the question does not state is a result, not a label
+            for slot, symbol in (("L1", "d_1"), ("L2", "d_2")):
+                if not _numbers_stated(str((params or {}).get(slot, "")), text):
+                    overrides[slot] = symbol
     elif template_id in {"vector_add_head_to_tail", "vector_add_parallelogram"}:
         overrides.update({"ULAB": avec, "VLAB": bvec, "SUM": avec + "+" + bvec})
     elif template_id == "vector_resultant_from_angle":
@@ -4472,6 +4515,11 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str, params: d
             unit = re.sub(r"\s+", "", rate.group(2))
             overrides["DR_LABEL"] = r"$\frac{dr}{dt}=" + rate.group(1) + r"\,\mathrm{" + unit + "}$"
     elif template_id == "sinusoid_amplitude_period":
+        if (re.search(r"\b(?:state|find|determine|identify|give|write|what|calculate)\b", _question_text(req), re.I)
+                and re.search(r"\b(?:amplitude|period|midline|range|maximum|minimum|max|min)\b", _question_text(req), re.I)):
+            # asked for any of these, the arrows carry symbols: amplitude,
+            # midline and period labels together gave the range away
+            overrides.update({"AMPLITUDE_LABEL": "$A$", "PERIOD_LABEL": "$P$", "MIDLINE_LABEL": "midline"})
         wave = _sinusoid_from_text(_question_text(req))
         if wave:
             overrides.update({slot: _clean_number(round(wave[key], 4) + 0.0) for slot, key in (
