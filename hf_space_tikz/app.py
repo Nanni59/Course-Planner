@@ -4206,6 +4206,25 @@ def _integral_overrides(req: GenerateReq, params: dict) -> dict[str, str]:
               or re.search(r"\bbetween\s+x\s*=\s*" + num + r"\s+and\s+x\s*=\s*" + num, question, re.I)
               or re.search(r"\bfrom\s+" + num + r"\s+to\s+" + num + r"\b", question, re.I))
     lo_hi = None
+    # an accumulation function: F(x) = integral of f(t) from a to x is the area
+    # up to a moving endpoint, drawn against t with the endpoint labelled x
+    accumulate = re.search(r"\bintegral\s+of\s+(.+?)\s+(?:dt\s+)?from\s+(-?\d+(?:\.\d+)?)\s+to\s+([a-z])\b", question, re.I)
+    if accumulate and accumulate.group(3) != "t":
+        var = next((v for v in "tsuv" if re.search(r"\b" + v + r"\b|\d" + v + r"\b", accumulate.group(1))), "")
+        tree = _arith_tree(accumulate.group(1).replace(var, "x") if var else accumulate.group(1), "x")
+        if var and tree is not None:
+            lo = float(accumulate.group(2))
+            end = accumulate.group(3)
+            b = _first_number(params.get("B", ""))
+            hi = b if b is not None and b > lo else lo + 2
+            out.update({"XVAR": var, "A": _clean_number(lo), "B": _clean_number(hi),
+                        "A_LABEL": "$" + _clean_number(lo) + "$", "B_LABEL": "$" + end + "$",
+                        "CURVE": _arith_pgf(tree, "x")})
+            named = re.search(r"\b([A-Z])\s*\(\s*" + end + r"\s*\)", question)
+            if named:
+                out["AREA_LABEL"] = "$" + named.group(1) + "(" + end + ")$"
+            bounds = None
+            lo_hi = (lo, hi)
     if bounds:
         lo, hi = float(bounds.group(1)), float(bounds.group(2))
         if lo < hi:
@@ -4218,8 +4237,8 @@ def _integral_overrides(req: GenerateReq, params: dict) -> dict[str, str]:
             return out
         lo_hi = (a, b)
     lo, hi = lo_hi
-    tree = None
-    stated = re.search(r"\b(?:f|g|y)\s*(?:\(\s*x\s*\))?\s*=\s*(.+?)(?=\s*(?:,|;|\bfrom\b|\bbetween\b|\bon\b|\bover\b|\bfor\b|\band\b|\.\s|\.?$))", question)
+    tree = _arith_tree(out["CURVE"], "x") if "CURVE" in out else None
+    stated = None if tree is not None else re.search(r"\b(?:f|g|y)\s*(?:\(\s*x\s*\))?\s*=\s*(.+?)(?=\s*(?:,|;|\bfrom\b|\bbetween\b|\bon\b|\bover\b|\bfor\b|\band\b|\.\s|\.?$))", question)
     if stated:
         tree = _arith_tree(stated.group(1), "x")
     roots = []
@@ -4293,6 +4312,35 @@ def _integral_overrides(req: GenerateReq, params: dict) -> dict[str, str]:
         if best[0] > 0:
             out.update({"LF0": _clean_number(round(best[1] / 200, 3)), "LF1": _clean_number(round(best[2] / 200, 3))})
     return out
+
+
+def _two_functions(text: str):
+    """The two functions a question names (y = ..., f(x) = ..., g(x) = ...) as
+    pgfplots expressions with their legend labels, and where they cross
+    (sampled over -20..20, refined); None unless exactly two parse."""
+    found = []
+    for m in re.finditer(r"\b(?:y|f\s*\(\s*x\s*\)|g\s*\(\s*x\s*\))\s*=\s*(.+?)(?=\s*(?:,|;|\band\b|\bgraphically\b|\bon\b|\bfor\b|\.\s|\.?$|\bDiagram\b))", text):
+        tree = _arith_tree(m.group(1), "x")
+        if tree is not None and all(_arith_pgf(tree, "x") != pgf for pgf, _l in found):
+            found.append((_arith_pgf(tree, "x"), "$" + re.sub(r"\s+", "", m.group(0)) + "$"))
+    if len(found) != 2:
+        return None
+    ft, gt = _arith_tree(found[0][0], "x"), _arith_tree(found[1][0], "x")
+
+    def diff(x: float) -> float:
+        return (_arith_eval(ft, x) or 0.0) - (_arith_eval(gt, x) or 0.0)
+    cross = []
+    xs = [-20 + i * 0.05 for i in range(801)]
+    for i in range(800):
+        lo, hi = xs[i], xs[i + 1]
+        if diff(lo) == 0:
+            cross.append(lo)
+        elif diff(lo) * diff(hi) < 0:
+            for _ in range(40):
+                mid = (lo + hi) / 2
+                lo, hi = (lo, mid) if diff(lo) * diff(mid) <= 0 else (mid, hi)
+            cross.append((lo + hi) / 2)
+    return found[0], found[1], cross
 
 
 def _catalog_local_param_overrides(req: GenerateReq, template_id: str, params: dict | None = None) -> dict[str, str]:
@@ -4512,22 +4560,35 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str, params: d
         overrides.update(_integral_overrides(req, params or {}))
     elif template_id == "function_intersection_two_curves":
         # both functions from the question, the window around their crossings
-        found = []
-        for m in re.finditer(r"\b(?:y|f\s*\(\s*x\s*\)|g\s*\(\s*x\s*\))\s*=\s*(.+?)(?=\s*(?:,|;|\band\b|\bgraphically\b|\bon\b|\bfor\b|\.\s|\.?$|\bDiagram\b))", _question_text(req)):
-            tree = _arith_tree(m.group(1), "x")
-            if tree is not None and all(_arith_pgf(tree, "x") != pgf for pgf, _l in found):
-                found.append((_arith_pgf(tree, "x"), m.group(0).strip()))
-        if len(found) == 2:
-            (f, flab), (g, glab) = found
-            ft, gt = _arith_tree(f, "x"), _arith_tree(g, "x")
-            xs = [-20 + i * 0.05 for i in range(801)]
-            diff = [(_arith_eval(ft, x) or 0.0) - (_arith_eval(gt, x) or 0.0) for x in xs]
-            cross = [xs[i] for i in range(800) if diff[i] == 0 or diff[i] * diff[i + 1] < 0]
+        pair = _two_functions(_question_text(req))
+        if pair:
+            (f, flab), (g, glab), cross = pair
             if cross:
-                lo, hi = min(cross), max(cross)
-                overrides.update({"XMIN": _clean_number(math.floor(lo) - 3), "XMAX": _clean_number(math.ceil(hi) + 3)})
-            overrides.update({"F": f, "G": g,
-                              "F_LABEL": "$" + re.sub(r"\s+", "", flab) + "$", "G_LABEL": "$" + re.sub(r"\s+", "", glab) + "$"})
+                overrides.update({"XMIN": _clean_number(math.floor(min(cross)) - 3), "XMAX": _clean_number(math.ceil(max(cross)) + 3)})
+            overrides.update({"F": f, "G": g, "F_LABEL": flab, "G_LABEL": glab})
+    elif template_id == "area_between_curves":
+        # both curves from the question; the shading runs between the outer
+        # crossings, which get no label
+        pair = _two_functions(_question_text(req))
+        if pair:
+            (f, flab), (g, glab), cross = pair
+            overrides.update({"F": f, "G": g, "F_LABEL": flab, "G_LABEL": glab})
+            if len(cross) >= 2:
+                a, b = min(cross), max(cross)
+                pad = max(1.0, 0.3 * (b - a))
+                xmin, xmax = a - pad, b + pad
+                ft, gt = _arith_tree(f, "x"), _arith_tree(g, "x")
+                ys = [v for x in (xmin + (xmax - xmin) * i / 200 for i in range(201))
+                      for v in (_arith_eval(ft, x), _arith_eval(gt, x)) if v is not None]
+                inner = [v for x in (a + (b - a) * i / 100 for i in range(101))
+                         for v in (_arith_eval(ft, x), _arith_eval(gt, x)) if v is not None]
+                lo_y, hi_y = min(inner + [0.0]), max(inner + [0.0])
+                # the window keeps the region whole and the curves a little past it,
+                # not every far-off value of a steep curve
+                lo_y, hi_y = max(min(ys), lo_y - 0.5 * (hi_y - lo_y) - 1), min(max(ys), hi_y + 0.3 * (hi_y - lo_y) + 1)
+                overrides.update({"A": _clean_number(round(a, 4)), "B": _clean_number(round(b, 4)),
+                                  "XMIN": _clean_number(round(xmin, 2)), "XMAX": _clean_number(round(xmax, 2)),
+                                  "YMIN": _clean_number(round(lo_y, 2)), "YMAX": _clean_number(round(hi_y, 2))})
     elif template_id == "number_line_blank":
         span = re.search(r"\bnumber\s+line\b[^.]{0,40}?\bfrom\s+(-?\d+)\s+to\s+(-?\d+)", _request_text(req), re.I)
         if span and int(span.group(1)) < int(span.group(2)):
@@ -4777,7 +4838,7 @@ A visual is READY only if ALL of these hold:
 - Correct type: the diagram is the right kind of visual for the question and actually illustrates it (not a formula poster, not an unrelated shape).
 - Consistent: it agrees with the givens in the question (labels, counts, signs, angles, and quantities match). A shaded region must be exactly the region the question describes (FAIL shading that spills outside the region between two curves). For cross products, the drawn result vector must obey the right-hand rule for the two drawn vectors (e.g. j x i points along -z, NOT +z); FAIL a cross-product arrow pointing the wrong way.
 - Interior angles: in a named angle XYZ, Y is the vertex. Unless the question explicitly asks for an exterior, reflex, or major angle, the mark and its label must lie in the smaller interior sector between YX and YZ. For circle theorems, FAIL angle AOB = 80 degrees if the diagram marks the exterior 280-degree sector, and FAIL angle ACB if its mark is outside the inscribed triangle rather than between CA and CB.
-- Answer-safe: it does not reveal a value the student is asked to find (a solved magnitude, coordinate, angle, or final answer); such values appear only as a symbol or ?, and placeholders like ? or (?, ?) are correct. Values STATED IN THE QUESTION are givens and may be labelled, including given vectors, points, coordinates, and lengths (e.g. v = <2, 3, 4> when the question gives it). Guide lines, dashed drops, or tick labels that locate an unknown point on the axes reveal its coordinates: FAIL them unless the question gives that point. When the student must solve an inequality or show its solution, a circle or dot at the boundary and shading or an arrow in one direction IS the answer: FAIL it, even if the description asks for it.
+- Answer-safe: it does not reveal a value the student is asked to find (a solved magnitude, coordinate, angle, or final answer); such values appear only as a symbol or ?, and placeholders like ? or (?, ?) are correct. Values STATED IN THE QUESTION are givens and may be labelled, including given vectors, points, coordinates, and lengths (e.g. v = <2, 3, 4> when the question gives it). Guide lines, dashed drops, or tick labels that locate an unknown point on the axes reveal its coordinates: FAIL them unless the question gives that point. When the student must solve an inequality or show its solution, a circle or dot at the boundary and shading or an arrow in one direction IS the answer: FAIL it, even if the description asks for it. A label (axis tick numbers aside) may show only numbers the question states: FAIL a label with a value the student has to work out, including an intermediate result such as a Venn region count, a branch probability, a constraint equation or a distance computed from speed and time, even if the description asks for it.
 - Legible: labels are not degenerate - nothing tiny, collapsed, overlapping, or cramped into the origin. FAIL a diagram whose supposedly independent vectors are drawn nearly collinear, or whose parallelogram/triangle collapses to a sliver."""
 
 

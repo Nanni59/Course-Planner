@@ -687,6 +687,34 @@ assert got['XVAR'] == 't' and 'cp ticks \\cpq' in templates.get('sinusoid_amplit
 system = 'Solve the system y = 2x + 1 and y = -x + 4 graphically.'
 assert templates.route(system, 'Mathematics')['id'] == 'function_intersection_two_curves'
 assert overrides(system, 'function_intersection_two_curves') == {'XMIN': '-2', 'XMAX': '4', 'F': '((2*x)+1)', 'G': '((-x)+4)', 'F_LABEL': '$y=2x+1$', 'G_LABEL': '$y=-x+4$'}
+
+# Round 6, the strict rule: a label shows only numbers the question states.
+venn_q = 'In a class of 30 students, 18 play soccer, 12 play basketball, and 5 play both. How many play neither?'
+filled = templates.fill(templates.get('venn_two'), {'VA': '13', 'VAB': '5', 'VB': '7', 'VN': '?'}, target='worksheet', question=venn_q)
+assert '{13}' not in filled and '{7}' not in filled and '{5}' in filled  # 18 - 5 was the answer to "only soccer"
+tree_q = 'A bag contains 4 red and 6 blue marbles. Two marbles are drawn without replacement. Find the probability that both are red.'
+filled = templates.fill(templates.get('probability_tree'), {'P1': '\\frac{4}{10}', 'P3': '\\frac{3}{9}'}, target='worksheet', question=tree_q)
+assert '3}{9' not in filled and '{$?$}' in filled
+stated_tree = templates.fill(templates.get('probability_tree'), {'P1': '0.3', 'P3': '0.6', 'P4': '0.4'}, target='worksheet', question='P(A) = 0.3 and P(B|A) = 0.6.')
+assert '{$0.3$}' in stated_tree and '{$0.6$}' in stated_tree and '{$0.4$}' not in stated_tree  # stated values stay, 1 - 0.6 does not
+for opt in ('optimization_rectangle', 'optimization_river_rectangle'):
+    assert '= __P__' not in templates.get(opt)['skeleton'] and 'P' not in templates.get(opt)['params']  # no constraint equation
+assert 'Venn region count' in ns['_READINESS_RULES']
+# The inverse template failed to compile on f(x) = 2^x sent without $...$.
+filled = templates.fill(templates.get('function_inverse_reflection'), {'F_LABEL': 'f(x) = 2^x', 'INV_LABEL': 'g(x) = \\log_2(x)'}, target='worksheet')
+assert '{$f(x) = 2^x$}' in filled and '{$g(x) = \\log_2(x)$}' in filled
+assert templates._math_wrapped('(4-(x^2))') == '(4-(x^2))'  # a plot expression stays bare
+assert templates._in_math('\\node {$__A__^\\circ$};', '__A__') and not templates._in_math('\\node {__A__};', '__A__')
+# Area between two curves: a catalog template, shading between the crossings, no crossing labels.
+area_q = 'Find the area enclosed by y = 4 - x^2 and y = x + 2.'
+assert templates.route(area_q, 'Calculus')['id'] == 'area_between_curves'
+got = overrides(area_q, 'area_between_curves')
+assert (got['F'], got['G'], got['A'], got['B'], got['F_LABEL']) == ('(4-(x^2))', '(x+2)', '-2', '1', '$y=4-x^2$'), got
+assert 'fill between[of=cpf and cpg' in templates.get('area_between_curves')['skeleton']
+# An accumulation function: the area up to a moving x, against t, labelled F(x) inside it.
+acc = SimpleNamespace(title='For F(x) equal to the integral of t^2 + 1 from 0 to x, explain what F(x) represents geometrically.', brief='', subject='', equation='', target='worksheet')
+got = ns['_catalog_local_param_overrides'](acc, 'definite_integral_shaded', {'B': '2'})
+assert (got['XVAR'], got['CURVE'], got['A'], got['B_LABEL'], got['AREA_LABEL']) == ('t', '((x^2)+1)', '0', '$x$', '$F(x)$'), got
 # The paired verdict records the model that answered and whether it saw the picture.
 ns['_job_trace'].last_model, ns['_job_trace'].last_pictured = 'gemini-x', True
 assert ns['_verifier_facts']() == {'model': 'gemini-x', 'picture': True} and ns['_verifier_facts']() == {}

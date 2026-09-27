@@ -5,7 +5,7 @@ Slots are __UPPER__; skeletons are raw strings; every slot has a params entry.
 """
 
 EVENT_DESC = 'short outcome name from the question (plain words; maths in $...$)'
-PROB_DESC = 'probability as the question gives it: a decimal such as 0.4, or a fraction written \\frac{4}{10} (no $ signs),'
+PROB_DESC = 'probability exactly as the question states it: a decimal such as 0.4, or a fraction written \\frac{4}{10} (no $ signs); ? when the student has to work it out,'
 
 templates = [
     {
@@ -167,13 +167,15 @@ templates = [
 \end{tikzpicture}""",
         "params": {
             # Labels, not numbers: a number field kept only the first number of
-            # "4/10" (a without-replacement tree printed 4, 3, 6 ...).
-            'P1': {'type': 'label', 'default': '0.5', 'desc': PROB_DESC + ' on the first branch from the root'},
-            'P2': {'type': 'label', 'default': '0.5', 'desc': PROB_DESC + ' on the second branch from the root'},
-            'P3': {'type': 'label', 'default': '0.6', 'desc': PROB_DESC + ' on the first sub-branch of branch 1'},
-            'P4': {'type': 'label', 'default': '0.4', 'desc': PROB_DESC + ' on the second sub-branch of branch 1'},
-            'P5': {'type': 'label', 'default': '0.7', 'desc': PROB_DESC + ' on the first sub-branch of branch 2'},
-            'P6': {'type': 'label', 'default': '0.3', 'desc': PROB_DESC + ' on the second sub-branch of branch 2'},
+            # "4/10" (a without-replacement tree printed 4, 3, 6 ...). A branch
+            # shows only a probability the question states (3/9 on the second
+            # draw is the student's step); others show ?.
+            'P1': {'type': 'label', 'default': '0.5', 'desc': PROB_DESC + ' on the first branch from the root', 'stated_only': True},
+            'P2': {'type': 'label', 'default': '0.5', 'desc': PROB_DESC + ' on the second branch from the root', 'stated_only': True},
+            'P3': {'type': 'label', 'default': '0.6', 'desc': PROB_DESC + ' on the first sub-branch of branch 1', 'stated_only': True},
+            'P4': {'type': 'label', 'default': '0.4', 'desc': PROB_DESC + ' on the second sub-branch of branch 1', 'stated_only': True},
+            'P5': {'type': 'label', 'default': '0.7', 'desc': PROB_DESC + ' on the first sub-branch of branch 2', 'stated_only': True},
+            'P6': {'type': 'label', 'default': '0.3', 'desc': PROB_DESC + ' on the second sub-branch of branch 2', 'stated_only': True},
             'E1': {'type': 'label', 'default': 'A', 'desc': EVENT_DESC + ' of the first branch from the root, e.g. Red'},
             'E2': {'type': 'label', 'default': 'B', 'desc': EVENT_DESC + ' of the second branch from the root, e.g. Blue'},
             'L1': {'type': 'label', 'default': 'A', 'desc': EVENT_DESC + ' of the first sub-branch of branch 1 (the second-stage outcome), e.g. Red'},
@@ -208,9 +210,11 @@ templates = [
         "params": {
             'LA': {'type': 'label', 'default': '$A$', 'desc': 'Label of the left set'},
             'LB': {'type': 'label', 'default': '$B$', 'desc': 'Label of the right set'},
-            'VA': {'type': 'label', 'default': '$x$', 'desc': 'Value in the left-only region'},
-            'VAB': {'type': 'label', 'default': '$y$', 'desc': 'Value in the intersection region'},
-            'VB': {'type': 'label', 'default': '$z$', 'desc': 'Value in the right-only region'},
+            # a region shows only a count the question states (13 from 18 - 5 was
+            # the answer to "how many play only soccer"); others show ?
+            'VA': {'type': 'label', 'default': '$x$', 'desc': 'Value in the left-only region: the count the question states, else ?', 'stated_only': True},
+            'VAB': {'type': 'label', 'default': '$y$', 'desc': 'Value in the intersection region: the count the question states, else ?', 'stated_only': True},
+            'VB': {'type': 'label', 'default': '$z$', 'desc': 'Value in the right-only region: the count the question states, else ?', 'stated_only': True},
             'LU': {'type': 'label', 'default': '$U$', 'desc': 'Label of the universal set (the rectangle), e.g. $U$ or $S$'},
             # answer-guarded without keep_if_given: "neither" is usually the value
             # asked for, and it can equal a stated number (30 students, 18, 12 and
