@@ -137,9 +137,14 @@ with several label placements ("placement 2 of 5 collides", then "no clean
 placement; kept placement ..." when none is clean).
 
 The worksheet's Report issue JSON preserves this information. It does not label
-every failure as a rate limit. Custom TikZ readiness is a source-code check, not an
-image inspection; an unavailable verifier no longer counts as success. Template
-parameter failures do not render invented default givens.
+every failure as a rate limit. Custom TikZ readiness is checked by a Gemini call
+that reads the drawing code and, on Gemini models, looks at a small rendered PNG
+of it (Gemma models read the code alone; a request refused with the picture is
+retried once without it). Values the question states may be labelled; only values
+the student must find have to be a symbol or ?. An unavailable verifier never
+counts as success. Template parameter failures do not render invented default
+givens. `/render` returns that PNG as `preview_png` when asked with
+`"preview": true`.
 
 ## Hugging Face Setup
 
@@ -189,7 +194,7 @@ const TIKZ_SPACE_URL = "https://yourname-tikz-renderer.hf.space";
 Every catalog, exact and model-drawn diagram is checked in its rendered form
 for labels that a line, curve or axis runs through, labels that overlap each
 other, and labels covered by something drawn after them. The readiness
-verifier only reads TikZ source, so it cannot see these.
+verifier looks at a small picture, which is no reliable way to find these.
 
 How it works: the compiled document gets a second page with the same picture
 and every node's text invisible (fills kept). Page 1 logs each node's corners
@@ -203,10 +208,13 @@ without a report. `TIKZ_LAYOUT_CHECK=0` turns the check off.
 What happens with a report:
 
 - Model-drawn diagrams spend their one repair on the collisions (the prompt
-  names each label). The repair and the draft are then judged for readiness,
-  the one with fewer collisions first (the repair on a tie), and the first to
-  pass ships; a `layout-choice` event says when that was the draft. If the
-  repair fails outright, the colliding draft still gets its readiness check.
+  names each label). The draft and the repair then get one readiness verdict
+  together (codes, pictures and each one's label report; the one with fewer
+  collisions is version A, the repair on a tie), which names the version to
+  ship ("PASS A" or "PASS B") or fails both. Separate verdicts once failed a
+  label in the repair and passed the same label in its draft. A
+  `layout-choice` event says when the draft shipped, including when the repair
+  produced no usable drawing.
 - Model code has hyphenated TikZ option names fixed before compiling
   (`line-width=` becomes `line width=`; TikZ read the typo as an arrow tip).
 - Catalog templates can list candidate label placements in

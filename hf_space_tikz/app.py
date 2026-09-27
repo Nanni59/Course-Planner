@@ -91,9 +91,12 @@ _TIKZ_EXCERPT_BUDGET = 6000     # per job, across all events
 def _tikz_excerpt(code: str, events: list) -> str:
     """The drawing code behind a failed or colliding attempt, so a compile error
     or a label collision can be reproduced from the job trace alone. Whitespace
-    is collapsed; long code keeps its head and tail (a compile error at
+    and comments are dropped; long code keeps its head and tail (a compile error at
     \\end{tikzpicture} can come from either); one job keeps at most the budget."""
-    code = "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in str(code or "").splitlines() if line.strip())
+    # TeX comments go first: a model's "let's recompute" notes pushed the cut
+    # into the middle of its drawing code.
+    lines = (re.sub(r"(?<!\\)%.*", "", line) for line in str(code or "").splitlines())
+    code = "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in lines if line.strip())
     for key in GEMINI_KEYS:
         code = code.replace(key, "[redacted]")
     if len(code) > _TIKZ_EXCERPT_CHARS:
@@ -195,6 +198,7 @@ class RenderReq(BaseModel):
     theme: Literal["green", "mono"] = "green"
     target: Literal["slide", "worksheet", "guide", "flashcard", "generic"] = "generic"
     layout: bool = Field(False, description="Also report label collisions found in the rendered picture")
+    preview: bool = Field(False, description="Also return a small PNG of the picture (preview_png, base64)")
 
 
 class GenerateReq(BaseModel):
@@ -546,7 +550,10 @@ def _is_gemma(model: str) -> bool:
     return model.startswith("gemma-")
 
 
-def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
+def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25, images: list[str] | None = None):
+    """images: base64 PNGs sent after the prompt to Gemini models. Gemma lanes get
+    the prompt alone: image input on the hosted Gemma API is not established, and
+    a refused Gemma request rests that model for an hour."""
     if not GEMINI_KEYS:
         raise RuntimeError("No Gemini API key is set on the Space.")
 
@@ -585,6 +592,9 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25):
         _diagnostic("model-attempt", model=model, key_slot=key_idx + 1)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         payload = body
+        if images and not _is_gemma(model):
+            payload = {**body, "contents": [{"parts": body["contents"][0]["parts"] + [
+                {"inline_data": {"mime_type": "image/png", "data": image}} for image in images]}]}
         if _is_gemma(model) and "responseMimeType" in body["generationConfig"]:
             # Gemma's JSON-mode support is not established; the reply is parsed
             # from text below either way.
@@ -3462,6 +3472,21 @@ def _layout_check(work: Path, stem: str) -> dict | None:
     return _layout_analyse(log, words, pages[1], shown=pages[0][2])
 
 
+_PREVIEW_DPI = 110            # small enough for the readiness check, large enough to read labels
+_PREVIEW_MAX_BYTES = 400_000
+
+
+def _preview_png(work: Path, pdf_path: Path) -> str | None:
+    """Page 1 as a small PNG (base64) for the readiness check to look at; None
+    when it cannot be made, and the check then reads the code alone."""
+    out = work / "preview.png"
+    result = _run(["pdftocairo", "-f", "1", "-l", "1", "-singlefile", "-png", "-r", str(_PREVIEW_DPI),
+                   str(pdf_path), str(out.with_suffix(""))], work)
+    if result.returncode != 0 or not out.exists() or out.stat().st_size > _PREVIEW_MAX_BYTES:
+        return None
+    return base64.b64encode(out.read_bytes()).decode("ascii")
+
+
 def _render(req: RenderReq) -> dict:
     reason = _reject_reason(req.code)
     if reason:
@@ -3502,6 +3527,7 @@ def _render(req: RenderReq) -> dict:
                 layout = _layout_check(work, stem)
             except Exception as exc:  # a failed check reports nothing; the render stands
                 print(f"[layout] check failed: {str(exc)[:160]}", flush=True)
+        preview = _preview_png(work, pdf_path) if req.preview else None
 
         if req.format == "png":
             convert_result = _run(
@@ -3525,6 +3551,8 @@ def _render(req: RenderReq) -> dict:
             }
             if layout is not None:
                 result["layout"] = layout
+            if preview:
+                result["preview_png"] = preview
             return result
 
         convert_result = _run(["pdf2svg", str(pdf_path), str(svg_path), "1"], work)
@@ -3545,6 +3573,8 @@ def _render(req: RenderReq) -> dict:
         }
         if layout is not None:
             result["layout"] = layout
+        if preview:
+            result["preview_png"] = preview
         return result
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": f"TikZ render timed out after {RENDER_TIMEOUT} seconds."}
@@ -4148,19 +4178,24 @@ def _catalog_references(req: GenerateReq, k: int = 3) -> list:
         return []
 
 
+_READINESS_RULES = """The Course Planner wrapper predefines the styles cp axis, cp line, cp dashed, cp fill, cp point, cp label. Do NOT flag those as undefined.
+
+When rendered pictures are attached (one per version, in order), check the picture as well as the code: shaded regions, marked angles, plotted curves and points must be where the question puts them. Without a picture, judge from the code.
+
+A visual is READY only if ALL of these hold:
+- Correct type: the diagram is the right kind of visual for the question and actually illustrates it (not a formula poster, not an unrelated shape).
+- Consistent: it agrees with the givens in the question (labels, counts, signs, angles, and quantities match). A shaded region must be exactly the region the question describes (FAIL shading that spills outside the region between two curves). For cross products, the drawn result vector must obey the right-hand rule for the two drawn vectors (e.g. j x i points along -z, NOT +z); FAIL a cross-product arrow pointing the wrong way.
+- Interior angles: in a named angle XYZ, Y is the vertex. Unless the question explicitly asks for an exterior, reflex, or major angle, the mark and its label must lie in the smaller interior sector between YX and YZ. For circle theorems, FAIL angle AOB = 80 degrees if the diagram marks the exterior 280-degree sector, and FAIL angle ACB if its mark is outside the inscribed triangle rather than between CA and CB.
+- Answer-safe: it does not reveal a value the student is asked to find (a solved magnitude, coordinate, angle, or final answer); such values appear only as a symbol or ?, and placeholders like ? or (?, ?) are correct. Values STATED IN THE QUESTION are givens and may be labelled, including given vectors, points, coordinates, and lengths (e.g. v = <2, 3, 4> when the question gives it).
+- Legible: labels are not degenerate - nothing tiny, collapsed, overlapping, or cramped into the origin. FAIL a diagram whose supposedly independent vectors are drawn nearly collinear, or whose parallelogram/triangle collapses to a sliver."""
+
+
 def _readiness_prompt(req: GenerateReq, tikz: str) -> str:
     return f"""You are a strict readiness checker for a math worksheet diagram. Given the QUESTION and a proposed TikZ visual, decide if the visual is READY to show to a student.
 
-The Course Planner wrapper predefines the styles cp axis, cp line, cp dashed, cp fill, cp point, cp label. Do NOT flag those as undefined.
+{_READINESS_RULES}
 
-Respond with EXACTLY "PASS" only if ALL of these hold:
-- Correct type: the diagram is the right kind of visual for the question and actually illustrates it (not a formula poster, not an unrelated shape).
-- Consistent: it agrees with the givens in the question (labels, counts, signs, angles, and quantities match). For cross products, the drawn result vector must obey the right-hand rule for the two drawn vectors (e.g. j x i points along -z, NOT +z); FAIL a cross-product arrow pointing the wrong way.
-- Interior angles: in a named angle XYZ, Y is the vertex. Unless the question explicitly asks for an exterior, reflex, or major angle, the mark and its label must lie in the smaller interior sector between YX and YZ. For circle theorems, FAIL angle AOB = 80 degrees if the diagram marks the exterior 280-degree sector, and FAIL angle ACB if its mark is outside the inscribed triangle rather than between CA and CB.
-- Answer-safe: it does not reveal a value the student is asked to find - solved magnitudes, coordinate tuples, computed results, or final answers appear only as a symbol or ?.
-- Legible: labels are not degenerate - nothing tiny, collapsed, overlapping, or cramped into the origin. FAIL a diagram whose supposedly independent vectors are drawn nearly collinear, or whose parallelogram/triangle collapses to a sliver.
-
-Otherwise respond with "FAIL: <one short reason>".
+Respond with EXACTLY "PASS" if the visual is READY, otherwise "FAIL: <one short reason>".
 
 QUESTION:
 {_raw_request_text(req)[:2200]}
@@ -4170,17 +4205,69 @@ PROPOSED TikZ:
 """.strip()
 
 
-def _readiness_verdict(req: GenerateReq, tikz: str) -> tuple[str, str]:
-    """Source-code gate for custom drawings. A verifier outage is not a PASS."""
+def _readiness_pair_prompt(req: GenerateReq, first: str, second: str, reports: tuple[str, str]) -> str:
+    return f"""You are a strict readiness checker for a math worksheet diagram. Given the QUESTION and two versions of a TikZ visual (A, then B: a draft and its revision), decide which, if either, is READY to show to a student.
+
+{_READINESS_RULES}
+
+Label problems an automatic check found in the rendered pictures:
+A: {reports[0] or "none"}
+B: {reports[1] or "none"}
+
+Judge both versions by the same rules. Respond with EXACTLY "PASS A" or "PASS B", naming the better version that is READY (the one with fewer label problems when both are, A on a tie), or "FAIL: <one short reason>" if neither is READY.
+
+QUESTION:
+{_raw_request_text(req)[:2200]}
+
+VERSION A TikZ:
+{first[:4000]}
+
+VERSION B TikZ:
+{second[:4000]}
+""".strip()
+
+
+def _readiness_call(prompt: str, images: list[str]) -> str:
+    """One verifier call; a request refused with the pictures attached is retried
+    once without them, so a model that rejects images cannot blank a diagram."""
+    try:
+        return _gemini(prompt, as_json=False, temperature=0.0, **({"images": images} if images else {})).strip()
+    except Exception as exc:
+        if images and "error 400" in str(exc):
+            _diagnostic("readiness-picture-refused", str(exc))
+            return _gemini(prompt, as_json=False, temperature=0.0).strip()
+        raise
+
+
+def _readiness_verdict(req: GenerateReq, tikz: str, image: str | None = None) -> tuple[str, str]:
+    """Readiness gate for a custom drawing: its code and, when given, its rendered
+    picture. A verifier outage is not a PASS."""
     if not GEMINI_KEYS:
         return "FAIL", "verifier unavailable"
     try:
-        out = _gemini(_readiness_prompt(req, tikz), as_json=False, temperature=0.0).strip()
+        out = _readiness_call(_readiness_prompt(req, tikz), [image] if image else [])
     except Exception as exc:
         return "FAIL", "verifier error: " + str(exc)[:120]
     if out.upper() == "PASS":
         return "PASS", ""
     return "FAIL", out[:220] or "readiness check failed"
+
+
+def _readiness_choice(req: GenerateReq, codes: tuple[str, str], images: tuple, reports: tuple[str, str]) -> tuple[int | None, str]:
+    """One verifier call comparing two versions of a drawing: (index of the
+    version to ship, "") or (None, reason). Judging them in separate calls let
+    one verdict fail a label the other passed."""
+    if not GEMINI_KEYS:
+        return None, "verifier unavailable"
+    try:
+        out = _readiness_call(_readiness_pair_prompt(req, codes[0], codes[1], reports),
+                              [i for i in images if i] if all(images) else [])
+    except Exception as exc:
+        return None, "verifier error: " + str(exc)[:120]
+    m = re.match(r"\W*PASS\W*([AB])?\b", out.upper())
+    if m:
+        return (1 if m.group(1) == "B" else 0), ""
+    return None, out[:220] or "readiness check failed"
 
 
 # TikZ option names with spaces that models write hyphenated. TikZ reads an
@@ -4196,19 +4283,46 @@ def _fix_key_typos(tikz: str) -> str:
     return _KEY_TYPOS.sub(r"\1 \2", tikz)
 
 
+def _ship_reference(rendered: dict, enlarged: str, caption: str) -> dict:
+    rendered.pop("preview_png", None)  # for the verifier only; the client gets the picture itself
+    rendered["tikz"] = enlarged
+    rendered["caption"] = caption
+    rendered["customized"] = "reference-fallback"
+    return rendered
+
+
+def _issue_count(candidate: tuple) -> int:
+    return len(candidate[0].get("layout", {}).get("issues", []))
+
+
 def _judge_reference(req: GenerateReq, rendered: dict, enlarged: str, caption: str) -> tuple[str, str]:
-    """Readiness verdict for a rendered model drawing; a pass is finished for
-    shipping. Its code goes in the trace unless a layout event already has it,
-    so a problem the checks missed in a shipped diagram can still be traced."""
-    verdict, reason = _readiness_verdict(req, enlarged)
+    """Readiness verdict for one rendered model drawing (code and picture); a
+    pass is ready to ship. Its code goes in the trace unless a layout event
+    already has it, so a problem the checks missed can still be traced."""
+    verdict, reason = _readiness_verdict(req, enlarged, rendered.get("preview_png"))
     logged = bool(rendered.get("layout", {}).get("issues"))
     _diagnostic("readiness", reason or verdict, **({} if logged else {"tikz": enlarged}))
     if verdict == "PASS":
-        rendered["tikz"] = enlarged
-        rendered["caption"] = caption
-        rendered["customized"] = "reference-fallback"
+        _ship_reference(rendered, enlarged, caption)
         print(f"[reference] PASS ({reason or 'ready'})", flush=True)
     return verdict, reason
+
+
+def _judge_reference_pair(req: GenerateReq, pair: list) -> tuple[int | None, str]:
+    """One readiness verdict over a colliding draft and its repair, the one with
+    fewer label problems first: (index to ship, "") or (None, reason)."""
+    index, reason = _readiness_choice(
+        req,
+        (pair[0][1], pair[1][1]),
+        (pair[0][0].get("preview_png"), pair[1][0].get("preview_png")),
+        (_layout_summary(pair[0][0].get("layout", {})), _layout_summary(pair[1][0].get("layout", {}))),
+    )
+    unlogged = [c for c in pair if not c[0].get("layout", {}).get("issues")]
+    if index is not None and not pair[index][0].get("layout", {}).get("issues"):
+        unlogged = [pair[index]]
+    detail = reason if index is None else "PASS " + "AB"[index]
+    _diagnostic("readiness", detail, **({"tikz": unlogged[0][1]} if unlogged else {}))
+    return index, reason
 
 
 def _reference_generate(req: GenerateReq) -> dict | None:
@@ -4261,7 +4375,8 @@ def _reference_generate(req: GenerateReq) -> dict | None:
             _diagnostic("semantic-rejection", repair_log, tikz=safe)
             continue
         enlarged = _enlarge_visual_code(req, safe)
-        rendered = _render(RenderReq(code=enlarged, format=req.format, theme=req.theme, target=req.target, layout=True))
+        rendered = _render(RenderReq(code=enlarged, format=req.format, theme=req.theme, target=req.target,
+                                     layout=True, preview=True))
         if not rendered.get("ok"):
             repair_log = rendered.get("log") or rendered.get("error") or "TikZ compile failed."
             _diagnostic("render-error", repair_log, tikz=enlarged)
@@ -4281,27 +4396,28 @@ def _reference_generate(req: GenerateReq) -> dict | None:
                 )
                 colliding = (rendered, enlarged, caption)
                 continue
-        candidates = [(rendered, enlarged, caption)]
         draft = colliding
         if draft:
-            # The repair of a colliding draft: whichever of the two collides less
-            # is judged first (the repair on a tie), then the other. A repair
-            # that made the collisions worse used to ship over its draft, and a
-            # draft whose only fault was label placement was dropped when its
-            # repair failed readiness.
-            candidates.append(draft)
-            candidates.sort(key=lambda c: len(c[0].get("layout", {}).get("issues", [])))
+            # The repair of a colliding draft: one verdict over both, the one with
+            # fewer label problems first (the repair on a tie). Separate verdicts
+            # failed the repair's "(?, ?)" and passed the same label in its draft,
+            # which then shipped with more collisions.
+            pair = sorted([(rendered, enlarged, caption), draft], key=_issue_count)
             colliding = None
-        for candidate in candidates:
-            verdict, reason = _judge_reference(req, *candidate)
+            index, reason = _judge_reference_pair(req, pair)
+            if index is not None:
+                chosen = pair[index]
+                if chosen is draft:
+                    _diagnostic("layout-choice", f"shipped the draft ({_issue_count(draft)} label problems) "
+                                f"over its repair ({_issue_count(pair[1 - index])})")
+                return _ship_reference(*chosen)
+        else:
+            verdict, reason = _judge_reference(req, rendered, enlarged, caption)
             if verdict == "PASS":
-                if candidate is draft:
-                    why = "failed readiness" if candidate is candidates[-1] else "collided more"
-                    _diagnostic("layout-choice", f"shipped the draft: its repair {why}")
-                return candidate[0]
-            if reason.startswith('verifier'):
-                return {"ok": False, "error": "Diagram verification unavailable: " + reason}
-            repair_log = "The previous diagram failed the readiness check: " + reason
+                return rendered
+        if reason.startswith('verifier'):
+            return {"ok": False, "error": "Diagram verification unavailable: " + reason}
+        repair_log = "The previous diagram failed the readiness check: " + reason
         print(f"[reference] readiness FAIL, {'repairing' if attempt == 0 else 'blanking'}: {reason}", flush=True)
     if colliding:
         # The repair of a colliding draft produced nothing usable: the draft itself,
@@ -4309,6 +4425,7 @@ def _reference_generate(req: GenerateReq) -> dict | None:
         rendered, enlarged, caption = colliding
         verdict, _reason = _judge_reference(req, rendered, enlarged, caption)
         if verdict == "PASS":
+            _diagnostic("layout-choice", "shipped the draft: its repair produced no usable drawing")
             return rendered
     return {"ok": False, "error": repair_log[:500] or "No verified diagram was produced."}
 
