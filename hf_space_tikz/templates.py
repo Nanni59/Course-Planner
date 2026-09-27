@@ -172,7 +172,8 @@ def catalog_errors() -> list[str]:
                 errors.append(f"{tid}: missing required key '{key}'")
         skeleton = t.get("skeleton", "")
         params = t.get("params", {})
-        slots = set(_SLOT_RE.findall(skeleton))
+        # a slot may also appear only in the label placements (they are filled too)
+        slots = set(_SLOT_RE.findall(skeleton + "".join(t.get("layout_alternatives", []))))
         for slot in slots:
             if slot not in params:
                 errors.append(f"{tid}: skeleton slot __{slot}__ has no params entry")

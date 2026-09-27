@@ -25,7 +25,7 @@ ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, threading=thread
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
 helper_constants = [n for n in tree.body if isinstance(n, ast.Assign)
-                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id in ('_NUM', '_KEY_TYPOS', '_READINESS_RULES')) for t in n.targets)]
+                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id in ('_NUM', '_KEY_TYPOS', '_READINESS_RULES', '_JSON_TEX_WORDS')) for t in n.targets)]
 exec(compile(ast.fix_missing_locations(ast.Module(body=helper_constants, type_ignores=[])), '<helper constants>', 'exec'), ns)
 real_gemini = ns['_gemini']
 real_readiness = ns['_readiness_verdict']
@@ -206,7 +206,8 @@ for vec in ((2, 1.5, 1), (2, 1.1, 0.8), (1, 0.55, 0.4), (1, 0.3, 0.75), (3, 4, 5
     best = max(_proj_len(*vec, -0.55, -0.4), _proj_len(*vec, -0.3, -0.75))
     assert best >= 0.3 * math.dist(vec, (0, 0, 0)), vec
 # Head-to-tail labels sit at their own arrow's midpoint, not piled up on a shared tip.
-for tid, mids in (('vector_add_head_to_tail', ('(O)!0.5!(U)', '(U)!0.5!(Vend)', '(O)!0.5!(Vend)')),
+# (vector_add_head_to_tail places them with \cpsidelabel: segment, far point, fraction)
+for tid, mids in (('vector_add_head_to_tail', ('\\cpsidelabel{O}{U}{Vend}{0.5}', '\\cpsidelabel{U}{Vend}{O}{0.5}', '\\cpsidelabel{O}{Vend}{U}{0.5}')),
                   ('vector_subtraction_head_to_tail', ('(O)!0.5!(U)', '(O)!0.5!(V)', '(V)!0.5!(U)'))):
     tikz = templates.fill(templates.get(tid), {}, target='worksheet')
     assert all(m in tikz for m in mids) and not re.search(r'\((?:U|V|Vend)\) node', tikz), tid
@@ -435,6 +436,24 @@ def refuses_pictures(prompt, as_json=False, temperature=0.25, images=None):
 ns['_gemini'] = refuses_pictures
 assert ns['_readiness_verdict'](req, 'code', 'png') == ('PASS', '') and tries == [['png'], None]
 ns['_gemini'] = real_gemini
+# TeX commands a model leaves unescaped in its JSON keep their backslash: \tiny
+# came back as a TAB and "iny" (tick labels read "iny6"). \b and \f are always
+# commands, \t \n \r only as known words; an escape JSON does not define is a
+# command too; well-formed JSON and real line breaks are untouched.
+fix = ns['_json_tex_escapes']
+raw = r'{"tikz": "\draw (0,0) node {\tiny 6}; \node {$\frac{1}{2}$} \beta \\node \underline{x} °", "caption": "a\nb\tc\nnode"}'
+parsed = json.loads(fix(raw))
+assert parsed['tikz'] == '\\draw (0,0) node {\\tiny 6}; \\node {$\\frac{1}{2}$} \\beta \\node \\underline{x} °', parsed
+assert parsed['caption'] == 'a\nb\tc\nnode'
+good = json.dumps({'tikz': '\\draw (0,0) node {\\tiny 6};\n\\node {$\\frac12$};\t', 'c': 'x\ny'})
+assert json.loads(fix(good)) == json.loads(good)
+# The wrapper defines the label macros templates rely on.
+wrapper = ns['_template']('\\draw (0,0)--(1,0);', 'mono', 'worksheet') if '_template' in ns else ''
+assert '\\newcommand{\\cpanglelabel}[5]' in wrapper and '\\newcommand{\\cpsidelabel}[6][0.06]' in wrapper and '\\xdef\\cplabelout' in wrapper
+# A slot used only in a template's label placements counts as used.
+assert not templates.catalog_errors() and '__LABEL_X__' not in templates.get('function_tangent')['skeleton']
+assert '__LABEL_X__' in templates.get('function_tangent')['layout_alternatives'][0]
+assert '\\pgfmathsetmacro\\cplx{0.5}' in templates.fill(templates.get('function_tangent'), {'LABEL_X': '0.5'})
 # Hyphenated TikZ keys are fixed before compiling; label text is not touched.
 assert ns['_fix_key_typos']('grid style={line-width=.1pt, dash-pattern = on 2pt}, node[inner-sep=1pt] {$line-width$}') == \
     'grid style={line width=.1pt, dash pattern = on 2pt}, node[inner sep=1pt] {$line-width$}'

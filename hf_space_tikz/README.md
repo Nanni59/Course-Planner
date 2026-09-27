@@ -219,6 +219,10 @@ What happens with a report:
   produced no usable drawing.
 - Model code has hyphenated TikZ option names fixed before compiling
   (`line-width=` becomes `line width=`; TikZ read the typo as an arrow tip).
+- A model's JSON reply has TeX backslashes restored before it is parsed: an
+  unescaped `\tiny` came back as a tab and "iny", `\node` as a line break and
+  "ode". `\b` and `\f` are always commands; `\t`, `\n`, `\r` only as known
+  command names; an escape JSON does not define (`\draw`) is a command too.
 - Catalog templates can list candidate label placements in
   `layout_alternatives` (TikZ fragments substituted for the skeleton's
   `@@ALT@@` slot, wherever it appears, preferred first). The renderer tries
@@ -229,6 +233,14 @@ What happens with a report:
 `python tools/tikz_layout_check.py --variants` audits the whole catalog, the
 exact renderers and a set of value variants with the real compiler, at the
 worksheet scale-up the backend applies (1.22).
+
+The wrapper defines two label macros templates use: `\cpanglelabel{vertex}{direction}{mark radius}{half gap}{text}`
+puts an angle label on its direction past its mark by its measured extent and
+clear of both sides of its gap (it leaves the label's inner and outer radius in
+`\cplabelin` / `\cplabelout` for arcs drawn after it), and
+`\cpsidelabel[margin]{P}{Q}{R}{fraction}{text}` puts a label beside segment PQ on
+the side away from R by its measured extent. Both measure in picture units,
+without inner sep, so the worksheet scale-up and the check agree.
 
 The "covered or cut off" test needs two characters on one text line before it
 checks how much of its box a label's glyphs span, so a stacked one-digit

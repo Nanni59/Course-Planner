@@ -54,48 +54,52 @@ templates = [
   \draw[cp line,-Stealth] (O)--(A);
   \draw[cp line,-Stealth] (A)--(G);
   \draw[cp dashed,-Stealth] (O)--(G);
-  % Speed labels sit outside the triangle O-A-G (its orientation is the sign
-  % of sin(wind - air)), clear of their lines by their own measured size. The
-  % air and ground speeds are written along their arrows: a wide label such as
-  % 500 km/h cannot fit beside a steep arrow, least of all in the bearing wedge.
-  % The air speed sits out along its arrow, past the bearing label.
+  % Placement: the wind and ground labels at fraction f along their arrows,
+  % the ground label on side g and the air-speed label on side a (1: outside
+  % the triangle O-A-G, whose orientation is the sign of sin(wind - air);
+  % -1: inside it, where there is room when the bearing label needs the wedge).
+  @@ALT@@
+  % Speed labels clear of their lines by their own measured size. The air and
+  % ground speeds are written along their arrows: a wide label such as 500 km/h
+  % cannot fit beside a steep arrow, least of all in the bearing wedge. The air
+  % speed sits out along its arrow (fraction af), past the bearing label; inside
+  % a tall triangle at its middle (out there it reached the wind arrow).
+  \pgfmathsetmacro\cpo{ifthenelse(sin(__WINDANG__-(__AIRANG__))<0,90,-90)}
   \node[cp label,overlay,opacity=0] (cpmA) at (0,0) {$__AIRLAB__$};
   \path let \p1=($(A)-(O)$), \n1={atan2(\y1,\x1)}, \p2=($(cpmA.north east)-(cpmA.south west)$) in
-    node[cp label,rotate={\n1-180*round(\n1/180)}] at ($(O)!0.78!(A)+({\n1+(ifthenelse(sin(__WINDANG__-(__AIRANG__))<0,90,-90))}:{0.5*\y2+2pt})$) {$__AIRLAB__$};
+    node[cp label,rotate={\n1-180*round(\n1/180)}] at ($(O)!\cpaf!(A)+({\n1+\cpa*\cpo}:{0.5*\y2+2pt})$) {$__AIRLAB__$};
   \node[cp label,overlay,opacity=0] (cpmW) at (0,0) {$__WINDLAB__$};
-  \path let \p1=($(G)-(A)$), \n1={atan2(\y1,\x1)+(ifthenelse(sin(__WINDANG__-(__AIRANG__))<0,90,-90))}, \p2=($(cpmW.north east)-(cpmW.south west)$) in
-    node[cp label] at ($(A)!@@ALT@@!(G)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__WINDLAB__$};
+  \path let \p1=($(G)-(A)$), \n1={atan2(\y1,\x1)+\cpo}, \p2=($(cpmW.north east)-(cpmW.south west)$) in
+    node[cp label] at ($(A)!\cpf!(G)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__WINDLAB__$};
   \node[cp label,overlay,opacity=0] (cpmG) at (0,0) {$__GROUNDLAB__$};
   \path let \p1=($(G)-(O)$), \n1={atan2(\y1,\x1)}, \p2=($(cpmG.north east)-(cpmG.south west)$) in
-    node[cp label,rotate={\n1-180*round(\n1/180)}] at ($(O)!@@ALT@@!(G)+({\n1+(-ifthenelse(sin(__WINDANG__-(__AIRANG__))<0,90,-90))}:{0.5*\y2+2pt})$) {$__GROUNDLAB__$};
+    node[cp label,rotate={\n1-180*round(\n1/180)}] at ($(O)!\cpf!(G)+({\n1-\cpg*\cpo}:{0.5*\y2+2pt})$) {$__GROUNDLAB__$};
   \draw[cp dashed] (90:0.62) arc[start angle=90,end angle=__AIRANG__,radius=0.62];
-  % Bearing label on the arc's bisector, far enough out (n1) to fit between the
-  % north axis and the heading. A wedge too narrow for that (over 1.7 cm out,
-  % where the air-speed label runs), or one the ground vector (angle n3) runs
-  % through, gets the label beside the arc, just outside the wedge: across the
-  % north axis (s = side of the heading), unless the ground vector lies there,
-  % then just beyond the heading.
-  \node[cp label,overlay,opacity=0] (cpmB) at (0,0) {$__BEARINGLAB__$};
-  \path let \p2=($(cpmB.north east)-(cpmB.south west)$), \p3=(G),
-    \n1={(0.5*veclen(\x2,\y2)+2pt)/sin(max(1,abs(90-(__AIRANG__))/2))},
-    \n2={asin(min(1,(0.5*\x2+3pt)/0.95cm))},
-    \n3={atan2(\y3,\x3)}, \n4={ifthenelse(__AIRANG__<90,1,-1)},
-    \n5={ifthenelse((\n3-90)*\n4>0,__AIRANG__-\n4*\n2,90+\n4*\n2)},
-    \n6={ifthenelse(\n1>1.7cm||(\n3-(__AIRANG__))*(\n3-90)<0,1,0)} in
-    node[cp label] at ({ifthenelse(\n6>0,\n5,__BEARING_MID__)}:{ifthenelse(\n6>0,0.95cm,max(0.95cm,\n1))}) {$__BEARINGLAB__$};
+  % Bearing label inside its wedge, from l to h (it used to jump across the
+  % north axis, where it read as the wrong angle): in the wider part the ground
+  % vector (at angle n) leaves when it runs through the wedge, out past the arc
+  % by its own size. Only a part too narrow for it (half under 7 degrees) sends
+  % it beside the arc: across the north axis (x), unless the ground vector runs
+  % there, then just beyond the heading (s: the side the wedge opens to).
+  \pgfmathsetmacro\cpl{min(__AIRANG__,90)}
+  \pgfmathsetmacro\cph{max(__AIRANG__,90)}
+  \pgfmathsetmacro\cpn{atan2(3*sin(__AIRANG__)+1.45*sin(__WINDANG__),3*cos(__AIRANG__)+1.45*cos(__WINDANG__))}
+  \pgfmathsetmacro\cpin{ifthenelse(\cpn>\cpl+0.5&&\cpn<\cph-0.5,1,0)}
+  \pgfmathsetmacro\cpgl{ifthenelse(\cpin>0,\cpn-\cpl,\cph-\cpl)}
+  \pgfmathsetmacro\cpgh{ifthenelse(\cpin>0,\cph-\cpn,0)}
+  \pgfmathsetmacro\cpbm{ifthenelse(\cpgl>=\cpgh,\cpl+\cpgl/2,\cph-\cpgh/2)}
+  \pgfmathsetmacro\cpbh{max(\cpgl,\cpgh)/2}
+  \pgfmathsetmacro\cps{ifthenelse(__AIRANG__<90,1,-1)}
+  \pgfmathsetmacro\cpx{ifthenelse(abs(\cpn-(90+28*\cps))<22,__AIRANG__-28*\cps,90+28*\cps)}
+  \cpanglelabel{O}{ifthenelse(\cpbh>=7,\cpbm,\cpx)}{0.62}{ifthenelse(\cpbh>=7,\cpbh,90)}{$__BEARINGLAB__$}
 \end{tikzpicture}""",
-        # wind and ground labels slide along their arrows when an axis runs through them
-        "layout_alternatives": [
-            '0.5',
-            '0.35',
-            '0.65',
-            '0.25',
-            '0.75',
-        ],
+        "layout_alternatives": [rf'\pgfmathsetmacro\cpf{{{f}}}\pgfmathsetmacro\cpg{{{g}}}\pgfmathsetmacro\cpa{{{a}}}\pgfmathsetmacro\cpaf{{{af}}}'
+                                for a, g, af in (('1', '1', '0.78'), ('1', '-1', '0.78'), ('-1', '1', '0.78'),
+                                                 ('-1', '-1', '0.78'), ('-1', '1', '0.5'), ('-1', '-1', '0.5'))
+                                for f in ('0.5', '0.35', '0.65', '0.2', '0.8')],
         "params": {
             'AIRANG': {'type': 'number', 'default': '60', 'desc': 'airplane direction in standard math degrees; N30E is 60'},
             'WINDANG': {'type': 'number', 'default': '0', 'desc': 'wind vector direction in standard math degrees; from West means east, 0 degrees'},
-            'BEARING_MID': {'type': 'number', 'default': '75', 'desc': 'midpoint angle for bearing label'},
             'AIRLAB': {'type': 'label', 'default': '500\\,\\mathrm{km/h}', 'desc': 'airspeed label'},
             'WINDLAB': {'type': 'label', 'default': '80\\,\\mathrm{km/h}', 'desc': 'wind speed label'},
             'GROUNDLAB': {'type': 'label', 'default': '\\vec{v}_g', 'desc': 'symbolic ground velocity resultant label; do not include solved magnitude'},
@@ -127,7 +131,7 @@ templates = [
   \pic [draw=black, angle radius=0.58cm] {angle=A--O--B};
   % The resultant, and the y-axis when the angle passes 90 degrees, run through
   % the angle; its label goes in the widest gap they leave, out far enough to fit.
-  \node[cp label] at ({ifthenelse((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))-(0)>=max((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))),((__ANG__))-(min(__ANG__,90))),((0)+(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))))/2,ifthenelse((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))>=((__ANG__))-(min(__ANG__,90)),((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))+(min(__ANG__,90)))/2,((min(__ANG__,90))+((__ANG__)))/2))}:{max(1.0,0.34/sin(max(2,(max((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))-(0),max((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))),((__ANG__))-(min(__ANG__,90)))))/2)))}) {$__ANGLAB__$};
+  \cpanglelabel{O}{ifthenelse((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))-(0)>=max((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))),((__ANG__))-(min(__ANG__,90))),((0)+(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))))/2,ifthenelse((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))>=((__ANG__))-(min(__ANG__,90)),((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))+(min(__ANG__,90)))/2,((min(__ANG__,90))+((__ANG__)))/2))}{0.58}{(max((atan2(3*sin(__ANG__),3.2+3*cos(__ANG__)))-(0),max((min(__ANG__,90))-(atan2(3*sin(__ANG__),3.2+3*cos(__ANG__))),((__ANG__))-(min(__ANG__,90)))))/2}{$__ANGLAB__$}
 \end{tikzpicture}""",
         "params": {
             'ANG': {'type': 'number', 'default': '60', 'desc': 'included angle between the vectors in degrees'},
@@ -161,10 +165,18 @@ templates = [
   \path let \p1=($(A)-(B)$), \p3=($(O)-(B)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
     \p2=($(cpmD.north east)-(cpmD.south west)$) in
     node[cp label] at ($(B)!0.5!(A)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__DIFFLAB__$};
-  \pic [draw=black, angle radius=0.58cm] {angle=A--O--B};
-  % angle label in the widest gap the y-axis leaves (all of it below 90 degrees)
-  \node[cp label] at ({ifthenelse((min(__ANG__,90))-(0)>=((__ANG__))-(min(__ANG__,90)),((0)+(min(__ANG__,90)))/2,((min(__ANG__,90))+((__ANG__)))/2)}:{max(0.83,0.34/sin(max(2,(max((min(__ANG__,90))-(0),((__ANG__))-(min(__ANG__,90))))/2)))}) {$__ANGLAB__$};
+  % the angle mark shrinks with the difference arrow's distance from O (a wide
+  % angle's arrow passes close, leaving no room for the label past a fixed mark)
+  \pgfmathsetmacro\cpmk{min(0.58,0.3*3.4*2.65*sin(__ANG__)/veclen(3.4-2.65*cos(__ANG__),2.65*sin(__ANG__)))}
+  \pic [draw=black, angle radius=\cpmk cm] {angle=A--O--B};
+  % the widest gap the y-axis leaves, from s to e; the label at fraction f of it
+  % (the difference arrow crosses a wide angle close to its bisector)
+  \pgfmathsetmacro\cpgs{ifthenelse(min(__ANG__,90)>=(__ANG__)-min(__ANG__,90),0,min(__ANG__,90))}
+  \pgfmathsetmacro\cpge{ifthenelse(min(__ANG__,90)>=(__ANG__)-min(__ANG__,90),min(__ANG__,90),__ANG__)}
+  @@ALT@@
+  \cpanglelabel{O}{\cpgs+\cpf*(\cpge-\cpgs)}{\cpmk}{min(\cpf,1-\cpf)*(\cpge-\cpgs)}{$__ANGLAB__$}
 \end{tikzpicture}""",
+        "layout_alternatives": [rf'\pgfmathsetmacro\cpf{{{f}}}' for f in ('0.5', '0.3', '0.7', '0.2')],
         "params": {
             'ANG': {'type': 'number', 'default': '45', 'desc': 'included angle between the original vectors in degrees'},
             'ALAB': {'type': 'label', 'default': '\\vec{a}=10', 'desc': 'label for minuend vector, including magnitude if given'},
@@ -222,7 +234,7 @@ templates = [
   \draw[cp dashed,->] (O) -- (V) node[cp label,anchor=south west] {$\vec{v}$};
   \pic [draw=black, angle radius=0.45cm] {angle=U--O--V};
   % angle label outside its arc, in the widest gap the y-axis leaves
-  \node[cp label] at ({ifthenelse((min(__ANG__,90))-(0)>=((__ANG__))-(min(__ANG__,90)),((0)+(min(__ANG__,90)))/2,((min(__ANG__,90))+((__ANG__)))/2)}:{max(0.7,0.34/sin(max(2,(max((min(__ANG__,90))-(0),((__ANG__))-(min(__ANG__,90))))/2)))}) {$__ANGLAB__$};
+  \cpanglelabel{O}{ifthenelse((min(__ANG__,90))-(0)>=((__ANG__))-(min(__ANG__,90)),((0)+(min(__ANG__,90)))/2,((min(__ANG__,90))+((__ANG__)))/2)}{0.45}{(max((min(__ANG__,90))-(0),((__ANG__))-(min(__ANG__,90))))/2}{$__ANGLAB__$}
   \draw[cp line,->] (O) -- (A);
   \draw[cp line,->] (A) -- (B);
   % 2u above its arrow near the tip and -3v beside its own arrow, both outside
@@ -325,7 +337,8 @@ templates = [
   \node[cp label,below right] at (B) {$B$};
   \node[cp label,above] at (C) {$C$};
   \node[cp point] at (M) {};
-  \node[cp label,anchor=west] at (M) {$M$};
+  % M just outside BC, clear of its point (to the right of M, BC ran through it)
+  \cpsidelabel[0.12]{B}{C}{A}{0.5}{$M$}
   \draw[cp line,->] (A) -- (B) node[cp label,midway,below] {$\overrightarrow{AB}$};
   \draw[cp line,->] (A) -- (C) node[cp label,midway,left] {$\overrightarrow{AC}$};
   \draw[cp dashed,->] (A) -- (M);
@@ -427,14 +440,14 @@ templates = [
   \coordinate (Vend) at ($(U)+(__V1__,__V2__)$);
 
   % Each label sits at the middle of its own arrow, outside the triangle
-  % (labels at the arrow tips piled up where v and u+v end). The outward
-  % side flips with the triangle's orientation, the sign of u x v.
+  % (labels at the arrow tips piled up where v and u+v end), out by its own
+  % size (anchored at its border, a wide u+v's corner crossed the arrow).
   \draw[cp line,->] (O) -- (U);
   \draw[cp line,->] (U) -- (Vend);
   \draw[cp line,->] (O) -- (Vend);
-  \node[cp label,anchor={atan2(__U2__,__U1__)+ifthenelse((__U1__)*(__V2__)-(__U2__)*(__V1__)>=0,90,-90)}] at ($(O)!0.5!(U)$) {$__ULAB__$};
-  \node[cp label,anchor={atan2(__V2__,__V1__)+ifthenelse((__U1__)*(__V2__)-(__U2__)*(__V1__)>=0,90,-90)}] at ($(U)!0.5!(Vend)$) {$__VLAB__$};
-  \node[cp label,anchor={atan2((__U2__)+(__V2__),(__U1__)+(__V1__))+ifthenelse((__U1__)*(__V2__)-(__U2__)*(__V1__)>=0,-90,90)}] at ($(O)!0.5!(Vend)$) {$__SUM__$};
+  \cpsidelabel{O}{U}{Vend}{0.5}{$__ULAB__$}
+  \cpsidelabel{U}{Vend}{O}{0.5}{$__VLAB__$}
+  \cpsidelabel{O}{Vend}{U}{0.5}{$__SUM__$}
 \end{tikzpicture}""",
         "params": {
             'U1': {'type': 'number', 'default': '2', 'desc': 'x-component of vector u'},
@@ -513,8 +526,10 @@ templates = [
   \coordinate (Q) at (\cpq:1);
   \draw[cp axis] ({min(-0.5,\cpla*cos(\cpta)-0.6,\cplb*cos(\cptb)-0.6)},0) -- ({max(1,\cpla*cos(\cpta),\cplb*cos(\cptb))+1.1},0) node[cp label,anchor=west] {$x$};
   \draw[cp axis] (0,{min(-0.5,\cpla*sin(\cpta)-0.6,\cplb*sin(\cptb)-0.6)}) -- (0,{max(1,\cpla*sin(\cpta),\cplb*sin(\cptb))+0.8}) node[cp label,anchor=south] {$y$};
-  \draw[cp line,->] (O) -- (A) node[cp label,anchor={\cpta+90*\cps}] {$__ALAB__$};
-  \draw[cp line,->] (O) -- (B) node[cp label,anchor={\cptb-90*\cps}] {$__BLAB__$};
+  % tip labels just beyond each tip on its outer side (beside it, the
+  % arrowhead's barb reached the label)
+  \draw[cp line,->] (O) -- (A) node[cp label,anchor={\cpta+135*\cps}] {$__ALAB__$};
+  \draw[cp line,->] (O) -- (B) node[cp label,anchor={\cptb-135*\cps}] {$__BLAB__$};
   \pic [draw=black, angle radius=0.7cm] {angle=P--O--Q};
   % Angle label in the widest gap the axes leave inside the angle (at most two
   % axis directions, c1 and c2, fall inside it), on that gap's bisector and far
@@ -525,9 +540,7 @@ templates = [
   \pgfmathsetmacro\cpca{min(\cpca,\cpq)}
   \pgfmathsetmacro\cpg{max(\cpca-\cpp,\cpcb-\cpca,\cpq-\cpcb)}
   \pgfmathsetmacro\cpm{ifthenelse(\cpca-\cpp>=\cpg,(\cpp+\cpca)/2,ifthenelse(\cpcb-\cpca>=\cpg,(\cpca+\cpcb)/2,(\cpcb+\cpq)/2))}
-  \node[cp label,overlay,opacity=0] (cpmT) at (0,0) {$__ANGLAB__$};
-  \path let \p2=($(cpmT.north east)-(cpmT.south west)$) in
-    node[cp label] at (\cpm:{max(0.95cm,(0.5*veclen(\x2,\y2)+2pt)/sin(max(2,\cpg/2)))}) {$__ANGLAB__$};
+  \cpanglelabel{O}{\cpm}{0.7}{\cpg/2}{$__ANGLAB__$}
 \end{tikzpicture}""",
         "params": {
             'ANG': {'type': 'number', 'default': '55', 'desc': 'angle between the vectors in degrees, used only when the question gives the angle rather than components. Use the given angle, or ~55 if the angle is the unknown being solved'},
@@ -735,17 +748,17 @@ templates = [
   \draw[cp fill, fill opacity=0.6] (O) -- (A) -- (C) -- (B) -- cycle;
   \draw[cp line,->] (O) -- (A);
   \draw[cp line,->] (O) -- (B);
-  % each vector label beside its vector (at fraction f) on the side away from
-  % the other one, outside the face (it sat inside it)
+  % each vector label beside its vector (at fractions fa, fb) on the side away
+  % from the other one, outside the face (it sat inside it)
   @@ALT@@
   \node[cp label,overlay,opacity=0] (cpmA) at (0,0) {$__ALAB__$};
   \path let \p1=($(A)-(O)$), \p3=($(B)-(O)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
     \p2=($(cpmA.north east)-(cpmA.south west)$) in
-    node[cp label] at ($(O)!\cpf!(A)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__ALAB__$};
+    node[cp label] at ($(O)!\cpfa!(A)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__ALAB__$};
   \node[cp label,overlay,opacity=0] (cpmB) at (0,0) {$__BLAB__$};
   \path let \p1=($(B)-(O)$), \p3=($(A)-(O)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
     \p2=($(cpmB.north east)-(cpmB.south west)$) in
-    node[cp label] at ($(O)!\cpf!(B)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__BLAB__$};
+    node[cp label] at ($(O)!\cpfb!(B)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__BLAB__$};
 
   % cross product vector, its label beside the tip, a turn of g from its drawn
   % direction (90: right of an upward arrow)
@@ -753,11 +766,12 @@ templates = [
     [draw, cp line, ->] (O) -- (N) node[cp label,anchor={atan2(\y4,\x4)+\cpg}] {$__CROSSLAB__$};
   \end{scope}
 \end{tikzpicture}""",
-        # vector labels slide along their vectors (f), and the a x b label turns
-        # about its tip (g), when a line runs through them
-        "layout_alternatives": [rf'\pgfmathsetmacro\cpf{{{f}}}\pgfmathsetmacro\cpg{{{g}}}'
-                                for f, g in (('0.6', '90'), ('0.6', '-90'), ('0.4', '90'), ('0.8', '90'),
-                                             ('0.4', '-90'), ('0.8', '-90'), ('0.6', '180'), ('0.25', '90'))],
+        # each vector label slides along its own vector (fa, fb) and the a x b
+        # label turns about its tip (g) when a line runs through one: vectors in
+        # the xy-plane need one label near the tip and the other mid-way, which
+        # a shared position (the last fallback put both near the origin) cannot give
+        "layout_alternatives": [rf'\pgfmathsetmacro\cpfa{{{fa}}}\pgfmathsetmacro\cpfb{{{fb}}}\pgfmathsetmacro\cpg{{{g}}}'
+                                for g in ('90', '-90', '180') for fa in ('0.6', '1.0', '0.4') for fb in ('0.6', '1.0', '0.4')],
         "params": {
             'AX': {'type': 'number', 'default': '3', 'desc': 'x-component of the first vector a'},
             'AY': {'type': 'number', 'default': '1', 'desc': 'y-component of the first vector a'},
@@ -897,9 +911,11 @@ templates = [
   % intersection point
   \node[cp point] at (I) {};
   % above right: the free quadrant between the line and the y-axis (to the
-  % right, the y-axis ran behind the label)
-  \node[cp label,above right] at (I) {$__PNTLAB__$};
+  % right, the y-axis ran behind the label); the plane's far edge can graze it
+  % there, so the renderer tries the other free sides
+  \node[cp label,@@ALT@@] at (I) {$__PNTLAB__$};
 \end{tikzpicture}""",
+        "layout_alternatives": ['above right', 'right=4pt', 'below right', 'above left', 'below left'],
         "params": {
             'PLANELAB': {'type': 'label', 'default': '\\pi', 'desc': 'label for the plane'},
             'LINELAB': {'type': 'label', 'default': '\\ell', 'desc': 'label for the line'},
@@ -912,9 +928,10 @@ templates = [
         "triggers": ['linear transformation', 'unit square', 'parallelogram'],
         "caption": 'Mapping of the unit square to a parallelogram under a linear transformation.',
         "skeleton": r"""\begin{tikzpicture}[scale=1]
-  % coordinate axes
-  \draw[cp axis] (-0.5,0) -- (4,0) node[cp label,anchor=west] {$x$};
-  \draw[cp axis] (0,-0.5) -- (0,3.5) node[cp label,anchor=south] {$y$};
+  % coordinate axes, long enough for the square and its image either way (the
+  % fixed -0.5 to 4 lost a negative or large image)
+  \draw[cp axis] ({min(-0.5,__AVAL__,__CVAL__,(__AVAL__)+(__CVAL__))-0.4},0) -- ({max(1.5,__AVAL__,__CVAL__,(__AVAL__)+(__CVAL__))+0.7},0) node[cp label,anchor=west] {$x$};
+  \draw[cp axis] (0,{min(-0.5,__BVAL__,__DVAL__,(__BVAL__)+(__DVAL__))-0.4}) -- (0,{max(1.5,__BVAL__,__DVAL__,(__BVAL__)+(__DVAL__))+0.6}) node[cp label,anchor=south] {$y$};
 
   \coordinate (O) at (0,0);
   % unit square vertices
@@ -931,17 +948,27 @@ templates = [
   \draw[cp fill] (O) -- (A) -- (C) -- (B) -- cycle;
   \node[cp label] at ($(O)!0.68!(C)$) {image};
 
-  % Unit square (dashed) on top of the fill. Its label sits below the x-axis
-  % between the y-axis and x = 1: inside the square a shear image crossed it,
-  % and T(1,0) is labelled below and to the right of (1,0).
+  % Unit square (dashed) on top of the fill. Its label sits outside the square
+  % (inside it, a shear image crossed it): below the x-axis by default, else
+  % left of the y-axis or above the square (an image reaching below the x-axis
+  % covered the first spot); placement u.
+  @@ALT@@
   \draw[cp dashed] (O) -- (U1) -- (U2) -- (U3) -- cycle;
-  \node[cp label,font=\scriptsize,align=left,anchor=north west] at (0.05,-0.05) {unit\\square};
+  \node[cp label,font=\scriptsize,align=left,cp unit] at (\cpux,\cpuy) {unit\\square};
 
-  % Images of the standard basis, labelled outside the parallelogram: below
-  % right of T(1,0) and above left of T(0,1).
-  \draw[cp line,->] (O) -- (A) node[cp label,anchor=north west] {$__ALAB__$};
-  \draw[cp line,->] (O) -- (B) node[cp label,anchor=south east] {$__BLAB__$};
+  % Images of the standard basis, each labelled just beyond its tip on the
+  % parallelogram's outer side, turned k from the arrow (s = 1 when T(0,1) is
+  % counterclockwise of T(1,0)); a fixed above-left of T(0,1) ran across the
+  % y-axis when T(0,1) = (1, 1).
+  \pgfmathsetmacro\cps{ifthenelse((__AVAL__)*(__DVAL__)-(__BVAL__)*(__CVAL__)>=0,1,-1)}
+  \draw[cp line,->] (O) -- (A) node[cp label,anchor={atan2(__BVAL__,__AVAL__)+\cpk*\cps}] {$__ALAB__$};
+  \draw[cp line,->] (O) -- (B) node[cp label,anchor={atan2(__DVAL__,__CVAL__)-\cpk*\cps}] {$__BLAB__$};
 \end{tikzpicture}""",
+        # (a named anchor, not an angle: on the wide two-line label an angle of
+        # 135 is a point on its top edge, not its corner)
+        "layout_alternatives": [rf'\pgfmathsetmacro\cpk{{{k}}}\pgfmathsetmacro\cpux{{{x}}}\pgfmathsetmacro\cpuy{{{y}}}\tikzset{{cp unit/.style={{anchor={a}}}}}'
+                                for x, y, a in (('0.05', '-0.05', 'north west'), ('-0.08', '0.5', 'east'), ('0.5', '1.06', 'south'))
+                                for k in ('135', '100', '165', '70')],
         "params": {
             'AVAL': {'type': 'number', 'default': '2', 'desc': 'x-image of the vector (1,0)'},
             'BVAL': {'type': 'number', 'default': '1', 'desc': 'y-image of the vector (1,0)'},

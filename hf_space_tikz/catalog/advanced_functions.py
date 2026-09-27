@@ -399,12 +399,16 @@ templates = [
     % rotation angle, counterclockwise from the positive x-axis
     \draw[cp line,->] (0.45,0) arc[start angle=0,end angle=__THETA__,radius=0.45];
     % rotation label in the widest gap the axes leave inside the rotation (on
-    % the bisector, 135 degrees put it on the y-axis), out far enough to fit
-    \node[cp label] at ({ifthenelse((min(__THETA__,90))-(0)>=max((min(__THETA__,180))-(min(__THETA__,90)),max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270)))),((0)+(min(__THETA__,90)))/2,ifthenelse((min(__THETA__,180))-(min(__THETA__,90))>=max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270))),((min(__THETA__,90))+(min(__THETA__,180)))/2,ifthenelse((min(__THETA__,270))-(min(__THETA__,180))>=(__THETA__)-(min(__THETA__,270)),((min(__THETA__,180))+(min(__THETA__,270)))/2,((min(__THETA__,270))+(__THETA__))/2)))}:{max(0.8,0.34/sin(max(4,(max((min(__THETA__,90))-(0),max((min(__THETA__,180))-(min(__THETA__,90)),max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270))))))/2)))}) {__THETA_LABEL__};
+    % the bisector, 135 degrees put it on the y-axis), out past its arc by its
+    % own size and far enough to fit
+    \cpanglelabel{O}{ifthenelse((min(__THETA__,90))-(0)>=max((min(__THETA__,180))-(min(__THETA__,90)),max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270)))),((0)+(min(__THETA__,90)))/2,ifthenelse((min(__THETA__,180))-(min(__THETA__,90))>=max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270))),((min(__THETA__,90))+(min(__THETA__,180)))/2,ifthenelse((min(__THETA__,270))-(min(__THETA__,180))>=(__THETA__)-(min(__THETA__,270)),((min(__THETA__,180))+(min(__THETA__,270)))/2,((min(__THETA__,270))+(__THETA__))/2)))}{0.45}{(max((min(__THETA__,90))-(0),max((min(__THETA__,180))-(min(__THETA__,90)),max((min(__THETA__,270))-(min(__THETA__,180)),(__THETA__)-(min(__THETA__,270))))))/2}{__THETA_LABEL__}
     % Reference angle: at the origin, between the terminal arm and the nearest
     % x-axis ray (180*round(theta/180) is 0, 180 or 360). The old mark sat at
     % the foot of the perpendicular, where the angle is always 90 degrees.
-    \draw[cp line] ({min(__THETA__,180*round(__THETA__/180))}:1.15) arc[start angle={min(__THETA__,180*round(__THETA__/180))},end angle={max(__THETA__,180*round(__THETA__/180))},radius=1.15];
+    % In quadrant I it is the rotation's own wedge, so its arc goes out past the
+    % rotation label (at 1.15 it ran through it), inside the circle.
+    \pgfmathsetmacro\cprr{ifthenelse(180*round(__THETA__/180)==0,min(1.85,max(1.4,\cplabelout+0.12)),1.15)}
+    \draw[cp line] ({min(__THETA__,180*round(__THETA__/180))}:\cprr) arc[start angle={min(__THETA__,180*round(__THETA__/180))},end angle={max(__THETA__,180*round(__THETA__/180))},radius=\cprr];
     % Its label sits inside its wedge; at 1.5 it landed on the dashed drop line.
     % A narrow wedge (under 25 degrees) has no room, and in quadrant I the
     % rotation label already fills it, so there the label goes outside the circle.
