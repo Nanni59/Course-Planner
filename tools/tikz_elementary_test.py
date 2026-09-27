@@ -25,10 +25,11 @@ ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, threading=thread
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
 helper_constants = [n for n in tree.body if isinstance(n, ast.Assign)
-                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id in ('_NUM', '_KEY_TYPOS')) for t in n.targets)]
+                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id in ('_NUM', '_KEY_TYPOS', '_READINESS_RULES')) for t in n.targets)]
 exec(compile(ast.fix_missing_locations(ast.Module(body=helper_constants, type_ignores=[])), '<helper constants>', 'exec'), ns)
 real_gemini = ns['_gemini']
 real_readiness = ns['_readiness_verdict']
+real_choice = ns['_readiness_choice']
 
 questions = [
     'Triangle ABC is right-angled at A. AB = 6 cm and AC = 8 cm. Find BC. Diagram: Draw AB vertically and AC horizontally, label the vertices, and label BC as x.',
@@ -333,39 +334,92 @@ def two_renders(first, second):
     def render(req):
         renders.append(req)
         n = first if len(renders) == 1 else second
-        return {'ok': True, 'svg': f'<svg n="{len(renders)}"/>', 'layout': {'labels': 3, 'issues': [{'kind': 'labels-overlap', 'labels': ['a', 'b'], 'area': 5}] * n}}
+        return {'ok': True, 'svg': f'<svg n="{len(renders)}"/>', 'preview_png': f'png{len(renders)}',
+                'layout': {'labels': 3, 'issues': [{'kind': 'labels-overlap', 'labels': ['a', 'b'], 'area': 5}] * n}}
     return render
-def drafts(prompt, as_json=False, temperature=0.2):
+def drafts(prompt, as_json=False, temperature=0.2, images=None):
     prompts.append(prompt)
     return {'tikz': '\\draw (0,0)--(1,%d);' % len(prompts)}
-judged = []
-def readiness(verdicts):
-    def verdict(req, code):
-        judged.append(code)
-        return verdicts.get(code, ('PASS', ''))
-    return verdict
-for first, second, verdicts, shipped, note in (
-        (1, 3, {}, '<svg n="1"/>', 'shipped the draft: its repair collided more'),
-        (2, 0, {}, '<svg n="2"/>', None),
-        (2, 2, {}, '<svg n="2"/>', None),
-        (1, 0, {'\\draw (0,0)--(1,3);': ('FAIL', 'wrong labels')}, '<svg n="1"/>', 'shipped the draft: its repair failed readiness')):
-    renders.clear(); prompts.clear(); judged.clear()
-    ns.update(_render=two_renders(first, second), _gemini=drafts, _readiness_verdict=readiness(verdicts))
+# A colliding draft and its repair get ONE verdict (separate verdicts failed the
+# repair's "(?, ?)" and passed the same label in its draft), fewer label problems
+# first as A, the repair first on a tie, both pictures attached in that order.
+asked = []
+def choice(answer):
+    def choose(req, codes, images, reports):
+        asked.append((codes, images, reports))
+        return answer
+    return choose
+for first, second, answer, shipped, order, note in (
+        (1, 3, (0, ''), '<svg n="1"/>', ('png1', 'png2'), 'shipped the draft (1 label problems) over its repair (3)'),
+        (2, 0, (0, ''), '<svg n="2"/>', ('png2', 'png1'), None),
+        (2, 2, (0, ''), '<svg n="2"/>', ('png2', 'png1'), None),
+        (1, 0, (1, ''), '<svg n="1"/>', ('png2', 'png1'), 'shipped the draft (1 label problems) over its repair (0)'),
+        (1, 3, (None, 'neither labels the vertex'), None, ('png1', 'png2'), None)):
+    renders.clear(); prompts.clear(); asked.clear()
+    ns.update(_render=two_renders(first, second), _gemini=drafts, _readiness_choice=choice(answer))
     ns['_job_trace'].events = []
     out = ns['_reference_generate'](req)
-    assert out['ok'] and out['svg'] == shipped, (first, second, out)
+    assert len(asked) == 1 and asked[0][1] == order and all(r.preview for r in renders), asked
+    assert asked[0][2][0].count('overlap') == min(first, second), asked[0][2]
+    if shipped:
+        assert out['ok'] and out['svg'] == shipped and 'preview_png' not in out, (first, second, out)
+    else:
+        assert not out['ok'] and 'neither labels the vertex' in out['error'], out
     notes = [e['detail'] for e in ns['_job_trace'].events if e['stage'] == 'layout-choice']
     assert notes == ([note] if note else []), notes
+    verdicts = [e for e in ns['_job_trace'].events if e['stage'] == 'readiness']
+    assert len(verdicts) == 1 and (verdicts[0]['detail'] == 'PASS ' + 'AB'[answer[0]] if shipped else True)
     del ns['_job_trace'].events
-# A shipped model drawing with no layout event keeps its code in the trace.
+# A repair that renders nothing usable ships its draft with a layout-choice note.
 renders.clear(); prompts.clear()
-ns.update(_render=two_renders(0, 0), _readiness_verdict=readiness({}))
+def draft_then_break(req):
+    renders.append(req)
+    if len(renders) == 1:
+        return {'ok': True, 'svg': '<first/>', 'layout': {'labels': 1, 'issues': [{'kind': 'labels-overlap', 'labels': ['A', 'B'], 'area': 9}]}}
+    return {'ok': False, 'error': 'TikZ compile failed.', 'log': 'Undefined control sequence'}
+ns.update(_render=draft_then_break, _readiness_verdict=lambda req, code, image=None: ('PASS', ''))
 ns['_job_trace'].events = []
-assert ns['_reference_generate'](req)['ok']
+assert ns['_reference_generate'](req)['svg'] == '<first/>'
+assert [e['detail'] for e in ns['_job_trace'].events if e['stage'] == 'layout-choice'] == ['shipped the draft: its repair produced no usable drawing']
+del ns['_job_trace'].events
+# A single drawing is judged with its picture, and a shipped one keeps its code.
+renders.clear(); prompts.clear()
+seen = []
+ns.update(_render=two_renders(0, 0), _readiness_verdict=lambda req, code, image=None: seen.append(image) or ('PASS', ''))
+ns['_job_trace'].events = []
+out = ns['_reference_generate'](req)
+assert out['ok'] and seen == ['png1'] and 'preview_png' not in out
 passed = [e for e in ns['_job_trace'].events if e['stage'] == 'readiness']
 assert passed[-1]['detail'] == 'PASS' and '(1,2);' in passed[-1]['tikz'], passed
 del ns['_job_trace'].events
-ns['_readiness_verdict'] = real_readiness
+ns.update(_readiness_verdict=real_readiness, _readiness_choice=real_choice)
+# The paired verdict: one call, both codes and label reports, pictures in order.
+calls_seen = []
+def verifier(answer):
+    def call(prompt, as_json=False, temperature=0.25, images=None):
+        calls_seen.append((prompt, images))
+        return answer
+    return call
+for answer, expected in (('PASS B', (1, '')), ('PASS', (0, '')), ('pass a.', (0, '')), ('FAIL: shading spills', (None, 'FAIL: shading spills'))):
+    calls_seen.clear()
+    ns['_gemini'] = verifier(answer)
+    got = ns['_readiness_choice'](req, ('code A', 'code B'), ('pa', 'pb'), ('the labels "x" and "y" overlap', ''))
+    assert got == expected, (answer, got)
+    prompt, images = calls_seen[0]
+    assert images == ['pa', 'pb'] and 'VERSION A TikZ:\ncode A' in prompt and 'A: the labels "x" and "y" overlap' in prompt and 'B: none' in prompt
+# Givens may be labelled: the answer-safety rule no longer rejects a vector the
+# question states (the 3D case was rejected twice for showing v = <2, 3, 4>).
+assert 'STATED IN THE QUESTION are givens' in ns['_readiness_prompt'](req, 'x') and '(?, ?) are correct' in ns['_readiness_prompt'](req, 'x')
+# A request refused with pictures attached is retried once without them.
+tries = []
+def refuses_pictures(prompt, as_json=False, temperature=0.25, images=None):
+    tries.append(images)
+    if images:
+        raise RuntimeError('Gemini API error 400: image input is not supported')
+    return 'PASS'
+ns['_gemini'] = refuses_pictures
+assert ns['_readiness_verdict'](req, 'code', 'png') == ('PASS', '') and tries == [['png'], None]
+ns['_gemini'] = real_gemini
 # Hyphenated TikZ keys are fixed before compiling; label text is not touched.
 assert ns['_fix_key_typos']('grid style={line-width=.1pt, dash-pattern = on 2pt}, node[inner-sep=1pt] {$line-width$}') == \
     'grid style={line width=.1pt, dash pattern = on 2pt}, node[inner sep=1pt] {$line-width$}'
@@ -407,9 +461,9 @@ del ns['_job_trace'].events
 # The trace keeps the drawing code of failed or colliding attempts, bounded per
 # event and per job, whitespace-collapsed and without configured secrets.
 ns['_job_trace'].events = []
-ns['_diagnostic']('render-error', 'Undefined control sequence', tikz='\\begin{tikzpicture}\n   \\draw   (0,0) -- (1,1); % test-secret\n\n\\end{tikzpicture}')
+ns['_diagnostic']('render-error', 'Undefined control sequence', tikz='\\begin{tikzpicture}\n   \\draw   (0,0) -- (1,1) node {test-secret 50\\%}; % recompute: 2+2\n% a whole comment line\n\n\\end{tikzpicture}')
 event = ns['_job_trace'].events[0]
-assert event['tikz'] == '\\begin{tikzpicture}\n\\draw (0,0) -- (1,1); % [redacted]\n\\end{tikzpicture}', event
+assert event['tikz'] == '\\begin{tikzpicture}\n\\draw (0,0) -- (1,1) node {[redacted] 50\\%};\n\\end{tikzpicture}', event
 long_code = '\n'.join(f'\\draw (0,{i}) -- (1,{i});' for i in range(400))
 ns['_diagnostic']('layout', 'x', tikz=long_code)
 kept = ns['_job_trace'].events[1]['tikz']
@@ -541,7 +595,7 @@ QUOTA_MINUTE = json.dumps({'error': {'code': 429, 'message': 'You exceeded your 
         {'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier'}]},
     {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '21s'}]}})
 QUOTA_DAY = QUOTA_MINUTE.replace('PerMinute', 'PerDay')
-def lane_trial(behaviour, prepare=None, max_wait=60, models=('primary','secondary','healthy'), as_json=False, bodies=None):
+def lane_trial(behaviour, prepare=None, max_wait=60, models=('primary','secondary','healthy'), as_json=False, bodies=None, images=None):
     clock, calls = [1000.0], []
     def post(url, headers, json, timeout):
         model = url.split('/models/')[1].split(':')[0]
@@ -560,7 +614,7 @@ def lane_trial(behaviour, prepare=None, max_wait=60, models=('primary','secondar
     if prepare:
         prepare()
     try:
-        result = real_gemini('fixture', as_json=as_json)
+        result = real_gemini('fixture', as_json=as_json, **({'images': images} if images else {}))
     except RuntimeError as exc:
         result = exc
     return result, calls, clock[0] - 1000.0
@@ -606,6 +660,13 @@ result, calls, _ = lane_trial(lambda k, m: JSON_OK if m == 'gemma-4-31b-it' else
                               models=('primary', 'gemma-4-31b-it'), as_json=True, bodies=bodies)
 assert result == {'a': 1} and calls[-1] == ('k1', 'gemma-4-31b-it'), calls
 assert all(('responseMimeType' in b['generationConfig']) == (m == 'primary') for m, b in bodies), bodies
+# Pictures go to Gemini models as inline PNG parts; Gemma gets the prompt alone.
+bodies = []
+result, calls, _ = lane_trial(lambda k, m: OK if m == 'gemma-4-31b-it' else (429, QUOTA_DAY),
+                              models=('primary', 'gemma-4-31b-it'), bodies=bodies, images=['aW1n'])
+parts = {m: b['contents'][0]['parts'] for m, b in bodies}
+assert result == 'ok' and parts['primary'][1] == {'inline_data': {'mime_type': 'image/png', 'data': 'aW1n'}}, parts
+assert parts['gemma-4-31b-it'] == [{'text': 'fixture'}], parts
 result, calls, _ = lane_trial(lambda k, m: REFUSED if m.startswith('gemma') else OK,
                               models=('gemma-4-31b-it', 'healthy'))
 assert result == 'ok' and [m for _k, m in calls] == ['gemma-4-31b-it', 'healthy'], calls
