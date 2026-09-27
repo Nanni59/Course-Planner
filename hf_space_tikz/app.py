@@ -4271,6 +4271,9 @@ def _integral_overrides(req: GenerateReq, params: dict) -> dict[str, str]:
     ys = [_arith_eval(tree, x) for x in xs]
     if any(y is None for y in ys):
         return out
+    below = [t for t in [lo, hi] + roots if (_arith_eval(tree, t) or 0.0) < -1e-9]
+    if below:
+        out["TICK_DOWN"] = "min(" + ",".join(f"abs(round(\\tick*100)-({round(t * 100)}))" for t in below) + ",1)"
     ymin, ymax = min(0.0, min(ys)), max(0.0, max(ys))
     ypad = max(0.5, 0.15 * (ymax - ymin))
     out.update({"XMIN": _clean_number(round(xmin, 3)), "XMAX": _clean_number(round(xmax, 3)),
@@ -4357,8 +4360,12 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str, params: d
             # distances only: repeating the bearing there printed every angle
             # twice.
             overrides.update({"B1": str(b1), "B2": str(b2)})
-            for slot, distance in zip(("L1", "L2"), _distance_labels_from_text(text)):
+            distances = _distance_labels_from_text(text)
+            for slot, distance in zip(("L1", "L2"), distances):
                 overrides[slot] = distance
+            if len(distances) == 2:
+                overrides.update({"LEN1": _clean_number(_first_number(distances[0])),
+                                  "LEN2": _clean_number(_first_number(distances[1]))})
     elif template_id == "bearing_two_objects":
         text = _question_text(req)
         bearings = _travel_bearing_values_from_text(text) or _bearing_values_from_text(text)
@@ -4503,6 +4510,24 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str, params: d
         overrides.update(_triangle_overrides(req))
     elif template_id == "definite_integral_shaded":
         overrides.update(_integral_overrides(req, params or {}))
+    elif template_id == "function_intersection_two_curves":
+        # both functions from the question, the window around their crossings
+        found = []
+        for m in re.finditer(r"\b(?:y|f\s*\(\s*x\s*\)|g\s*\(\s*x\s*\))\s*=\s*(.+?)(?=\s*(?:,|;|\band\b|\bgraphically\b|\bon\b|\bfor\b|\.\s|\.?$|\bDiagram\b))", _question_text(req)):
+            tree = _arith_tree(m.group(1), "x")
+            if tree is not None and all(_arith_pgf(tree, "x") != pgf for pgf, _l in found):
+                found.append((_arith_pgf(tree, "x"), m.group(0).strip()))
+        if len(found) == 2:
+            (f, flab), (g, glab) = found
+            ft, gt = _arith_tree(f, "x"), _arith_tree(g, "x")
+            xs = [-20 + i * 0.05 for i in range(801)]
+            diff = [(_arith_eval(ft, x) or 0.0) - (_arith_eval(gt, x) or 0.0) for x in xs]
+            cross = [xs[i] for i in range(800) if diff[i] == 0 or diff[i] * diff[i + 1] < 0]
+            if cross:
+                lo, hi = min(cross), max(cross)
+                overrides.update({"XMIN": _clean_number(math.floor(lo) - 3), "XMAX": _clean_number(math.ceil(hi) + 3)})
+            overrides.update({"F": f, "G": g,
+                              "F_LABEL": "$" + re.sub(r"\s+", "", flab) + "$", "G_LABEL": "$" + re.sub(r"\s+", "", glab) + "$"})
     elif template_id == "number_line_blank":
         span = re.search(r"\bnumber\s+line\b[^.]{0,40}?\bfrom\s+(-?\d+)\s+to\s+(-?\d+)", _request_text(req), re.I)
         if span and int(span.group(1)) < int(span.group(2)):
@@ -4520,11 +4545,19 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str, params: d
             # asked for any of these, the arrows carry symbols: amplitude,
             # midline and period labels together gave the range away
             overrides.update({"AMPLITUDE_LABEL": "$A$", "PERIOD_LABEL": "$P$", "MIDLINE_LABEL": "midline"})
+        named = re.search(r"\b[A-Za-z]\s*\(\s*([a-z])\s*\)\s*=", _question_text(req))
+        if named and named.group(1) != "x":
+            overrides["XVAR"] = named.group(1)
         wave = _sinusoid_from_text(_question_text(req))
         if wave:
             overrides.update({slot: _clean_number(round(wave[key], 4) + 0.0) for slot, key in (
                 ("AMPLITUDE_VALUE", "A"), ("FREQUENCY_VALUE", "B"), ("PHASE_SHIFT_VALUE", "C"), ("MIDLINE_VALUE", "D"))})
     elif template_id == "right_triangle":
+        # a symbol on the wall the question never asks about reads as a second
+        # unknown (an h appeared when the question asked for the foot's distance)
+        if (not re.search(r"\b(?:high|height|tall|up\s+the|vertical\s+(?:distance|height)|how\s+far\s+up|altitude|depth)\b", _question_text(req), re.I)
+                and not re.search(r"\d", str((params or {}).get("HEIGHTLAB", "")))):
+            overrides["HEIGHTLAB"] = ""
         # The one acute angle the question gives sets the drawn shape and its label.
         found = {float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*degrees?\b", _question_text(req), re.I)} - {90.0}
         if len(found) == 1:
@@ -4630,13 +4663,17 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
             return None
     spec = tcatalog.ai_spec(tmpl)
     _diagnostic("catalog-route", template=tmpl["id"])
+    # A template marked always_fits is the only safe picture for what routes to
+    # it: the model once judged the blank number line unfit because the brief
+    # asked for the solution, and the drawing that replaced it was the answer.
+    fit_check = FIT_CHECK_ENABLED and not tmpl.get("always_fits")
     caption = tmpl.get("caption", "")
     # The model sees the default label placement, never the alternatives slot.
     skeleton = str(tmpl.get("skeleton", "")).replace("@@ALT@@", (tmpl.get("layout_alternatives") or [""])[0])
     params = dict(spec["defaults"])
     if not spec["defaults"]:
         # Static templates still need a confirmed family match before shipping.
-        if FIT_CHECK_ENABLED:
+        if fit_check:
             try:
                 raw = _gemini(
                     _catalog_param_prompt(req, spec, caption=caption, skeleton=skeleton),
@@ -4674,16 +4711,16 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
                 # Honor the model's fit verdict on the first pass only (repair passes
                 # are about compile errors; a mid-repair flip-flop would waste work).
                 if (
-                    FIT_CHECK_ENABLED
+                    fit_check
                     and attempt == 0
                     and str(raw.get("_fit", "yes")).strip().lower().startswith("n")
                 ):
                     print(f"[catalog] {tmpl['id']} judged UNFIT for question: {str(raw.get('_why', ''))[:200]}", flush=True)
                     _diagnostic("catalog-unfit", str(raw.get('_why', '')), template=tmpl['id'])
                     return {"ok": False, "unfit": True, "template": tmpl["id"], "why": str(raw.get("_why", ""))[:300]}
-                if FIT_CHECK_ENABLED and attempt == 0 and str(raw.get('_fit', '')).strip().lower() != 'yes':
+                if fit_check and attempt == 0 and str(raw.get('_fit', '')).strip().lower() != 'yes':
                     raise ValueError("Template fit response did not confirm a match.")
-                if any(k not in raw for k in spec['defaults']):
+                if any(k not in raw for k in spec['defaults']) and not tmpl.get("always_fits"):
                     raise ValueError("Template response omitted required drawing parameters.")
                 params.update({k: v for k, v in raw.items() if k in spec["defaults"]})
             else:
@@ -5043,6 +5080,13 @@ def _structured_vector_direct_hit(req: GenerateReq) -> tuple[str, str] | None:
     return None
 
 
+def _number_line_solution(req: GenerateReq) -> bool:
+    """The student shows a solution (an inequality's) on a number line."""
+    text = _question_text(req)
+    return bool(re.search(r"\bnumber[\s-]line\b", text, re.I)
+                and re.search(r"[<>≤≥]|\\(?:le|ge|leq|geq|lt|gt)\b|inequalit|solution|\bsolve", text, re.I))
+
+
 def _generate_visual_sync(req: GenerateReq) -> dict:
     try:
         if _question_should_stay_blank(req):
@@ -5069,6 +5113,11 @@ def _generate_visual_sync(req: GenerateReq) -> dict:
                 catalog_rendered = _catalog_generate(req)
                 if catalog_rendered and catalog_rendered.get("ok"):
                     return catalog_rendered
+                if _number_line_solution(req):
+                    # the solution marked on a number line is the answer; blank
+                    # beats a model drawing of it
+                    _diagnostic("number-line-blank", "No model drawing for a solution on a number line.")
+                    return {"ok": False, "tikz": "", "caption": "", "error": "No diagram was produced."}
                 if catalog_rendered and catalog_rendered.get("unfit"):
                     reference_rendered = _reference_generate(req)
                     if reference_rendered:

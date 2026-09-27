@@ -518,6 +518,8 @@ def fill(template: dict, ai_params: dict | None = None, target: str = "generic",
             # A model often wraps a label in its own $...$; inside the slot's
             # math that makes $$...$$, which breaks the compile.
             value = re.sub(r"^\$(.+)\$$", r"\1", value) if value.count("$") == 2 else value
+        if ptype == "label":
+            value = _upright_unit(value, math_slot="$__" + name + "__$" in out or "\\ensuremath{__" + name + "__}" in out)
         if target == "worksheet" and not spec.get("answer_safe", True):
             if _looks_like_answer(value) and not (spec.get("keep_if_given") and _stated_in(value, question)):
                 value = str(spec.get("unknown", "?"))
@@ -528,6 +530,18 @@ def fill(template: dict, ai_params: dict | None = None, target: str = "generic",
     for name, value in values.items():
         out = out.replace("__" + name + "__", value)
     return out
+
+
+_UNITS = r"(?:mm|cm|m|km|in|ft|yd|mi|g|kg|N|s|h|min|L|mL|m/s|km/h|m/s\^2|mph|cm/s|m\^2|cm\^2|m\^3|cm\^3)"
+
+
+def _upright_unit(value: str, math_slot: bool) -> str:
+    """"5 m" as a math label printed an italic 5m: a number and a unit become
+    5\\,\\mathrm{m} wherever the label is read as math."""
+    m = re.fullmatch(r"(\$?)\s*(-?\d+(?:\.\d+)?)\s*(" + _UNITS + r")\s*(\$?)", value)
+    if not m or not (math_slot or (m.group(1) and m.group(4))):
+        return value
+    return m.group(1) + m.group(2) + "\\,\\mathrm{" + m.group(3) + "}" + m.group(4)
 
 
 def _stated_in(value: str, question: str) -> bool:

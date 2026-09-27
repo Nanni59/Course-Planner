@@ -269,8 +269,22 @@ model (the model's values are kept only when the question does not settle them):
   hatch pattern made the SVG too large to ship).
 - A related-rates circle and a boat crossing read their rates from the question.
 - An inequality's number line (`number_line_blank`) carries ticks only, since
-  the boundary circle and the arrow are the answer. The readiness rules fail a
-  drawn solution even when the description asks for one.
+  the boundary circle and the arrow are the answer. The template is marked
+  `always_fits`, so the model cannot veto it (it once did because the brief
+  asked for the circle). A question that asks for a solution on a number line
+  never falls back to a model drawing: blank beats the answer. The readiness
+  rules fail a drawn solution even when the description asks for one.
+- A linear system to solve graphically routes to the two-function template:
+  both lines from the question, a legend, and no label at their crossing.
+- The two-leg bearing legs are in proportion (the shorter at least 0.45 of the
+  longer) and labelled beside themselves.
+- Tick labels stay off marked points: at a piecewise break or a point of
+  tangency just below the axis the tick label goes above it, a rational
+  function has no tick at the window's edge (under the asymptote label), and a
+  definite integral's tick label goes above the axis where the area is below
+  it. A sinusoid's axis takes the question's variable, with ticks every pi for
+  long periods.
+- A number and unit in a math label (`5 m`) are set upright (`5\,\mathrm{m}`).
 
 Catalog renders skip the semantic checks written for model drawings (such as
 the rule against raw arcs in triangles, which rejected every triangle

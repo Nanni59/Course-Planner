@@ -61,8 +61,17 @@ templates = [
         "triggers": ['rational', 'rational function', 'vertical asymptote', 'horizontal asymptote', 'asymptotes'],
         "caption": 'Rational function with a vertical and a horizontal asymptote.',
         "skeleton": r"""\begin{tikzpicture}
+% Ticks every 2 units, none within a unit of the window's edge: the edge tick
+% label sat under the asymptote label outside the window ("-6" on "y = ?").
+\pgfmathtruncatemacro\cpxa{ceil((min(-1,__H__-6)+1)/2)*2}
+\pgfmathtruncatemacro\cpxb{\cpxa+2}
+\pgfmathtruncatemacro\cpxz{floor((max(1,__H__+6)-1)/2)*2}
+\pgfmathtruncatemacro\cpya{ceil((min(-1,__K__-max(3,abs(__A__))-1)+1)/2)*2}
+\pgfmathtruncatemacro\cpyb{\cpya+2}
+\pgfmathtruncatemacro\cpyz{floor((max(1,__K__+max(3,abs(__A__))+1)-1)/2)*2}
 \begin{axis}[
     width=7cm, height=4cm,
+    xtick={\cpxa,\cpxb,...,\cpxz}, ytick={\cpya,\cpyb,...,\cpyz},
     % The window is computed around the asymptotes (6 units each side of
     % x = H, max(3,|A|) + 1 units each side of y = K, always with the origin);
     % model-chosen bounds hid most of a branch of (3x - 1)/(x + 2).
@@ -185,6 +194,13 @@ templates = [
         "triggers": ['sinusoid', 'sinusoidal', 'amplitude', 'period', 'phase shift', 'midline', 'sine', 'tide'],
         "caption": 'Sinusoidal function marking its amplitude, period, and midline.',
         "skeleton": r"""\begin{tikzpicture}
+% ticks every pi/2 for a period up to about 2 pi, else every pi (pi/2 steps
+% crowded the axis of cos(0.5t))
+\pgfplotsset{cp ticks 0/.style={xtick={0,1.5708,3.1416,4.7124,6.2832,9.4248,12.5664},
+    xticklabels={$0$,$\frac{\pi}{2}$,$\pi$,$\frac{3\pi}{2}$,$2\pi$,$3\pi$,$4\pi$}},
+  cp ticks 1/.style={xtick={0,3.1416,6.2832,9.4248,12.5664,15.708,18.8496,21.9911,25.1327},
+    xticklabels={$0$,$\pi$,$2\pi$,$3\pi$,$4\pi$,$5\pi$,$6\pi$,$7\pi$,$8\pi$}}}
+\pgfmathtruncatemacro\cpq{ifthenelse(6.2832/(__FREQUENCY_VALUE__)>7,1,0)}
 \begin{axis}[
     width=7cm, height=4cm,
     % cpp = period; cps = +1/-1, the side of the midline away from the x-axis;
@@ -205,11 +221,10 @@ templates = [
     ymax={max(0,__MIDLINE_VALUE__+abs(__AMPLITUDE_VALUE__))+ifthenelse(__MIDLINE_VALUE__<0,0.8,1.8)},
     axis lines=middle,
     axis line style=cp axis,
-    xlabel={$x$}, ylabel={$y$},
+    xlabel={$__XVAR__$}, ylabel={$y$},
     % Axis letters beyond the arrow tips, never beside the last tick label.
     xlabel style={anchor=west}, ylabel style={anchor=south},
-    xtick={0,1.5708,3.1416,4.7124,6.2832,9.4248,12.5664},
-    xticklabels={$0$,$\frac{\pi}{2}$,$\pi$,$\frac{3\pi}{2}$,$2\pi$,$3\pi$,$4\pi$},
+    cp ticks \cpq,
     % Clip the curve only; the midline label sits just right of the window.
     clip mode=individual,
 ]
@@ -243,6 +258,8 @@ templates = [
             'MIDLINE_VALUE': {'type': 'number', 'default': 0, 'desc': 'D, the vertical midline of the sinusoid'},
             'AMPLITUDE_LABEL': {'type': 'label', 'default': '$A$', 'desc': 'symbolic label for the amplitude arrow; never the requested numeric answer', 'answer_safe': False, 'unknown': '$A$'},
             'MIDLINE_LABEL': {'type': 'label', 'default': 'midline', 'desc': 'symbolic midline label; never the requested equation', 'answer_safe': False, 'unknown': 'midline'},
+            # the question's variable (d(t) = ... was drawn against x); set by the backend
+            'XVAR': {'type': 'label', 'default': 'x', 'local': True},
             'PERIOD_LABEL': {'type': 'label', 'default': '$P$', 'desc': 'symbolic label for the period arrow; never the requested numeric answer', 'answer_safe': False, 'unknown': '$P$'},
         },
     },
@@ -426,6 +443,11 @@ templates = [
         "triggers": ['piecewise', 'piecewise linear', 'open and closed circles', 'open point', 'closed point', 'linear pieces', 'break point'],
         "caption": 'Piecewise linear function with distinct behaviour on either side of a break point.',
         "skeleton": r"""\begin{tikzpicture}
+% room below / above the x-axis at the break (99 when no end point is there)
+\pgfmathsetmacro\cpea{(__M1__)*(__C__)+(__B1__)}
+\pgfmathsetmacro\cpeb{(__M2__)*(__C__)+(__B2__)}
+\pgfmathsetmacro\cpdn{min(ifthenelse(\cpea<0,-\cpea,99),ifthenelse(\cpeb<0,-\cpeb,99))}
+\pgfmathsetmacro\cpup{min(ifthenelse(\cpea>0,\cpea,99),ifthenelse(\cpeb>0,\cpeb,99))}
 \begin{axis}[
     width=7cm, height=4cm,
     xmin=-5, xmax=5,
@@ -439,6 +461,9 @@ templates = [
     % Axis letters beyond the arrow tips, never beside the last tick label.
     xlabel style={anchor=west}, ylabel style={anchor=south},
     xtick={-5,-4,-3,-2,-1,0,1,2,3,4,5},
+    % The tick label at the break goes on the side of the x-axis with more room
+    % from the two end points (below, it hid the dot at (2, -1)).
+    xticklabel style={anchor={ifthenelse(abs(\tick-(__C__))<0.01 && \cpdn<\cpup,270,90)}},
     % Clip the pieces only; the break label sits just above the window.
     clip mode=individual,
 ]
@@ -494,7 +519,9 @@ templates = [
     % Labels sit on each curve near the top/right edge for any base (fixed
     % coordinates floated off the curve when the base changed).
     \node[cp label, anchor=west, xshift=3pt] at (axis cs:{max(-1.9,min(3.9,ln(3.6)/ln(__BASE__)))},{pow(__BASE__,max(-1.9,min(3.9,ln(3.6)/ln(__BASE__))))}) {__F_LABEL__};
-    \node[cp label, anchor=north] at (axis cs:3.6,{ln(3.6)/ln(__BASE__)}) {__INV_LABEL__};
+    % the inverse's label: past the curve's end first (below the curve at 3.6 a
+    % long label crossed the rising curve), then other spots from the renderer
+    \node[cp label, @@ALT@@] {__INV_LABEL__};
     % A point and its mirror image: (0,1) on f and (1,0) on the inverse. The old
     % marked "intersection" (1,1) lies on neither curve.
     \draw[cp dashed, densely dotted] (axis cs:0,1) -- (axis cs:1,0);
@@ -506,11 +533,20 @@ templates = [
             'F_LABEL': {'type': 'label', 'default': '$f$', 'desc': 'symbolic label for the function'},
             'INV_LABEL': {'type': 'label', 'default': '$f^{-1}$', 'desc': 'symbolic label for the inverse function'},
         },
+        "layout_alternatives": [
+            r'anchor=west, xshift=3pt, at={(axis cs:4,{ln(4)/ln(__BASE__)})}',
+            r'anchor=north west, xshift=2pt, at={(axis cs:3.2,{ln(3.2)/ln(__BASE__)})}',
+            r'anchor=south east, xshift=-2pt, at={(axis cs:2.6,{ln(2.6)/ln(__BASE__)})}',
+            r'anchor=north, at={(axis cs:3.6,{ln(3.6)/ln(__BASE__)})}',
+        ],
     },
     {
         "id": 'function_intersection_two_curves',
         "subject": 'Advanced Functions',
-        "triggers": ['points of intersection', 'point of intersection', 'intersection for the functions', 'intersections of functions', 'two functions intersect'],
+        # a linear system solved graphically is two graphs and their crossing; the
+        # model drawing labelled the crossing (?, ?) on top of a line
+        "triggers": ['points of intersection', 'point of intersection', 'intersection for the functions', 'intersections of functions', 'two functions intersect',
+                     'solve the system', 'system of equations', 'linear system', 'simultaneous equations', 'systems of linear equations'],
         "caption": 'The two given function graphs on one set of axes, so their intersections can be found.',
         # This skeleton used to be static (2^(x+1) and 4^x with a point at
         # (1,4)), so every "find the intersection" question got that picture.
@@ -553,6 +589,9 @@ templates = [
         # circle and shading is the answer (a model drawing put an open circle
         # on 4 with an arrow left for 2x - 3 < 5). The line carries ticks only.
         "caption": 'A blank number line with integer ticks for the student to mark a solution on.',
+        # no model veto: a brief asking for the circle and shading is exactly the
+        # case this blank line is for (see _catalog_generate)
+        "always_fits": True,
         "skeleton": r"""\begin{tikzpicture}
   % one tick per unit up to 12 units, else every 2 or 5, on a 9 cm line
   \pgfmathsetmacro\cpr{max(2,(__XMAX__)-(__XMIN__))}

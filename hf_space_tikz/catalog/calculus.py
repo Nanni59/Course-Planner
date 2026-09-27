@@ -26,13 +26,16 @@ templates = [
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
   grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
-  every tick/.style={cp label}]
+  every tick/.style={cp label},
+  % the tick label under a point just below the x-axis goes above the axis
+  % (below, it hid the point of tangency)
+  xticklabel style={anchor={ifthenelse(abs(\tick-(__POINT_X__))<0.01 && (__POINT_Y__)<0 && (__POINT_Y__)>-0.2*((__YMAX__)-(__YMIN__)),270,90)}}]
   \addplot[cp line, samples=100, domain=__XMIN__:__XMAX__]{__CURVE__};
   \addplot[only marks, cp point] coordinates {(__POINT_X__, __POINT_Y__)};
   % Point label above the line on its uphill-away side (above-left for a rising
   % line: bottom-right corner at the point), off both the line and the curve;
-  % above right sat on the line.
-  \node[cp label, anchor=south, xshift={ifthenelse(__SLOPE__>=0,-1,1)*(0.5*width("$(__POINT_X__,__POINT_Y__)$")+2)}] at (axis cs:__POINT_X__,__POINT_Y__) {$(__POINT_X__,__POINT_Y__)$};
+  % above right sat on the line. Other corners from the renderer (cp pt).
+  \node[cp label, cp pt] at (axis cs:__POINT_X__,__POINT_Y__) {$(__POINT_X__,__POINT_Y__)$};
   \addplot[cp dashed, domain=__XMIN__:__XMAX__]{__SLOPE__*x + __INTERCEPT__};
   % Line label on the side of the line away from the curve. The curve's side at
   % LABEL_X is the sign of curve - line there, computed as this point's meta
@@ -46,8 +49,13 @@ templates = [
     {__SLOPE__*x + __INTERCEPT__};
 \end{axis}
 \end{tikzpicture}""",
-        "layout_alternatives": [r'\pgfmathsetmacro\cplx{__LABEL_X__}'] + [
-            rf'\pgfmathsetmacro\cplx{{(__XMIN__)+{f}*((__XMAX__)-(__XMIN__))}}' for f in ('0.75', '0.25', '0.9', '0.6', '0.4', '0.1')],
+        # line label spot x the point label's corner (the default first: above,
+        # on the line's uphill-away side; then below it, then the other side)
+        "layout_alternatives": [
+            lx + r'\tikzset{cp pt/.style={anchor=' + anchor + r',xshift={' + side + r'ifthenelse(__SLOPE__>=0,-1,1)*(0.5*width("$(__POINT_X__,__POINT_Y__)$")+2)}}}'
+            for anchor, side in (('south', ''), ('north', '-'), ('south', '-'), ('north', ''))
+            for lx in [r'\pgfmathsetmacro\cplx{__LABEL_X__}'] + [
+                rf'\pgfmathsetmacro\cplx{{(__XMIN__)+{f}*((__XMAX__)-(__XMIN__))}}' for f in ('0.75', '0.25', '0.9', '0.6', '0.4', '0.1')]],
         "params": {
             'CURVE': {'type': 'label', 'default': 'x^2', 'desc': "pgfplots expression for the question's curve in terms of x, e.g. x^2, sqrt(x), x^3 - 6*x^2 + 5*x - 1 (write * for every product; keep it defined over the whole axis window)"},
             'XMIN': {'type': 'number', 'default': '-2', 'desc': 'left edge of the axis window; choose bounds so the marked point sits comfortably inside'},
@@ -69,16 +77,18 @@ templates = [
         "caption": 'A function curve with a secant line between two points and a tangent line at one of them.',
         "skeleton": r"""\begin{tikzpicture}
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
-  xmin=-1, xmax=3.5, ymin=-1, ymax=6,
+  % the window holds both points (a fixed top of 6 cut off (3, 9))
+  xmin={min(-1,__X1__-0.5,__X2__-0.5)}, xmax={max(3.5,__X1__+0.5,__X2__+0.5)},
+  ymin=-1, ymax={max(6,__Y1__+1,__Y2__+1)},
   grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
-  \addplot[cp line, samples=100, domain=-1:3.5]{x^2};
+  \addplot[cp line, samples=100, domain={min(-1,__X1__-0.5,__X2__-0.5)}:{max(3.5,__X1__+0.5,__X2__+0.5)}]{x^2};
   \addplot[only marks, cp point] coordinates {(__X1__, __Y1__) (__X2__, __Y2__)};
   \draw[cp line] (axis cs:__X1__,__Y1__) -- (axis cs:__X2__,__Y2__);
   % at the middle of the chord, outside the (convex) curve: above-left of a rising chord
   \node[cp label, anchor=south, xshift={ifthenelse((__Y2__-(__Y1__))*(__X2__-(__X1__))>=0,-1,1)*(0.5*width("secant")+2)}] at (axis cs:{(__X1__+__X2__)/2},{(__Y1__+__Y2__)/2}) {secant};
-  \addplot[cp dashed, domain=-1:3.5]{__TAN_SLOPE__*x + __TAN_INTERCEPT__};
+  \addplot[cp dashed, domain={min(-1,__X1__-0.5,__X2__-0.5)}:{max(3.5,__X1__+0.5,__X2__+0.5)}]{__TAN_SLOPE__*x + __TAN_INTERCEPT__};
   % one unit from the point of tangency (inside the window), below the line,
   % where the convex curve never reaches; at x = -0.5 it was usually off-window
   \node[cp label, anchor=north, xshift={ifthenelse(__TAN_SLOPE__>=0,1,-1)*(0.5*width("tangent")+2)}] at (axis cs:{ifthenelse(__X1__<2,__X1__+1,__X1__-1)}, {__TAN_SLOPE__*ifthenelse(__X1__<2,__X1__+1,__X1__-1)+__TAN_INTERCEPT__}) {tangent};
@@ -107,6 +117,9 @@ templates = [
 \begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
   xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
   xtick={__A__,__B__ __EXTRA_TICKS__}, xticklabels={__A_LABEL__,__B_LABEL__ __EXTRA_TICK_LABELS__}, hide obscured x ticks=false,
+  % a tick label where the area is below the axis goes above it (its white box
+  % cut a notch into the fill); TICK_DOWN is zero at those ticks
+  xticklabel style={anchor={ifthenelse(__TICK_DOWN__,90,270)},yshift={ifthenelse(__TICK_DOWN__,0,2)}},
   grid=both, grid style={gray!25,thin},
   every axis line/.style={cp axis},
   every tick/.style={cp label}]
@@ -138,6 +151,7 @@ templates = [
             # the interval (",1" / ",$1$"), and the label's stretch of the interval
             'EXTRA_TICKS': {'type': 'label', 'default': '', 'local': True},
             'EXTRA_TICK_LABELS': {'type': 'label', 'default': '', 'local': True},
+            'TICK_DOWN': {'type': 'label', 'default': '1', 'local': True},
             'LF0': {'type': 'number', 'default': '0', 'local': True},
             'LF1': {'type': 'number', 'default': '1', 'local': True},
         },
