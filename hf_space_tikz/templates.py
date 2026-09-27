@@ -1,0 +1,650 @@
+r"""
+Course Planner - TikZ template catalog (the single source of truth for the
+constrained "AI fills values, code assembles the diagram" generation path).
+
+WHY THIS FILE EXISTS
+--------------------
+The old backend defined every diagram three times, in three incompatible
+formats: a regex-extraction template, a `.format()` param blueprint, and a
+few-shot example block. They drifted constantly. This module replaces all
+three with ONE declarative catalog entry per diagram. The generation pipeline
+becomes linear: route -> fill params -> render/repair -> (reference fallback).
+
+The AI is never asked to write TikZ on the primary path. It only returns a flat
+JSON object of parameter values. Deterministic code substitutes those values
+into a fixed skeleton, so structure is guaranteed correct and only the numbers,
+labels, and a couple of constrained slots vary.
+
+HOW TO ADD A TEMPLATE (the authoring contract)
+----------------------------------------------
+Append a dict to TEMPLATES with these keys:
+
+  id        Unique short slug, e.g. "triangle_general".
+  subject   Course name it belongs to, or "*" for general STEM. Used only as a
+            mild routing tiebreak; triggers do the real work.
+  triggers  List of lowercase substrings. If any appear in the request text,
+            this template is a routing candidate; more hits = higher priority.
+  caption   One short sentence describing the finished diagram.
+  skeleton  Raw TikZ (a full tikzpicture environment). Insert a value slot as
+            __NAME__ (double underscore, UPPERCASE). Literal LaTeX braces {..}
+            stay literal - no brace-doubling, unlike the old .format() path.
+  params    Dict mapping each __NAME__ slot to a spec:
+              type      "label" | "number" | "tikz"
+              default   String used when the AI omits the value or on fallback.
+              desc      One line telling the AI what to put here.
+              answer_safe (optional, default True) Set False for a slot that
+                        holds the requested UNKNOWN on a worksheet; if the AI
+                        fills it with a solved-looking value it is replaced by
+                        `unknown` on worksheet targets.
+              unknown   (optional, default "?") Replacement symbol above.
+              local     (optional) The model never sees or fills this slot; only
+                        the backend's deterministic overrides set it (drawing
+                        geometry computed from the question), else its default.
+              stated_only (optional) On a worksheet, a value with any number the
+                        question does not state becomes `unknown`: the student
+                        works out region counts, branch probabilities and the
+                        like, so the diagram shows only what the question gives.
+              flag_of   (optional, implies local) A number slot that is 1 when
+                        the named label slot's final value is non-empty, else 0
+                        (an angle arc drawn only when its angle is labelled).
+
+  reference (optional) A richer worked TikZ example of this diagram, shown to
+            the AI verbatim only when this template is used as a few-shot
+            reference for a bespoke (no-exact-template) request. Never compiled.
+
+Param TYPES and their sanitizers:
+  label  Math/text label. LaTeX backslashes preserved (\vec, \theta, \circ).
+  number Pure number; anything non-numeric collapses to the default.
+  tikz   Zero or more constrained TikZ lines (currently: angle pics only).
+
+Run `python templates.py` to validate the catalog and see a routing/fill demo.
+"""
+
+import re
+
+
+ALL_PARAM_TYPES = ("label", "number", "tikz")
+
+
+# ---------------------------------------------------------------------------
+# Value sanitizers (pure; ported faithfully from the old app.py so the new path
+# is self-contained and unit-testable without importing the FastAPI service).
+# ---------------------------------------------------------------------------
+
+def repair_transport_escapes(text: str) -> str:
+    r"""Repair LaTeX command names damaged by a layer interpreting \t, \f, etc."""
+    text = str(text or "")
+    text = re.sub(r"\t\s*riangle\b", r"\\triangle", text)
+    text = re.sub(r"\t\s*ext\s*\{", r"\\text{", text)
+    text = re.sub(r"\t\s*heta\b", r"\\theta", text)
+    text = re.sub(r"\t\s*imes\b", r"\\times", text)
+    text = re.sub(r"\t\s*an\b", r"\\tan", text)
+    text = re.sub(r"\t\s*o\b", r"\\to", text)
+    text = re.sub(r"\f\s*rac\b", r"\\frac", text)
+    text = re.sub(r"\r\s*ight\b", r"\\right", text)
+    text = re.sub(r"\n\s*abla\b", r"\\nabla", text)
+    return text
+
+
+def sanitize_label(value, default: str = "") -> str:
+    """A math/text label. Keeps LaTeX backslashes and common math punctuation;
+    strips newlines, separators, and anything that could break out of a node."""
+    value = repair_transport_escapes(str(value if value is not None else default))
+    value = value.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+    value = re.sub(r"[;&]", " ", value)
+    # Allow % so an escaped \% survives, and $ so a label may carry its own math
+    # delimiters (many templates use a bare node {__LABEL__} with a "$...$" value).
+    # A bare/unbalanced % or $ only fails the compile, which the repair loop catches.
+    # "?" is the unknown marker ("x = ?"); stripping it turned "$?$" into "$$".
+    value = re.sub(r"[^A-Za-z0-9_+\-*/=.,:(){}\\^\s/|%$°?]", "", value)
+    # A model sometimes escapes its JSON twice: a boat speed arrived as
+    # 4\\,\\mathrm{m/s}, a TeX line break and the text "mathrm". A one-line label
+    # never wants a line break, so a doubled backslash before a command or a
+    # spacing mark is one backslash.
+    value = re.sub(r"\\\\+(?=[A-Za-z,;:! ])", r"\\", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value or default
+
+
+def sanitize_number(value, default: str = "0") -> str:
+    # Models often emit a typographic minus ("−2") or a bare decimal (".5");
+    # matching only ASCII "-" and a leading digit silently turned them into 2 and 5.
+    value = str(value if value is not None else default).strip().replace("−", "-")
+    match = re.search(r"-?(?:\d+(?:\.\d+)?|\.\d+)", value)
+    return re.sub(r"^(-?)\.", r"\g<1>0.", match.group(0)) if match else default
+
+
+_TIKZ_LINE_BLOCKLIST = re.compile(
+    r"\\(?:write18|input|include|openin|openout|read|write|def|let|newcommand|"
+    r"renewcommand|usepackage|documentclass|catcode|csname|immediate|special|"
+    r"includegraphics|externalize)\b",
+    re.IGNORECASE,
+)
+
+
+def sanitize_tikz_lines(value, default: str = "") -> str:
+    """Constrained TikZ passthrough. Today this only permits angle/right-angle
+    pics (the one slot where free-form TikZ is genuinely needed - variable count
+    of angle marks). Any dangerous macro voids the whole value to its default."""
+    value = repair_transport_escapes(str(value if value is not None else default))
+    if _TIKZ_LINE_BLOCKLIST.search(value):
+        return default
+    lines = []
+    for line in value.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if "\\pic" in line and ("angle=" in line or "right angle=" in line):
+            lines.append(line)
+    return "\n  ".join(lines) or default
+
+
+_SANITIZERS = {
+    "label": sanitize_label,
+    "number": sanitize_number,
+    "tikz": sanitize_tikz_lines,
+}
+
+
+# ---------------------------------------------------------------------------
+# The catalog. Templates live in the per-subject modules under catalog/ (one
+# file per course, in the exact shape the sourcing agent emits). Edit those to
+# add or change diagrams; this module is the engine that routes and fills them.
+# ---------------------------------------------------------------------------
+
+if __package__:
+    from .catalog import ALL as _CATALOG_ALL
+else:
+    from catalog import ALL as _CATALOG_ALL
+
+TEMPLATES: list[dict] = list(_CATALOG_ALL)
+
+_TEMPLATES_BY_ID = {t["id"]: t for t in TEMPLATES}
+_SLOT_RE = re.compile(r"__([A-Z0-9_]+)__")
+
+
+# ---------------------------------------------------------------------------
+# Engine: validation, routing, fill, and the AI parameter spec.
+# ---------------------------------------------------------------------------
+
+def catalog_errors() -> list[str]:
+    """Return a list of authoring mistakes in TEMPLATES (empty == healthy).
+
+    Catches the common ways a hand-added entry goes wrong: duplicate id, a
+    __SLOT__ with no param spec, a param with no matching slot, a bad type, or a
+    default that fails its own sanitizer. Run in the self-test and at import in
+    debug so a malformed template surfaces immediately instead of at render time.
+    """
+    errors: list[str] = []
+    seen_ids: set[str] = set()
+    for t in TEMPLATES:
+        tid = t.get("id", "<missing id>")
+        if tid in seen_ids:
+            errors.append(f"{tid}: duplicate id")
+        seen_ids.add(tid)
+        for key in ("id", "subject", "triggers", "caption", "skeleton", "params"):
+            if key not in t:
+                errors.append(f"{tid}: missing required key '{key}'")
+        skeleton = t.get("skeleton", "")
+        params = t.get("params", {})
+        # a slot may also appear only in the label placements (they are filled too)
+        slots = set(_SLOT_RE.findall(skeleton + "".join(t.get("layout_alternatives", []))))
+        for slot in slots:
+            if slot not in params:
+                errors.append(f"{tid}: skeleton slot __{slot}__ has no params entry")
+        for name, spec in params.items():
+            if name not in slots:
+                errors.append(f"{tid}: param '{name}' has no __{name}__ slot in skeleton")
+            ptype = spec.get("type")
+            if ptype not in ALL_PARAM_TYPES:
+                errors.append(f"{tid}.{name}: invalid type {ptype!r} (allowed: {ALL_PARAM_TYPES})")
+                continue
+            if "default" not in spec:
+                errors.append(f"{tid}.{name}: missing 'default'")
+            if spec.get("flag_of") and (spec["flag_of"] not in params or ptype != "number"):
+                errors.append(f"{tid}.{name}: flag_of must name a param and be a number slot")
+        if not t.get("triggers"):
+            errors.append(f"{tid}: empty triggers list (unroutable by keyword)")
+        if (ALT_SLOT in skeleton) != bool(t.get("layout_alternatives")):
+            errors.append(f"{tid}: {ALT_SLOT} slot and layout_alternatives must come together")
+    return errors
+
+
+_INFLECTION = r"(?:s|es|ed|ing|ly)?"
+
+
+def _trigger_hit(keyword: str, text_low: str) -> bool:
+    """Whole-word/phrase match that tolerates common inflectional suffixes.
+
+    Letter-boundaries are applied only on the sides where the keyword starts or
+    ends with a letter, so 'angle' still won't fire inside 'triangle' yet a
+    symbol-edged trigger like '^x' can match 'e^x' (whose 'e' would otherwise
+    trip a blanket left boundary). The optional suffix lets 'normal' match
+    'normally' and 'quartile' match 'quartiles' without matching 'planet'."""
+    kw = keyword.lower()
+    left = r"(?<![a-z])" if kw[:1].isalpha() else ""
+    right = (_INFLECTION + r"(?![a-z])") if kw[-1:].isalpha() else ""
+    return re.search(left + re.escape(kw) + right, text_low) is not None
+
+
+def _compatible(template: dict, text_low: str) -> bool:
+    # These families have no exact catalog skeleton. Never offer a different
+    # family as an "exact" match or as a misleading fallback reference.
+    if ("circle" in text_low and "tangent" in text_low
+            or "midpoint" in text_low and "coordinate plane" in text_low
+            or "block" in text_low and "four forces" in text_low):
+        return False
+    if template['id'] == 'network_graph' and 'triangle' in text_low and not re.search(r'network|weighted graph|spanning tree|hamiltonian|euler', text_low):
+        return False
+    if template['id'] == 'plane_with_normal' and 'coordinate plane' in text_low and not re.search(r'3d|three.dimension|normal vector', text_low):
+        return False
+    # One labelled triangle is the wrong picture for parallel lines cut by a
+    # transversal ("co-interior angle" hit the "interior angle" trigger) and
+    # for a pair of similar or congruent triangles.
+    if template['id'] == 'triangle_general' and re.search(
+            r'\btransversal\b|\b(?:similar|congruent)\s+(?:to|triangles?)\b', text_low):
+        return False
+    # The fence rectangles need an optimization question; "area enclosed
+    # between two curves" and a boat moving "along the river" matched them.
+    if template['id'] in ('optimization_rectangle', 'optimization_river_rectangle') and not re.search(
+            r'maxim|minim|optimi|fenc|largest|smallest|greatest|least|dimensions', text_low):
+        return False
+    return True
+
+
+def _relevance(template: dict, text_low: str, subj_tokens: set) -> float:
+    """Keyword-trigger score for one template, weighting multi-word phrases higher
+    (a specific "angle between" beats a bare "triangle") plus a subject-token
+    tiebreak. Subject is NOT part of the keyword haystack (folding it in made
+    "vectors" match every vector template)."""
+    if not _compatible(template, text_low):
+        return 0.0
+    score = 0.0
+    for kw in template["triggers"]:
+        if _trigger_hit(kw, text_low):
+            score += 1 + kw.count(" ")
+    if not score:
+        return 0.0
+    tmpl_tokens = set(re.findall(r"[a-z]+", template.get("subject", "").lower()))
+    if subj_tokens & tmpl_tokens:
+        score += 0.25
+    return score
+
+
+def _domain_affinity(template: dict, text_low: str, subj_tokens: set) -> float:
+    """Tie-breaker used only when padding reference examples.
+
+    Course names can be broad (one course spanning several topic families); a vector
+    question with no exact keyword hit should still receive vector references,
+    not the first calculus or advanced-functions examples in catalog order.
+    """
+    subject = str(template.get("subject", "")).lower()
+    affinity = 0.0
+    vector_terms = (
+        "vector", "vectors", "resultant", "magnitude", "\\vec", "bearing",
+        "airspeed", "wind", "force", "forces", "unit vectors",
+    )
+    calculus_terms = (
+        "derivative", "tangent", "secant", "limit", "integral", "riemann",
+        "rate of change", "optimization",
+    )
+    functions_terms = (
+        "function", "polynomial", "parabola", "asymptote", "logarithm",
+        "exponential", "sinusoid", "inverse",
+    )
+    if "vector" in subject and any(term in text_low for term in vector_terms):
+        affinity += 3.0
+    if "calculus" in subject and any(term in text_low for term in calculus_terms):
+        affinity += 3.0
+    if "advanced functions" in subject and any(term in text_low for term in functions_terms):
+        affinity += 3.0
+    tmpl_tokens = set(re.findall(r"[a-z]+", subject))
+    if subj_tokens & tmpl_tokens:
+        affinity += 0.25
+    return affinity
+
+
+def route(text: str, subject: str = "") -> dict | None:
+    """Keyword routing for an EXACT match. Returns the best template or None.
+
+    None means "no keyword hit"; the caller then decides whether to fall through
+    to the reference-guided path (which uses route_top for structural examples).
+    """
+    text_raw = str(text or "")
+    text_low = text_raw.lower()
+    if (
+        re.search(r"\b(define|explain|describe|state)\b", text_low)
+        and re.search(r"\b(term|definition|relationship|in your own words)\b", text_low)
+        and not re.search(r"\b(calculate|find|determine|draw|sketch|graph|diagram|geometric shape)\b", text_low)
+    ):
+        return None
+    if (
+        re.search(r"\b(ramp|incline|inclined|slope)\b", text_low)
+        and re.search(r"\b(force|mass|weight|normal|rope|friction|gravity|parallel)\b", text_low)
+        and not re.search(r"\bprojection|project(?:ed)?\s+onto\b", text_low)
+    ):
+        return None
+    if re.search(r"\b(two\s+(?:wires|ropes|cables)|two light wires|suspended by two|supported by two|cable attached)\b", text_low):
+        return None
+    has_3d_vector_tuple = bool(re.search(
+        r"(?:\\vec\s*\{?\s*[A-Za-z]\s*\}?|vector\s+[A-Za-z])\s*=?\s*"
+        r"\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)",
+        text_raw,
+        re.I,
+    ))
+    has_standard_basis_3d = bool(re.search(
+        r"\\vec\s*\{?\s*[A-Za-z]\s*\}?\s*=\s*[-+]?\s*\d*\.?\d+\s*\\vec\s*\{?\s*i\s*\}?"
+        r".{0,80}\\vec\s*\{?\s*j\s*\}?.{0,80}\\vec\s*\{?\s*k\s*\}?",
+        text_raw,
+        re.I | re.S,
+    )) or bool(re.search(
+        r"(?:\b(?:algebraic\s+)?vector\s+[A-Za-z]|\b[A-Za-z])\s*=\s*[-+]?\s*\d*\.?\d+\s*i\b"
+        r".{0,80}[-+]?\s*\d*\.?\d+\s*j\b.{0,80}[-+]?\s*\d*\.?\d+\s*k\b",
+        text_raw,
+        re.I | re.S,
+    ))
+    has_named_3d_points = len(re.findall(
+        r"\b[A-Z]\s*\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)",
+        text_raw,
+    )) >= 2
+    has_angle_bracket_vectors = bool(re.search(r"\\left\s*<|<\s*-?\d+(?:\.\d+)?\s*,", text_raw))
+    if has_named_3d_points and re.search(r"\\vec|components?\s+of\s+the\s+vectors?|vertices|vector\s+[A-Z]{2}", text_raw, re.I):
+        return None
+    if has_3d_vector_tuple or has_standard_basis_3d or has_angle_bracket_vectors:
+        # Only two exact templates draw 3D vectors from the question's own
+        # components; everything else with a 3D tuple is drawn to order.
+        # "Sketch the position vector v = (2, 3, 4)" had no route at all.
+        triples = {tuple(float(n) for n in m) for m in re.findall(
+            r"(?:\(|<|\\langle)\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*(?:\)|>|\\rangle)", text_raw)}
+        if (len(triples) >= 2 and re.search(r"cross product|vector product|area of the parallelogram", text_low)
+                and not re.search(r"parallelepiped|triple product|\bplane\b", text_low)):
+            return get("cross_product_parallelogram")
+        if (len(triples) == 1 and re.search(r"position vector|components?\b|magnitude|three dimensions|\b3d\b", text_low)
+                and not re.search(r"cross|dot product|angle|projection|\bplane\b|\bline\b|unit vector|parallel|orthogonal|collinear", text_low)):
+            return get("3d_vector_components")
+        return None
+    # Scaled symbolic vector combinations ("p - 2q", "\vec{p} - 2\vec{q}") are
+    # more specific than the surrounding words "resultant vector"; choose the
+    # scaled-combination template before generic resultant scoring.
+    # The bare-letter form is only trusted when the text actually talks about
+    # vectors: on normalized calculus text the old loose pattern matched plain
+    # polynomial arithmetic butted against a word ("... 5x - 1 at the point"
+    # -> 'x - 1 a'), hijacking tangent-line questions into a vector diagram.
+    # Word boundaries stop mid-word letters ('a' of "at") from counting, and
+    # the \vec/vector cue keeps the override inside vector questions. Bare-letter
+    # pairs made ONLY of coordinate variables are Cartesian arithmetic, not a
+    # vector combination: "Convert 5x - 2y + 10 = 0 into a vector equation" says
+    # "vector" yet 5x - 2y must not draw the 2u-3v diagram.
+    _combo_hit = False
+    for _m in re.finditer(
+        r"(?:\\vec\s*\{(?P<v1>[A-Za-z])\}|\b\d*(?P<b1>[A-Za-z])\b)\s*[+-]\s*\d+\s*(?:\\vec\s*\{(?P<v2>[A-Za-z])\}|(?P<b2>[A-Za-z])\b)",
+        text_raw,
+    ):
+        if not (_m.group("v1") or _m.group("v2")):
+            letters = {(_m.group("b1") or "").lower(), (_m.group("b2") or "").lower()}
+            if letters <= {"x", "y", "z", "t"}:
+                continue
+        _combo_hit = True
+        break
+    if (
+        _combo_hit
+        and re.search(r"\\vec|(?<![a-z])vectors?(?![a-z])", text_low)
+        and not has_standard_basis_3d
+        and not re.search(r"\\vec\s*\{?\s*[ijk]\s*\}?", text_raw, re.I)
+    ):
+        hit = get("vector_linear_combination")
+        if hit:
+            return hit
+    # Prefer an explicitly named diagram family over a sum of broad shared
+    # keywords. Without these narrow overrides, "cumulative frequency ogive"
+    # tied the generic histogram, "exponential ... horizontal asymptote" chose
+    # the earlier rational template, and left-endpoint rectangles were treated
+    # as a generic shaded integral. The model fit-check could veto those routes,
+    # but doing so wastes calls and sends routine worksheets to the slow custom
+    # path.
+    specific_routes = (
+        (r"\briemann\b|\bleft[- ]endpoint\s+rectangles?\b", "riemann_sum_rectangles"),
+        (r"\bogive\b", "ogive"),
+        (r"\bhistogram\b", "histogram"),
+        (r"\bbox(?:-and-whisker|\s+and\s+whisker|\s*plot)\b", "boxplot"),
+        (r"\bscatter\s*plot\b|\bline of best fit\b", "scatter_fit"),
+        (r"\bnormal(?:ly)?\s+(?:distribution|distributed|curve|model)\b", "normal_curve"),
+        (r"\bpiecewise\b|(?:\bopen point\b.*\bclosed point\b|\bclosed point\b.*\bopen point\b)", "piecewise_linear"),
+        (r"\binverse\b.*\b(?:reflection|reflected|y\s*=\s*x|logarithm)", "function_inverse_reflection"),
+        (r"\bexponential\b", "exponential_asymptote"),
+        (r"\blogarithmic\b", "logarithmic_asymptote"),
+        (r"\b(?:sinusoid|sinusoidal)\b", "sinusoid_amplitude_period"),
+    )
+    for pattern, template_id in specific_routes:
+        if re.search(pattern, text_low, re.S):
+            hit = get(template_id)
+            if hit and _compatible(hit, text_low):
+                return hit
+    # Worksheet questions usually give the equation ("y = 2^(x - 1) + 3") without
+    # the word "exponential"; the shared word "asymptote" then scored the
+    # rational template higher. Calculus and inverse/log questions keep their
+    # own routes.
+    if (
+        re.search(
+            # A parenthesized base may follow its coefficient ("80(0.5)^t").
+            r"(?:\(\s*\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\s*\)|(?<![a-z0-9.])(?:\d+(?:\.\d+)?|e))"
+            r"\s*\^\s*[({]?\s*[-+]?\s*(?:\d+(?:\.\d+)?\s*\*?\s*)?[xt]\b",
+            text_low,
+        )
+        and not re.search(
+            r"integra|antideriv|riemann|derivative|differentiat|tangent|secant|\blimit|\barea\b"
+            r"|\blog|\bln\b|inverse|rational",
+            text_low,
+        )
+    ):
+        hit = get("exponential_asymptote")
+        if hit and _compatible(hit, text_low):
+            return hit
+    if re.search(r"(?:∠|\\angle\b|\bangle\s+|\?)[A-Z]{3}\b", text_raw):
+        hit = get("triangle_general")
+        if hit:
+            return hit
+    subj_tokens = set(re.findall(r"[a-z]+", str(subject or "").lower()))
+    best: dict | None = None
+    best_score = 0.0
+    for t in TEMPLATES:
+        score = _relevance(t, text_low, subj_tokens)
+        if score > best_score:
+            best_score = score
+            best = t
+    return best
+
+
+def route_top(text: str, subject: str = "", k: int = 3) -> list[dict]:
+    """The k most relevant templates, for use as structural REFERENCES on the
+    reference-guided fallback (novel problems with no exact match). Always returns
+    up to k: keyword matches first, then padded by same-subject/leading templates
+    so the generator always has a few style exemplars to anchor on."""
+    text_low = str(text or "").lower()
+    subj_tokens = set(re.findall(r"[a-z]+", str(subject or "").lower()))
+    scored = sorted(
+        ((_relevance(t, text_low, subj_tokens), _domain_affinity(t, text_low, subj_tokens), i, t) for i, t in enumerate(TEMPLATES) if _compatible(t, text_low)),
+        key=lambda x: (-x[0], -x[1], x[2]),
+    )
+    picked = [t for s, _a, _i, t in scored if s > 0][:k]
+    if len(picked) < k:
+        for _s, _a, _i, t in scored:
+            if t not in picked:
+                picked.append(t)
+            if len(picked) >= k:
+                break
+    return picked
+
+
+def get(template_id: str) -> dict | None:
+    return _TEMPLATES_BY_ID.get(template_id)
+
+
+ALT_SLOT = "@@ALT@@"
+
+
+def alternatives(template: dict) -> int:
+    """How many label placements a template offers (see "layout_alternatives")."""
+    return max(1, len(template.get("layout_alternatives", [])))
+
+
+def fill(template: dict, ai_params: dict | None = None, target: str = "generic", alternative: int = 0,
+         question: str = "") -> str:
+    """Substitute AI-supplied values into a template skeleton, deterministically.
+
+    Every slot is sanitized by its declared type. Missing values fall back to
+    the param default. On a worksheet target, a slot marked answer_safe=False
+    whose value looks like a solved result is replaced by its unknown symbol.
+
+    A template whose best label placement depends on its values can list
+    candidate placements in "layout_alternatives" (TikZ fragments for its
+    @@ALT@@ slot, preferred first); the renderer tries them in order when the
+    rendered picture shows label collisions. The model never sees or fills them.
+
+    A slot marked keep_if_given=True keeps a value whose numbers all appear in
+    the question: a Venn region the question fills in is a given, not an answer
+    (the worksheet showed "3 in the centre" as ?).
+    """
+    ai_params = ai_params or {}
+    out = template["skeleton"]
+    options = template.get("layout_alternatives", [])
+    if options:
+        out = out.replace(ALT_SLOT, options[min(alternative, len(options) - 1)])
+    values: dict[str, str] = {}
+    for name, spec in template["params"].items():
+        if spec.get("flag_of"):
+            continue
+        ptype = spec.get("type", "label")
+        default = str(spec.get("default", ""))
+        raw = ai_params.get(name, default)
+        value = _SANITIZERS[ptype](raw, default)
+        if ptype == "label" and _in_math(out, "__" + name + "__"):
+            # A model often wraps a label in its own $...$; inside the slot's
+            # math that makes $$...$$, which breaks the compile.
+            value = re.sub(r"^\$(.+)\$$", r"\1", value) if value.count("$") == 2 else value
+        if ptype == "label":
+            math_slot = _in_math(out, "__" + name + "__")
+            value = _upright_unit(value, math_slot=math_slot)
+            if not math_slot:
+                value = _math_wrapped(value)
+        if target == "worksheet" and spec.get("stated_only") and not _stated_in(value, question) and re.search(r"\d", value):
+            value = str(spec.get("unknown", "?"))
+        if target == "worksheet" and not spec.get("answer_safe", True):
+            if _looks_like_answer(value) and not (spec.get("keep_if_given") and _stated_in(value, question)):
+                value = str(spec.get("unknown", "?"))
+        values[name] = value
+    for name, spec in template["params"].items():
+        if spec.get("flag_of"):
+            values[name] = "1" if values.get(spec["flag_of"], "").strip() else "0"
+    for name, value in values.items():
+        out = out.replace("__" + name + "__", value)
+    return out
+
+
+_UNITS = r"(?:mm|cm|m|km|in|ft|yd|mi|g|kg|N|s|h|min|L|mL|m/s|km/h|m/s\^2|mph|cm/s|m\^2|cm\^2|m\^3|cm\^3)"
+
+
+def _upright_unit(value: str, math_slot: bool) -> str:
+    """"5 m" as a math label printed an italic 5m: a number and a unit become
+    5\\,\\mathrm{m} wherever the label is read as math."""
+    m = re.fullmatch(r"(\$?)\s*(-?\d+(?:\.\d+)?)\s*(" + _UNITS + r")\s*(\$?)", value)
+    if not m or not (math_slot or (m.group(1) and m.group(4))):
+        return value
+    return m.group(1) + m.group(2) + "\\,\\mathrm{" + m.group(3) + "}" + m.group(4)
+
+
+_MATH_ONLY = re.compile(r"[\^_]|\\(?:frac|sqrt|log|ln|sin|cos|tan|pi|theta|alpha|beta|vec|cdot|times|le|ge|leq|geq|circ|infty|sum|int)\b")
+
+
+def _in_math(text: str, slot: str) -> bool:
+    """Whether the slot sits inside math: an odd number of unescaped $ before it
+    on its line (a {$__X__^\\circ$} slot is math too), or in \\ensuremath{...}."""
+    at = text.find(slot)
+    if at < 0:
+        return False
+    line = text[text.rfind("\n", 0, at) + 1:at]
+    return len(re.findall(r"(?<!\\)\$", line)) % 2 == 1 or line.rstrip().endswith("\\ensuremath{")
+
+
+def _math_wrapped(value: str) -> str:
+    """A label in a text slot with maths but no $...$ (the model sent
+    f(x) = 2^x for the inverse template's plain node) is wrapped, or the
+    ^ stops the compile."""
+    # only label-like values: an equation or a TeX command. A plot expression
+    # such as 4-x^2 sits in a text-looking slot too, and must stay bare.
+    if "$" in value or not _MATH_ONLY.search(value) or not re.search(r"=|\\[A-Za-z]", value):
+        return value
+    return "$" + value + "$"
+
+
+def _stated_in(value: str, question: str) -> bool:
+    """Every number in value appears as a number in question."""
+    numbers = re.findall(r"\d+(?:\.\d+)?", str(value or ""))
+    stated = {float(n) for n in re.findall(r"\d+(?:\.\d+)?", str(question or ""))}
+    return bool(numbers) and all(float(n) in stated for n in numbers)
+
+
+def _looks_like_answer(value: str) -> bool:
+    """Heuristic: a symbolic label (u+v, \\vec{R}, ?) is fine; a solved coordinate
+    tuple, a \\sqrt/\\frac result, or a bare number reads as a leaked answer."""
+    v = str(value or "").strip()
+    if not v or v == "?":
+        return False
+    if re.search(r"\(\s*[-+]?\d+(?:\.\d+)?\s*,\s*[-+]?\d", v):  # (3,-2) style tuple
+        return True
+    if re.search(r"\\(?:sqrt|frac)\b", v):
+        return True
+    if re.fullmatch(r"[-+]?\d+(?:\.\d+)?", v):  # a bare solved number
+        return True
+    return False
+
+
+def ai_spec(template: dict) -> dict:
+    """The constrained instruction the AI receives: fill THESE keys, nothing else.
+
+    Returns a plain dict (the caller serializes it into the model prompt). The
+    AI must never emit TikZ - only a flat {slot: value} object. Local slots
+    (geometry the backend computes, flags) are not the model's to fill.
+    """
+    params = {k: v for k, v in template["params"].items() if not (v.get("local") or v.get("flag_of"))}
+    return {
+        "template_id": template["id"],
+        "keys": list(params.keys()),
+        "defaults": {k: v.get("default", "") for k, v in params.items()},
+        "fields": {
+            k: {"type": v.get("type", "label"), "desc": v.get("desc", "")}
+            for k, v in params.items()
+        },
+    }
+
+
+if __name__ == "__main__":
+    import json
+
+    print("=== catalog validation ===")
+    errs = catalog_errors()
+    if errs:
+        for e in errs:
+            print("  ERROR:", e)
+        raise SystemExit(f"{len(errs)} catalog error(s)")
+    print(f"  OK - {len(TEMPLATES)} templates, all slots/params consistent.\n")
+
+    demos = [
+        ("Trigonometry", "In triangle PQR, angle P = 40 degrees and side q = 12 cm. Find angle R."),
+        ("Vectors", "A ship sails on a bearing of 040 then 110. Find its distance from start."),
+        ("Vectors", "Find the resultant of two forces with an angle of 60 between them."),
+        ("Data Management", "The marks are normally distributed. Shade within one standard deviation."),
+        ("Data Management", "Draw a box-and-whisker plot for the five-number summary."),
+        ("Advanced Functions", "Sketch y = log(x) and its asymptote."),  # expect no route
+    ]
+    for subject, text in demos:
+        t = route(text, subject)
+        print(f"[{subject}] {text[:60]!r}")
+        if not t:
+            print("  -> no template (would use AI-classifier / reference fallback)\n")
+            continue
+        print(f"  -> {t['id']}")
+        print("  ai_spec keys:", ai_spec(t)["keys"])
+        print("  filled (defaults):")
+        print("    " + fill(t, {}, target="worksheet").replace("\n", "\n    "))
+        print()

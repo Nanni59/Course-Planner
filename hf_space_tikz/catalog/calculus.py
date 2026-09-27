@@ -1,0 +1,430 @@
+"""Course Planner TikZ catalog - Calculus.
+
+One dict per diagram. Authoring contract lives in ../templates.py.
+Slots are __UPPER__; skeletons are raw strings; every slot has a params entry.
+"""
+
+def _tangent_label_x(spot: str) -> str:
+    """\\cplx for function_tangent: the spot, moved into the x-range where the
+    line runs inside the window (a tenth of the window in from each edge)."""
+    slope = r"ifthenelse(abs(__SLOPE__)<0.01,0.01,__SLOPE__)"
+    u1 = rf"((__YMIN__)+0.1*((__YMAX__)-(__YMIN__))-(__INTERCEPT__))/{slope}"
+    u2 = rf"((__YMAX__)-0.1*((__YMAX__)-(__YMIN__))-(__INTERCEPT__))/{slope}"
+    lo = rf"max((__XMIN__)+0.08*((__XMAX__)-(__XMIN__)),min({u1},{u2}))"
+    hi = rf"min((__XMAX__)-0.08*((__XMAX__)-(__XMIN__)),max({u1},{u2}))"
+    return r"\pgfmathsetmacro\cplx{" + rf"max({lo},min({hi},{spot}))" + "}"
+
+
+templates = [
+    {
+        "id": 'function_tangent',
+        "subject": 'Calculus',
+        # 'normal line' lives here so it cannot leak to the Data Management
+        # bell curve; the schematic (curve + marked point + line) fits both.
+        "triggers": ['tangent line', 'tangent at', 'tangent to', 'derivative', 'function curve',
+                     'normal line', 'normal to the curve'],
+        "caption": 'A function curve with a tangent line at a marked point.',
+        # Curve and axis window are fillable: the old fixed x^2 / [-2,3] frame
+        # could not show e.g. the normal to sqrt(x) at (4,2) - the marked point
+        # landed outside the plot. The fill prompt shows the model this skeleton,
+        # so it can frame the window around the actual point of tangency.
+        "skeleton": r"""\begin{tikzpicture}
+% where the line label goes: the model's LABEL_X, else across the window when
+% an axis or the window edge cuts it (x = 1 ran it across the y-axis); a
+% macro, since samples at takes no expression
+@@ALT@@
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
+  xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
+  grid=both, grid style={gray!25,thin},
+  every axis line/.style={cp axis},
+  every tick/.style={cp label},
+  % the tick label under a point just below the x-axis goes above the axis
+  % (below, it hid the point of tangency)
+  xticklabel style={anchor={ifthenelse(abs(\tick-(__POINT_X__))<0.01 && (__POINT_Y__)<0 && (__POINT_Y__)>-0.2*((__YMAX__)-(__YMIN__)),270,90)}}]
+  \addplot[cp line, samples=100, domain=__XMIN__:__XMAX__]{__CURVE__};
+  \addplot[only marks, cp point] coordinates {(__POINT_X__, __POINT_Y__)};
+  % Point label above the line on its uphill-away side (above-left for a rising
+  % line: bottom-right corner at the point), off both the line and the curve;
+  % above right sat on the line. Other corners from the renderer (cp pt).
+  \node[cp label, cp pt] at (axis cs:__POINT_X__,__POINT_Y__) {$(__POINT_X__,__POINT_Y__)$};
+  \addplot[cp dashed, domain=__XMIN__:__XMAX__]{__SLOPE__*x + __INTERCEPT__};
+  % Line label on the side of the line away from the curve. The curve's side at
+  % LABEL_X is the sign of curve - line there, computed as this point's meta
+  % value; the transformed meta is above 500 exactly when it is positive (then
+  % the label goes below the line: below-right of a rising line).
+  \addplot[draw=none, samples at={\cplx},
+    point meta={(__CURVE__)-(__SLOPE__*x + __INTERCEPT__)}, point meta min=-0.001, point meta max=0.001,
+    nodes near coords={__LINE_LABEL__},
+    nodes near coords style={cp label, anchor={ifthenelse(\pgfplotspointmetatransformed>500,90,270)},
+      xshift={ifthenelse(\pgfplotspointmetatransformed>500,1,-1)*ifthenelse(__SLOPE__>=0,1,-1)*(0.5*width("__LINE_LABEL__")+2)}}]
+    {__SLOPE__*x + __INTERCEPT__};
+\end{axis}
+\end{tikzpicture}""",
+        # line label spot x the point label's corner (the default first: above,
+        # on the line's uphill-away side; then below it, then the other side)
+        # Each spot is clamped to where the line is inside the window: a spot
+        # outside it lost the label (the cubic's tangent had none).
+        "layout_alternatives": [
+            lx + r'\tikzset{cp pt/.style={anchor=' + anchor + r',xshift={' + side + r'ifthenelse(__SLOPE__>=0,-1,1)*(0.5*width("$(__POINT_X__,__POINT_Y__)$")+2)}}}'
+            for anchor, side in (('south', ''), ('north', '-'), ('south', '-'), ('north', ''))
+            for lx in [_tangent_label_x('__LABEL_X__')] + [
+                _tangent_label_x(f'(__XMIN__)+{f}*((__XMAX__)-(__XMIN__))') for f in ('0.75', '0.25', '0.9', '0.6', '0.4', '0.1')]],
+        "params": {
+            'CURVE': {'type': 'label', 'default': 'x^2', 'desc': "pgfplots expression for the question's curve in terms of x, e.g. x^2, sqrt(x), x^3 - 6*x^2 + 5*x - 1 (write * for every product; keep it defined over the whole axis window)"},
+            'XMIN': {'type': 'number', 'default': '-2', 'desc': 'left edge of the axis window; choose bounds so the marked point sits comfortably inside'},
+            'XMAX': {'type': 'number', 'default': '3', 'desc': 'right edge of the axis window'},
+            'YMIN': {'type': 'number', 'default': '-1', 'desc': 'bottom edge of the axis window'},
+            'YMAX': {'type': 'number', 'default': '5', 'desc': 'top edge of the axis window'},
+            'POINT_X': {'type': 'number', 'default': '1', 'desc': 'x-coordinate of the point of tangency'},
+            'POINT_Y': {'type': 'number', 'default': '1', 'desc': 'y-coordinate of the point of tangency'},
+            'SLOPE': {'type': 'number', 'default': '2', 'desc': 'slope of the drawn line at the point'},
+            'INTERCEPT': {'type': 'number', 'default': '-1', 'desc': 'y-intercept of the drawn line'},
+            'LABEL_X': {'type': 'number', 'default': '2', 'desc': 'x-position for the line label, inside the window, away from the marked point, at least 1 unit from the y-axis, and where the line is clear of the x-axis'},
+            'LINE_LABEL': {'type': 'label', 'default': 'tangent', 'desc': "name of the drawn line: 'tangent' for tangent-line questions, 'normal' for normal-line questions"},
+        },
+    },
+    {
+        "id": 'secant_and_tangent',
+        "subject": 'Calculus',
+        "triggers": ['secant', 'secant line', 'average rate', 'instantaneous rate'],
+        "caption": 'A function curve with a secant line between two points and a tangent line at one of them.',
+        "skeleton": r"""\begin{tikzpicture}
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
+  % the window holds both points (a fixed top of 6 cut off (3, 9))
+  xmin={min(-1,__X1__-0.5,__X2__-0.5)}, xmax={max(3.5,__X1__+0.5,__X2__+0.5)},
+  ymin=-1, ymax={max(6,__Y1__+1,__Y2__+1)},
+  grid=both, grid style={gray!25,thin},
+  every axis line/.style={cp axis},
+  every tick/.style={cp label}]
+  \addplot[cp line, samples=100, domain={min(-1,__X1__-0.5,__X2__-0.5)}:{max(3.5,__X1__+0.5,__X2__+0.5)}]{x^2};
+  \addplot[only marks, cp point] coordinates {(__X1__, __Y1__) (__X2__, __Y2__)};
+  \draw[cp line] (axis cs:__X1__,__Y1__) -- (axis cs:__X2__,__Y2__);
+  % at the middle of the chord, outside the (convex) curve: above-left of a rising chord
+  \node[cp label, anchor=south, xshift={ifthenelse((__Y2__-(__Y1__))*(__X2__-(__X1__))>=0,-1,1)*(0.5*width("secant")+2)}] at (axis cs:{(__X1__+__X2__)/2},{(__Y1__+__Y2__)/2}) {secant};
+  \addplot[cp dashed, domain={min(-1,__X1__-0.5,__X2__-0.5)}:{max(3.5,__X1__+0.5,__X2__+0.5)}]{__TAN_SLOPE__*x + __TAN_INTERCEPT__};
+  % one unit from the point of tangency (inside the window), below the line,
+  % where the convex curve never reaches; at x = -0.5 it was usually off-window
+  \node[cp label, anchor=north, xshift={ifthenelse(__TAN_SLOPE__>=0,1,-1)*(0.5*width("tangent")+2)}] at (axis cs:{ifthenelse(__X1__<2,__X1__+1,__X1__-1)}, {__TAN_SLOPE__*ifthenelse(__X1__<2,__X1__+1,__X1__-1)+__TAN_INTERCEPT__}) {tangent};
+\end{axis}
+\end{tikzpicture}""",
+        "params": {
+            'X1': {'type': 'number', 'default': '1', 'desc': 'x-coordinate of the first point on the curve'},
+            'Y1': {'type': 'number', 'default': '1', 'desc': 'y-coordinate of the first point on the curve'},
+            'X2': {'type': 'number', 'default': '2', 'desc': 'x-coordinate of the second point on the curve'},
+            'Y2': {'type': 'number', 'default': '4', 'desc': 'y-coordinate of the second point on the curve'},
+            'TAN_SLOPE': {'type': 'number', 'default': '2', 'desc': 'slope of the tangent line at the first point'},
+            'TAN_INTERCEPT': {'type': 'number', 'default': '-1', 'desc': 'y-intercept of the tangent line at the first point'},
+        },
+    },
+    {
+        "id": 'definite_integral_shaded',
+        "subject": 'Calculus',
+        "triggers": [
+            'definite integral', 'shaded area', 'shade the area', 'area under',
+            'area under curve', 'area from', 'area between', 'rate curve',
+            'net area', 'bounded by', 'bounded region', 'x-axis',
+            'accumulated', 'total distance travelled',
+            # F(x) = integral of f(t) from a to x: the shaded area up to a moving x
+            'accumulation function', 'integral of', 'from 0 to x',
+        ],
+        "caption": 'Definite integral represented as shaded area under a curve between $x=a$ and $x=b$.',
+        "skeleton": r"""\begin{tikzpicture}
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$__XVAR__$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
+  xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
+  xtick={__A__,__B__ __EXTRA_TICKS__}, xticklabels={__A_LABEL__,__B_LABEL__ __EXTRA_TICK_LABELS__}, hide obscured x ticks=false,
+  % a tick label where the area is below the axis goes above it (its white box
+  % cut a notch into the fill); TICK_DOWN is zero at those ticks
+  xticklabel style={anchor={ifthenelse(__TICK_DOWN__,90,270)},yshift={ifthenelse(__TICK_DOWN__,0,2)}},
+  grid=both, grid style={gray!25,thin},
+  every axis line/.style={cp axis},
+  every tick/.style={cp label}]
+  % Fill first so it cannot paint over half of the curve's stroke. Area below
+  % the axis is a darker grey than area above it, so a signed area reads as two
+  % regions (one fill showed both the same; a hatch pattern made the SVG too
+  % large to ship).
+  \addplot[cp fill, draw=none, samples=160, domain=__A__:__B__] {max(0,__CURVE__)} \closedcycle;
+  \addplot[fill=black!35, draw=none, samples=160, domain=__A__:__B__] {min(0,__CURVE__)} \closedcycle;
+  \addplot[cp line, samples=160, domain=__XMIN__:__XMAX__]{__CURVE__};
+  % The label rides an invisible copy of the curve at 40% height, so it stays
+  % between the curve and the x-axis for any bounds; the backend narrows its
+  % stretch (fractions of the interval) to the filled part of a signed area.
+  \addplot[draw=none, samples=41, domain={__A__+(__B__-(__A__))*__LF0__}:{__A__+(__B__-(__A__))*__LF1__}] {0.4*(__CURVE__)} node[cp label, pos=0.5] {__AREA_LABEL__};
+\end{axis}
+\end{tikzpicture}""",
+        "params": {
+            'CURVE': {'type': 'label', 'default': 'x^2', 'desc': "pgfplots expression for the given integrand/curve in x; write * for multiplication"},
+            'XMIN': {'type': 'number', 'default': '-1', 'desc': 'left axis bound, outside the shaded interval'},
+            'XMAX': {'type': 'number', 'default': '4', 'desc': 'right axis bound, outside the shaded interval'},
+            'YMIN': {'type': 'number', 'default': '0', 'desc': 'bottom axis bound; allow negative values for signed-area questions'},
+            'YMAX': {'type': 'number', 'default': '5', 'desc': 'top axis bound'},
+            'A': {'type': 'number', 'default': '0.5', 'desc': 'lower limit of integration'},
+            'B': {'type': 'number', 'default': '2', 'desc': 'upper limit of integration'},
+            'A_LABEL': {'type': 'label', 'default': '$a$', 'desc': 'short x-axis label for the lower bound, using the given value when stated'},
+            'B_LABEL': {'type': 'label', 'default': '$b$', 'desc': 'short x-axis label for the upper bound, using the given value when stated'},
+            'AREA_LABEL':{'type': 'label', 'default': 'area', 'desc': 'short symbolic region label such as area or accumulated change; never the evaluated value'},
+            # set by the backend: the ticks where the curve crosses the axis inside
+            # the interval (",1" / ",$1$"), and the label's stretch of the interval
+            'EXTRA_TICKS': {'type': 'label', 'default': '', 'local': True},
+            'EXTRA_TICK_LABELS': {'type': 'label', 'default': '', 'local': True},
+            'TICK_DOWN': {'type': 'label', 'default': '1', 'local': True},
+            # the axis variable: t for an accumulation function F(x) = integral of f(t)
+            'XVAR': {'type': 'label', 'default': 'x', 'local': True},
+            'LF0': {'type': 'number', 'default': '0', 'local': True},
+            'LF1': {'type': 'number', 'default': '1', 'local': True},
+        },
+    },
+    {
+        # Two curves and the region between them. Model drawings of this family
+        # ran each curve through its own label or spilled the shading; here the
+        # curves carry a legend, the shading stops at the crossings, and no
+        # crossing gets a label or a guide line (finding them is the question).
+        "id": 'area_between_curves',
+        "subject": 'Calculus',
+        "triggers": ['area enclosed', 'enclosed by', 'enclosed between', 'region enclosed',
+                     'area between the curves', 'between the curves', 'bounded by the curves',
+                     'area between two curves', 'region between'],
+        "caption": 'Two curves on one set of axes with the region enclosed between them shaded.',
+        "skeleton": r"""\begin{tikzpicture}
+\begin{axis}[width=7cm, height=5cm, axis lines=middle, axis line style=cp axis,
+    xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
+    xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
+    % the axes over the shading (under it, part of each axis vanished)
+    axis on top,
+    legend pos=outer north east, legend style={draw=none, font=\small}]
+  \addplot[cp line, name path=cpf, samples=161, domain=__XMIN__:__XMAX__] {__F__};
+  \addlegendentry{__F_LABEL__}
+  \addplot[cp dashed, name path=cpg, samples=161, domain=__XMIN__:__XMAX__] {__G__};
+  \addlegendentry{__G_LABEL__}
+  % the fill goes on the layer below the curves; only between the crossings
+  \addplot[cp fill, draw=none, forget plot] fill between[of=cpf and cpg, soft clip={domain=__A__:__B__}];
+\end{axis}
+\end{tikzpicture}""",
+        "params": {
+            'F': {'type': 'label', 'default': '4-x^2', 'desc': 'pgfplots expression in x for the first curve; write * for every product'},
+            'G': {'type': 'label', 'default': 'x+2', 'desc': 'pgfplots expression in x for the second curve'},
+            'F_LABEL': {'type': 'label', 'default': '$y=4-x^2$', 'desc': 'legend entry for the first curve, e.g. $y=4-x^2$'},
+            'G_LABEL': {'type': 'label', 'default': '$y=x+2$', 'desc': 'legend entry for the second curve'},
+            'A': {'type': 'number', 'default': '-2', 'desc': 'x where the enclosed region starts (the left crossing); used only for the shading, never labelled'},
+            'B': {'type': 'number', 'default': '1', 'desc': 'x where the enclosed region ends (the right crossing)'},
+            'XMIN': {'type': 'number', 'default': '-3.5', 'desc': 'left edge of the window, beyond the left crossing'},
+            'XMAX': {'type': 'number', 'default': '2.5', 'desc': 'right edge of the window, beyond the right crossing'},
+            'YMIN': {'type': 'number', 'default': '-3', 'desc': 'bottom edge of the window'},
+            'YMAX': {'type': 'number', 'default': '5', 'desc': 'top edge of the window'},
+        },
+    },
+    {
+        "id": 'riemann_sum_rectangles',
+        "subject": 'Calculus',
+        "triggers": ['Riemann sum', 'rectangles', 'left endpoint', 'left-endpoint'],
+        "caption": 'Riemann sum approximation using four left-endpoint rectangles under a curve.',
+        "skeleton": r"""\begin{tikzpicture}
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
+  xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
+  grid=both, grid style={gray!25,thin},
+  every axis line/.style={cp axis},
+  every tick/.style={cp label}]
+  \path[cp fill] (axis cs:__X0__,0) -- (axis cs:__X1__,0) -- (axis cs:__X1__, __H1__) -- (axis cs:__X0__, __H1__) -- cycle;
+  \path[cp fill] (axis cs:__X1__,0) -- (axis cs:__X2__,0) -- (axis cs:__X2__, __H2__) -- (axis cs:__X1__, __H2__) -- cycle;
+  \path[cp fill] (axis cs:__X2__,0) -- (axis cs:__X3__,0) -- (axis cs:__X3__, __H3__) -- (axis cs:__X2__, __H3__) -- cycle;
+  \path[cp fill] (axis cs:__X3__,0) -- (axis cs:__X4__,0) -- (axis cs:__X4__, __H4__) -- (axis cs:__X3__, __H4__) -- cycle;
+  % the curve after the rectangles, or their fills hide it
+  \addplot[cp line, samples=100, domain=__X0__:__X4__]{__CURVE__};
+\end{axis}
+\end{tikzpicture}""",
+        "params": {
+            'CURVE': {'type': 'label', 'default': 'x^2', 'desc': "pgfplots expression for the given function; write * for multiplication"},
+            'XMIN': {'type': 'number', 'default': '0', 'desc': 'left axis bound'},
+            'XMAX': {'type': 'number', 'default': '2.1', 'desc': 'right axis bound, just beyond X4'},
+            'YMIN': {'type': 'number', 'default': '0', 'desc': 'bottom axis bound'},
+            'YMAX': {'type': 'number', 'default': '4.5', 'desc': 'top axis bound above the curve and rectangles'},
+            'X0': {'type': 'number', 'default': '0', 'desc': 'left endpoint of the first rectangle'},
+            'X1': {'type': 'number', 'default': '0.5', 'desc': 'right endpoint of the first rectangle and left endpoint of the second'},
+            'X2': {'type': 'number', 'default': '1', 'desc': 'right endpoint of the second rectangle and left endpoint of the third'},
+            'X3': {'type': 'number', 'default': '1.5', 'desc': 'right endpoint of the third rectangle'},
+            'X4': {'type': 'number', 'default': '2', 'desc': 'right endpoint of the fourth rectangle'},
+            'H1': {'type': 'number', 'default': '0', 'desc': 'height of the first rectangle'},
+            'H2': {'type': 'number', 'default': '0.25', 'desc': 'height of the second rectangle'},
+            'H3': {'type': 'number', 'default': '1', 'desc': 'height of the third rectangle'},
+            'H4': {'type': 'number', 'default': '2.25', 'desc': 'height of the fourth rectangle'},
+        },
+    },
+    {
+        "id": 'removable_discontinuity',
+        "subject": 'Calculus',
+        "triggers": ['removable discontinuity', 'removable discontinuities', 'limit at a point', 'hole in graph', 'hole'],
+        "caption": 'A graph illustrating a removable discontinuity with an open hole and, when given, a separately defined value.',
+        # The old skeleton always drew y = x + 1 on [0, 3] whatever the function;
+        # the simplified curve is now A2*x^2 + M*x + B on a window around the hole.
+        "skeleton": r"""\begin{tikzpicture}
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
+  declare function={cpf(\t)=(__A2__)*\t^2+(__M__)*\t+(__B__);
+    cpv(\t)=max(__X0__-3,min(__X0__+3,-(__M__)/(2*(__A2__)+ifthenelse(__A2__==0,1,0))));},
+  xmin={min(-0.5,__X0__-3)}, xmax={max(0.5,__X0__+3)},
+  ymin={min(-0.5,cpf(__X0__-3),cpf(__X0__+3),cpf(cpv(0)),__FILLED_Y__)-1},
+  ymax={max(0.5,cpf(__X0__-3),cpf(__X0__+3),cpf(cpv(0)),__FILLED_Y__)+1},
+  grid=both, grid style={gray!25,thin},
+  every axis line/.style={cp axis},
+  every tick/.style={cp label}]
+  \addplot[cp line, samples=121, domain={min(-0.5,__X0__-3)}:{max(0.5,__X0__+3)}]{cpf(x)};
+  % the hole sits on the curve; the defined value shows only when given
+  \draw[cp line, fill=white] (axis cs:__X0__,{cpf(__X0__)}) circle[radius=2pt];
+  \addplot[only marks, cp point, opacity=__SHOW_DEFINED__] coordinates {(__X0__, __FILLED_Y__)};
+\end{axis}
+\end{tikzpicture}""",
+        "params": {
+            'X0': {'type': 'number', 'default': '1', 'desc': 'x-coordinate of the hole'},
+            'A2': {'type': 'number', 'default': '0', 'desc': 'x^2 coefficient of the simplified function (0 when it is a line)'},
+            'M': {'type': 'number', 'default': '1', 'desc': 'x coefficient of the simplified function; (x^2 - 9)/(x - 3) simplifies to x + 3, so M = 1'},
+            'B': {'type': 'number', 'default': '1', 'desc': 'constant term of the simplified function; 3 for x + 3'},
+            'FILLED_Y': {'type': 'number', 'default': '0', 'desc': 'separately defined value f(X0), if the question gives one'},
+            'SHOW_DEFINED': {'type': 'number', 'default': '0', 'desc': '1 when the question defines f(X0) separately, otherwise 0'},
+        },
+    },
+    {
+        "id": 'asymptotes_graph',
+        "subject": 'Calculus',
+        "triggers": ['vertical asymptote', 'horizontal asymptote'],
+        "caption": 'A graph of a rational function showing both a vertical and a horizontal asymptote.',
+        "skeleton": r"""\begin{tikzpicture}
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
+  % The window follows both asymptotes; the fixed -2..5 by -1..5 window lost
+  % asymptotes outside it and clipped the labels.
+  xmin={min(-2,__C__-3)}, xmax={max(5,__C__+4)}, ymin={min(-1,__K__-4)}, ymax={max(5,__K__+3)},
+  grid=both, grid style={gray!25,thin},
+  every axis line/.style={cp axis},
+  every tick/.style={cp label},
+  clip mode=individual]
+  \addplot[cp line, samples=100, domain={min(-2,__C__-3)}:__C__-0.2]{1/(x-__C__) + __K__};
+  \addplot[cp line, samples=100, domain=__C__+0.2:{max(5,__C__+4)}]{1/(x-__C__) + __K__};
+  \draw[cp dashed] ({axis cs:__C__,0}|-{rel axis cs:0,0}) -- ({axis cs:__C__,0}|-{rel axis cs:0,1});
+  \draw[cp dashed] ({rel axis cs:0,0}|-{axis cs:0,__K__}) -- ({rel axis cs:1,0}|-{axis cs:0,__K__});
+  % Labels sit outside the window: above it for the vertical asymptote and
+  % beyond its right edge for the horizontal one, clear of axes and branches.
+  % extends away from the y-axis (its bottom corner at the line), clear of the
+  % axis letter; angle anchors are border points, not corners, on a wide label
+  \node[cp label, anchor=south, xshift={ifthenelse(__C__>=0,1,-1)*(0.5*width("vertical asymptote")+1)}] at ({axis cs:__C__,0}|-{rel axis cs:0,1}) {vertical asymptote};
+  % grows away from the x-axis (its two lines sit above the line when K >= 0), so
+  % it never meets the x-axis letter just beyond the arrow
+  \node[cp label, anchor=west, align=left, yshift={ifthenelse(__K__>=0,1,-1)*0.5*height("horizontal")*2}] at ({rel axis cs:1,0}|-{axis cs:0,__K__}) {horizontal\\asymptote};
+\end{axis}
+\end{tikzpicture}""",
+        "params": {
+            'C': {'type': 'number', 'default': '1', 'desc': 'x-coordinate of the vertical asymptote'},
+            'K': {'type': 'number', 'default': '2', 'desc': 'y-coordinate of the horizontal asymptote'},
+        },
+    },
+    {
+        "id": 'curve_extrema_inflection',
+        "subject": 'Calculus',
+        "triggers": ['local maxima', 'local minima', 'inflection point', 'curve sketch',
+                     'critical number', 'critical point', 'local maximum', 'local minimum',
+                     'local extrema'],
+        "caption": 'A curve with marked local maximum, local minimum and an inflection point.',
+        "skeleton": r"""\begin{tikzpicture}
+\begin{axis}[width=7cm,height=4.5cm, axis lines=center, xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
+  xmin=-2, xmax=2, ymin=-3, ymax=3,
+  grid=both, grid style={gray!25,thin},
+  every axis line/.style={cp axis},
+  every tick/.style={cp label}]
+  \addplot[cp line, samples=200, domain=-2:2]{x^3 - 3*x};
+  \addplot[only marks, cp point] coordinates {(__MAX_X__, __MAX_Y__) (__MIN_X__, __MIN_Y__) (__INFLEX_X__, __INFLEX_Y__)};
+  \node[cp label, above left] at (axis cs:__MAX_X__, __MAX_Y__) {max};
+  \node[cp label, below right] at (axis cs:__MIN_X__, __MIN_Y__) {min};
+  \node[cp label, above right] at (axis cs:__INFLEX_X__, __INFLEX_Y__) {inflection};
+\end{axis}
+\end{tikzpicture}""",
+        "params": {
+            'MAX_X': {'type': 'number', 'default': '-1', 'desc': 'x-coordinate of the local maximum'},
+            'MAX_Y': {'type': 'number', 'default': '2', 'desc': 'y-coordinate of the local maximum'},
+            'MIN_X': {'type': 'number', 'default': '1', 'desc': 'x-coordinate of the local minimum'},
+            'MIN_Y': {'type': 'number', 'default': '-2', 'desc': 'y-coordinate of the local minimum'},
+            'INFLEX_X': {'type': 'number', 'default': '0', 'desc': 'x-coordinate of the inflection point'},
+            'INFLEX_Y': {'type': 'number', 'default': '0', 'desc': 'y-coordinate of the inflection point'},
+        },
+    },
+    {
+        "id": 'optimization_rectangle',
+        "subject": 'Calculus',
+        "triggers": ['optimization', 'rectangle', 'constraint', 'fencing', 'enclose'],
+        # The sides carry symbols only: the constraint equation (2x + 2y = 200)
+        # is the student's first step.
+        "caption": 'A rectangle with its dimensions labelled by symbols for an optimization problem.',
+        "skeleton": r"""\begin{tikzpicture}
+\draw[cp line] (0,0) rectangle (4,2);
+\draw[cp dashed,<->] (0,-0.4) -- (4,-0.4) node[midway,below] {$__WIDTH_LABEL__$};
+\draw[cp dashed,<->] (-0.4,0) -- (-0.4,2) node[midway,left] {$__HEIGHT_LABEL__$};
+\end{tikzpicture}""",
+        "params": {
+            'WIDTH_LABEL': {'type': 'label', 'default': 'x', 'desc': "symbol for the rectangle's width"},
+            'HEIGHT_LABEL': {'type': 'label', 'default': 'y', 'desc': "symbol for the rectangle's height"},
+        },
+    },
+    {
+        # Three-sided fencing variant: one side borders a river/barn/wall, so
+        # the constraint is 2x + y = P, NOT the closed perimeter 2x + 2y = P
+        # that optimization_rectangle shows. Multi-word triggers outrank that
+        # template's bare 'fencing'/'optimization' hits. Bare 'river' is NOT a
+        # trigger (vector river-crossing questions would collide).
+        "id": 'optimization_river_rectangle',
+        "subject": 'Calculus',
+        # NOTE: no wall triggers like 'against a wall' — ladder problems say
+        # "leaning against a wall" and must keep routing to right_triangle.
+        "triggers": [
+            'along a river', 'along the river', 'along a straight river',
+            'borders a river', 'bank of a river', 'no fence', 'no fencing',
+            'three sides', 'against a barn', 'side of a barn',
+            'side of a house', 'existing wall',
+        ],
+        "caption": 'A rectangular field fenced on three sides with one side open along a river.',
+        "skeleton": r"""\begin{tikzpicture}
+\draw[cp line] (0,0) -- (0,2) -- (4,2) -- (4,0);
+\draw[cp dashed] (0,0) -- (4,0);
+\draw[cp axis, line width=1.6pt] (-0.35,-0.45) -- (4.35,-0.45);
+\node[cp label, below] at (2,-0.55) {__OPEN_SIDE_LABEL__};
+\draw[cp dashed,<->] (-0.45,0) -- (-0.45,2) node[midway,left] {$__SIDE_LABEL__$};
+\draw[cp dashed,<->] (4.45,0) -- (4.45,2) node[midway,right] {$__SIDE_LABEL__$};
+\draw[cp dashed,<->] (0,2.4) -- (4,2.4) node[midway,above] {$__TOP_LABEL__$};
+% no constraint equation (2x + y = 600): setting it up is the student's step
+\end{tikzpicture}""",
+        "params": {
+            'SIDE_LABEL': {'type': 'label', 'default': 'x', 'desc': 'symbol for each of the two fenced sides perpendicular to the open side'},
+            'TOP_LABEL': {'type': 'label', 'default': 'y', 'desc': 'symbol for the fenced side parallel to the open side'},
+            'OPEN_SIDE_LABEL': {'type': 'label', 'default': 'river', 'desc': 'what the unfenced side borders: river, barn, wall or house'},
+        },
+    },
+    {
+        "id": 'related_rates_circle',
+        "subject": 'Calculus',
+        "triggers": [
+            'related rates', 'expanding circle', 'growing circle',
+            'rate of change of the radius', 'ripple', 'radius is increasing',
+            'radius increasing', 'circle is expanding',
+            # "The radius of a circle is increasing at a rate of..." — the noun
+            # phrase between "radius" and "is increasing" broke the contiguous
+            # match, so the question fell through to the legacy generic circle.
+            'circle is increasing', 'circle is decreasing', 'circle is growing',
+            'circle is shrinking', 'radius of a circle is', 'radius of the circle is',
+            'area of the circle increasing', 'area of a circle increasing',
+        ],
+        "caption": 'An expanding circle with a radius and its rate of change indicated.',
+        # Geometry is FIXED (drawing radius 2): Gemini once filled RADIUS with the
+        # question's real radius (5 cm) and drew a page-filling circle. Only the
+        # two text labels are fillable; the dashed outer ring shows the growth.
+        "skeleton": r"""\begin{tikzpicture}
+\coordinate (O) at (0,0);
+\draw[cp line] (O) circle [radius=2];
+\draw[cp dashed] (O) circle [radius=2.5];
+\fill (O) circle (1.4pt);
+\draw[cp axis,-Stealth] (O) -- (2,0);
+\node[cp label, above] at (1,0.06) {__R_LABEL__};
+\draw[cp axis,-Stealth] (2.04,0) -- (2.5,0);
+% just beyond the growth arrow's tip, outside the dashed circle (above right
+% of the tip it sat on the dashed circle)
+\node[cp label, anchor=west] at (2.42,0) {__DR_LABEL__};
+\end{tikzpicture}""",
+        "params": {
+            'R_LABEL': {'type': 'label', 'default': '$r$', 'desc': "radius label using the question's given value, e.g. $r=5$ cm"},
+            'DR_LABEL': {'type': 'label', 'default': '$\\frac{dr}{dt}$', 'desc': "rate-of-change label using the question's given rate, e.g. $\\frac{dr}{dt}=2$"},
+        },
+    },
+]

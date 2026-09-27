@@ -1,0 +1,37 @@
+[
+  {
+    "n": 1,
+    "type": "work",
+    "question": "Triangle \\(DEF\\) is right-angled at \\(D\\). \\(DE = 9\\text{cm}\\) and \\(DF = 12\\text{cm}\\). Find \\(EF\\).",
+    "visualDescription": "Draw a right-angled triangle with vertex \\(D\\) at the right angle. Side \\(DE\\) should be vertical and side \\(DF\\) horizontal. Label all three vertices \\(D\\), \\(E\\), and \\(F\\). Mark the right angle at \\(D\\). Label side \\(DE = 9\\text{cm}\\), side \\(DF = 12\\text{cm}\\), and the hypotenuse \\(EF\\) as \\(x\\).",
+    "answer": "Using the Pythagorean theorem: \n$$EF^2 = DE^2 + DF^2EF^2 = 9^2 + 12^2EF^2 = 81 + 144 = 225EF = \\sqrt{225} = 15\\text{cm}$$"
+  },
+  {
+    "n": 2,
+    "type": "short",
+    "question": "Points \\(R(-4, -1)\\) and \\(S(2, 3)\\) lie on a coordinate plane. Find the midpoint of segment \\(RS\\).",
+    "visualDescription": "Show both axes from \\(-5\\) to \\(5\\) with equal unit spacing and numbered ticks. Plot and label point \\(R(-4, -1)\\) and point \\(S(2, 3)\\). Connect points \\(R\\) and \\(S\\) with a straight line segment. Do not mark or label the midpoint.",
+    "answer": "The midpoint is calculated as \\((\\frac{x_1 + x_2}{2}, \\frac{y_1 + y_2}{2})\\). \\((\\frac{-4 + 2}{2}, \\frac{-1 + 3}{2}) = (\\frac{-2}{2}, \\frac{2}{2}) = (-1, 1)\\)."
+  },
+  {
+    "n": 3,
+    "type": "short",
+    "question": "The graph of \\(y = -x^2 + 4\\) is shown. Identify its \\(x\\)-intercepts and its vertex.",
+    "visualDescription": "Plot the downward-opening parabola \\(y = -x^2 + 4\\) for the domain \\(-3 \\le x \\le 3\\). Show the \\(y\\)-axis from \\(-6\\) to \\(5\\) with numbered ticks. Include light-gray grid lines. Do not add special dots or coordinate labels at the intercepts or vertex.",
+    "answer": "The \\(x\\)-intercepts occur when \\(y = 0\\): \\(0 = -x^2 + 4 \\implies x^2 = 4 \\implies x = 2, -2\\). The vertex is the maximum point of the parabola, located at \\((0, 4)\\)."
+  },
+  {
+    "n": 4,
+    "type": "work",
+    "question": "A circle has centre \\(C\\) and radius \\(6\\text{cm}\\). Point \\(A\\) lies outside the circle, with \\(CA = 10\\text{cm}\\). \\(AT\\) is tangent to the circle at \\(T\\). Find the length of \\(AT\\).",
+    "visualDescription": "Draw a circle with centre labeled \\(C\\). Draw point \\(A\\) outside the circle. Draw segments \\(CT\\), \\(CA\\), and \\(AT\\). Mark the right angle between radius \\(CT\\) and tangent \\(AT\\) at point \\(T\\). Label \\(CT = 6\\text{cm}\\), \\(CA = 10\\text{cm}\\), and \\(AT = x\\). Ensure \\(AT\\) touches the circle only at \\(T\\) and that labels do not overlap the circle line.",
+    "answer": "Since the tangent is perpendicular to the radius at the point of tangency, \\(\\triangle CTA\\) is a right triangle with hypotenuse \\(CA\\). \\(CA^2 = CT^2 + AT^210^2 = 6^2 + x^2100 = 36 + x^2x^2 = 64\\) \\(x = 8\\text{cm}\\)"
+  },
+  {
+    "n": 5,
+    "type": "work",
+    "question": "A block on a horizontal surface experiences four forces: \\(12\\text{N}\\) upward, \\(12\\text{N}\\) downward, \\(11\\text{N}\\) to the right, and \\(4\\text{N}\\) to the left. Find the magnitude and direction of the resultant force.",
+    "visualDescription": "Draw a rectangular block on a horizontal surface. Draw four force arrows originating from the center of the block pointing in the stated directions: up, down, left, and right. Label the upward arrow \\(12\\text{N}\\), the downward arrow \\(12\\text{N}\\), the rightward arrow \\(11\\text{N}\\), and the leftward arrow \\(4\\text{N}\\). Do not draw or label the resultant force.",
+    "answer": "Vertical forces: \\(F_{net,y} = 12\\text{N} - 12\\text{N} = 0\\text{N}\\).\nHorizontal forces: \\(F_{net,x} = 11\\text{N} - 4\\text{N} = 7\\text{N}\\) to the right.\nThe resultant force is \\(7\\text{N}\\) to the right."
+  }
+]

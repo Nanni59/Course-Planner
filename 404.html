@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Course Planner</title>
+    <!--
+      GitHub Pages serves this file for any path it doesn't recognise
+      (e.g. /Course-Planner/lesson-tracker on a fresh load or refresh).
+      It redirects to index.html with the original path preserved in the
+      query string; the restore script in index.html's <head> then rewrites
+      the address bar back to the real path before the app boots.
+
+      pathSegmentsToKeep = 1 keeps the "/Course-Planner" project-page prefix.
+      Set to 0 if this ever moves to a domain root.
+    -->
+    <script>
+        (function () {
+            var pathSegmentsToKeep = 1;
+            var l = window.location;
+            l.replace(
+                l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+                l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
+                l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+                (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+                l.hash
+            );
+        })();
+    </script>
+</head>
+
+<body></body>
+
+</html>
