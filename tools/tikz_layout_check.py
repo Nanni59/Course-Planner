@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import sys
 import threading
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.dont_write_bytecode = True
@@ -66,10 +67,16 @@ MIDPOINTS = [
 ]
 
 
+WORKSHEET = SimpleNamespace(target='worksheet')
+
+
 def audit(name, tikz_options):
-    """Like the backend: the first label placement without collisions wins."""
+    """Like the backend: the first label placement without collisions wins, each
+    scaled up as a worksheet visual is (a stacked fraction's false report
+    showed only at that scale)."""
     summary = ''
     for tikz in tikz_options:
+        tikz = app._enlarge_visual_code(WORKSHEET, tikz)
         out = app._render(app.RenderReq(code=tikz, format='png', theme='mono', target='worksheet', layout=True))
         if not out.get('ok'):
             return f'{name}: render failed: {out.get("error")}'

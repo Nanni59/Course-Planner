@@ -25,9 +25,10 @@ ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, threading=thread
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
 helper_constants = [n for n in tree.body if isinstance(n, ast.Assign)
-                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id == '_NUM') for t in n.targets)]
+                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id in ('_NUM', '_KEY_TYPOS')) for t in n.targets)]
 exec(compile(ast.fix_missing_locations(ast.Module(body=helper_constants, type_ignores=[])), '<helper constants>', 'exec'), ns)
 real_gemini = ns['_gemini']
+real_readiness = ns['_readiness_verdict']
 
 questions = [
     'Triangle ABC is right-angled at A. AB = 6 cm and AC = 8 cm. Find BC. Diagram: Draw AB vertically and AC horizontally, label the vertices, and label BC as x.',
@@ -325,6 +326,53 @@ coded = {e['stage']: e.get('tikz', '') for e in ns['_job_trace'].events}
 assert '\\draw (0,0)--(1,1);' in coded['layout'] and '\\draw (0,0)--(1,1);' in coded['render-error'], ns['_job_trace'].events
 assert not ns['_job_trace'].events[-1].get('tikz')  # a passing readiness verdict carries no code
 del ns['_job_trace'].events
+# Draft and repair are judged fewer collisions first (the repair on a tie): a
+# repair that collides more no longer ships over its draft, and a draft whose
+# repair fails readiness still gets judged.
+def two_renders(first, second):
+    def render(req):
+        renders.append(req)
+        n = first if len(renders) == 1 else second
+        return {'ok': True, 'svg': f'<svg n="{len(renders)}"/>', 'layout': {'labels': 3, 'issues': [{'kind': 'labels-overlap', 'labels': ['a', 'b'], 'area': 5}] * n}}
+    return render
+def drafts(prompt, as_json=False, temperature=0.2):
+    prompts.append(prompt)
+    return {'tikz': '\\draw (0,0)--(1,%d);' % len(prompts)}
+judged = []
+def readiness(verdicts):
+    def verdict(req, code):
+        judged.append(code)
+        return verdicts.get(code, ('PASS', ''))
+    return verdict
+for first, second, verdicts, shipped, note in (
+        (1, 3, {}, '<svg n="1"/>', 'shipped the draft: its repair collided more'),
+        (2, 0, {}, '<svg n="2"/>', None),
+        (2, 2, {}, '<svg n="2"/>', None),
+        (1, 0, {'\\draw (0,0)--(1,3);': ('FAIL', 'wrong labels')}, '<svg n="1"/>', 'shipped the draft: its repair failed readiness')):
+    renders.clear(); prompts.clear(); judged.clear()
+    ns.update(_render=two_renders(first, second), _gemini=drafts, _readiness_verdict=readiness(verdicts))
+    ns['_job_trace'].events = []
+    out = ns['_reference_generate'](req)
+    assert out['ok'] and out['svg'] == shipped, (first, second, out)
+    notes = [e['detail'] for e in ns['_job_trace'].events if e['stage'] == 'layout-choice']
+    assert notes == ([note] if note else []), notes
+    del ns['_job_trace'].events
+# A shipped model drawing with no layout event keeps its code in the trace.
+renders.clear(); prompts.clear()
+ns.update(_render=two_renders(0, 0), _readiness_verdict=readiness({}))
+ns['_job_trace'].events = []
+assert ns['_reference_generate'](req)['ok']
+passed = [e for e in ns['_job_trace'].events if e['stage'] == 'readiness']
+assert passed[-1]['detail'] == 'PASS' and '(1,2);' in passed[-1]['tikz'], passed
+del ns['_job_trace'].events
+ns['_readiness_verdict'] = real_readiness
+# Hyphenated TikZ keys are fixed before compiling; label text is not touched.
+assert ns['_fix_key_typos']('grid style={line-width=.1pt, dash-pattern = on 2pt}, node[inner-sep=1pt] {$line-width$}') == \
+    'grid style={line width=.1pt, dash pattern = on 2pt}, node[inner sep=1pt] {$line-width$}'
+# Characters per text line: a stacked one-digit fraction is one wide, dr/dt two.
+assert ns['_layout_line_chars']([(0, 0, 4, 5, '3'), (0, 6, 4, 11, '9')]) == 1
+assert ns['_layout_line_chars']([(0, 0, 8, 5, 'dr'), (0, 6, 8, 11, 'dt')]) == 2
+assert ns['_layout_line_chars']([(0, 0, 8, 5, 'y'), (10, 0.5, 14, 5.5, '='), (16, 0, 20, 5, '4')]) == 3
 
 # Label placement alternatives: fill picks one; the catalog renderer tries them in
 # order when the picture shows collisions, and keeps the first clean one.
