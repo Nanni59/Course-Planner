@@ -50,7 +50,7 @@
   {"id": "fn_log_shift", "topic": "Logarithmic functions", "subject": "Advanced Functions", "expect": "catalog:logarithmic_asymptote",
    "question": "Sketch y = log_2(x - 3) + 1 and state the equation of its vertical asymptote.",
    "brief": "Graph y = log_2(x - 3) + 1 and draw its vertical asymptote dashed, labelled x = ?."},
-  {"id": "fn_rational_shifted", "topic": "Rational functions", "subject": "Advanced Functions", "expect": "catalog:rational_asymptotes",
+  {"id": "fn_rational_shifted", "topic": "Rational functions", "subject": "Advanced Functions", "expect": "elementary:rational_function",
    "question": "Determine the equations of the asymptotes of f(x) = (3x - 1)/(x + 2).",
    "brief": "Sketch both branches of f(x) = (3x - 1)/(x + 2) with its vertical and horizontal asymptotes dashed and labelled with question marks."},
   {"id": "fn_cubic_intercepts", "topic": "Polynomial functions", "subject": "Advanced Functions", "expect": "catalog:poly_roots_end",

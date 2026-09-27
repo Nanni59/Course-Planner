@@ -257,6 +257,27 @@ for other in ('A box plot shows data with length 3 width 4 height 5',
               'A rectangular prism has length 3 cm, width 4 cm, height 12 m. Find the diagonal.',  # mixed units
               'A rectangular prism has length 3 cm, width 4 cm and height 12 cm; the length is 5 cm.'):  # conflicting
     assert generate(other) is None, other
+# A rational function the question gives is drawn exactly (a model missed the hole
+# of (2x^2 - 8)/(x^2 - x - 6); a template could not draw a slant asymptote).
+def rational(text):
+    hit = generate(ns['_question_text'](SimpleNamespace(title=text)))
+    return hit and hit['parameters']
+got = rational('Analyze the rational function \\(f(x) = \\frac{2x^2 - 8}{x^2 - x - 6}\\). Determine any holes, vertical asymptotes, horizontal or oblique asymptotes, and all intercepts.')
+assert (got['vertical'], got['holes'], got['asymptote'], got['numerator'], got['denominator']) == ([3.0], [-2.0], [0.0, 2.0], [-4.0, 2.0], [-3.0, 1.0]), got
+got = rational('Determine the equation of the slant (oblique) asymptote of the rational function \\(g(x) = \\frac{3x^2 + 5x - 4}{x + 2}\\).')
+assert (got['vertical'], got['asymptote']) == ([-2.0], [3.0, -1.0]), got  # y = 3x - 1
+assert rational('Find the asymptotes of f(x) = x/(x^2 - 4).')['vertical'] == [-2.0, 2.0]
+assert rational('Sketch f(x) = 3/(x - 2) + 1 and label its asymptotes.')['asymptote'] == [0.0, 1.0]
+assert rational('Find the vertical asymptote of f(x) = \\frac{5}{(x-1)^2}.')['vertical'] == [1.0]
+got = rational('Find any holes of f(x) = (x^2 - 9)/(x - 3).')
+assert (got['holes'], got['asymptote']) == ([3.0], None), got  # a line with a hole: no asymptote drawn
+hit = generate('Find the asymptotes of f(x) = (3x - 1)/(x + 2).')
+assert hit['tikz'].count('{$x={?}$}') == 1 and hit['tikz'].count('{$y={?}$}') == 1 and 'fill=white] (axis' not in hit['tikz']
+for other in ('Solve the rational inequality (x-1)/(x+2) > 0.',  # the solution would show
+              'Find the asymptotes of f(x) = (x^3+1)/(x - 1).',  # no line asymptote
+              'For the rational function f(x) = (2x - 4)/(x + 1), identify the asymptotes. Diagram: Leave the grid empty for sketching the function.',
+              'Find the asymptotes of f(x) = (x - 1)/(x + 2) and g(x) = (2x)/(x - 3).'):  # two functions
+    assert generate(other) is None, other
 for text, hit in zip(retest_texts, retest_hits):
     req_retest = SimpleNamespace(title=text, brief='Question: '+text, subject='', equation='', target='worksheet')
     assert ns['_semantic_visual_issue'](req_retest, hit['tikz']) is None
@@ -828,6 +849,8 @@ ns['_gemini'] = lambda *a, **k: 'COSMETIC: y ticks differ from the description'
 assert ns['_readiness_verdict'](req, 'code') == ('COSMETIC', 'COSMETIC: y ticks differ from the description')
 ns['_gemini'] = lambda *a, **k: 'COSMETIC B: a label touches the curve'
 assert ns['_readiness_choice'](req, ('a', 'b'), (None, None), ('', '')) == (1, 'COSMETIC B: a label touches the curve')
+assert 'the graph of that function is wanted' in ns['_READINESS_RULES']  # asymptote questions keep their graph
+assert 'an empty grid or blank space to sketch on' in ns['_READINESS_RULES']  # a correct graph of sqrt(x) went blank for lacking one
 assert 'Never FAIL a correct diagram for a cosmetic reason' in ns['_READINESS_RULES'] and '"COSMETIC: <one short reason>"' in ns['_readiness_prompt'](req, 'x')
 saved = {k: ns[k] for k in ('_render', '_gemini', '_readiness_verdict', '_diagram_spec_prompt', '_visual_prompt')}
 def one_render(req_):

@@ -174,6 +174,13 @@ below shows ..."), the sinusoid template draws the bare curve (no amplitude or
 period arrows, no midline) with unit ticks and a grid, read from the described
 maximum and minimum.
 
+A rational function the question gives (`f(x) = (2x^2 - 8)/(x^2 - x - 6)`,
+`rac{3x^2 + 5x - 4}{x + 2}`) is drawn by the exact `rational_function` renderer,
+with no model: vertical, horizontal or slant asymptotes found from the
+polynomials, dashed and labelled `?`; holes as open circles; intercepts unmarked.
+It declines inequalities, empty-grid requests, two different functions, and
+functions with no line asymptote.
+
 ## Hugging Face Setup
 
 1. Create a new Hugging Face Space.

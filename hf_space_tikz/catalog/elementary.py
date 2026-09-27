@@ -460,10 +460,292 @@ def _box(text):
                                              space_diagonal=bool(space_diag), base_diagonal=bool(base_diag)), body.rstrip())
 
 
+# ---- rational functions ---------------------------------------------------------
+# A small recursive-descent reader for polynomials in x (numbers, x, x^n, brackets,
+# products, sums): coefficient lists, lowest power first. Nothing is evaluated.
+
+def _padd(a, b):
+    n = max(len(a), len(b))
+    return [(a[i] if i < len(a) else 0.0) + (b[i] if i < len(b) else 0.0) for i in range(n)]
+
+
+def _pmul(a, b):
+    out = [0.0] * (len(a) + len(b) - 1)
+    for i, x in enumerate(a):
+        for j, y in enumerate(b):
+            out[i + j] += x * y
+    return out
+
+
+def _ptrim(p):
+    p = list(p)
+    while len(p) > 1 and abs(p[-1]) < 1e-12:
+        p.pop()
+    return p
+
+
+def _pval(p, x):
+    return sum(c * x ** i for i, c in enumerate(p))
+
+
+def _poly(s):
+    """Coefficients of a polynomial in x written in s, or None."""
+    s = re.sub(r'\\left|\\right|\s+', '', s).replace('\\cdot', '*').replace('{', '(').replace('}', ')')
+    pos = [0]
+
+    def peek():
+        return s[pos[0]] if pos[0] < len(s) else ''
+
+    def power(p):
+        if peek() != '^':
+            return p
+        pos[0] += 1
+        m = re.match(r'\(?(\d)\)?', s[pos[0]:])
+        if not m:
+            raise ValueError
+        pos[0] += m.end()
+        out = [1.0]
+        for _ in range(int(m.group(1))):
+            out = _pmul(out, p)
+        return out
+
+    def atom():
+        c = peek()
+        if c == '(':
+            pos[0] += 1
+            p = total()
+            if peek() != ')':
+                raise ValueError
+            pos[0] += 1
+            return power(p)
+        if c == 'x':
+            pos[0] += 1
+            return power([0.0, 1.0])
+        m = re.match(r'\d+(?:\.\d+)?|\.\d+', s[pos[0]:])
+        if m:
+            pos[0] += m.end()
+            return power([float(m.group(0))])
+        raise ValueError
+
+    def product():
+        p = atom()
+        while peek() and (peek() in '(x*' or peek().isdigit()):
+            if peek() == '*':
+                pos[0] += 1
+            p = _pmul(p, atom())
+        return p
+
+    def total():
+        sign = 1.0
+        if peek() in '+-':
+            sign = -1.0 if peek() == '-' else 1.0
+            pos[0] += 1
+        p = [sign * c for c in product()]
+        while peek() in ('+', '-') and peek():
+            sign = -1.0 if peek() == '-' else 1.0
+            pos[0] += 1
+            p = _padd(p, [sign * c for c in product()])
+        return p
+
+    try:
+        p = total()
+    except (ValueError, IndexError):
+        return None
+    p = _ptrim(p)
+    return p if pos[0] == len(s) and len(p) <= 5 else None
+
+
+def _group(s, i, opening='{', closing='}'):
+    """(contents, end) of the balanced group opening at s[i], or (None, i)."""
+    if i >= len(s) or s[i] != opening:
+        return None, i
+    depth = 0
+    for j in range(i, len(s)):
+        depth += {opening: 1, closing: -1}.get(s[j], 0)
+        if depth == 0:
+            return s[i + 1:j], j + 1
+    return None, i
+
+
+def _rational_at(text, i):
+    """(numerator, denominator) coefficients of the fraction written at text[i],
+    plus an added constant ("3/(x - 2) + 1"), or None."""
+    rest = text[i:].lstrip()
+    if rest.startswith('\\frac'):
+        num, k = _group(rest, len('\\frac'))
+        den, k = _group(rest, k) if num is not None else (None, k)
+    else:
+        num, k = _group(rest, 0, '(', ')')
+        if num is None:
+            m = re.match(r'\d*(?:\.\d+)?x(?:\^\d)?(?![\w(])|\d+(?:\.\d+)?', rest)  # 5, x, 2x, x^2
+            if not m:
+                return None
+            num, k = m.group(0), m.end()
+        if not rest[k:].lstrip().startswith('/'):
+            return None
+        k = len(rest) - len(rest[k:].lstrip()) + 1
+        k += len(rest[k:]) - len(rest[k:].lstrip())
+        den, k = _group(rest, k, '(', ')')
+    if num is None or den is None:
+        return None
+    n, d = _poly(num), _poly(den)
+    if not n or not d or len(d) < 2:
+        return None
+    tail = re.match(r'\s*([-+])\s*(\d+(?:\.\d+)?)(?![\w.(^])', rest[k:])
+    if tail:
+        n = _padd(n, [(-1 if tail.group(1) == '-' else 1) * float(tail.group(2)) * c for c in d])
+    elif re.match(r'\s*[-+*/^(]\s*[\w(\\]', rest[k:]):
+        return None  # more follows: not one rational function
+    return _ptrim(n), _ptrim(d)
+
+
+def _pdiv_root(p, r):
+    """p / (x - r) by synthetic division (the remainder is dropped)."""
+    out = [0.0] * (len(p) - 1)
+    carry = 0.0
+    for i in range(len(p) - 1, 0, -1):
+        carry = p[i] + carry * r if i < len(p) - 1 else p[i]
+        out[i - 1] = carry
+    return _ptrim(out)
+
+
+def _real_roots(p):
+    """Real roots of a polynomial of degree 1 or 2 (rounded), else None."""
+    p = _ptrim(p)
+    if len(p) == 2:
+        return [-p[0] / p[1]]
+    if len(p) == 3:
+        c, b, a = p
+        disc = b * b - 4 * a * c
+        if disc < -1e-9:
+            return []
+        if abs(disc) <= 1e-9:
+            return [-b / (2 * a)]
+        q = math.sqrt(disc)
+        return sorted([(-b - q) / (2 * a), (-b + q) / (2 * a)])
+    return None
+
+
+def _rational(text):
+    """A rational function the question gives, drawn exactly: its vertical,
+    horizontal or slant asymptotes dashed and labelled ?, holes as open circles,
+    nothing marked at the intercepts. Questions about its features need the
+    graph; a model drew these wrong or not at all (a hole, a slant asymptote)."""
+    low = text.lower()
+    if not re.search(r'\brational\b|\basymptot|\bholes?\b|\bdiscontinuit', low):
+        return None
+    if re.search(r'[<>≤≥]|\\(?:le|ge|leq|geq|lt|gt)\b|inequalit|number line|\blimit|derivative|\bdomain of the composite', low):
+        return None
+    if re.search(r'\b(?:empty|blank)\b[^.]{0,40}\b(?:grid|coordinate|axes|plane)\b|\b(?:grid|axes|plane)\b[^.]{0,30}\b(?:empty|blank)\b', low):
+        return None  # the description wants a grid for the student to sketch on
+    found = []
+    for m in re.finditer(r'(?<![A-Za-z])(?:[a-z]\s*\(\s*x\s*\)|y)\s*=', text):
+        f = _rational_at(text, m.end())
+        if f:
+            found.append(tuple(tuple(round(c, 9) for c in part) for part in f))
+    if not found or len(set(found)) != 1:
+        return None
+    num, den = [list(part) for part in found[0]]
+    if len(den) > 3 or len(num) > 4:
+        return None
+    roots = _real_roots(den)
+    if roots is None:
+        return None
+    holes, vas = [], []
+    for r in roots:
+        if abs(_pval(num, r)) < 1e-7 * max(1.0, max(abs(c) for c in num)):
+            num, den = _pdiv_root(num, r), _pdiv_root(den, r)
+            holes.append(r)
+        else:
+            vas.append(r)
+    for r in holes:  # a hole whose factor is still in the denominator is an asymptote
+        if abs(_pval(den, r)) < 1e-9:
+            return None
+    n, d = len(num) - 1, len(den) - 1
+    if d < 1 and not holes:
+        return None
+    if n > d + 1:
+        return None  # no line asymptote at infinity: not this renderer
+    lead = num[-1] / den[-1]
+    if d == 0:
+        line = None                  # (x^2 - 9)/(x - 3) is a line with a hole: no asymptote
+    elif n < d:
+        line = (0.0, 0.0)            # y = 0
+    elif n == d:
+        line = (0.0, lead)
+    else:                            # slant: the linear quotient
+        quot_slope = lead
+        rem = _padd(num, [-quot_slope * c for c in _pmul([0.0, 1.0], den)])
+        rem = _ptrim(rem)
+        line = (quot_slope, (rem[-1] / den[-1]) if len(rem) - 1 == d else 0.0)
+    f = lambda x: _pval(num, x) / _pval(den, x)
+    # the window holds the asymptotes, holes, intercepts and origin, 3 units out
+    xint = [r for r in (_real_roots(num) or []) if all(abs(r - v) > 1e-6 for v in vas)]
+    xs = vas + holes + xint + [0.0]
+    xmin, xmax = math.floor(min(xs)) - 3, math.ceil(max(xs)) + 3
+    if xmax - xmin < 10:
+        pad = (10 - (xmax - xmin)) / 2
+        xmin, xmax = math.floor(xmin - pad), math.ceil(xmax + pad)
+    if xmax - xmin > 40 or any(abs(v) > 1e3 for v in xs):
+        return None
+    samples = [xmin + (xmax - xmin) * i / 400 for i in range(401)]
+    ys = sorted(f(x) for x in samples if all(abs(x - v) > 0.35 for v in vas) and abs(_pval(den, x)) > 1e-9)
+    if len(ys) < 50:
+        return None
+    lo, hi = ys[len(ys) // 20], ys[-len(ys) // 20 - 1]
+    keep = [0.0] + [f(h) for h in holes] + ([f(0.0)] if all(abs(v) > 1e-9 for v in vas) else [])
+    if line:
+        keep += [line[1], line[0] * xmin + line[1], line[0] * xmax + line[1]]
+    lo, hi = min([lo] + keep), max([hi] + keep)
+    span = max(hi - lo, 6.0)
+    ymin, ymax = math.floor(lo - 0.2 * span), math.ceil(hi + 0.2 * span)
+    if ymax - ymin > 60:
+        return None
+    step = lambda s: 1 if s <= 12 else 2 if s <= 24 else 5
+    expr = lambda p: '(' + '+'.join('(' + _n(c) + ')*x^' + str(i) if i else '(' + _n(c) + ')' for i, c in enumerate(p)) + ')'
+    fx = expr(num) + '/' + expr(den)
+    gap = 0.004 * (xmax - xmin)
+    cuts = [xmin] + sorted(vas) + [xmax]
+    branches = '\n'.join(
+        rf'\addplot[cp line, samples=161, domain={_n(a + (gap if a in vas else 0))}:{_n(b - (gap if b in vas else 0))}] {{{fx}}};'
+        for a, b in zip(cuts, cuts[1:]) if b - a > 2 * gap)
+    marks = []
+    for v in sorted(vas):
+        marks.append(rf'\draw[cp dashed] ({{axis cs:{_n(v)},0}}|-{{rel axis cs:0,0}}) -- ({{axis cs:{_n(v)},0}}|-{{rel axis cs:0,1}});')
+        marks.append(rf'\node[cp label, anchor=north] at ({{axis cs:{_n(v)},0}}|-{{rel axis cs:0,0}}) {{$x={{?}}$}};')
+    m, b = line or (0.0, 0.0)
+    if not line:
+        pass
+    elif m:
+        # label where the slant line leaves the window on the right (or the top/bottom)
+        xe = xmax if ymin <= m * xmax + b <= ymax else ((ymax if m > 0 else ymin) - b) / m
+        marks.append(rf'\addplot[cp dashed, domain={_n(xmin)}:{_n(xmax)}, samples=2] {{{_n(m)}*x+({_n(b)})}};')
+        anchor = 'west' if xe >= xmax - 1e-9 else ('south' if m > 0 else 'north')
+        marks.append(rf'\node[cp label, anchor={anchor}] at (axis cs:{_n(xe)},{_n(m * xe + b)}) {{$y={{?}}$}};')
+    else:
+        marks.append(rf'\draw[cp dashed] ({{rel axis cs:0,0}}|-{{axis cs:0,{_n(b)}}}) -- ({{rel axis cs:1,0}}|-{{axis cs:0,{_n(b)}}});')
+        # on the x-axis (y = 0) the label goes left of the window, clear of the axis letter
+        side, anchor = ('0', 'east') if abs(b) < 1e-9 else ('1', 'west')
+        marks.append(rf'\node[cp label, anchor={anchor}] at ({{rel axis cs:{side},0}}|-{{axis cs:0,{_n(b)}}}) {{$y={{?}}$}};')
+    for h in holes:
+        marks.append(rf'\draw[cp line, fill=white] (axis cs:{_n(h)},{_n(f(h))}) circle[radius=2.2pt];')
+    body = rf'''
+\begin{{axis}}[width=7.4cm,height=6cm,axis lines=middle,axis line style=cp axis,xlabel={{$x$}},ylabel={{$y$}},
+xlabel style={{anchor=west}},ylabel style={{anchor=south}},xmin={_n(xmin)},xmax={_n(xmax)},ymin={_n(ymin)},ymax={_n(ymax)},
+xtick distance={step(xmax - xmin)},ytick distance={step(ymax - ymin)},tick label style={{font=\scriptsize}},
+grid=major,grid style={{gray!20,thin}},unbounded coords=jump,
+y filter/.expression={{abs(y)>{_n(4 * (ymax - ymin) + abs(ymin) + abs(ymax))} ? nan : y}},clip mode=individual]
+{branches}
+''' + '\n'.join(marks) + r'''
+\end{axis}'''
+    return _result('rational_function', dict(numerator=num, denominator=den, vertical=sorted(vas), holes=holes,
+                                                asymptote=[m, b] if line else None), body)
+
+
 def generate(text):
     """Return an exact supported numerical setup, otherwise leave custom generation intact."""
     text = text.replace('\u2212', '-').replace('\u2013', '-')
-    for parser in (_triangle, _points, _tangent, _circle_central_inscribed, _forces, _quadratic, _box):
+    for parser in (_triangle, _points, _tangent, _circle_central_inscribed, _forces, _quadratic, _box, _rational):
         hit = parser(text)
         if hit:
             return hit
