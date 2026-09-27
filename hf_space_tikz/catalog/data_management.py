@@ -4,6 +4,7 @@ One dict per diagram. Authoring contract lives in ../templates.py.
 Slots are __UPPER__; skeletons are raw strings; every slot has a params entry.
 """
 
+EVENT_DESC = 'short outcome name from the question (plain words; maths in $...$)'
 PROB_DESC = 'probability as the question gives it: a decimal such as 0.4, or a fraction written \\frac{4}{10} (no $ signs),'
 
 templates = [
@@ -139,7 +140,7 @@ templates = [
         "id": 'probability_tree',
         "subject": 'Data Management',
         "triggers": ['probability tree', 'tree diagram', 'two-stage', 'defective', 'without replacement', 'first branch'],
-        "caption": 'Two-stage probability tree with branch probabilities labelled.',
+        "caption": 'Two-stage probability tree with each branch labelled with its outcome and probability.',
         "skeleton": r"""\begin{tikzpicture}
 \coordinate (O) at (0,0);
 \coordinate (A) at (2,1);
@@ -155,10 +156,14 @@ templates = [
 \draw[cp line] (B) -- (B1) node[midway, above left=2pt]{$__P5__$};
 \draw[cp line] (B) -- (B2) node[midway, below left=2pt]{$__P6__$};
 \node[cp point] at (O) {};
-\node[cp point, label=right:{Outcome 1}] at (A1) {};
-\node[cp point, label=right:{Outcome 2}] at (A2) {};
-\node[cp point, label=right:{Outcome 3}] at (B1) {};
-\node[cp point, label=right:{Outcome 4}] at (B2) {};
+% each branch's event where it ends (the leaves had fixed placeholder names
+% whatever the question): first stage above/below its node, clear of the branches
+\node[cp point, label=above:{__E1__}] at (A) {};
+\node[cp point, label=below:{__E2__}] at (B) {};
+\node[cp point, label=right:{__L1__}] at (A1) {};
+\node[cp point, label=right:{__L2__}] at (A2) {};
+\node[cp point, label=right:{__L3__}] at (B1) {};
+\node[cp point, label=right:{__L4__}] at (B2) {};
 \end{tikzpicture}""",
         "params": {
             # Labels, not numbers: a number field kept only the first number of
@@ -169,20 +174,33 @@ templates = [
             'P4': {'type': 'label', 'default': '0.4', 'desc': PROB_DESC + ' on the second sub-branch of branch 1'},
             'P5': {'type': 'label', 'default': '0.7', 'desc': PROB_DESC + ' on the first sub-branch of branch 2'},
             'P6': {'type': 'label', 'default': '0.3', 'desc': PROB_DESC + ' on the second sub-branch of branch 2'},
+            'E1': {'type': 'label', 'default': 'A', 'desc': EVENT_DESC + ' of the first branch from the root, e.g. Red'},
+            'E2': {'type': 'label', 'default': 'B', 'desc': EVENT_DESC + ' of the second branch from the root, e.g. Blue'},
+            'L1': {'type': 'label', 'default': 'A', 'desc': EVENT_DESC + ' of the first sub-branch of branch 1 (the second-stage outcome), e.g. Red'},
+            'L2': {'type': 'label', 'default': 'B', 'desc': EVENT_DESC + ' of the second sub-branch of branch 1, e.g. Blue'},
+            'L3': {'type': 'label', 'default': 'A', 'desc': EVENT_DESC + ' of the first sub-branch of branch 2, e.g. Red'},
+            'L4': {'type': 'label', 'default': 'B', 'desc': EVENT_DESC + ' of the second sub-branch of branch 2, e.g. Blue'},
         },
     },
     {
         "id": 'venn_two',
         "subject": 'Data Management',
         "triggers": ['two-set venn', 'venn diagram', 'overlap'],
-        "caption": 'Two-set Venn diagram with region values.',
+        "caption": 'Two-set Venn diagram inside a universal rectangle with region values, including the region outside both sets.',
         "skeleton": r"""\begin{tikzpicture}
 \coordinate (L) at (0,0);
 \coordinate (R) at (2,0);
+% the universal set: its rectangle, name, and the value outside both circles
+% (it had none, so "how many play neither" had no region to mark)
+\draw[cp line] (-2.3,-2.1) rectangle (4.3,2.3);
+\node[cp label,anchor=north west] at (-2.3,2.3) {__LU__};
+\node[cp label] at (3.6,-1.65) {__VN__};
 \draw[cp line] (L) circle (1.5cm);
 \draw[cp line] (R) circle (1.5cm);
-\node[cp label] at (-1.6,1.6) {__LA__};
-\node[cp label] at (3.6,1.6) {__LB__};
+% set names above their circles, which leaves each about 2 cm (in a corner a
+% long name ran past the rectangle)
+\node[cp label,anchor=south] at (0,1.6) {__LA__};
+\node[cp label,anchor=south] at (2,1.6) {__LB__};
 \node[cp label] at (-0.8,0) {__VA__};
 \node[cp label] at (1,0) {__VAB__};
 \node[cp label] at (2.8,0) {__VB__};
@@ -193,23 +211,33 @@ templates = [
             'VA': {'type': 'label', 'default': '$x$', 'desc': 'Value in the left-only region'},
             'VAB': {'type': 'label', 'default': '$y$', 'desc': 'Value in the intersection region'},
             'VB': {'type': 'label', 'default': '$z$', 'desc': 'Value in the right-only region'},
+            'LU': {'type': 'label', 'default': '$U$', 'desc': 'Label of the universal set (the rectangle), e.g. $U$ or $S$'},
+            # answer-guarded without keep_if_given: "neither" is usually the value
+            # asked for, and it can equal a stated number (30 students, 18, 12 and
+            # 5 in both leave 5 in neither)
+            'VN': {'type': 'label', 'default': '', 'desc': 'Value outside both circles (in neither set): the number if given, ? if the question asks for it, otherwise empty', 'answer_safe': False},
         },
     },
     {
         "id": 'venn_three',
         "subject": 'Data Management',
         "triggers": ['three-set venn', 'venn diagram', 'triple overlap'],
-        "caption": 'Three-set Venn diagram with labelled regions.',
+        "caption": 'Three-set Venn diagram inside a universal rectangle with labelled regions.',
         "skeleton": r"""\begin{tikzpicture}
 \coordinate (A) at (-1,0.6);
 \coordinate (B) at (1,0.6);
 \coordinate (C) at (0,-0.8);
+% the universal set: its rectangle, name, and the value outside all circles
+\draw[cp line] (-4,-2.9) rectangle (4,2.7);
+\node[cp label,anchor=north west] at (-4,2.7) {__LU__};
+\node[cp label] at (-3.3,-2.45) {__V8__};
 \draw[cp line] (A) circle (1.6cm);
 \draw[cp line] (B) circle (1.6cm);
 \draw[cp line] (C) circle (1.6cm);
-\node[cp label] at (-3.0,1.6) {__LA__};
-\node[cp label] at (3.0,1.6) {__LB__};
-\node[cp label] at (1.75,-2.3) {__LC__};
+% set names just outside their circles, growing away from them
+\node[cp label,anchor=south east] at (-2.25,1.7) {__LA__};
+\node[cp label,anchor=south west] at (2.25,1.7) {__LB__};
+\node[cp label,anchor=north west] at (1.2,-2.2) {__LC__};
 \node[cp label] at (-2.2,0.6) {__V1__};
 \node[cp label] at (2.2,0.6) {__V2__};
 \node[cp label] at (0,-2.0) {__V3__};
@@ -222,13 +250,15 @@ templates = [
             'LA': {'type': 'label', 'default': '$A$', 'desc': 'Label of the first set'},
             'LB': {'type': 'label', 'default': '$B$', 'desc': 'Label of the second set'},
             'LC': {'type': 'label', 'default': '$C$', 'desc': 'Label of the third set'},
-            'V1': {'type': 'label', 'default': '?', 'desc': 'Value in the region only in set A', 'answer_safe': False},
-            'V2': {'type': 'label', 'default': '?', 'desc': 'Value in the region only in set B', 'answer_safe': False},
-            'V3': {'type': 'label', 'default': '?', 'desc': 'Value in the region only in set C', 'answer_safe': False},
-            'V4': {'type': 'label', 'default': '?', 'desc': 'Value in the region common to A and B only', 'answer_safe': False},
-            'V5': {'type': 'label', 'default': '?', 'desc': 'Value in the region common to A and C only', 'answer_safe': False},
-            'V6': {'type': 'label', 'default': '?', 'desc': 'Value in the region common to B and C only', 'answer_safe': False},
-            'V7': {'type': 'label', 'default': '?', 'desc': 'Value in the region common to all three sets', 'answer_safe': False},
+            'V1': {'type': 'label', 'default': '?', 'desc': 'Value in the region only in set A', 'answer_safe': False, 'keep_if_given': True},
+            'V2': {'type': 'label', 'default': '?', 'desc': 'Value in the region only in set B', 'answer_safe': False, 'keep_if_given': True},
+            'V3': {'type': 'label', 'default': '?', 'desc': 'Value in the region only in set C', 'answer_safe': False, 'keep_if_given': True},
+            'V4': {'type': 'label', 'default': '?', 'desc': 'Value in the region common to A and B only', 'answer_safe': False, 'keep_if_given': True},
+            'V5': {'type': 'label', 'default': '?', 'desc': 'Value in the region common to A and C only', 'answer_safe': False, 'keep_if_given': True},
+            'V6': {'type': 'label', 'default': '?', 'desc': 'Value in the region common to B and C only', 'answer_safe': False, 'keep_if_given': True},
+            'V7': {'type': 'label', 'default': '?', 'desc': 'Value in the region common to all three sets', 'answer_safe': False, 'keep_if_given': True},
+            'LU': {'type': 'label', 'default': '$U$', 'desc': 'Label of the universal set (the rectangle), e.g. $U$ or $S$'},
+            'V8': {'type': 'label', 'default': '', 'desc': 'Value outside all three circles: the number if given, ? if the question asks for it, otherwise empty', 'answer_safe': False},
         },
     },
     {
@@ -405,13 +435,15 @@ templates = [
     height=4cm,
     ybar,
     ymin=0,
-    ymax=10,
+    % the scale follows the counts (a fixed 10 cut off any taller bar), and the
+    % categories are the question's (placeholder names were shown)
+    ymax={1.15*max(__D1__,__D2__,__D3__,__D4__,1)},
     xmin=0.5,
     xmax=4.5,
     xtick={1,2,3,4},
-    xticklabels={{Cat 1},{Cat 2},{Cat 3},{Cat 4}},
-    xlabel={Category},
-    ylabel={Count},
+    xticklabels={{__C1__},{__C2__},{__C3__},{__C4__}},
+    xlabel={__XLABEL__},
+    ylabel={__YLABEL__},
     bar width=0.6cm,
     ymajorgrids,
     axis lines=left,
@@ -430,6 +462,12 @@ templates = [
             'D2': {'type': 'number', 'default': '5', 'desc': 'Count for category 2'},
             'D3': {'type': 'number', 'default': '2', 'desc': 'Count for category 3'},
             'D4': {'type': 'number', 'default': '7', 'desc': 'Count for category 4'},
+            'C1': {'type': 'label', 'default': 'A', 'desc': 'name of category 1 from the question, e.g. Apples'},
+            'C2': {'type': 'label', 'default': 'B', 'desc': 'name of category 2 from the question'},
+            'C3': {'type': 'label', 'default': 'C', 'desc': 'name of category 3 from the question'},
+            'C4': {'type': 'label', 'default': 'D', 'desc': 'name of category 4 from the question'},
+            'XLABEL': {'type': 'label', 'default': 'Category', 'desc': 'short horizontal-axis title from the question, e.g. Fruit'},
+            'YLABEL': {'type': 'label', 'default': 'Count', 'desc': 'short vertical-axis title, e.g. Number of students'},
         },
     },
 ]

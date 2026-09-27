@@ -134,14 +134,16 @@ events for model-drawn code carry a `tikz` field with that attempt's drawing cod
 (whitespace collapsed, head and tail of long code, at most 2400 characters per
 event and 6000 per job). `layout-alternative` events appear only for templates
 with several label placements ("placement 2 of 5 collides", then "no clean
-placement; kept placement ..." when none is clean).
+placement; kept placement ..." when none is clean). `readiness` events also name
+the `model` that gave the verdict and whether it was sent the `picture`.
 
 The worksheet's Report issue JSON preserves this information. It does not label
 every failure as a rate limit. Custom TikZ readiness is checked by a Gemini call
 that reads the drawing code and, on Gemini models, looks at a small rendered PNG
 of it (Gemma models read the code alone; a request refused with the picture is
 retried once without it). Values the question states may be labelled; only values
-the student must find have to be a symbol or ?. An unavailable verifier never
+the student must find have to be a symbol or ?, and guide lines or tick labels that
+locate an unknown point count as revealing it. An unavailable verifier never
 counts as success. Template parameter failures do not render invented default
 givens. `/render` returns that PNG as `preview_png` when asked with
 `"preview": true`.

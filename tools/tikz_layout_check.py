@@ -56,6 +56,12 @@ VARIANTS = {
     'probability_tree': [{'P1': '\\frac{4}{10}', 'P2': '\\frac{6}{10}', 'P3': '\\frac{3}{9}', 'P4': '\\frac{6}{9}', 'P5': '\\frac{4}{9}', 'P6': '\\frac{5}{9}'},
                          {'P1': '4/10', 'P2': '6/10', 'P3': '3/9', 'P4': '6/9', 'P5': '4/9', 'P6': '5/9'}],
     'network_graph': [{'WAE': '7'}, {'WAE': '12', 'WCE': '10', 'WAC': '15'}],
+    'vector_projection': [dict(zip(('UX', 'UY', 'VX', 'VY'), v.split(','))) for v in ('3,4,5,0', '-2,3,4,1', '4,1,1,3', '1,4,-3,-1')],
+    'cross_product_parallelogram': [dict(zip(('AX', 'AY', 'AZ', 'BX', 'BY', 'BZ'), v.split(',')))
+                                    for v in ('1,2,0,3,1,0', '1,0,0,0,1,0', '2,-1,3,1,4,-2', '0,1,2,3,0,1', '-2,1,1,1,3,0')],
+    'bar_chart': [{'D1': '23', 'D2': '41', 'D3': '17', 'D4': '9', 'C1': 'Bus', 'C2': 'Car', 'C3': 'Walk', 'C4': 'Bike', 'XLABEL': 'Travel mode'}],
+    'venn_two': [{'LA': 'Soccer', 'LB': 'Basketball', 'VA': '13', 'VAB': '5', 'VB': '7', 'VN': '?'}],
+    'venn_three': [{'LA': 'Swimming', 'LB': 'Basketball', 'LC': 'Volleyball', 'V8': '4'}],
     'riemann_sum_rectangles': [{'CURVE': '9-x^2', 'XMIN': '0', 'XMAX': '3.2', 'YMIN': '0', 'YMAX': '10',
                                 'X0': '0', 'X1': '0.75', 'X2': '1.5', 'X3': '2.25', 'X4': '3',
                                 'H1': '9', 'H2': '8.4375', 'H3': '6.75', 'H4': '3.9375'}],

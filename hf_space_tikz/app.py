@@ -622,6 +622,8 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25, image
                 with _last_success_model_lock:
                     _last_success_model = model
                 _lane_succeeded(key_idx, model)
+                _job_trace.last_model = model
+                _job_trace.last_pictured = bool(images) and not _is_gemma(model)
                 _diagnostic("model-success", model=model, key_slot=key_idx + 1)
                 print(f"[gemini] success using model {model} on key slot {key_idx + 1}.", flush=True)
                 if as_json:
@@ -3907,6 +3909,33 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str) -> dict[s
                     ang = math.degrees(math.acos(max(-1.0, min(1.0, dot / norms))))
                     overrides.update({"ANG": _clean_number(round(ang, 1)),
                                       "AX": "0", "AY": "0", "BX": "0", "BY": "0"})
+    elif template_id == "vector_projection":
+        vectors = [v for v in _named_vectors(_question_text(req)) if len(v[1]) == 2]
+        if len(vectors) >= 2:
+            named = dict(vectors)
+            # "projection of u onto v": u is projected, v is the line; else question order
+            m = re.search(r"\bprojection\s+of\s+(?:\\+vec\s*\{?\s*)?([A-Za-z])\b.*?\bon(?:to)?\s+(?:\\+vec\s*\{?\s*)?([A-Za-z])\b",
+                          _question_text(req), re.I)
+            nu, nv = (m.group(1), m.group(2)) if m and m.group(1) in named and m.group(2) in named else (vectors[0][0], vectors[1][0])
+            (ux, uy), (vx, vy) = named[nu], named[nv]
+            overrides.update({"UX": _clean_number(ux), "UY": _clean_number(uy), "VX": _clean_number(vx), "VY": _clean_number(vy),
+                              "ULAB": _plain_vector_symbol(nu), "VLAB": _plain_vector_symbol(nv),
+                              "PROJLAB": r"\mathrm{proj}_{" + _plain_vector_symbol(nv) + "}" + _plain_vector_symbol(nu)})
+    elif template_id == "cross_product_parallelogram":
+        vectors = [v for v in _named_vectors(_question_text(req)) if len(v[1]) == 3]
+        if len(vectors) >= 2:
+            (na, a3), (nb, b3) = vectors[:2]
+            overrides.update({k: _clean_number(v) for k, v in zip(("AX", "AY", "AZ", "BX", "BY", "BZ"), a3 + b3)})
+            overrides.update({"ALAB": _plain_vector_symbol(na), "BLAB": _plain_vector_symbol(nb),
+                              "CROSSLAB": _plain_vector_symbol(na) + r"\times" + _plain_vector_symbol(nb)})
+    elif template_id == "3d_vector_components":
+        vectors = [v for v in _named_vectors(_question_text(req)) if len(v[1]) == 3]
+        if vectors:
+            name, (x, y, z) = vectors[0]
+            values = [_clean_number(c) for c in (x, y, z)]
+            overrides.update(dict(zip(("XVAL", "YVAL", "ZVAL"), values)))
+            overrides.update(dict(zip(("XVALLABEL", "YVALLABEL", "ZVALLABEL"), values)))
+            overrides["LAB"] = _plain_vector_symbol(name)
     elif template_id == "vector_difference_from_angle":
         overrides.update({
             "ALAB": _label_with_magnitude(avec, mag_a),
@@ -4023,7 +4052,7 @@ def _catalog_render(req: GenerateReq, tmpl: dict, params: dict, source: str) -> 
     best = None
     options = tcatalog.alternatives(tmpl)
     for alternative in range(options):
-        filled = tcatalog.fill(tmpl, params, target=req.target, alternative=alternative)
+        filled = tcatalog.fill(tmpl, params, target=req.target, alternative=alternative, question=_question_text(req))
         rendered = _verified_render(req, filled, source=source, run_critic=False)
         if not rendered.get("ok"):
             return rendered if best is None else best  # a placement that breaks the compile is no option
@@ -4098,7 +4127,7 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
             except Exception as exc:
                 _diagnostic("catalog-fit-error", str(exc), template=tmpl['id'])
                 return None
-        filled = tcatalog.fill(tmpl, {}, target=req.target)
+        filled = tcatalog.fill(tmpl, {}, target=req.target, question=_question_text(req))
         rendered = _catalog_render(req, tmpl, {}, source=f"catalog-static:{tmpl['id']}")
         if rendered.get("ok"):
             rendered["tikz"] = rendered.get("tikz", filled)
@@ -4138,9 +4167,9 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
             print(f"[catalog] {tmpl['id']} param Gemini failure: {str(exc)[:200]}", flush=True)
             _diagnostic("catalog-parameter-error", str(exc), template=tmpl['id'])
             return None  # Default labels/values are not the student's givens.
-        filled = tcatalog.fill(tmpl, params, target=req.target)
+        filled = tcatalog.fill(tmpl, params, target=req.target, question=_question_text(req))
         params.update(_catalog_local_param_overrides(req, tmpl["id"]))
-        filled = tcatalog.fill(tmpl, params, target=req.target)
+        filled = tcatalog.fill(tmpl, params, target=req.target, question=_question_text(req))
         print(f"[catalog] {tmpl['id']} params={json.dumps(params, ensure_ascii=False)[:1200]}", flush=True)
         _diagnostic("catalog-params", json.dumps(params, ensure_ascii=False), template=tmpl["id"])
         rendered = _catalog_render(req, tmpl, params, source=f"catalog:{tmpl['id']}")
@@ -4186,7 +4215,7 @@ A visual is READY only if ALL of these hold:
 - Correct type: the diagram is the right kind of visual for the question and actually illustrates it (not a formula poster, not an unrelated shape).
 - Consistent: it agrees with the givens in the question (labels, counts, signs, angles, and quantities match). A shaded region must be exactly the region the question describes (FAIL shading that spills outside the region between two curves). For cross products, the drawn result vector must obey the right-hand rule for the two drawn vectors (e.g. j x i points along -z, NOT +z); FAIL a cross-product arrow pointing the wrong way.
 - Interior angles: in a named angle XYZ, Y is the vertex. Unless the question explicitly asks for an exterior, reflex, or major angle, the mark and its label must lie in the smaller interior sector between YX and YZ. For circle theorems, FAIL angle AOB = 80 degrees if the diagram marks the exterior 280-degree sector, and FAIL angle ACB if its mark is outside the inscribed triangle rather than between CA and CB.
-- Answer-safe: it does not reveal a value the student is asked to find (a solved magnitude, coordinate, angle, or final answer); such values appear only as a symbol or ?, and placeholders like ? or (?, ?) are correct. Values STATED IN THE QUESTION are givens and may be labelled, including given vectors, points, coordinates, and lengths (e.g. v = <2, 3, 4> when the question gives it).
+- Answer-safe: it does not reveal a value the student is asked to find (a solved magnitude, coordinate, angle, or final answer); such values appear only as a symbol or ?, and placeholders like ? or (?, ?) are correct. Values STATED IN THE QUESTION are givens and may be labelled, including given vectors, points, coordinates, and lengths (e.g. v = <2, 3, 4> when the question gives it). Guide lines, dashed drops, or tick labels that locate an unknown point on the axes reveal its coordinates: FAIL them unless the question gives that point.
 - Legible: labels are not degenerate - nothing tiny, collapsed, overlapping, or cramped into the origin. FAIL a diagram whose supposedly independent vectors are drawn nearly collinear, or whose parallelogram/triangle collapses to a sliver."""
 
 
@@ -4295,13 +4324,21 @@ def _issue_count(candidate: tuple) -> int:
     return len(candidate[0].get("layout", {}).get("issues", []))
 
 
+def _verifier_facts() -> dict:
+    """The model that answered the job's last Gemini call and whether it was sent
+    the picture, for the readiness event (the trace left both to be inferred)."""
+    facts = {"model": getattr(_job_trace, "last_model", None), "picture": getattr(_job_trace, "last_pictured", False)}
+    _job_trace.last_model, _job_trace.last_pictured = None, False
+    return facts if facts["model"] else {}
+
+
 def _judge_reference(req: GenerateReq, rendered: dict, enlarged: str, caption: str) -> tuple[str, str]:
     """Readiness verdict for one rendered model drawing (code and picture); a
     pass is ready to ship. Its code goes in the trace unless a layout event
     already has it, so a problem the checks missed can still be traced."""
     verdict, reason = _readiness_verdict(req, enlarged, rendered.get("preview_png"))
     logged = bool(rendered.get("layout", {}).get("issues"))
-    _diagnostic("readiness", reason or verdict, **({} if logged else {"tikz": enlarged}))
+    _diagnostic("readiness", reason or verdict, **_verifier_facts(), **({} if logged else {"tikz": enlarged}))
     if verdict == "PASS":
         _ship_reference(rendered, enlarged, caption)
         print(f"[reference] PASS ({reason or 'ready'})", flush=True)
@@ -4321,7 +4358,7 @@ def _judge_reference_pair(req: GenerateReq, pair: list) -> tuple[int | None, str
     if index is not None and not pair[index][0].get("layout", {}).get("issues"):
         unlogged = [pair[index]]
     detail = reason if index is None else "PASS " + "AB"[index]
-    _diagnostic("readiness", detail, **({"tikz": unlogged[0][1]} if unlogged else {}))
+    _diagnostic("readiness", detail, **_verifier_facts(), **({"tikz": unlogged[0][1]} if unlogged else {}))
     return index, reason
 
 
@@ -4604,6 +4641,7 @@ def _set_job(job_id: str, **values) -> None:
 def _run_generate_job(job_id: str, req: GenerateReq) -> None:
     _set_job(job_id, status="processing", error="")
     _job_trace.events = []
+    _job_trace.last_model, _job_trace.last_pictured = None, False
     try:
         result = _generate_visual_sync(req)
         if result.get("ok"):

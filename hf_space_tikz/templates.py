@@ -333,6 +333,17 @@ def route(text: str, subject: str = "") -> dict | None:
     if has_named_3d_points and re.search(r"\\vec|components?\s+of\s+the\s+vectors?|vertices|vector\s+[A-Z]{2}", text_raw, re.I):
         return None
     if has_3d_vector_tuple or has_standard_basis_3d or has_angle_bracket_vectors:
+        # Only two exact templates draw 3D vectors from the question's own
+        # components; everything else with a 3D tuple is drawn to order.
+        # "Sketch the position vector v = (2, 3, 4)" had no route at all.
+        triples = {tuple(float(n) for n in m) for m in re.findall(
+            r"(?:\(|<|\\langle)\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*(?:\)|>|\\rangle)", text_raw)}
+        if (len(triples) >= 2 and re.search(r"cross product|vector product|area of the parallelogram", text_low)
+                and not re.search(r"parallelepiped|triple product|\bplane\b", text_low)):
+            return get("cross_product_parallelogram")
+        if (len(triples) == 1 and re.search(r"position vector|components?\b|magnitude|three dimensions|\b3d\b", text_low)
+                and not re.search(r"cross|dot product|angle|projection|\bplane\b|\bline\b|unit vector|parallel|orthogonal|collinear", text_low)):
+            return get("3d_vector_components")
         return None
     # Scaled symbolic vector combinations ("p - 2q", "\vec{p} - 2\vec{q}") are
     # more specific than the surrounding words "resultant vector"; choose the
@@ -459,7 +470,8 @@ def alternatives(template: dict) -> int:
     return max(1, len(template.get("layout_alternatives", [])))
 
 
-def fill(template: dict, ai_params: dict | None = None, target: str = "generic", alternative: int = 0) -> str:
+def fill(template: dict, ai_params: dict | None = None, target: str = "generic", alternative: int = 0,
+         question: str = "") -> str:
     """Substitute AI-supplied values into a template skeleton, deterministically.
 
     Every slot is sanitized by its declared type. Missing values fall back to
@@ -470,6 +482,10 @@ def fill(template: dict, ai_params: dict | None = None, target: str = "generic",
     candidate placements in "layout_alternatives" (TikZ fragments for its
     @@ALT@@ slot, preferred first); the renderer tries them in order when the
     rendered picture shows label collisions. The model never sees or fills them.
+
+    A slot marked keep_if_given=True keeps a value whose numbers all appear in
+    the question: a Venn region the question fills in is a given, not an answer
+    (the worksheet showed "3 in the centre" as ?).
     """
     ai_params = ai_params or {}
     out = template["skeleton"]
@@ -486,10 +502,17 @@ def fill(template: dict, ai_params: dict | None = None, target: str = "generic",
             # math that makes $$...$$, which breaks the compile.
             value = re.sub(r"^\$(.+)\$$", r"\1", value) if value.count("$") == 2 else value
         if target == "worksheet" and not spec.get("answer_safe", True):
-            if _looks_like_answer(value):
+            if _looks_like_answer(value) and not (spec.get("keep_if_given") and _stated_in(value, question)):
                 value = str(spec.get("unknown", "?"))
         out = out.replace("__" + name + "__", value)
     return out
+
+
+def _stated_in(value: str, question: str) -> bool:
+    """Every number in value appears as a number in question."""
+    numbers = re.findall(r"\d+(?:\.\d+)?", str(value or ""))
+    stated = {float(n) for n in re.findall(r"\d+(?:\.\d+)?", str(question or ""))}
+    return bool(numbers) and all(float(n) in stated for n in numbers)
 
 
 def _looks_like_answer(value: str) -> bool:
