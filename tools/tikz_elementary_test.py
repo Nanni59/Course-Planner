@@ -152,6 +152,21 @@ assert '{$4/10$}' in tree_tikz and '{$\\frac{6}{10}$}' in tree_tikz and '{$5/9$}
 network = templates.get('network_graph')
 assert '\\foreach \\w in {}' in templates.fill(network, {}) and '\\foreach \\w in {7}' in templates.fill(network, {'WAE': '7'})
 assert 'cp dashed' not in network['skeleton']
+# Venn regions the question fills in are givens (the worksheet showed "3 in the
+# centre" as ?); an unstated value is still hidden, and "neither" stays guarded
+# even when its value equals a stated number (30, 18, 12, 5 both: 5 neither).
+venn3 = templates.fill(templates.get('venn_three'), {'V7': '3', 'V1': '12'}, target='worksheet',
+                       question='A survey of 50 people asked about tea, coffee, and juice. 3 like all three drinks.')
+assert 'at (0,0) {3};' in venn3 and 'at (-2.2,0.6) {?};' in venn3 and 'rectangle' in venn3
+venn2 = templates.fill(templates.get('venn_two'), {'VN': '5', 'LU': '$S$'}, target='worksheet',
+                       question='In a class of 30 students, 18 play soccer, 12 play basketball, and 5 play both. How many play neither?')
+assert 'at (3.6,-1.65) {?};' in venn2 and '{$S$}' in venn2 and 'rectangle' in venn2
+# Bar charts name the question's categories and scale to the counts (a fixed
+# ymax=10 cut off taller bars); tree branches name their outcomes.
+bars = templates.fill(templates.get('bar_chart'), {'D1': '8', 'D2': '15', 'D3': '3', 'D4': '6', 'C1': 'Apples', 'C2': 'Bananas', 'C3': 'Grapes', 'C4': 'Oranges', 'XLABEL': 'Fruit'})
+assert 'xticklabels={{Apples},{Bananas},{Grapes},{Oranges}}' in bars and 'ymax={1.15*max(8,15,3,6,1)}' in bars and 'xlabel={Fruit}' in bars and 'Cat' not in bars
+tree_labels = templates.fill(templates.get('probability_tree'), {'E1': 'Red', 'E2': 'Blue', 'L1': 'Red', 'L4': 'Blue'})
+assert 'label=above:{Red}] at (A)' in tree_labels and 'label=below:{Blue}] at (B)' in tree_labels and 'Outcome' not in tree_labels
 histogram_tikz = templates.fill(templates.get('histogram'), {
     'YMAX':'10', 'L1':'0--9', 'L2':'10--19', 'L3':'20--29', 'L4':'30--39', 'L5':'40--49',
     'F1':'3', 'F2':'7', 'F3':'9', 'F4':'5', 'F5':'2',
@@ -492,6 +507,31 @@ assert got == {'WAB': '4', 'WAC': '2', 'WBC': '1', 'WBD': '5', 'WCE': '10', 'WDE
 assert overrides('Edges: AB 3, EA 6.', 'network_graph') == {'WAB': '3', 'WAE': '6'}
 assert overrides('Edges: A–B is 3 and A–E is 6.', 'network_graph') == {'WAB': '3', 'WAE': '6'}
 assert overrides('Draw a weighted graph.', 'network_graph') == {}
+# Projection, cross product and 3D components read their vectors from the
+# question (fixed example vectors drew v = (5, 0) tilted and a x b always up).
+got = overrides('Find the vector projection of u = (3, 4) onto v = (5, 0).', 'vector_projection')
+assert (got['UX'], got['UY'], got['VX'], got['VY'], got['ULAB']) == ('3', '4', '5', '0', '\\vec{u}'), got
+got = overrides('Given u = (3, 4) and v = (5, 0), find the projection of v onto u.', 'vector_projection')
+assert (got['UX'], got['UY'], got['VX'], got['VY'], got['PROJLAB']) == ('5', '0', '3', '4', '\\mathrm{proj}_{\\vec{u}}\\vec{v}'), got
+got = overrides('Use the cross product to find the area of the parallelogram determined by a = (1, 2, 0) and b = (3, 1, 0).', 'cross_product_parallelogram')
+assert [got[k] for k in ('AX', 'AY', 'AZ', 'BX', 'BY', 'BZ')] == ['1', '2', '0', '3', '1', '0'] and got['CROSSLAB'] == '\\vec{a}\\times\\vec{b}', got
+threed = 'Sketch the position vector v = (2, 3, 4) in three dimensions and find its magnitude.'
+got = overrides(threed, '3d_vector_components')
+assert [got[k] for k in ('XVAL', 'YVAL', 'ZVAL', 'XVALLABEL', 'LAB')] == ['2', '3', '4', '2', '\\vec{v}'], got
+assert templates.route(threed + '\nDiagram: Draw x, y, and z axes and the vector from the origin to (2, 3, 4) with dashed component guides.', 'Vectors')['id'] == '3d_vector_components'
+assert templates.route('Find the magnitude of \\vec{v} = (1, 2, 2).', 'Vectors')['id'] == '3d_vector_components'
+assert templates.route('Find the cross product of \\vec{a} = (1, 2, 3) and \\vec{b} = (0, 1, 4).', 'Vectors')['id'] == 'cross_product_parallelogram'
+for other in ('Find the unit vector in the direction of \\vec{v} = (2, 3, 4).',
+              'Find the angle between \\vec{a} = (1, 2, 3) and \\vec{b} = (0, 1, 4).',
+              'Find the volume of the parallelepiped with \\vec{a} = (1, 0, 0), \\vec{b} = (0, 2, 0), \\vec{c} = (1, 1, 3) using the cross product.'):
+    assert templates.route(other, 'Vectors') is None, other  # still drawn to order
+request = SimpleNamespace(title=threed, brief='Question: ' + threed, subject='', equation='', target='worksheet')
+threed_tikz = templates.fill(templates.get('3d_vector_components'), got, target='worksheet')
+assert ns['_worksheet_answer_safe_tikz'](request, threed_tikz) == threed_tikz  # the given components stay
+# The paired verdict records the model that answered and whether it saw the picture.
+ns['_job_trace'].last_model, ns['_job_trace'].last_pictured = 'gemini-x', True
+assert ns['_verifier_facts']() == {'model': 'gemini-x', 'picture': True} and ns['_verifier_facts']() == {}
+assert 'Guide lines, dashed drops, or tick labels that locate an unknown point' in ns['_readiness_prompt'](request, 'x')
 
 # Terminal status always retains the job's own trace, without configured secrets.
 def fake_generate(request):
@@ -667,6 +707,7 @@ result, calls, _ = lane_trial(lambda k, m: OK if m == 'gemma-4-31b-it' else (429
 parts = {m: b['contents'][0]['parts'] for m, b in bodies}
 assert result == 'ok' and parts['primary'][1] == {'inline_data': {'mime_type': 'image/png', 'data': 'aW1n'}}, parts
 assert parts['gemma-4-31b-it'] == [{'text': 'fixture'}], parts
+assert ns['_job_trace'].last_model == 'gemma-4-31b-it' and ns['_job_trace'].last_pictured is False
 result, calls, _ = lane_trial(lambda k, m: REFUSED if m.startswith('gemma') else OK,
                               models=('gemma-4-31b-it', 'healthy'))
 assert result == 'ok' and [m for _k, m in calls] == ['gemma-4-31b-it', 'healthy'], calls

@@ -4,6 +4,38 @@ One dict per diagram. Authoring contract lives in ../templates.py.
 Slots are __UPPER__; skeletons are raw strings; every slot has a params entry.
 """
 
+# View choice for the cross-product parallelogram. One fixed oblique view sees
+# some planes edge-on (a = (2,-1,3), b = (1,4,-2) drew a sliver), and a view
+# looking straight at the face would shrink a x b to a stub. Each candidate
+# (azimuth, elevation), all in the textbook arrangement (z up, x toward the
+# viewer on the lower left, y to the right), is scored by c*sqrt(1-c^2), c = |n.d| for the unit
+# normal n and view direction d: best when the face is seen at 45 degrees. The
+# first (the old view) gets a bonus, so it stays unless the face is nearly
+# edge-on in it (without, a face seen from 25 degrees up lost to 40).
+_CROSS_VIEWS = [(35, 25)] + [(az, el) for az in (20, 45, 70) for el in (12, 25, 40)]
+
+
+def _cross_view_head() -> str:
+    # TeX macro names take letters only: view i is \cpc<a..j> / \cps<a..j>
+    tag = "abcdefghij"
+    lines = [r"  \pgfmathsetmacro\cpnl{max(0.0001,veclen(veclen(\cpnx,\cpny),\cpnz))}"]
+    for i, (az, el) in enumerate(_CROSS_VIEWS):
+        t = tag[i]
+        lines.append(rf"  \pgfmathsetmacro\cpc{t}{{abs((\cpnx*cos({az})*cos({el})+\cpny*sin({az})*cos({el})+\cpnz*sin({el}))/\cpnl)}}")
+        bonus = "+0.15" if i == 0 else ""
+        lines.append(rf"  \pgfmathsetmacro\cps{t}{{\cpc{t}*sqrt(max(0,1-\cpc{t}*\cpc{t})){bonus}}}")
+    names = ",".join(rf"\cps{tag[i]}" for i in range(len(_CROSS_VIEWS)))
+    lines.append(rf"  \pgfmathsetmacro\cpbest{{max({names})}}")
+    for key, pick in (("cpaz", 0), ("cpel", 1)):
+        expr = str(_CROSS_VIEWS[-1][pick])
+        for i in range(len(_CROSS_VIEWS) - 2, -1, -1):
+            expr = rf"ifthenelse(\cps{tag[i]}>=\cpbest,{_CROSS_VIEWS[i][pick]},{expr})"
+        lines.append(rf"  \pgfmathsetmacro\{key}{{{expr}}}")
+    return "\n".join(lines) + "\n"
+
+
+_CROSS_VIEW_HEAD = _cross_view_head()
+
 templates = [
     {
         "id": 'airplane_wind_ground_velocity',
@@ -572,28 +604,53 @@ templates = [
         "subject": 'Vectors / Linear Algebra',
         "triggers": ['projection', 'scalar projection', 'foot of perpendicular'],
         "caption": 'Projection of one vector onto another with the foot of the perpendicular.',
+        # The old skeleton drew fixed example vectors whatever the question gave
+        # (v = (5, 0) came out tilted). Now the vectors come from their
+        # components, the foot is the true projection t*v with t = u.v/|v|^2,
+        # and the line of v runs through the foot when t < 0 or t > 1.
         "skeleton": r"""\begin{tikzpicture}[scale=1]
-  % coordinate axes
-  \draw[cp axis] (-0.5,0) -- (4.5,0) node[cp label,anchor=west] {$x$};
-  \draw[cp axis] (0,-0.5) -- (0,3.5) node[cp label,anchor=south] {$y$};
-
+  \pgfmathsetmacro\cpt{((__UX__)*(__VX__)+(__UY__)*(__VY__))/max(0.0001,(__VX__)*(__VX__)+(__VY__)*(__VY__))}
+  \pgfmathsetmacro\cpk{3.4/max(0.0001,veclen(__UX__,__UY__),veclen(__VX__,__VY__),abs(\cpt)*veclen(__VX__,__VY__))}
+  % s = 1 when u lies counterclockwise of v: u's label goes on its outer
+  % (counterclockwise) side, v's and the projection's on the clockwise side
+  \pgfmathsetmacro\cps{ifthenelse((__VX__)*(__UY__)-(__VY__)*(__UX__)>=0,1,-1)}
+  \pgfmathsetmacro\cpau{atan2(__UY__,__UX__)}
+  \pgfmathsetmacro\cpav{atan2(__VY__,__VX__)}
   \coordinate (O) at (0,0);
-  % fixed example vectors
-  \coordinate (U) at (2,1.5);
-  \coordinate (V) at (3,0.5);
-  % approximate foot of projection of U onto V
-  \coordinate (F) at (2.2,0.36);
-
-  % vectors and projection
-  \draw[cp line,->] (O) -- (U) node[cp label,anchor=south east] {$__ULAB__$};
-  \draw[cp line,->] (O) -- (V) node[cp label,anchor=south west] {$__VLAB__$};
-  \draw[cp line,->] (O) -- (F) node[cp label,midway,below,yshift=-2pt] {$__PROJLAB__$};
-  % perpendicular drop
+  \coordinate (U) at ({\cpk*(__UX__)},{\cpk*(__UY__)});
+  \coordinate (V) at ({\cpk*(__VX__)},{\cpk*(__VY__)});
+  \coordinate (F) at ({\cpk*\cpt*(__VX__)},{\cpk*\cpt*(__VY__)});
+  \coordinate (D) at ($(F)+(\cpav:1)$);
+  \draw[cp axis] ({min(-0.5,\cpk*(__UX__)-0.6,\cpk*(__VX__)-0.6,\cpk*\cpt*(__VX__)-0.6)},0) -- ({max(1,\cpk*(__UX__),\cpk*(__VX__),\cpk*\cpt*(__VX__))+1.1},0) node[cp label,anchor=west] {$x$};
+  \draw[cp axis] (0,{min(-0.5,\cpk*(__UY__)-0.6,\cpk*(__VY__)-0.6,\cpk*\cpt*(__VY__)-0.6)}) -- (0,{max(1,\cpk*(__UY__),\cpk*(__VY__),\cpk*\cpt*(__VY__))+0.8}) node[cp label,anchor=south] {$y$};
+  % the line of v, through the foot when it falls outside O to V
+  \draw[gray,thin] ($(O)!{min(0,\cpt)-0.08}!(V)$) -- ($(O)!{max(1,\cpt)}!(V)$);
   \draw[cp dashed] (U) -- (F);
-  % right angle marker at foot
-  \pic [cp dashed, angle radius=0.3cm] {right angle=U--F--O};
+  \pic [cp dashed, angle radius=0.3cm] {right angle=U--F--D};
+  \draw[cp line,->] (O) -- (V) node[cp label,anchor={\cpav+135*\cps}] {$__VLAB__$};
+  \draw[cp line,->] (O) -- (U) node[cp label,anchor={\cpau-135*\cps}] {$__ULAB__$};
+  \draw[cp line,->,very thick] (O) -- (F);
+  % projection label beside O to F (at fraction p, on side q: 1 away from u,
+  % -1 toward it), out by its own measured size
+  @@ALT@@
+  \node[cp label,overlay,opacity=0] (cpmP) at (0,0) {$__PROJLAB__$};
+  \path let \p2=($(cpmP.north east)-(cpmP.south west)$), \n1={\cpav-90*\cps*\cpq} in
+    node[cp label] at ($(O)!\cpp!(F)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+3pt})$) {$__PROJLAB__$};
 \end{tikzpicture}""",
+        # where the projection label goes when an axis runs through it
+        "layout_alternatives": [
+            r'\pgfmathsetmacro\cpp{0.5}\pgfmathsetmacro\cpq{1}',
+            r'\pgfmathsetmacro\cpp{0.5}\pgfmathsetmacro\cpq{-1}',
+            r'\pgfmathsetmacro\cpp{0.7}\pgfmathsetmacro\cpq{1}',
+            r'\pgfmathsetmacro\cpp{0.7}\pgfmathsetmacro\cpq{-1}',
+            r'\pgfmathsetmacro\cpp{0.3}\pgfmathsetmacro\cpq{1}',
+            r'\pgfmathsetmacro\cpp{0.3}\pgfmathsetmacro\cpq{-1}',
+        ],
         "params": {
+            'UX': {'type': 'number', 'default': '2', 'desc': 'x-component of the vector being projected (u)'},
+            'UY': {'type': 'number', 'default': '1.5', 'desc': 'y-component of the vector being projected (u)'},
+            'VX': {'type': 'number', 'default': '3', 'desc': 'x-component of the vector projected onto (v)'},
+            'VY': {'type': 'number', 'default': '0.5', 'desc': 'y-component of the vector projected onto (v)'},
             'ULAB': {'type': 'label', 'default': '\\vec{u}', 'desc': 'label for the projected vector'},
             'VLAB': {'type': 'label', 'default': '\\vec{v}', 'desc': 'label for the vector being projected onto'},
             'PROJLAB': {'type': 'label', 'default': '\\mathrm{proj}_{\\vec{v}}\\vec{u}', 'desc': 'label for the projection of u onto v'},
@@ -602,7 +659,8 @@ templates = [
     {
         "id": '3d_vector_components',
         "subject": 'Vectors / Linear Algebra',
-        "triggers": ['3d vector', 'components', 'z-component', 'three-dimensional vector'],
+        "triggers": ['3d vector', 'components', 'z-component', 'three-dimensional vector',
+                     'in three dimensions', 'x, y, and z axes', 'component guides'],
         "caption": 'A 3D vector with dashed component drops to the coordinate axes.',
         # Any fixed oblique view sends one direction to the origin; with the old
         # single view (2, 1.5, 1) drew as a stub. The x-axis foreshortening is
@@ -650,42 +708,66 @@ templates = [
         "subject": 'Vectors / Linear Algebra',
         "triggers": ['cross product', 'vector product', 'area of the parallelogram'],
         "caption": 'Two vectors spanning a parallelogram and their cross product vector.',
-        "skeleton": r"""\begin{tikzpicture}[scale=1, x={(-0.5cm,-0.3cm)}, y={(0.7cm,-0.3cm)}, z={(0cm,0.8cm)}]
-  % axes
-  \draw[cp axis] (0,0,0) -- (4,0,0) node[cp label,anchor=north east] {$x$};
-  \draw[cp axis] (0,0,0) -- (0,3,0) node[cp label,anchor=south] {$y$};
-  \draw[cp axis] (0,0,0) -- (0,0,3) node[cp label,anchor=west] {$z$};
-
+        # The old skeleton drew fixed vectors with a×b straight up whatever the
+        # question gave, and both labels inside the face. Now a and b come from
+        # their components (the longer drawn 3 long) and a×b points along the
+        # true cross product, drawn 2.5 long.
+        "skeleton": r"""\begin{tikzpicture}[scale=1]
+  \pgfmathsetmacro\cpk{3/max(0.0001,veclen(veclen(__AX__,__AY__),__AZ__),veclen(veclen(__BX__,__BY__),__BZ__))}
+  \pgfmathsetmacro\cpnx{(__AY__)*(__BZ__)-(__AZ__)*(__BY__)}
+  \pgfmathsetmacro\cpny{(__AZ__)*(__BX__)-(__AX__)*(__BZ__)}
+  \pgfmathsetmacro\cpnz{(__AX__)*(__BY__)-(__AY__)*(__BX__)}
+""" + _CROSS_VIEW_HEAD + r"""  \begin{scope}[x={({-sin(\cpaz)*0.9cm},{-cos(\cpaz)*sin(\cpel)*0.9cm})},
+    y={({cos(\cpaz)*0.9cm},{-sin(\cpaz)*sin(\cpel)*0.9cm})}, z={(0cm,{cos(\cpel)*0.9cm})}]
+  \pgfmathsetmacro\cpnk{2.5/max(0.0001,veclen(veclen(\cpnx,\cpny),\cpnz))}
   \coordinate (O) at (0,0,0);
-  \coordinate (A) at (3,1,0);
-  \coordinate (B) at (1,2,0);
+  \coordinate (A) at ({\cpk*(__AX__)},{\cpk*(__AY__)},{\cpk*(__AZ__)});
+  \coordinate (B) at ({\cpk*(__BX__)},{\cpk*(__BY__)},{\cpk*(__BZ__)});
   \coordinate (C) at ($(A)+(B)$);
-  \coordinate (N) at (0,0,2.5);
+  \coordinate (N) at ({\cpnk*\cpnx},{\cpnk*\cpny},{\cpnk*\cpnz});
+  % axes long enough, either way, for the vectors, the face and a×b
+  \draw[cp axis] ({min(0,\cpk*(__AX__),\cpk*(__BX__),\cpk*((__AX__)+(__BX__)),\cpnk*\cpnx)-0.3},0,0) -- ({max(3,\cpk*(__AX__),\cpk*(__BX__),\cpk*((__AX__)+(__BX__)),\cpnk*\cpnx)+0.8},0,0) node[cp label,anchor=north east] {$x$};
+  \draw[cp axis] (0,{min(0,\cpk*(__AY__),\cpk*(__BY__),\cpk*((__AY__)+(__BY__)),\cpnk*\cpny)-0.3},0) -- (0,{max(3,\cpk*(__AY__),\cpk*(__BY__),\cpk*((__AY__)+(__BY__)),\cpnk*\cpny)+0.8},0) node[cp label,anchor=west] {$y$};
+  \draw[cp axis] (0,0,{min(0,\cpk*(__AZ__),\cpk*(__BZ__),\cpk*((__AZ__)+(__BZ__)),\cpnk*\cpnz)-0.3}) -- (0,0,{max(3,\cpk*(__AZ__),\cpk*(__BZ__),\cpk*((__AZ__)+(__BZ__)),\cpnk*\cpnz)+0.8}) node[cp label,anchor=south] {$z$};
 
-  % vectors a and b
+  % the face first, so the vectors and labels drawn after it stay visible, and
+  % see-through, so the axes behind it do too
+  \draw[cp fill, fill opacity=0.6] (O) -- (A) -- (C) -- (B) -- cycle;
   \draw[cp line,->] (O) -- (A);
   \draw[cp line,->] (O) -- (B);
-
-  % parallelogram face
-  \draw[cp fill] (O) -- (A) -- (C) -- (B) -- cycle;
-  % vector labels beside their vectors, on the parallelogram's side (at the
-  % tips the axes ran through them), drawn after the face so it cannot cover them
+  % each vector label beside its vector (at fraction f) on the side away from
+  % the other one, outside the face (it sat inside it)
+  @@ALT@@
   \node[cp label,overlay,opacity=0] (cpmA) at (0,0) {$__ALAB__$};
-  \path let \p1=($(A)-(O)$), \p3=($(4,0,0)-(O)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
+  \path let \p1=($(A)-(O)$), \p3=($(B)-(O)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
     \p2=($(cpmA.north east)-(cpmA.south west)$) in
-    node[cp label] at ($(O)!0.6!(A)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__ALAB__$};
+    node[cp label] at ($(O)!\cpf!(A)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__ALAB__$};
   \node[cp label,overlay,opacity=0] (cpmB) at (0,0) {$__BLAB__$};
-  \path let \p1=($(B)-(O)$), \p3=($(0,3,0)-(O)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
+  \path let \p1=($(B)-(O)$), \p3=($(A)-(O)$), \n1={atan2(\y1,\x1)+ifthenelse(\x1*\y3-\y1*\x3>0,-90,90)},
     \p2=($(cpmB.north east)-(cpmB.south west)$) in
-    node[cp label] at ($(O)!0.6!(B)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__BLAB__$};
+    node[cp label] at ($(O)!\cpf!(B)+(\n1:{0.5*\x2*abs(cos(\n1))+0.5*\y2*abs(sin(\n1))+2pt})$) {$__BLAB__$};
 
-  % cross product vector
-  \draw[cp line,->] (O) -- (N) node[cp label,anchor=west] {$__CROSSLAB__$};
+  % cross product vector, its label beside the tip, a turn of g from its drawn
+  % direction (90: right of an upward arrow)
+  \path let \p4=($(N)-(O)$) in
+    [draw, cp line, ->] (O) -- (N) node[cp label,anchor={atan2(\y4,\x4)+\cpg}] {$__CROSSLAB__$};
+  \end{scope}
 \end{tikzpicture}""",
+        # vector labels slide along their vectors (f), and the a x b label turns
+        # about its tip (g), when a line runs through them
+        "layout_alternatives": [rf'\pgfmathsetmacro\cpf{{{f}}}\pgfmathsetmacro\cpg{{{g}}}'
+                                for f, g in (('0.6', '90'), ('0.6', '-90'), ('0.4', '90'), ('0.8', '90'),
+                                             ('0.4', '-90'), ('0.8', '-90'), ('0.6', '180'), ('0.25', '90'))],
         "params": {
+            'AX': {'type': 'number', 'default': '3', 'desc': 'x-component of the first vector a'},
+            'AY': {'type': 'number', 'default': '1', 'desc': 'y-component of the first vector a'},
+            'AZ': {'type': 'number', 'default': '0', 'desc': 'z-component of the first vector a'},
+            'BX': {'type': 'number', 'default': '1', 'desc': 'x-component of the second vector b'},
+            'BY': {'type': 'number', 'default': '2', 'desc': 'y-component of the second vector b'},
+            'BZ': {'type': 'number', 'default': '0', 'desc': 'z-component of the second vector b'},
             'ALAB': {'type': 'label', 'default': '\\vec{a}', 'desc': 'label for the first vector'},
             'BLAB': {'type': 'label', 'default': '\\vec{b}', 'desc': 'label for the second vector'},
-            'CROSSLAB': {'type': 'label', 'default': '\\vec{a}\\times\\vec{b}', 'desc': 'label for the cross product vector'},
+            'CROSSLAB': {'type': 'label', 'default': '\\vec{a}\\times\\vec{b}', 'desc': 'label for the cross product vector (a x b, in that order)'},
         },
     },
     {
