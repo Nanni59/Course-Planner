@@ -3254,7 +3254,7 @@ _LAYOUT_INK = 170         # grey level counted as ink: black and gray lines, not
 _LAYOUT_MIN_INK = 8       # pixels of ink inside a text box before a label counts as crossed
 _LAYOUT_EDGE_PT = 0.5     # tolerance at the text box edge: a tick mark ending at its label is normal
 _LAYOUT_MIN_TEXT = 0.07   # share of its text box a label's own glyphs must darken (visible labels measured 0.10+; a clipped one 0.045)
-_LAYOUT_MIN_SPAN = 0.45   # share of its box width the glyphs of a 2+ character label must span (visible 0.61+; clipped 0.09-0.24)
+_LAYOUT_MIN_SPAN = 0.45   # share of its box width the glyphs of a label with 2+ characters on a line must span (visible 0.64+; clipped 0.09-0.36)
 
 
 def _layout_document(doc: str) -> str:
@@ -3345,6 +3345,19 @@ def _layout_overlap(a: list, b: list) -> float:
     return _layout_area(out)
 
 
+def _layout_line_chars(words: list) -> int:
+    """Characters on the longest text line of a label (words as pdftotext boxes):
+    \\frac{3}{9} is two one-character lines, dr/dt two of two."""
+    lines: list[list] = []
+    for w in sorted(words, key=lambda w: (w[1] + w[3]) / 2):
+        mid, tall = (w[1] + w[3]) / 2, w[3] - w[1]
+        if lines and abs(mid - lines[-1][0]) < 0.5 * tall:
+            lines[-1][1] += len(w[4].replace(" ", ""))
+        else:
+            lines.append([mid, len(w[4].replace(" ", ""))])
+    return max((n for _mid, n in lines), default=0)
+
+
 def _layout_analyse(log: str, words: list, raster: tuple, shown: bytes | None = None) -> dict:
     """Label collisions from the page-1 log, the page-1 words (bp, top-left origin)
     and the text-hidden page-2 raster (width, height, grey bytes at _LAYOUT_DPI).
@@ -3369,11 +3382,12 @@ def _layout_analyse(log: str, words: list, raster: tuple, shown: bytes | None = 
         if not box:
             continue  # empty nodes: points, coordinates
         box_bp = [to_bp(*p) for p in box]
-        text = " ".join(w[4] for w in words if _layout_inside(box_bp, (w[0] + w[2]) / 2, (w[1] + w[3]) / 2)).strip()
+        inside = [w for w in words if _layout_inside(box_bp, (w[0] + w[2]) / 2, (w[1] + w[3]) / 2)]
+        text = " ".join(w[4] for w in inside).strip()
         if text:
-            labels.append((text, box))
+            labels.append((text, box, _layout_line_chars(inside)))
     issues = []
-    for text, box in labels:
+    for text, box, line_chars in labels:
         poly = [to_px(*p) for p in box]
         xs, ys = [p[0] for p in poly], [p[1] for p in poly]
         (x0, y0), (x1, y1) = poly[0], poly[1]
@@ -3394,10 +3408,16 @@ def _layout_analyse(log: str, words: list, raster: tuple, shown: bytes | None = 
                     low, high = min(low, along), max(high, along)
         if ink >= _LAYOUT_MIN_INK:
             issues.append({"kind": "line-through-label", "labels": [text], "ink": ink})
+        # Glyph extent is measured between pixel centres, a pixel short of the
+        # real extent, which is a fifth of a one-digit label's box.
+        span = high - low + 1 / math.sqrt(run)
         if shown is not None and (glyphs < max(4, _LAYOUT_MIN_TEXT * area)
-                                  or (len(text.replace(" ", "")) >= 2 and high - low < _LAYOUT_MIN_SPAN)):
+                                  or (line_chars >= 2 and span < _LAYOUT_MIN_SPAN)):
             # covered by something drawn later, or clipped (e.g. by an axis window):
-            # too little of it shows, or what shows spans only part of its box
+            # too little of it shows, or what shows spans only part of its box.
+            # The span test needs two characters on one line: a stacked
+            # one-digit fraction is one digit wide in a padded box (visible 3/9
+            # measured 0.46 and was reported as cut off).
             issues.append({"kind": "label-hidden", "labels": [text]})
     for i in range(len(labels)):
         for j in range(i + 1, len(labels)):
@@ -4163,6 +4183,34 @@ def _readiness_verdict(req: GenerateReq, tikz: str) -> tuple[str, str]:
     return "FAIL", out[:220] or "readiness check failed"
 
 
+# TikZ option names with spaces that models write hyphenated. TikZ reads an
+# unknown "line-width=.1pt" as an arrow spec ("Unknown arrow tip kind 'line'"),
+# and the repair repeated the typo. Only a key followed by "=" is touched.
+_KEY_TYPOS = re.compile(
+    r"\b(line|inner|outer|text|minimum|dash|fill|draw|rounded)-"
+    r"(width|sep|xsep|ysep|height|depth|cap|join|pattern|opacity|corners)(?=\s*=)"
+)
+
+
+def _fix_key_typos(tikz: str) -> str:
+    return _KEY_TYPOS.sub(r"\1 \2", tikz)
+
+
+def _judge_reference(req: GenerateReq, rendered: dict, enlarged: str, caption: str) -> tuple[str, str]:
+    """Readiness verdict for a rendered model drawing; a pass is finished for
+    shipping. Its code goes in the trace unless a layout event already has it,
+    so a problem the checks missed in a shipped diagram can still be traced."""
+    verdict, reason = _readiness_verdict(req, enlarged)
+    logged = bool(rendered.get("layout", {}).get("issues"))
+    _diagnostic("readiness", reason or verdict, **({} if logged else {"tikz": enlarged}))
+    if verdict == "PASS":
+        rendered["tikz"] = enlarged
+        rendered["caption"] = caption
+        rendered["customized"] = "reference-fallback"
+        print(f"[reference] PASS ({reason or 'ready'})", flush=True)
+    return verdict, reason
+
+
 def _reference_generate(req: GenerateReq) -> dict | None:
     """Reference-guided fallback for problems with no exact template (and for
     questions whose keyword-routed template the model vetoed). Two-pass, mirroring
@@ -4201,7 +4249,7 @@ def _reference_generate(req: GenerateReq) -> dict | None:
         if not isinstance(spec, dict):
             _diagnostic("invalid-code-response", "Expected a JSON object containing TikZ.")
             return {"ok": False, "error": "The model returned an invalid diagram response."}
-        tikz = _strip_fence(str(spec.get("tikz", "")))
+        tikz = _fix_key_typos(_strip_fence(str(spec.get("tikz", ""))))
         caption = str(spec.get("caption", caption)).strip()
         if not tikz:
             _diagnostic("empty-code", "The model returned no drawing code.")
@@ -4223,8 +4271,8 @@ def _reference_generate(req: GenerateReq) -> dict | None:
             _diagnostic("layout", collisions, tikz=enlarged)
             if attempt == 0:
                 # The rendered picture shows label collisions the source-reading
-                # readiness check cannot see: spend the one repair on them. A
-                # repair that still collides is judged on readiness alone.
+                # readiness check cannot see: spend the one repair on them. The
+                # repair and this draft are then judged, fewer collisions first.
                 print(f"[reference] layout collisions, repairing: {collisions[:200]}", flush=True)
                 repair_log = (
                     "In the rendered diagram, " + collisions + ". Move each of those labels "
@@ -4233,29 +4281,34 @@ def _reference_generate(req: GenerateReq) -> dict | None:
                 )
                 colliding = (rendered, enlarged, caption)
                 continue
-        verdict, reason = _readiness_verdict(req, enlarged)
-        _diagnostic("readiness", reason or verdict, **({} if verdict == "PASS" else {"tikz": enlarged}))
-        if verdict == "PASS":
-            rendered["tikz"] = enlarged
-            rendered["caption"] = caption
-            rendered["customized"] = "reference-fallback"
-            print(f"[reference] PASS ({reason or 'ready'})", flush=True)
-            return rendered
+        candidates = [(rendered, enlarged, caption)]
+        draft = colliding
+        if draft:
+            # The repair of a colliding draft: whichever of the two collides less
+            # is judged first (the repair on a tie), then the other. A repair
+            # that made the collisions worse used to ship over its draft, and a
+            # draft whose only fault was label placement was dropped when its
+            # repair failed readiness.
+            candidates.append(draft)
+            candidates.sort(key=lambda c: len(c[0].get("layout", {}).get("issues", [])))
+            colliding = None
+        for candidate in candidates:
+            verdict, reason = _judge_reference(req, *candidate)
+            if verdict == "PASS":
+                if candidate is draft:
+                    why = "failed readiness" if candidate is candidates[-1] else "collided more"
+                    _diagnostic("layout-choice", f"shipped the draft: its repair {why}")
+                return candidate[0]
+            if reason.startswith('verifier'):
+                return {"ok": False, "error": "Diagram verification unavailable: " + reason}
+            repair_log = "The previous diagram failed the readiness check: " + reason
         print(f"[reference] readiness FAIL, {'repairing' if attempt == 0 else 'blanking'}: {reason}", flush=True)
-        if reason.startswith('verifier'):
-            return {"ok": False, "error": "Diagram verification unavailable: " + reason}
-        repair_log = "The previous diagram failed the readiness check: " + reason
-        colliding = None  # the repair was judged; the colliding draft is no longer the fallback
     if colliding:
         # The repair of a colliding draft produced nothing usable: the draft itself,
         # whose only fault was label placement, still gets its readiness check.
         rendered, enlarged, caption = colliding
-        verdict, reason = _readiness_verdict(req, enlarged)
-        _diagnostic("readiness", reason or verdict)  # its code is on its layout event
+        verdict, _reason = _judge_reference(req, rendered, enlarged, caption)
         if verdict == "PASS":
-            rendered["tikz"] = enlarged
-            rendered["caption"] = caption
-            rendered["customized"] = "reference-fallback"
             return rendered
     return {"ok": False, "error": repair_log[:500] or "No verified diagram was produced."}
 
