@@ -1125,12 +1125,24 @@ def _extract_triangle_angles(text: str, vertices: tuple[str, str, str]) -> dict[
     return out
 
 
+# "XZ is exactly 7 units", "side XY is labeled x" (only "=", "is", "measures" and
+# "has length" were read, so a stated 7 was dropped)
+_SIDE_LINK = (r"(?:=|is\s+exactly|is\s+equal\s+to|is\s+labell?ed(?:\s+as)?|labell?ed(?:\s+as)?|is|measures|"
+              r"has\s+(?:a\s+)?length(?:\s+of)?|of\s+length)")
+# a side length linear in one unknown: "x", "2x", "x + 3", "3x - 1.5"
+_SIDE_EXPR = r"(?:\d+(?:\.\d+)?\s*\*?\s*)?[a-z](?:\s*[-+]\s*\d+(?:\.\d+)?)?"
+
+
 def _extract_triangle_sides(text: str, vertices: tuple[str, str, str]) -> dict[str, str]:
     out: dict[str, str] = {}
     num = _number_with_unit_re()
-    for label, value in re.findall(r"\b(?:side|length)?\s*([a-z]|[A-Z]{2})\s*(?:=|is|measures|has length)?\s*(" + num + r")", text):
+    # not the 2 of "BC = 2x"
+    for m in re.finditer(r"\b(?:side|length)?\s*([a-z]|[A-Z]{2})\s*(" + _SIDE_LINK + r")?\s*(" + num + r")(?:(?<=\d)(?![A-Za-z(^])|(?<=[A-Za-z/]))", text):
+        label, link, value = m.groups()
+        if not link and len(label) == 1 and value[:1] in "+-":
+            continue  # "x+3" is an expression, not side x = +3
         out[label] = _tex_label(value)
-    for label, value in re.findall(r"\b([a-z]|[A-Z]{2})\s*=\s*(" + num + r")", text):
+    for label, value in re.findall(r"\b([a-z]|[A-Z]{2})\s*=\s*(" + num + r")(?:(?<=\d)(?![A-Za-z(^])|(?<=[A-Za-z/]))", text):
         out.setdefault(label, _tex_label(value))
     # Side named by its endpoints in prose: "A and B are 120 m apart", "the distance
     # from A to B is 120 m" -> side AB. The compact loops above only catch "AB = 120",
@@ -1151,6 +1163,70 @@ def _extract_triangle_sides(text: str, vertices: tuple[str, str, str]) -> dict[s
         b + c: out.get(b + c) or out.get(c + b) or defaults[b + c],
     }
     return edge_labels
+
+
+def _triangle_side_expressions(text: str, vertices: tuple[str, str, str]) -> dict[str, str]:
+    """Sides the question gives in terms of an unknown ("the side YZ has length
+    x + 3"), keyed by edge. Numbers alone are _extract_triangle_sides' job."""
+    out: dict[str, str] = {}
+    for edge, expr in re.findall(r"\b([A-Z]{2})\b\s*(?:=|is\s+labell?ed(?:\s+as)?|labell?ed(?:\s+as)?|measures|"
+                                 r"has\s+(?:a\s+)?length(?:\s+of)?|of\s+length)\s*(" + _SIDE_EXPR + r")"
+                                 r"(?![\w(^]|\.\d|\s*[-+*/^]\s*[\w(])", text):  # the whole expression
+        if set(edge) <= set(vertices) and edge[0] != edge[1]:
+            key = next((e for e in out if set(e) == set(edge)), edge)
+            out.setdefault(key, re.sub(r"\s+", " ", expr).strip())
+    return out
+
+
+def _linear_length(value: str) -> tuple[str, float, float] | None:
+    """"x + 3" -> ("x", 1, 3); "7 cm" -> ("", 0, 7); else None."""
+    s = re.sub(r"\s+", "", str(value or ""))
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)?\*?([a-z])(?:([-+]\d+(?:\.\d+)?))?", s)
+    if m:
+        return m.group(2), float(m.group(1) or 1), float(m.group(3) or 0)
+    n = _first_number(value)
+    return ("", 0.0, n) if n is not None and re.match(r"\s*\d", str(value)) else None
+
+
+def _solve_triangle_unknown(vertices: tuple[str, str, str], forms: dict[str, tuple[float, float]],
+                            angles: dict[str, float]) -> dict[str, float] | None:
+    """The interior angles when the three side lengths are linear in one unknown
+    t (forms: opposite vertex -> (coef, const)) and a given angle fixes t (law
+    of cosines: XY = x, YZ = x + 3, XZ = 7, angle Y = 60 gives x = 5). None
+    when t is not fixed or has more than one value. (Two given angles fix the
+    shape without t; _solve_triangle handles that.)"""
+    if len(forms) != 3 or not angles:
+        return None
+    (va, deg), = list(angles.items())[:1]
+
+    def residual(t: float) -> float | None:
+        sides = {v: c * t + k for v, (c, k) in forms.items()}
+        if any(x <= 0 for x in sides.values()):
+            return None
+        solved = _solve_triangle(vertices, sides, {})
+        return None if not solved else solved[va] - deg
+
+    grid = [10 ** (-3 + 7 * i / 700) for i in range(701)]
+    roots: list[float] = []
+    prev = None
+    for t in grid:
+        r = residual(t)
+        if r is not None and prev is not None and prev[1] is not None and (r == 0 or (prev[1] < 0) != (r < 0)):
+            lo, hi, rlo = prev[0], t, prev[1]
+            for _ in range(80):
+                mid = (lo + hi) / 2
+                rm = residual(mid)
+                if rm is None:
+                    break
+                if (rlo < 0) == (rm < 0):
+                    lo, rlo = mid, rm
+                else:
+                    hi = mid
+            roots.append((lo + hi) / 2)
+        prev = (t, r)
+    if len({round(t, 6) for t in roots}) != 1:
+        return None
+    return _solve_triangle(vertices, {v: c * roots[0] + k for v, (c, k) in forms.items()}, {})
 
 
 def _numbers_stated(value: str, text: str) -> bool:
@@ -1262,18 +1338,33 @@ def _triangle_overrides(req: GenerateReq) -> dict[str, str]:
     vertices = _triangle_vertices(text) or ("A", "B", "C")
     ta, tb, tc = vertices
     side_labels = _extract_triangle_sides(text, vertices)
+    edges = {ta + tb: tc, ta + tc: tb, tb + tc: ta}  # edge -> opposite vertex
+    # sides given in terms of an unknown ("YZ has length x + 3") are givens too;
+    # the letter-only defaults of _extract_triangle_sides are not
+    symbolic: set[str] = set()
+    for e, expr in _triangle_side_expressions(text, vertices).items():
+        edge = next(k for k in edges if set(k) == set(e))
+        if not re.search(r"\d", str(side_labels.get(edge, ""))):
+            side_labels[edge] = expr
+            symbolic.add(edge)
     angle_labels = _extract_triangle_angles(text, vertices)
     overrides = {"A": ta, "B": tb, "C": tc}
-    edges = {ta + tb: tc, ta + tc: tb, tb + tc: ta}  # edge -> opposite vertex
-    sides = {edges[e]: _first_number(v) for e, v in side_labels.items() if re.search(r"\d", str(v))}
+    sides = {edges[e]: _first_number(v) for e, v in side_labels.items() if e not in symbolic and re.search(r"\d", str(v))}
     angles = {v: _first_number(a) for v, a in angle_labels.items() if _first_number(a) is not None}
     solved = _solve_triangle(vertices, sides, angles)
+    if symbolic and not solved:
+        forms = {edges[e]: _linear_length(side_labels[e]) for e in edges if e in symbolic or edges[e] in sides}
+        unknowns = {f[0] for f in forms.values() if f and f[0]}
+        solved = (_solve_triangle_unknown(vertices, {v: f[1:] for v, f in forms.items()}, angles)
+                  if len(unknowns) == 1 and all(forms.values()) else None)
     if not solved or set(solved) != set(vertices):
         # Not enough to fix the shape: only pin the parsed measures (a missed slot
         # overridden with a bare letter used to wipe a good model fill).
         for slot, edge in (("AB", ta + tb), ("AC", ta + tc), ("BC", tb + tc)):
             val = str(side_labels.get(edge, ""))
-            if re.search(r"\d", val):
+            if edge in symbolic:
+                overrides[slot] = _tex_label(val)  # "2x" is no number with a unit
+            elif re.search(r"\d", val):
                 overrides[slot] = _unit_label(_tex_label(val))
         for slot, vtx in (("ANG_A", ta), ("ANG_B", tb), ("ANG_C", tc)):
             if angle_labels.get(vtx):
@@ -1283,11 +1374,13 @@ def _triangle_overrides(req: GenerateReq) -> dict[str, str]:
     while solved[order[2]] < max(solved.values()) - 1e-9:
         order = order[1:] + order[:1]
     a, b, c = order
-    given_edges = {e for e, v in side_labels.items() if re.search(r"\d", str(v))}
+    given_edges = {e for e, v in side_labels.items() if re.search(r"\d", str(v)) or e in symbolic}
     asked = _triangle_asked(_question_text(req), _raw_request_text(req), vertices, solved, given_edges)
 
     def edge_label(p: str, q: str) -> str:
         for e in (p + q, q + p):
+            if e in symbolic:
+                return _tex_label(side_labels[e])
             if e in given_edges:
                 return _unit_label(_tex_label(side_labels[e]))
             if e in asked:

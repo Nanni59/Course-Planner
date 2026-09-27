@@ -25,7 +25,7 @@ ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, threading=thread
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
 helper_constants = [n for n in tree.body if isinstance(n, ast.Assign)
-                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id in ('_NUM', '_KEY_TYPOS', '_READINESS_RULES', '_JSON_TEX_WORDS')) for t in n.targets)]
+                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id in ('_NUM', '_KEY_TYPOS', '_READINESS_RULES', '_JSON_TEX_WORDS', '_SIDE_LINK', '_SIDE_EXPR')) for t in n.targets)]
 exec(compile(ast.fix_missing_locations(ast.Module(body=helper_constants, type_ignores=[])), '<helper constants>', 'exec'), ns)
 real_gemini = ns['_gemini']
 real_readiness = ns['_readiness_verdict']
@@ -242,6 +242,21 @@ assert generate(retest_texts[1]+' R(-3, -1)') is None
 assert generate(retest_texts[1]+' T(0, 0)') is None
 assert generate(retest_texts[3]+' 12.00 N upward')['parameters'] == retest_hits[3]['parameters']
 assert generate(retest_texts[3]+' 13 N upward') is None
+# A rectangular prism from its three stated dimensions (a model drew 3 x 4 x 12
+# as 3 x 4 x 4 with the 12 on a 3-long edge).
+box = generate('Calculate the length of the space diagonal (the segment connecting opposite corners) of a rectangular prism with a length of 3 cm , a width of 4 cm , and a height of 12 cm . Diagram: A 3D rectangular prism (box) with length 3, width 4, and height 12. A dashed line is drawn from the bottom-front-left corner to the top-back-right corner.')
+assert box['template'] == 'rectangular_prism' and box['parameters'] == {'length': 3.0, 'width': 4.0, 'height': 12.0, 'unit': 'cm', 'space_diagonal': True, 'base_diagonal': False}, box
+assert '(C) at (1.05,4.2)' in box['tikz'] and '{$12\\,\\mathrm{cm}$}' in box['tikz'] and '{$?$}' in box['tikz'] and '(A)--(b)' not in box['tikz']
+assert '{$d$}' in generate('A box is 12 cm long, 3 cm wide and 4 cm high. Find the space diagonal d.')['tikz']
+both = generate('A cuboid measures 2 m by 3 m by 6 m. Find the diagonal of the base and the space diagonal.')
+assert both['parameters']['base_diagonal'] and both['parameters']['space_diagonal'] and both['tikz'].count('{$?$}') == 1
+assert not generate('Find the volume of a rectangular prism with length 5 cm, width 2 cm and height 3 cm.')['parameters']['space_diagonal']
+for other in ('A box plot shows data with length 3 width 4 height 5',
+              'In rectangular prism ABCDEFGH, AB = 3, BC = 4, CG = 12. Find AG.',  # named vertices
+              'A rectangular prism has length 3 cm and width 4 cm. Find the diagonal.',  # no height
+              'A rectangular prism has length 3 cm, width 4 cm, height 12 m. Find the diagonal.',  # mixed units
+              'A rectangular prism has length 3 cm, width 4 cm and height 12 cm; the length is 5 cm.'):  # conflicting
+    assert generate(other) is None, other
 for text, hit in zip(retest_texts, retest_hits):
     req_retest = SimpleNamespace(title=text, brief='Question: '+text, subject='', equation='', target='worksheet')
     assert ns['_semantic_visual_issue'](req_retest, hit['tikz']) is None
@@ -574,6 +589,16 @@ assert tri('In triangle XYZ, angle X = 40 degrees and XY = 12 m. Find YZ.') == {
 angles = ns['_solve_triangle'](('A', 'B', 'C'), {'A': 10.0, 'B': 7.0}, {'A': 50.0})  # SSA, acute case
 assert abs(angles['B'] - 32.43) < 0.01 and abs(sum(angles.values()) - 180) < 1e-9, angles
 assert ns['_solve_triangle'](('A', 'B', 'C'), {'A': 1.0, 'B': 2.0, 'C': 5.0}, {}) is None  # no such triangle
+# Sides in terms of an unknown: "x+3" was read as side x = +3 (drawn on YZ), the
+# stated "XZ is exactly 7" was dropped, and the model's fill put 7 on XY and a
+# second 60 degrees at Z. x is solved (5) to draw the shape, never labelled.
+got = tri('In triangle XYZ, the side XY has length x, the side YZ has length x + 3, and the angle \\angle Y is 60^\\circ. If the side XZ is exactly 7\\text{units}, find the value of x.\nDiagram: Triangle XYZ where the angle at Y is 60 degrees. Side XY is labeled x, side YZ is labeled x+3, and side XZ is labeled 7.')
+assert got == {'A': 'Y', 'B': 'Z', 'C': 'X', 'DEG_A': '60', 'DEG_B': '38.21', 'AB': 'x+3', 'AC': 'x', 'BC': '7',
+               'ANG_A': '60^\\circ', 'ANG_B': '', 'ANG_C': ''}, got
+got = tri('In triangle ABC, AB = x, BC = 2x and angle B = 60 degrees. If AC = 9 cm, find x.')
+assert (got['AB'], got['AC'], got['BC'], got['DEG_A'], got['DEG_B']) == ('2x', 'x', '9\\,\\mathrm{cm}', '60', '30'), got  # not "2 x" as a unit
+assert tri('In triangle PQR, PQ = x, QR = x + 2 and PR = 10. Find the angles.') == {'A': 'P', 'B': 'Q', 'C': 'R', 'AB': 'x', 'AC': '10', 'BC': 'x+2'}  # shape not fixed: labels only
+assert tri('In triangle ABC, angle A = 50 degrees, angle B = 60 degrees and AB = x + 1. Find x if BC = 7.')['AB'] == 'x+1'  # up to the full stop
 filled = templates.fill(templates.get('triangle_general'), {'ANG_A': '64^\\circ'}, target='worksheet')
 assert 'draw opacity=1] ($(A)' in filled and 'draw opacity=0] ($(B)' in filled  # arcs only where labelled
 assert not {'SHOW_A', 'DEG_A'} - set(templates.get('triangle_general')['params']) and 'SHOW_A' not in templates.ai_spec(templates.get('triangle_general'))['keys']

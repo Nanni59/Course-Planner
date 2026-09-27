@@ -3576,9 +3576,11 @@
         .st-q .st-opts li { margin:6px 0; }
         .st-q .st-opts li::before { content: attr(data-l) ")"; font-weight:600; margin-right:8px; color:#444; }
         .st-a4 mjx-merror { display:none !important; }
-        .st-q-tikz { margin:9px 0 3px 34px; width:min(420px,calc(100% - 34px)); max-width:420px; overflow:visible; break-inside:avoid; }
+        /* Diagrams 20% smaller than the old 420px; a tall one (a box on end) stops at a
+           square and shrinks to fit, held at the left edge like the question text. */
+        .st-q-tikz { margin:9px 0 3px 34px; width:min(336px,calc(100% - 34px)); max-width:336px; overflow:visible; break-inside:avoid; }
         .st-q-tikz svg,
-        .st-q-tikz img { display:block; width:100%; max-width:100%; height:auto; object-fit:contain; overflow:visible; }
+        .st-q-tikz img { display:block; width:100%; max-width:100%; height:auto; max-height:336px; object-fit:contain; object-position:left center; overflow:visible; }
         .st-q .st-worklines { margin-top:10px; }
         .st-q .st-worklines div { height:26px; }
         /* Answer-section view options (toggled per worksheet) */
@@ -3740,9 +3742,9 @@
             #stPrintArea .st-a4 { width:100%; min-height:auto; margin:0; border-radius:0; box-shadow:none; padding:0; break-after:page; page-break-after:always; overflow:visible; }
             #stPrintArea .st-q { margin-bottom:4.6mm; break-inside:auto; page-break-inside:auto; }
             #stPrintArea .st-q.has-visual { margin-bottom:3.6mm; break-inside:avoid; page-break-inside:avoid; }
-            #stPrintArea .st-q-tikz { width:85mm; max-width:calc(100% - 34px); margin-top:2.5mm; margin-bottom:1mm; overflow:visible; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+            #stPrintArea .st-q-tikz { width:68mm; max-width:calc(100% - 34px); margin-top:2.5mm; margin-bottom:1mm; overflow:visible; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
             #stPrintArea .st-q-tikz svg,
-            #stPrintArea .st-q-tikz img { width:100% !important; height:auto !important; object-fit:contain; overflow:visible; color:#111; }
+            #stPrintArea .st-q-tikz img { width:100% !important; height:auto !important; max-height:68mm; object-fit:contain; object-position:left center; overflow:visible; color:#111; }
             /* Preserve SVG grid contrast, opacity, and line weights when printing. */
             #stPrintArea .st-a4:last-child { break-after:auto; page-break-after:auto; }
         }
@@ -16229,7 +16231,7 @@
             if (svg && /^<svg[\s>]/i.test(svg)) {
                 const fitted = svg
                     .replace(/<svg\b/i, '<svg class="st-tikz-svg"')
-                    .replace(/<svg\b(?![^>]*\bpreserveAspectRatio=)/i, '<svg preserveAspectRatio="xMidYMid meet"');
+                    .replace(/<svg\b(?![^>]*\bpreserveAspectRatio=)/i, '<svg preserveAspectRatio="xMinYMid meet"');
                 return '<div class="st-q-tikz">' + fitted + '</div>';
             }
             const png = String(q && q.tikzPng || '').trim();
@@ -16649,7 +16651,16 @@
                     if (window.MathJax.typesetClear) { try { window.MathJax.typesetClear([printArea]); } catch (e) { } }
                     return window.MathJax.typesetPromise([printArea]).then(() => suppressMathErrors(printArea));
                 }
-            }).catch(() => { }).then(() => setTimeout(() => window.print(), 150));
+            }).catch(() => { }).then(() => setTimeout(() => {
+                // The saved PDF is named after the page title: use the worksheet's own
+                // (it was always "Course Planner"), then put the page title back.
+                const pageTitle = document.title;
+                const name = String(WS_DATA.title || 'Worksheet')
+                    .replace(/\\[()[\]]|\$/g, '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Worksheet';
+                document.title = name + (which === 'key' ? ' — Answer Key' : '');
+                window.addEventListener('afterprint', () => { document.title = pageTitle; }, { once: true });
+                window.print();
+            }, 150));
         }
 
         /* =========================================================

@@ -371,10 +371,99 @@ tick label style={{font=\small}},grid=major,grid style={{gray!25,thin}},clip=tru
 \end{{axis}}''')
 
 
+def _seg_dist(px, py, p, q):
+    """Distance from point (px, py) to segment pq."""
+    (x1, y1), (x2, y2) = p, q
+    dx, dy = x2 - x1, y2 - y1
+    t = max(0.0, min(1.0, ((px - x1) * dx + (py - y1) * dy) / ((dx * dx + dy * dy) or 1)))
+    return math.hypot(px - x1 - t * dx, py - y1 - t * dy)
+
+
+def _box(text):
+    """A rectangular prism from its stated length, width and height, drawn to
+    scale, with its space diagonal (and base diagonal) when the question asks.
+    A model once drew 3 x 4 x 12 as 3 x 4 x 4 and put the 12 on a 3-long edge."""
+    low = text.lower()
+    if not re.search(r'\brectangular\s+(?:prism|box|solid)\b|\bcuboids?\b|\bbox\b', low):
+        return None
+    if re.search(r'\bbox[- ]?(?:and[- ]whisker|plot)|\b(?:cylinder|cone|sphere|pyramid|triangular prism|'
+                 r'force|mass|incline|ramp|friction|nets?\b|coordinate|vector)', low):
+        return None
+    if re.search(r'\b[A-Z]{4,8}\b', text):
+        return None  # named vertices ("prism ABCDEFGH") need their letters placed
+    unit_re = r'\s*(mm|cm|km|m|in|ft|yd)?\b'
+    words = {'l': (r'length|long', r'long'), 'w': (r'width|breadth|wide', r'wide'), 'h': (r'height|tall|high|deep|depth', r'tall|high|deep')}
+    found = {k: [] for k in words}
+    for key, (nouns, adjectives) in words.items():
+        found[key] += re.findall(rf'\b(?:{nouns})\s*(?:of|is|=|:)?\s*({NUM}){unit_re}', low)
+        found[key] += re.findall(rf'({NUM}){unit_re}\s*(?:{adjectives})\b', low)
+        found[key] += re.findall(rf'\b{key}\s*=\s*({NUM}){unit_re}', low)
+    for a, ua, b, ub, c, uc in re.findall(rf'({NUM}){unit_re}\s*(?:by|\u00d7|x|\\times)\s*({NUM}){unit_re}\s*(?:by|\u00d7|x|\\times)\s*({NUM}){unit_re}', low):
+        for key, value, unit in zip('lwh', (a, b, c), (ua, ub, uc)):
+            found[key].append((value, unit))
+    dims, units = {}, set()
+    for key, matches in found.items():
+        values = {float(v) for v, _u in matches}
+        if len(values) != 1:
+            return None
+        dims[key] = values.pop()
+        units |= {u for _v, u in matches if u}
+    if len(units) > 1 or not all(0 < v < 1e5 for v in dims.values()):
+        return None
+    unit = next(iter(units), '')
+    base_diag = re.search(r'\b(?:face|base|bottom|floor)\s+diagonal|\bdiagonal\s+of\s+(?:the|a|its|one)\s+(?:base|face|bottom|floor|side)', low)
+    space_diag = re.search(r'\bspace\s+diagonal|\bdiagonal\s+of\s+the\s+(?:rectangular\s+)?(?:prism|box|cuboid|solid)'
+                           r'|opposite\s+(?:corners|vertices)|\blongest\s+(?:rod|pole|pencil|stick|straw|segment|line|object|diagonal)', low)
+    if re.search(r'\bdiagonal', low) and not base_diag:
+        space_diag = space_diag or True
+    def symbol(kind):
+        m = re.search(rf'{kind}diagonal[^.;]{{0,24}}?\b(?:labell?ed(?:\s+as)?|called|named|=)\s*([a-z])\b', low)
+        m = m or re.search(rf'{kind}diagonal,?\s+([a-z])(?=\s*[.,;:?)]|\s*$)', low)  # "the space diagonal d."
+        return m.group(1) if m else None
+    # to scale; a very thin side is drawn at a quarter of the longest so it stays visible
+    top = max(dims.values())
+    L, W, H = (4.2 * max(dims[k], 0.25 * top) / top for k in 'lwh')
+    dx, dy = 0.55 * W * math.cos(math.radians(35)), 0.55 * W * math.sin(math.radians(35))
+    pts = {'A': (0, 0), 'B': (L, 0), 'C': (L, H), 'D': (0, H)}
+    pts.update({k.lower(): (x + dx, y + dy) for k, (x, y) in list(pts.items())})
+    coords = ' '.join(rf'\coordinate ({k}) at ({_n(x)},{_n(y)});' for k, (x, y) in pts.items())
+    body = coords + r'''
+\draw[cp dashed] (A)--(a)--(b) (a)--(d);
+\draw[cp line] (A)--(B)--(C)--(D)--cycle (D)--(d)--(c)--(C) (B)--(b)--(c);
+'''
+    lab = lambda v: _label(dims[v], unit)
+    body += rf'\cpsidelabel{{A}}{{B}}{{D}}{{0.5}}{{${lab("l")}$}}' + '\n'
+    body += rf'\cpsidelabel{{B}}{{b}}{{A}}{{0.5}}{{${lab("w")}$}}' + '\n'
+    body += rf'\cpsidelabel{{A}}{{D}}{{B}}{{0.5}}{{${lab("h")}$}}' + '\n'
+    if base_diag:
+        named = symbol(r'(?:face|base|bottom|floor)\s+') or ('?' if not space_diag else '')
+        body += r'\draw[cp line,dashed] (A)--(b);' + '\n'
+    if space_diag:
+        body += r'\draw[cp line,dashed] (A)--(c);' + '\n'
+    # Diagonal labels sit on their line with a white knockout (beside it, a thin
+    # box left no room), at the point of the middle stretch farthest from every
+    # other line: at the midpoint a "?" sat where the diagonal crosses an edge.
+    segments = [('A', 'a'), ('a', 'b'), ('a', 'd'), ('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A'),
+                ('D', 'd'), ('d', 'c'), ('c', 'C'), ('B', 'b'), ('b', 'c')]
+    segments += [('A', 'b')] * bool(base_diag) + [('A', 'c')] * bool(space_diag)
+    def spot(end):
+        def gap(t):
+            px, py = (pts['A'][0] + t * (pts[end][0] - pts['A'][0]), pts['A'][1] + t * (pts[end][1] - pts['A'][1]))
+            return min(_seg_dist(px, py, pts[p], pts[q]) for p, q in segments if (p, q) != ('A', end))
+        return max((t / 100 for t in range(30, 71)), key=lambda t: (round(gap(t), 3), -abs(t - 0.5)))
+    if base_diag and named:
+        body += rf'\node[cp label,fill=white,inner sep=1pt] at ($(A)!{_n(spot("b"))}!(b)$) {{${named}$}};' + '\n'
+    if space_diag:
+        named = symbol(r'(?:space\s+)?') or '?'
+        body += rf'\node[cp label,fill=white,inner sep=1pt] at ($(A)!{_n(spot("c"))}!(c)$) {{${named}$}};' + '\n'
+    return _result('rectangular_prism', dict(length=dims['l'], width=dims['w'], height=dims['h'], unit=unit,
+                                             space_diagonal=bool(space_diag), base_diagonal=bool(base_diag)), body.rstrip())
+
+
 def generate(text):
     """Return an exact supported numerical setup, otherwise leave custom generation intact."""
     text = text.replace('\u2212', '-').replace('\u2013', '-')
-    for parser in (_triangle, _points, _tangent, _circle_central_inscribed, _forces, _quadratic):
+    for parser in (_triangle, _points, _tangent, _circle_central_inscribed, _forces, _quadratic, _box):
         hit = parser(text)
         if hit:
             return hit
