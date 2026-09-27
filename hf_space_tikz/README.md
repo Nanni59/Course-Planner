@@ -148,6 +148,21 @@ counts as success. Template parameter failures do not render invented default
 givens. `/render` returns that PNG as `preview_png` when asked with
 `"preview": true`.
 
+Every diagram gets this check, not only custom TikZ: catalog templates and the
+exact (`elementary:`) renderers are checked the same way before they ship, and
+their `readiness` events carry `path` (`catalog` or `elementary`). The check
+also asks whether the diagram is drawn to its givens (the larger of two labelled
+lengths drawn longer, in about their ratio; an angle looks like its label; each
+given on the side or angle the question names). Its prompt carries a code check
+of the label text: labels with a number the question does not state, and
+measurements the question states that no label shows, passed on as leads for the
+verifier to rule on. Verdicts come from Flash-class models only (never
+Flash-Lite or Gemma, unless nothing else is configured). A catalog diagram that
+fails gets one parameter refill with the reason, then goes to the
+reference-guided path; with no verifier available it is blank. An exact
+renderer's diagram that fails goes to the next path, and ships unchecked when no
+verifier is available (its drawing uses no model).
+
 ## Hugging Face Setup
 
 1. Create a new Hugging Face Space.

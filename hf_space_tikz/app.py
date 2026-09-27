@@ -249,12 +249,15 @@ def _lane_wait(key_idx: int, model: str, now: float) -> float:
     return max(0.0, until - now)
 
 
-def _pick_lane() -> tuple[int, str, float]:
-    """Best lane as (key_idx, model, wait); a ready lane is reserved (wait 0)."""
+def _pick_lane(models: list[str] | None = None) -> tuple[int, str, float]:
+    """Best lane as (key_idx, model, wait); a ready lane is reserved (wait 0).
+    models limits the choice (the diagram check), in the configured order."""
     now = time.time()
     with _lane_state["lock"]:
         ranked = []
         for model_rank, model in enumerate(GEMINI_MODELS):
+            if models is not None and model not in models:
+                continue
             for key_idx in range(len(GEMINI_KEYS)):
                 lane = (key_idx, model)
                 recent = [t for t in _lane_state["recent"].get(lane, []) if now - t < 60]
@@ -606,10 +609,12 @@ def _is_gemma(model: str) -> bool:
     return model.startswith("gemma-")
 
 
-def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25, images: list[str] | None = None):
+def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25, images: list[str] | None = None,
+            models: list[str] | None = None):
     """images: base64 PNGs sent after the prompt to Gemini models. Gemma lanes get
     the prompt alone: image input on the hosted Gemma API is not established, and
-    a refused Gemma request rests that model for an hour."""
+    a refused Gemma request rests that model for an hour. models: only these
+    lanes (None = all)."""
     if not GEMINI_KEYS:
         raise RuntimeError("No Gemini API key is set on the Space.")
 
@@ -626,9 +631,9 @@ def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25, image
     started = time.time()
     waited = 0.0
     sent = 0
-    attempts = max(GEMINI_MAX_ATTEMPTS, len(GEMINI_KEYS) * len(GEMINI_MODELS))
+    attempts = max(GEMINI_MAX_ATTEMPTS, len(GEMINI_KEYS) * len(models or GEMINI_MODELS))
     while sent < attempts:
-        key_idx, model, wait = _pick_lane()
+        key_idx, model, wait = _pick_lane(models)
         remaining = GEMINI_DEADLINE - (time.time() - started)
         if wait:
             # Every lane is cooling: wait for the soonest one when the budget
@@ -3521,7 +3526,9 @@ def _verified_render(req: GenerateReq, tikz: str, source: str = "draft", run_cri
         semantic_issue = _semantic_visual_issue(req, checked_tikz)
         if semantic_issue:
             return {"ok": False, "error": semantic_issue, "log": semantic_issue}
-    rendered = _render(RenderReq(code=checked_tikz, format=req.format, theme=req.theme, target=req.target, layout=True))
+    # the picture goes to the diagram check (it never reaches the client)
+    rendered = _render(RenderReq(code=checked_tikz, format=req.format, theme=req.theme, target=req.target, layout=True,
+                                 preview=True))
     if rendered.get("layout", {}).get("issues"):
         # Catalog and exact renderers fix their own label placement; the model
         # cannot move these labels, so collisions are reported, not repaired.
@@ -4788,6 +4795,14 @@ def _catalog_render(req: GenerateReq, tmpl: dict, params: dict, source: str) -> 
     return best
 
 
+def _catalog_check_failed(tmpl: dict, reason: str) -> dict:
+    """A template diagram the picture check failed goes to the reference-guided
+    path (its own check applies); with no check possible, the question is blank."""
+    if reason.startswith("verifier"):
+        return {"ok": False, "blank": True, "error": "Diagram verification unavailable: " + reason}
+    return {"ok": False, "unfit": True, "template": tmpl["id"], "why": reason[:300]}
+
+
 def _catalog_generate(req: GenerateReq) -> dict | None:
     """Constrained path: route to a catalog template, let Gemini judge whether it
     actually fits the question (it sees the caption + skeleton) and fill ONLY the
@@ -4851,12 +4866,16 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
         rendered = _catalog_render(req, tmpl, {}, source=f"catalog-static:{tmpl['id']}")
         if rendered.get("ok"):
             rendered["tikz"] = rendered.get("tikz", filled)
+            verdict, reason = _check_built(req, rendered, "catalog")
+            if verdict != "PASS":
+                return _catalog_check_failed(tmpl, reason)
             rendered["caption"] = caption
             rendered["customized"] = "catalog-static:" + tmpl["id"]
             return rendered
         return None
     repair_log = ""
     rendered: dict = {"ok": False, "error": "catalog template did not render."}
+    checks_failed = 0
     for attempt in range(TEMPLATE_REPAIR_ATTEMPTS + 1):
         try:
             raw = _gemini(
@@ -4895,9 +4914,17 @@ def _catalog_generate(req: GenerateReq) -> dict | None:
         rendered = _catalog_render(req, tmpl, params, source=f"catalog:{tmpl['id']}")
         if rendered.get("ok"):
             rendered["tikz"] = rendered.get("tikz", filled)
-            rendered["caption"] = caption
-            rendered["customized"] = "catalog:" + tmpl["id"]
-            return rendered
+            verdict, reason = _check_built(req, rendered, "catalog")
+            if verdict == "PASS":
+                rendered["caption"] = caption
+                rendered["customized"] = "catalog:" + tmpl["id"]
+                return rendered
+            checks_failed += 1
+            if reason.startswith("verifier") or checks_failed > 1 or attempt == TEMPLATE_REPAIR_ATTEMPTS:
+                return _catalog_check_failed(tmpl, reason)
+            # one refill with the check's reason (a value the question pins stays pinned)
+            repair_log = "The rendered diagram failed the check against the question: " + reason
+            continue
         repair_log = rendered.get("log") or rendered.get("error") or "TikZ render failed."
         _diagnostic("catalog-render-error", repair_log, template=tmpl['id'], tikz=filled)
     return rendered if rendered.get("ok") else None
@@ -4934,16 +4961,114 @@ When rendered pictures are attached (one per version, in order), check the pictu
 A visual is READY only if ALL of these hold:
 - Correct type: the diagram is the right kind of visual for the question and actually illustrates it (not a formula poster, not an unrelated shape).
 - Consistent: it agrees with the givens in the question (labels, counts, signs, angles, and quantities match). A shaded region must be exactly the region the question describes (FAIL shading that spills outside the region between two curves). For cross products, the drawn result vector must obey the right-hand rule for the two drawn vectors (e.g. j x i points along -z, NOT +z); FAIL a cross-product arrow pointing the wrong way.
+- Drawn to the givens: stated measurements look like their labels. Of two labelled lengths the larger is drawn longer, and in about their ratio (a box labelled 3 by 4 by 12 is about three times as tall as it is wide, not a cube); an angle labelled 60 degrees looks like 60 degrees, not 30 or 90. Rough proportions are enough: a very short side may be drawn somewhat longer so it stays visible, and force or velocity arrows only need to be longer for larger magnitudes. Each given sits on the side, edge or angle the question names it for (side XY runs between X and Y; angle Y is at vertex Y): FAIL a given on the wrong part, a measurement shown twice, or an angle value marked at a vertex the question does not give it for.
 - Interior angles: in a named angle XYZ, Y is the vertex. Unless the question explicitly asks for an exterior, reflex, or major angle, the mark and its label must lie in the smaller interior sector between YX and YZ. For circle theorems, FAIL angle AOB = 80 degrees if the diagram marks the exterior 280-degree sector, and FAIL angle ACB if its mark is outside the inscribed triangle rather than between CA and CB.
 - Answer-safe: it does not reveal a value the student is asked to find (a solved magnitude, coordinate, angle, or final answer); such values appear only as a symbol or ?, and placeholders like ? or (?, ?) are correct. Values STATED IN THE QUESTION are givens and may be labelled, including given vectors, points, coordinates, and lengths (e.g. v = <2, 3, 4> when the question gives it). Guide lines, dashed drops, or tick labels that locate an unknown point on the axes reveal its coordinates: FAIL them unless the question gives that point. When the student must solve an inequality or show its solution, a circle or dot at the boundary and shading or an arrow in one direction IS the answer: FAIL it, even if the description asks for it. A label (axis tick numbers aside) may show only numbers the question states: FAIL a label with a value the student has to work out, including an intermediate result such as a Venn region count, a branch probability, a constraint equation or a distance computed from speed and time, even if the description asks for it.
 - Legible: labels are not degenerate - nothing tiny, collapsed, overlapping, or cramped into the origin. FAIL a diagram whose supposedly independent vectors are drawn nearly collinear, or whose parallelogram/triangle collapses to a sliver."""
+
+
+def _skip_group(s: str, i: int, opening: str, closing: str) -> int:
+    """Index just past the balanced group opening at s[i] (escaped braces skipped)."""
+    depth = 0
+    while i < len(s):
+        if s[i] == "\\":
+            i += 2
+            continue
+        if s[i] == opening:
+            depth += 1
+        elif s[i] == closing:
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return i
+
+
+def _label_texts(tikz: str) -> list[str]:
+    """The text of every label in TikZ code: node contents, the label macros'
+    text, angle-pic "quotes" and label= options. Axis tick labels are made by
+    pgfplots and do not appear here."""
+    texts: list[str] = []
+    for m in re.finditer(r"\bnode\b", tikz):
+        i = m.end()
+        while True:
+            while i < len(tikz) and tikz[i].isspace():
+                i += 1
+            if tikz.startswith("[", i):
+                i = _skip_group(tikz, i, "[", "]")
+            elif tikz.startswith("(", i):
+                i = _skip_group(tikz, i, "(", ")")
+            elif re.match(r"at\s*\(", tikz[i:]):
+                i = _skip_group(tikz, tikz.index("(", i), "(", ")")
+            else:
+                break
+        if tikz.startswith("{", i):
+            texts.append(tikz[i + 1:_skip_group(tikz, i, "{", "}") - 1])
+    for m in re.finditer(r"\\cp(?:side|angle)label\b", tikz):
+        i = m.end()
+        if tikz.startswith("[", i):
+            i = _skip_group(tikz, i, "[", "]")
+        group = ""
+        for _ in range(5):
+            while i < len(tikz) and tikz[i].isspace():
+                i += 1
+            if not tikz.startswith("{", i):
+                break
+            end = _skip_group(tikz, i, "{", "}")
+            group, i = tikz[i + 1:end - 1], end
+        texts.append(group)
+    texts += re.findall(r'"([^"\n]+)"', tikz)
+    texts += [a or b for a, b in re.findall(r"\blabel\s*=\s*(?:\{([^{}]*)\}|[^,\]{}:]*:\s*([^,\]]*))", tikz)]
+    return [t for t in texts if t.strip()]
+
+
+def _label_numbers(text: str) -> list[float]:
+    """Numbers a label shows, without exponents, subscripts and degree marks."""
+    t = re.sub(r"\\(?:text|mathrm|textrm|mathit)\s*\{([^{}]*)\}", r" \1 ", text)
+    t = re.sub(r"[_^]\s*(?:\{[^{}]*\}|\\?[A-Za-z0-9])", " ", t)
+    return [abs(float(n)) for n in re.findall(r"(?<![A-Za-z0-9.])-?\d+(?:\.\d+)?", t)]
+
+
+def _label_check(req: GenerateReq, tikz: str) -> str:
+    """The code check that goes with the picture check: labels showing a number
+    the question does not state, and measurements the question states that no
+    label shows. Leads for the verifier, which rules on them; "" when clean."""
+    question = re.split(r"\bDiagram\s*:", _question_text(req))[0]
+    stated = {abs(float(n)) for n in re.findall(r"\d+(?:\.\d+)?", question)} | {0.0, 1.0}
+    if re.search(r"\b(?:right|perpendicular|rectangle|rectangular|square|box|cuboid|prism)\b", question, re.I):
+        stated.add(90.0)
+    labels = _label_texts(tikz)
+    shown = {n for text in labels for n in _label_numbers(text)}
+    extra = [text.strip() for text in labels if any(n not in stated for n in _label_numbers(text))]
+    measures = re.findall(r"(\d+(?:\.\d+)?)\s*(degrees?|cm|mm|km|m|units?|in|ft|N|km/h|m/s)\b", question)
+    missing = list(dict.fromkeys(f"{n} {u}" for n, u in measures if float(n) not in shown))
+    parts = []
+    if extra:
+        parts.append("labels with a number the question does not state: " + ", ".join(f'"{t[:40]}"' for t in dict.fromkeys(extra)))
+    if missing:
+        parts.append("measurements the question states that no label shows: " + ", ".join(missing))
+    return "; ".join(parts)
+
+
+def _label_check_note(notes: str) -> str:
+    return ("" if not notes else
+            "\nAn automatic check of the label text found " + notes + ". Treat these as leads, not verdicts: "
+            "FAIL a label with a number the student has to work out, or a given length or angle the drawing "
+            "should carry but does not; ignore axis tick numbers and numbers that are no measurement.\n")
+
+
+def _verifier_models() -> list[str] | None:
+    """Flash-class models only: a Flash-Lite check passed a box drawn 3 x 4 x 4
+    and labelled 3, 4 and 12. None (every model) when none is configured."""
+    strong = [m for m in GEMINI_MODELS if not _is_gemma(m) and "lite" not in m]
+    return strong or None
 
 
 def _readiness_prompt(req: GenerateReq, tikz: str) -> str:
     return f"""You are a strict readiness checker for a math worksheet diagram. Given the QUESTION and a proposed TikZ visual, decide if the visual is READY to show to a student.
 
 {_READINESS_RULES}
-
+{_label_check_note(_label_check(req, tikz))}
 Respond with EXACTLY "PASS" if the visual is READY, otherwise "FAIL: <one short reason>".
 
 QUESTION:
@@ -4963,6 +5088,10 @@ Label problems an automatic check found in the rendered pictures:
 A: {reports[0] or "none"}
 B: {reports[1] or "none"}
 
+An automatic check of the label text (leads, not verdicts: FAIL a label with a number the student has to work out, or a given length or angle the drawing should carry but does not; ignore axis tick numbers and numbers that are no measurement):
+A: {_label_check(req, first) or "nothing found"}
+B: {_label_check(req, second) or "nothing found"}
+
 Judge both versions by the same rules. Respond with EXACTLY "PASS A" or "PASS B", naming the better version that is READY (the one with fewer label problems when both are, A on a tie), or "FAIL: <one short reason>" if neither is READY.
 
 QUESTION:
@@ -4979,12 +5108,14 @@ VERSION B TikZ:
 def _readiness_call(prompt: str, images: list[str]) -> str:
     """One verifier call; a request refused with the pictures attached is retried
     once without them, so a model that rejects images cannot blank a diagram."""
+    models = _verifier_models()
+    floor = {"models": models} if models else {}
     try:
-        return _gemini(prompt, as_json=False, temperature=0.0, **({"images": images} if images else {})).strip()
+        return _gemini(prompt, as_json=False, temperature=0.0, **({"images": images} if images else {}), **floor).strip()
     except Exception as exc:
         if images and "error 400" in str(exc):
             _diagnostic("readiness-picture-refused", str(exc))
-            return _gemini(prompt, as_json=False, temperature=0.0).strip()
+            return _gemini(prompt, as_json=False, temperature=0.0, **floor).strip()
         raise
 
 
@@ -5092,6 +5223,16 @@ def _judge_reference(req: GenerateReq, rendered: dict, enlarged: str, caption: s
     if verdict == "PASS":
         _ship_reference(rendered, enlarged, caption)
         print(f"[reference] PASS ({reason or 'ready'})", flush=True)
+    return verdict, reason
+
+
+def _check_built(req: GenerateReq, rendered: dict, path: str) -> tuple[str, str]:
+    """The picture check for a template or exact-renderer diagram, which shipped
+    unchecked before: a template drew Q8's triangle with its sides mislabelled.
+    Returns the verdict; "verifier ..." reasons mean no check could be made."""
+    verdict, reason = _readiness_verdict(req, rendered.get("tikz", ""), rendered.get("preview_png"))
+    _diagnostic("readiness", reason or verdict, path=path, **_verifier_facts())
+    rendered.pop("preview_png", None)
     return verdict, reason
 
 
@@ -5286,9 +5427,15 @@ def _generate_visual_sync(req: GenerateReq) -> dict:
                 _diagnostic("elementary-route", template=exact["template"])
                 rendered = _verified_render(req, exact["tikz"], source="elementary", run_critic=False)
                 if rendered.get("ok"):
-                    rendered["customized"] = "elementary:" + exact["template"]
-                    return rendered
-                _diagnostic("elementary-render-error", rendered.get("log") or rendered.get("error", ""))
+                    # Checked like every other diagram. The drawing is exact, so
+                    # it still ships when no check can be made; a failed check
+                    # (a misread question) passes it to the next path.
+                    verdict, reason = _check_built(req, rendered, "elementary")
+                    if verdict == "PASS" or reason.startswith("verifier"):
+                        rendered["customized"] = "elementary:" + exact["template"]
+                        return rendered
+                else:
+                    _diagnostic("elementary-render-error", rendered.get("log") or rendered.get("error", ""))
 
         # 0) Constrained catalog path (parallel rollout). Route -> fit-check ->
         #    fill declared params -> render. On no-match or failure, fall through
@@ -5301,6 +5448,8 @@ def _generate_visual_sync(req: GenerateReq) -> dict:
                 catalog_rendered = _catalog_generate(req)
                 if catalog_rendered and catalog_rendered.get("ok"):
                     return catalog_rendered
+                if catalog_rendered and catalog_rendered.get("blank"):
+                    return {"ok": False, "tikz": "", "caption": "", "error": catalog_rendered["error"]}
                 if _number_line_solution(req):
                     # the solution marked on a number line is the answer; blank
                     # beats a model drawing of it

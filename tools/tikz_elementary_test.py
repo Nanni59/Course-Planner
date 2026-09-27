@@ -21,7 +21,7 @@ functions = [n for n in tree.body if isinstance(n, ast.FunctionDef)]
 for node in functions:
     node.decorator_list = []
 module = ast.Module(body=[ast.ImportFrom(module='__future__', names=[ast.alias(name='annotations')], level=0)] + functions, type_ignores=[])
-ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, threading=threading, GEMINI_KEYS=['test-secret'],
+ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, threading=threading, GEMINI_KEYS=['test-secret'], GEMINI_MODELS=['gemini-9-flash', 'gemini-9-flash-lite', 'gemma-9-it'],
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
 helper_constants = [n for n in tree.body if isinstance(n, ast.Assign)
@@ -330,7 +330,7 @@ assert abs(ns['_layout_overlap']([(0, 0), (2, 0), (2, 2), (0, 2)], [(1, 1), (3, 
 # Model-drawn diagrams spend their one repair on reported collisions (the prompt
 # names them), and a colliding draft whose repair fails still gets its readiness check.
 prompts, renders = [], []
-def layout_gemini(prompt, as_json=False, temperature=0.2):
+def layout_gemini(prompt, as_json=False, temperature=0.2, **kwargs):
     prompts.append(prompt)
     return {'tikz': r'\begin{tikzpicture}\draw (0,0)--(1,1);\end{tikzpicture}'} if as_json else 'PASS'
 def layout_render(req):
@@ -369,7 +369,7 @@ def two_renders(first, second):
         return {'ok': True, 'svg': f'<svg n="{len(renders)}"/>', 'preview_png': f'png{len(renders)}',
                 'layout': {'labels': 3, 'issues': [{'kind': 'labels-overlap', 'labels': ['a', 'b'], 'area': 5}] * n}}
     return render
-def drafts(prompt, as_json=False, temperature=0.2, images=None):
+def drafts(prompt, as_json=False, temperature=0.2, images=None, **kwargs):
     prompts.append(prompt)
     return {'tikz': '\\draw (0,0)--(1,%d);' % len(prompts)}
 # A colliding draft and its repair get ONE verdict (separate verdicts failed the
@@ -428,8 +428,8 @@ ns.update(_readiness_verdict=real_readiness, _readiness_choice=real_choice)
 # The paired verdict: one call, both codes and label reports, pictures in order.
 calls_seen = []
 def verifier(answer):
-    def call(prompt, as_json=False, temperature=0.25, images=None):
-        calls_seen.append((prompt, images))
+    def call(prompt, as_json=False, temperature=0.25, images=None, models=None):
+        calls_seen.append((prompt, images, models))
         return answer
     return call
 for answer, expected in (('PASS B', (1, '')), ('PASS', (0, '')), ('pass a.', (0, '')), ('FAIL: shading spills', (None, 'FAIL: shading spills'))):
@@ -437,14 +437,15 @@ for answer, expected in (('PASS B', (1, '')), ('PASS', (0, '')), ('pass a.', (0,
     ns['_gemini'] = verifier(answer)
     got = ns['_readiness_choice'](req, ('code A', 'code B'), ('pa', 'pb'), ('the labels "x" and "y" overlap', ''))
     assert got == expected, (answer, got)
-    prompt, images = calls_seen[0]
+    prompt, images, models = calls_seen[0]
+    assert models == ['gemini-9-flash'], models  # no Flash-Lite or Gemma verdicts
     assert images == ['pa', 'pb'] and 'VERSION A TikZ:\ncode A' in prompt and 'A: the labels "x" and "y" overlap' in prompt and 'B: none' in prompt
 # Givens may be labelled: the answer-safety rule no longer rejects a vector the
 # question states (the 3D case was rejected twice for showing v = <2, 3, 4>).
 assert 'STATED IN THE QUESTION are givens' in ns['_readiness_prompt'](req, 'x') and '(?, ?) are correct' in ns['_readiness_prompt'](req, 'x')
 # A request refused with pictures attached is retried once without them.
 tries = []
-def refuses_pictures(prompt, as_json=False, temperature=0.25, images=None):
+def refuses_pictures(prompt, as_json=False, temperature=0.25, images=None, **kwargs):
     tries.append(images)
     if images:
         raise RuntimeError('Gemini API error 400: image input is not supported')
@@ -681,11 +682,76 @@ assert 'AMPLITUDE_LABEL' not in overrides('Sketch y = 3sin(x) over one period.',
 # circle and shading) and the drawing that replaced it was the answer.
 inequality = SimpleNamespace(title='Solve 2x - 3 < 5 and show the solution on a number line.', brief='Draw a number line from -2 to 8 with an open circle at the boundary.',
                              subject='Mathematics', equation='', target='worksheet', format='svg', theme='mono')
-saved = {k: ns[k] for k in ('_gemini', '_catalog_render')}
+saved = {k: ns[k] for k in ('_gemini', '_catalog_render', '_readiness_verdict')}
 ns['_gemini'] = lambda *args, **kwargs: {'_fit': 'no', '_why': 'the brief asks for a circle and shading'}
 ns['_catalog_render'] = lambda request, tmpl, params, source: {'ok': True, 'svg': '<svg/>', 'tikz': templates.fill(tmpl, params, target='worksheet')}
+ns['_readiness_verdict'] = lambda req, code, image=None: ('PASS', '')
 got = ns['_catalog_generate'](inequality)
 assert got['ok'] and got['customized'] == 'catalog:number_line_blank' and 'circle' not in got['tikz'], got
+# Template diagrams get the picture check too (Q8's triangle shipped with its
+# sides mislabelled): a failure buys one refill carrying the reason, a second
+# sends the question to the model-drawn path, and no check at all blanks it.
+fills, verdicts = [], []
+def fill_calls(prompt, **kwargs):
+    fills.append(json.loads(prompt).get('repair_log', ''))
+    return {'_fit': 'yes', 'XMIN': '-2', 'XMAX': '8'}
+def judged(*answers):
+    answers = list(answers)
+    return lambda req, code, image=None: verdicts.append(image) or answers.pop(0)
+ns.update(_gemini=fill_calls, TEMPLATE_REPAIR_ATTEMPTS=3)
+ns['_catalog_render'] = lambda request, tmpl, params, source: {'ok': True, 'svg': '<svg/>', 'preview_png': 'png', 'tikz': templates.fill(tmpl, params, target='worksheet')}
+for answers, expect in (((('FAIL', 'FAIL: ticks run the wrong way'), ('PASS', '')), 'ok'),
+                        ((('FAIL', 'FAIL: ticks run the wrong way'), ('FAIL', 'FAIL: still wrong')), 'unfit'),
+                        ((('FAIL', 'verifier error: all lanes cooling'),), 'blank')):
+    fills.clear(); verdicts.clear()
+    ns['_readiness_verdict'] = judged(*answers)
+    ns['_job_trace'].events = []
+    got = ns['_catalog_generate'](inequality)
+    assert got.get(expect) and len(fills) == len(answers) and verdicts == ['png'] * len(answers), (expect, got, fills)
+    assert 'preview_png' not in got
+    if len(answers) > 1:
+        assert fills[1] == 'The rendered diagram failed the check against the question: FAIL: ticks run the wrong way', fills
+    checks = [e for e in ns['_job_trace'].events if e['stage'] == 'readiness']
+    assert [e['path'] for e in checks] == ['catalog'] * len(answers), checks
+del ns['_job_trace'].events
+ns.update(saved, TEMPLATE_REPAIR_ATTEMPTS=0)
+# The code check that goes with the picture check reads every label's text.
+assert ns['_label_texts'](r'\draw (A)--(B) node[midway,below] {$5\,\mathrm{cm}$}; \node[cp label] at (1,2) {$x$}; '
+                          r'\cpsidelabel[0.1]{A}{B}{C}{0.5}{$12\,\mathrm{cm}$} \pic[draw,"$40^\circ$"] {angle=A--B--C}; '
+                          r'\coordinate[label=above:$Q$] (Q) at (0,1); \tikzset{every node/.style={font=\small}}') == \
+    ['$5\\,\\mathrm{cm}$', '$x$', '$12\\,\\mathrm{cm}$', '$40^\\circ$', '$Q$']
+assert ns['_label_numbers']('$d_1 = 2x^{2} + 13\\,\\mathrm{cm}$') == [2.0, 13.0]  # no subscripts or exponents
+legs = SimpleNamespace(title='A right triangle has legs 5 cm and 12 cm and an angle of 40 degrees. Find the hypotenuse.\nDiagram: label the hypotenuse 13 cm.', brief='', subject='', equation='')
+found = ns['_label_check'](legs, r'\node {$5\,\mathrm{cm}$}; \node {$12\,\mathrm{cm}$}; \node {$13\,\mathrm{cm}$};')
+assert found == 'labels with a number the question does not state: "$13\\,\\mathrm{cm}$"; measurements the question states that no label shows: 40 degrees', found
+assert ns['_label_check'](legs, r'\node {$5\,\mathrm{cm}$}; \node {$12$}; \pic["$40^\circ$"] {angle=A--B--C}; \node {$?$}; \node {$90^\circ$};') == ''
+assert 'automatic check of the label text found labels with a number' in ns['_readiness_prompt'](legs, r'\node {$13$};')
+assert 'Drawn to the givens' in ns['_READINESS_RULES'] and 'a box labelled 3 by 4 by 12' in ns['_READINESS_RULES']
+# Verdicts come from Flash-class lanes only (a Flash-Lite check passed the 3 x 4 x 4 box).
+import time as _time
+ns.update(time=_time, _lane_state=ns['_new_lane_state']())
+assert ns['_verifier_models']() == ['gemini-9-flash']
+ns['_lane_state']['model_until']['gemini-9-flash'] = _time.time() + 50  # the strong model is cooling
+assert ns['_pick_lane'](['gemini-9-flash'])[1:] != ('gemini-9-flash', 0.0) and ns['_pick_lane'](['gemini-9-flash'])[1] == 'gemini-9-flash'
+assert ns['_pick_lane']()[1] == 'gemini-9-flash-lite'  # other calls still fall back
+ns['GEMINI_MODELS'] = ['gemini-9-flash-lite']
+assert ns['_verifier_models']() is None  # only Lite configured: any model rather than none
+ns['GEMINI_MODELS'] = ['gemini-9-flash', 'gemini-9-flash-lite', 'gemma-9-it']
+# An exact renderer's diagram is checked too: shipped on PASS or when no check can
+# be made, passed on to the next path when the check fails.
+box_q = SimpleNamespace(title='A box is 30 cm long, 20 cm wide and 10 cm high. Find the length of the longest rod that fits inside.',
+                        brief='', subject='', equation='', target='worksheet', format='svg', theme='mono')
+saved = {k: ns[k] for k in ('_verified_render', '_readiness_verdict', '_question_should_stay_blank')}
+ns.update(elementary_diagram=generate, CATALOG_ENABLED=False, LEGACY_TEMPLATES_ENABLED=False, _question_should_stay_blank=lambda r: False,
+          _verified_render=lambda req, tikz, source='', run_critic=True: {'ok': True, 'svg': '<svg/>', 'tikz': tikz, 'preview_png': 'png'},
+          _reference_generate=lambda req: {'ok': False, 'error': 'model path'})
+for answer, shipped in ((('PASS', ''), True), (('FAIL', 'verifier unavailable'), True), (('FAIL', 'FAIL: edges mislabelled'), False)):
+    ns['_readiness_verdict'] = lambda req, code, image=None, a=answer: a
+    ns['_job_trace'].events = []
+    out = ns['_generate_visual_sync'](box_q)
+    assert bool(out.get('ok')) == shipped and (out.get('customized') == 'elementary:rectangular_prism' if shipped else out['error'] == 'model path'), (answer, out)
+    assert [e.get('path') for e in ns['_job_trace'].events if e['stage'] == 'readiness'] == ['elementary']
+del ns['_job_trace'].events
 ns.update(saved)
 assert ns['_number_line_solution'](inequality) and not ns['_number_line_solution'](SimpleNamespace(title='Plot -2, 0.5 and 3 on a number line.'))
 # "5 m" as a math label printed an italic 5m
