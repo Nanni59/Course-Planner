@@ -4,6 +4,17 @@ One dict per diagram. Authoring contract lives in ../templates.py.
 Slots are __UPPER__; skeletons are raw strings; every slot has a params entry.
 """
 
+def _tangent_label_x(spot: str) -> str:
+    """\\cplx for function_tangent: the spot, moved into the x-range where the
+    line runs inside the window (a tenth of the window in from each edge)."""
+    slope = r"ifthenelse(abs(__SLOPE__)<0.01,0.01,__SLOPE__)"
+    u1 = rf"((__YMIN__)+0.1*((__YMAX__)-(__YMIN__))-(__INTERCEPT__))/{slope}"
+    u2 = rf"((__YMAX__)-0.1*((__YMAX__)-(__YMIN__))-(__INTERCEPT__))/{slope}"
+    lo = rf"max((__XMIN__)+0.08*((__XMAX__)-(__XMIN__)),min({u1},{u2}))"
+    hi = rf"min((__XMAX__)-0.08*((__XMAX__)-(__XMIN__)),max({u1},{u2}))"
+    return r"\pgfmathsetmacro\cplx{" + rf"max({lo},min({hi},{spot}))" + "}"
+
+
 templates = [
     {
         "id": 'function_tangent',
@@ -51,11 +62,13 @@ templates = [
 \end{tikzpicture}""",
         # line label spot x the point label's corner (the default first: above,
         # on the line's uphill-away side; then below it, then the other side)
+        # Each spot is clamped to where the line is inside the window: a spot
+        # outside it lost the label (the cubic's tangent had none).
         "layout_alternatives": [
             lx + r'\tikzset{cp pt/.style={anchor=' + anchor + r',xshift={' + side + r'ifthenelse(__SLOPE__>=0,-1,1)*(0.5*width("$(__POINT_X__,__POINT_Y__)$")+2)}}}'
             for anchor, side in (('south', ''), ('north', '-'), ('south', '-'), ('north', ''))
-            for lx in [r'\pgfmathsetmacro\cplx{__LABEL_X__}'] + [
-                rf'\pgfmathsetmacro\cplx{{(__XMIN__)+{f}*((__XMAX__)-(__XMIN__))}}' for f in ('0.75', '0.25', '0.9', '0.6', '0.4', '0.1')]],
+            for lx in [_tangent_label_x('__LABEL_X__')] + [
+                _tangent_label_x(f'(__XMIN__)+{f}*((__XMAX__)-(__XMIN__))') for f in ('0.75', '0.25', '0.9', '0.6', '0.4', '0.1')]],
         "params": {
             'CURVE': {'type': 'label', 'default': 'x^2', 'desc': "pgfplots expression for the question's curve in terms of x, e.g. x^2, sqrt(x), x^3 - 6*x^2 + 5*x - 1 (write * for every product; keep it defined over the whole axis window)"},
             'XMIN': {'type': 'number', 'default': '-2', 'desc': 'left edge of the axis window; choose bounds so the marked point sits comfortably inside'},
@@ -175,6 +188,8 @@ templates = [
 \begin{axis}[width=7cm, height=5cm, axis lines=middle, axis line style=cp axis,
     xlabel={$x$}, ylabel={$y$}, xlabel style={anchor=west}, ylabel style={anchor=south},
     xmin=__XMIN__, xmax=__XMAX__, ymin=__YMIN__, ymax=__YMAX__,
+    % the axes over the shading (under it, part of each axis vanished)
+    axis on top,
     legend pos=outer north east, legend style={draw=none, font=\small}]
   \addplot[cp line, name path=cpf, samples=161, domain=__XMIN__:__XMAX__] {__F__};
   \addlegendentry{__F_LABEL__}

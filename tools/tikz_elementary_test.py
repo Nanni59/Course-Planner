@@ -454,7 +454,7 @@ assert '\\newcommand{\\cpanglelabel}[5]' in wrapper and '\\newcommand{\\cpsidela
 # A slot used only in a template's label placements counts as used.
 assert not templates.catalog_errors() and '__LABEL_X__' not in templates.get('function_tangent')['skeleton']
 assert '__LABEL_X__' in templates.get('function_tangent')['layout_alternatives'][0]
-assert '\\pgfmathsetmacro\\cplx{0.5}' in templates.fill(templates.get('function_tangent'), {'LABEL_X': '0.5'})
+assert '\\pgfmathsetmacro\\cplx{max(' in templates.fill(templates.get('function_tangent'), {'LABEL_X': '0.5'}) and ',0.5))}' in templates.fill(templates.get('function_tangent'), {'LABEL_X': '0.5'})
 # Hyphenated TikZ keys are fixed before compiling; label text is not touched.
 assert ns['_fix_key_typos']('grid style={line-width=.1pt, dash-pattern = on 2pt}, node[inner-sep=1pt] {$line-width$}') == \
     'grid style={line width=.1pt, dash pattern = on 2pt}, node[inner sep=1pt] {$line-width$}'
@@ -715,6 +715,17 @@ assert 'fill between[of=cpf and cpg' in templates.get('area_between_curves')['sk
 acc = SimpleNamespace(title='For F(x) equal to the integral of t^2 + 1 from 0 to x, explain what F(x) represents geometrically.', brief='', subject='', equation='', target='worksheet')
 got = ns['_catalog_local_param_overrides'](acc, 'definite_integral_shaded', {'B': '2'})
 assert (got['XVAR'], got['CURVE'], got['A'], got['B_LABEL'], got['AREA_LABEL']) == ('t', '((x^2)+1)', '0', '$x$', '$F(x)$'), got
+
+# Polish after round 7. A model's {$6\text{ cm}} (no closing $) blanked a question twice.
+assert ns['_fix_key_typos']('\\node at (1,0) {$6\\text{ cm}};') == '\\node at (1,0) {$6\\text{ cm}$};'
+assert ns['_fix_key_typos']('\\node {$x$} -- (1,1) node {$\\frac{a}{b}};') == '\\node {$x$} -- (1,1) node {$\\frac{a}{b}$};'
+assert ns['_fix_key_typos']('\\node {\\$5 \\{$x}') == '\\node {\\$5 \\{$x}'  # escaped braces open no group
+# area between curves: the axes over the shading, headroom above the curves
+assert 'axis on top' in templates.get('area_between_curves')['skeleton']
+got = overrides(area_q, 'area_between_curves')
+assert float(got['YMAX']) > 4.5, got  # the parabola's top at 4 was cut flat
+# the tangent's label spot is kept where the line is inside the window
+assert all('max(max((__XMIN__)+0.08' in alt for alt in templates.get('function_tangent')['layout_alternatives'])
 # The paired verdict records the model that answered and whether it saw the picture.
 ns['_job_trace'].last_model, ns['_job_trace'].last_pictured = 'gemini-x', True
 assert ns['_verifier_facts']() == {'model': 'gemini-x', 'picture': True} and ns['_verifier_facts']() == {}

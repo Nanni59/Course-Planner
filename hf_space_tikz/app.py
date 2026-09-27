@@ -4586,6 +4586,10 @@ def _catalog_local_param_overrides(req: GenerateReq, template_id: str, params: d
                 # the window keeps the region whole and the curves a little past it,
                 # not every far-off value of a steep curve
                 lo_y, hi_y = max(min(ys), lo_y - 0.5 * (hi_y - lo_y) - 1), min(max(ys), hi_y + 0.3 * (hi_y - lo_y) + 1)
+                # headroom past the curves (the top of a parabola was cut flat, and
+                # the top tick and the axis letter crowded it)
+                span = hi_y - lo_y
+                lo_y, hi_y = lo_y - 0.08 * span, hi_y + 0.15 * span
                 overrides.update({"A": _clean_number(round(a, 4)), "B": _clean_number(round(b, 4)),
                                   "XMIN": _clean_number(round(xmin, 2)), "XMAX": _clean_number(round(xmax, 2)),
                                   "YMIN": _clean_number(round(lo_y, 2)), "YMAX": _clean_number(round(hi_y, 2))})
@@ -4932,7 +4936,37 @@ _KEY_TYPOS = re.compile(
 
 
 def _fix_key_typos(tikz: str) -> str:
-    return _KEY_TYPOS.sub(r"\1 \2", tikz)
+    return _close_node_math(_KEY_TYPOS.sub(r"\1 \2", tikz))
+
+
+def _close_node_math(tikz: str) -> str:
+    """A brace group opening math with $ but not closing it ({$6\\text{ cm}})
+    stopped the compile twice in one job (a similar-triangles question went
+    blank); the missing $ goes before the group's closing brace."""
+    out, i = [], 0
+    while True:
+        at = tikz.find("{$", i)
+        if at < 0:
+            out.append(tikz[i:])
+            return "".join(out)
+        if tikz[at - 1:at] == "\\":  # an escaped \{ opens no group
+            out.append(tikz[i:at + 1])
+            i = at + 1
+            continue
+        depth, j = 1, at + 1
+        while j < len(tikz):
+            if tikz[j - 1] != "\\":
+                depth += {"{": 1, "}": -1}.get(tikz[j], 0)
+            if depth == 0:
+                break
+            j += 1
+        if j >= len(tikz):
+            out.append(tikz[i:])
+            return "".join(out)
+        body = tikz[at + 1:j]
+        fix = "$" if len(re.findall(r"(?<!\\)\$", body)) % 2 else ""
+        out.append(tikz[i:j] + fix)
+        i = j
 
 
 def _ship_reference(rendered: dict, enlarged: str, caption: str) -> dict:

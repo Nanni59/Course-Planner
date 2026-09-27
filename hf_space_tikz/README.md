@@ -283,7 +283,13 @@ model (the model's values are kept only when the question does not settle them):
   not to ask for one.
 - Two curves and the region between them (`area_between_curves`): both curves
   from the question with a legend, shading only between the crossings (pgfplots
-  fillbetween), and no label or guide line at a crossing.
+  fillbetween), and no label or guide line at a crossing. The axes are drawn on
+  top of the fill (`axis on top`; fillbetween's layer hid them), and the window
+  leaves headroom above the curves.
+- A tangent line's label spot is clamped to where the line runs inside the
+  window (a spot outside it dropped the label).
+- Model TikZ with a node group that opens math and never closes it
+  (`{$6\text{ cm}}`) gets the missing `$` before compiling.
 - An accumulation function F(x) = integral of f(t) from a to x uses the shaded
   integral with a t axis, the endpoint labelled x and F(x) inside the area.
 - A label with maths but no $...$ in a text slot (`f(x) = 2^x`) is wrapped in
