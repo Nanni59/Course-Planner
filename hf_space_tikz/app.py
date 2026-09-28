@@ -3134,36 +3134,10 @@ def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
             "The request is not a triangle problem, so do not draw or preserve a generic triangle. "
             "Use the relevant visual type for the topic, or return an empty tikz string if no safe visual applies."
         )
-    if is_triangle and "exterior angle" not in hay and re.search(r"\barc\s*(?:\[|\()", tikz):
-        return (
-            "Triangle and law-of-sines/cosines visuals must mark angles with TikZ angle pics, "
-            "not raw arc paths. Raw arcs often render as exterior angle marks. Use examples like "
-            "\\pic[draw=black,angle radius=5mm,\"$60^\\circ$\",angle eccentricity=1.35] {angle=B--A--C};"
-        )
-    is_vector_angle = (
-        ("angle" in hay)
-        and any(term in hay for term in ("vector", "force", "resultant"))
-        and not any(term in hay for term in ("bearing", "navigation", "compass", "circle", "chord", "arc", "sector"))
-    )
-    if is_vector_angle and re.search(r"\barc\s*(?:\[|\()", tikz):
-        return (
-            "Vector angle diagrams must mark the small interior angle sector between vectors from a shared tail. "
-            "Do not use raw arc paths that can wrap outside the vector diagram."
-        )
-    if is_triangle:
-        for radius in re.findall(r"angle\s+radius\s*=\s*([0-9.]+)\s*(cm|mm)?", tikz, flags=re.IGNORECASE):
-            value = float(radius[0])
-            unit = (radius[1] or "cm").lower()
-            radius_mm = value * 10 if unit == "cm" else value
-            if radius_mm > 7:
-                return "Triangle angle marks are too large. Use small interior angle pics with angle radius between 4mm and 6mm."
-    if is_vector_angle:
-        for radius in re.findall(r"angle\s+radius\s*=\s*([0-9.]+)\s*(cm|mm)?", tikz, flags=re.IGNORECASE):
-            value = float(radius[0])
-            unit = (radius[1] or "cm").lower()
-            radius_mm = value * 10 if unit == "cm" else value
-            if radius_mm > 7:
-                return "Vector angle marks are too large. Use a small interior sector with angle radius between 4mm and 6mm."
+    # Triangle and vector drawings are no longer rejected for raw arc paths or
+    # angle marks over 7mm: the picture check judges where a mark lands, and
+    # these code rules blanked three correct polar and unit-circle diagrams
+    # (angles measured from the x-axis) in one worksheet (2026-09-28).
 
     if is_named_circle_theorem and not any(term in hay for term in ('exterior angle', 'reflex angle', 'major angle')):
         if re.search(r'\\draw[^;\n]*\barc\s*(?:\[|\()', tikz):
@@ -3204,7 +3178,9 @@ def _semantic_visual_issue(req: GenerateReq, tikz: str) -> str | None:
         for match in re.findall(r"△\s*([A-Z]{3})\b", original):
             requested_labels.update(match)
         if requested_labels:
-            drawn_labels = set(re.findall(r"\{\s*\$?([A-Z])\$?\s*\}", tikz))
+            # "A(2,0,0)" or "C(2, y)" names vertex A or C too (a correct 3D
+            # triangle was rejected twice for "missing=ABC")
+            drawn_labels = set(re.findall(r"\{\s*\$?([A-Z])\$?\s*(?:\}|\\?\(|\\left\s*\()", tikz))
             stray = sorted(label for label in drawn_labels if label in {"A", "B", "C", "P", "Q", "R", "X", "Y", "Z"} and label not in requested_labels)
             missing = sorted(label for label in requested_labels if label not in drawn_labels)
             if stray or missing:
@@ -5179,11 +5155,27 @@ def _readiness_verdict(req: GenerateReq, tikz: str, image: str | None = None) ->
         out = _readiness_call(_readiness_prompt(req, tikz), [image] if image else [])
     except Exception as exc:
         return "FAIL", "verifier error: " + str(exc)[:120]
-    if out.upper() == "PASS":
+    kind, _version = _readiness_reply(out)
+    if kind == "PASS":
         return "PASS", ""
-    if re.match(r"\W*COSMETIC\b", out.upper()):
+    if kind == "COSMETIC":
         return "COSMETIC", out[:220]
     return "FAIL", out[:220] or "readiness check failed"
+
+
+def _readiness_reply(out: str) -> tuple[str, str | None]:
+    """The verdict a verifier reply opens with, and the version it names:
+    ("PASS" | "COSMETIC" | "FAIL", "A" | "B" | None). Replies in the checker's
+    own words count: "Version B is READY." blanked a diagram the verifier had
+    just passed. Anything else is a FAIL."""
+    text = re.sub(r"[*_`#>]", "", out or "").strip().upper()
+    m = re.match(r"[^\w\n]*(PASS|COSMETIC|FAIL)\b[^\w\n]*(?:VERSION[^\w\n]*)?([AB])?\b", text)
+    if m:
+        return m.group(1), m.group(2)
+    m = re.match(r"[^\w\n]*(?:(?:VERSION[^\w\n]*)?([AB])[^\w\n]+IS[^\w\n]+READY\b|READY\b)", text)
+    if m:
+        return "PASS", m.group(1)
+    return "FAIL", None
 
 
 def _readiness_choice(req: GenerateReq, codes: tuple[str, str], images: tuple, reports: tuple[str, str]) -> tuple[int | None, str]:
@@ -5197,10 +5189,10 @@ def _readiness_choice(req: GenerateReq, codes: tuple[str, str], images: tuple, r
                               [i for i in images if i] if all(images) else [])
     except Exception as exc:
         return None, "verifier error: " + str(exc)[:120]
-    m = re.match(r"\W*(PASS|COSMETIC)\W*([AB])?\b", out.upper())
-    if m:
+    kind, version = _readiness_reply(out)
+    if kind != "FAIL":
         # a cosmetic choice ships too (its reason is kept for the trace)
-        return (1 if m.group(2) == "B" else 0), ("" if m.group(1) == "PASS" else out[:220])
+        return (1 if version == "B" else 0), ("" if kind == "PASS" else out[:220])
     return None, out[:220] or "readiness check failed"
 
 
@@ -5308,6 +5300,9 @@ def _judge_reference_pair(req: GenerateReq, pair: list) -> tuple[int | None, str
     return index, reason
 
 
+_REFERENCE_DRAFTS = 3
+
+
 def _reference_generate(req: GenerateReq) -> dict | None:
     """Reference-guided fallback for problems with no exact template (and for
     questions whose keyword-routed template the model vetoed). Two-pass, mirroring
@@ -5335,7 +5330,13 @@ def _reference_generate(req: GenerateReq) -> dict | None:
     # A draft judged correct but cosmetically off: its repair ships if it is
     # better, else this does. A correct graph went blank over its y ticks.
     cosmetic = None
-    for attempt in range(2):  # initial draft + one repair
+    # Two judged drafts (a draft and one repair after the verifier), within three
+    # drafts in all: a draft that does not compile or breaks a code rule costs no
+    # verifier call, and such a draft used to spend the only repair (five of
+    # eight diagrams went blank in one worksheet on 2026-09-28).
+    judged = 0
+    for attempt in range(_REFERENCE_DRAFTS):
+        last = attempt == _REFERENCE_DRAFTS - 1
         try:
             spec = _gemini(
                 _visual_prompt(req, repair_log=repair_log, previous_code=tikz, references=references, spec=plan),
@@ -5370,7 +5371,7 @@ def _reference_generate(req: GenerateReq) -> dict | None:
         collisions = _layout_summary(rendered.get("layout", {}))
         if collisions:
             _diagnostic("layout", collisions, tikz=enlarged)
-            if attempt == 0:
+            if colliding is None and not last:
                 # The rendered picture shows label collisions the source-reading
                 # readiness check cannot see: spend the one repair on them. The
                 # repair and this draft are then judged, fewer collisions first.
@@ -5390,6 +5391,7 @@ def _reference_generate(req: GenerateReq) -> dict | None:
             # which then shipped with more collisions.
             pair = sorted([(rendered, enlarged, caption), draft], key=_issue_count)
             colliding = None
+            judged += 1
             index, reason = _judge_reference_pair(req, pair)
             if index is not None:
                 chosen = pair[index]
@@ -5399,10 +5401,11 @@ def _reference_generate(req: GenerateReq) -> dict | None:
                 return _ship_reference(*chosen)
         else:
             verdict, reason = _judge_reference(req, rendered, enlarged, caption)
+            judged += 1
             if verdict == "PASS":
                 return rendered
             if verdict == "COSMETIC":
-                if attempt == 1:
+                if last or judged == 2:
                     _diagnostic("readiness-cosmetic", "shipped: correct, with a cosmetic problem")
                     return _ship_reference(rendered, enlarged, caption)
                 cosmetic = (rendered, enlarged, caption)
@@ -5416,7 +5419,10 @@ def _reference_generate(req: GenerateReq) -> dict | None:
                 return _ship_reference(*cosmetic)
             return {"ok": False, "error": "Diagram verification unavailable: " + reason}
         repair_log = "The previous diagram failed the readiness check: " + reason
-        print(f"[reference] readiness FAIL, {'repairing' if attempt == 0 else 'blanking'}: {reason}", flush=True)
+        final = last or judged == 2
+        print(f"[reference] readiness FAIL, {'blanking' if final else 'repairing'}: {reason}", flush=True)
+        if final:
+            break
     if colliding:
         # The repair of a colliding draft produced nothing usable: the draft itself,
         # whose only fault was label placement, still gets its readiness check.

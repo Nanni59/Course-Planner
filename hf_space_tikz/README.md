@@ -174,6 +174,12 @@ below shows ..."), the sinusoid template draws the bare curve (no amplitude or
 period arrows, no midline) with unit ticks and a grid, read from the described
 maximum and minimum.
 
+A model drawing gets up to three drafts, at most two of them judged by the
+verifier (a draft and one repair after a verdict): a draft that does not compile
+or breaks a code rule costs no verifier call, and no longer spends the repair.
+The verifier's reply is read in its own words too ("Version B is READY." counts
+as `PASS B`; it once blanked a diagram the verifier had passed).
+
 A rational function the question gives (`f(x) = (2x^2 - 8)/(x^2 - x - 6)`,
 `rac{3x^2 + 5x - 4}{x + 2}`) is drawn by the exact `rational_function` renderer,
 with no model: vertical, horizontal or slant asymptotes found from the
@@ -340,9 +346,12 @@ model (the model's values are kept only when the question does not settle them):
   long periods.
 - A number and unit in a math label (`5 m`) are set upright (`5\,\mathrm{m}`).
 
-Catalog renders skip the semantic checks written for model drawings (such as
-the rule against raw arcs in triangles, which rejected every triangle
-template). The template's structure is fixed; only its values are filled.
+Catalog renders skip the semantic checks written for model drawings. The
+template's structure is fixed; only its values are filled. Since 2026-09-28 no
+drawing is rejected for raw arc paths or angle marks over 7mm in triangles or
+vector diagrams (the picture check judges where a mark lands; these rules
+blanked correct polar, unit-circle and coordinate diagrams), and a vertex label
+written with its coordinates (`A(2,0,0)`) counts as that vertex.
 
 Template params may be `local` (the model never sees them; overrides set them)
 or `flag_of` another slot (1 when that label is non-empty, for marks drawn only

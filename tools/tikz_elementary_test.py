@@ -25,7 +25,7 @@ ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, threading=thread
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
 helper_constants = [n for n in tree.body if isinstance(n, ast.Assign)
-                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id in ('_NUM', '_KEY_TYPOS', '_READINESS_RULES', '_JSON_TEX_WORDS', '_SIDE_LINK', '_SIDE_EXPR')) for t in n.targets)]
+                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id in ('_NUM', '_KEY_TYPOS', '_READINESS_RULES', '_JSON_TEX_WORDS', '_SIDE_LINK', '_SIDE_EXPR', '_REFERENCE_DRAFTS')) for t in n.targets)]
 exec(compile(ast.fix_missing_locations(ast.Module(body=helper_constants, type_ignores=[])), '<helper constants>', 'exec'), ns)
 real_gemini = ns['_gemini']
 real_readiness = ns['_readiness_verdict']
@@ -409,9 +409,12 @@ for first, second, answer, shipped, order, note in (
         (1, 0, (1, ''), '<svg n="1"/>', ('png2', 'png1'), 'shipped the draft (1 label problems) over its repair (0)'),
         (1, 3, (None, 'neither labels the vertex'), None, ('png1', 'png2'), None)):
     renders.clear(); prompts.clear(); asked.clear()
-    ns.update(_render=two_renders(first, second), _gemini=drafts, _readiness_choice=choice(answer))
+    # a failed pair gets one repair from the verifier's reason, judged alone
+    ns.update(_render=two_renders(first, second), _gemini=drafts, _readiness_choice=choice(answer),
+              _readiness_verdict=lambda req_, code, image=None: ('FAIL', 'FAIL: still neither labels the vertex'))
     ns['_job_trace'].events = []
     out = ns['_reference_generate'](req)
+    assert len(renders) == (2 if shipped else 3) and (shipped or 'neither labels the vertex' in prompts[-1]), prompts
     assert len(asked) == 1 and asked[0][1] == order and all(r.preview for r in renders), asked
     assert asked[0][2][0].count('overlap') == min(first, second), asked[0][2]
     if shipped:
@@ -421,7 +424,7 @@ for first, second, answer, shipped, order, note in (
     notes = [e['detail'] for e in ns['_job_trace'].events if e['stage'] == 'layout-choice']
     assert notes == ([note] if note else []), notes
     verdicts = [e for e in ns['_job_trace'].events if e['stage'] == 'readiness']
-    assert len(verdicts) == 1 and (verdicts[0]['detail'] == 'PASS ' + 'AB'[answer[0]] if shipped else True)
+    assert len(verdicts) == (1 if shipped else 2) and (verdicts[0]['detail'] == 'PASS ' + 'AB'[answer[0]] if shipped else True)
     del ns['_job_trace'].events
 # A repair that renders nothing usable ships its draft with a layout-choice note.
 renders.clear(); prompts.clear()
@@ -681,15 +684,16 @@ assert (got['BOATLAB'], got['CURRENTLAB'], got['WIDTHLAB']) == ('4\\,\\mathrm{m/
 assert templates.route('Solve 2x - 3 < 5 and show the solution on a number line.', 'Mathematics')['id'] == 'number_line_blank'
 assert overrides('Solve 2x - 3 < 5. Draw a number line from -2 to 8.', 'number_line_blank') == {'XMIN': '-2', 'XMAX': '8'}
 assert 'circle' not in templates.get('number_line_blank')['skeleton'] and 'IS the answer' in ns['_READINESS_RULES']
-# Live, the arc check meant for model drawings rejected every triangle template.
+# Live, the arc check meant for model drawings rejected every triangle template;
+# since 2026-09-28 raw arcs reject no drawing (the picture check judges the marks).
 ladder = SimpleNamespace(title='A 6 m ladder leans against a vertical wall and makes an angle of 72 degrees with the ground.', brief='', subject='', equation='', target='worksheet', format='svg', theme='mono')
 ladder_tikz = templates.fill(templates.get('right_triangle'), ns['_catalog_local_param_overrides'](ladder, 'right_triangle'), target='worksheet')
-assert ns['_semantic_visual_issue'](ladder, ladder_tikz)  # still guards model drawings
+assert ns['_semantic_visual_issue'](ladder, ladder_tikz) is None
 saved_render, saved_enlarge = ns['_render'], ns.get('_enlarge_visual_code')
 ns['_render'] = lambda request: {'ok': True, 'svg': '<svg/>', 'layout': {'labels': 4, 'issues': []}}
 ns['_enlarge_visual_code'] = lambda request, code: code
 assert real_verified_render(ladder, ladder_tikz, source='catalog:right_triangle', run_critic=False)['ok']
-assert not real_verified_render(ladder, ladder_tikz, source='draft', run_critic=False)['ok']
+assert real_verified_render(ladder, ladder_tikz, source='draft', run_critic=False)['ok']
 ns['_render'], ns['_enlarge_visual_code'] = saved_render, saved_enlarge
 # A worksheet's diagram description repeats the question's equation.
 wave = ns['_sinusoid_from_text']('d(t) = 2 cos(0.5t) + 5. State the amplitude. Diagram: Graph one cycle of d(t) = 2 cos(0.5t) + 5.')
@@ -880,6 +884,54 @@ ns['_job_trace'].events = []
 assert ns['_check_built'](req, {'tikz': 'x', 'preview_png': 'png'}, 'catalog') == ('PASS', 'COSMETIC: tick spacing')
 del ns['_job_trace'].events
 ns['_readiness_verdict'] = real_readiness
+# 2026-09-28 worksheet, five of eight diagrams blank. The verifier's reply in its
+# own words passed a diagram that was then blanked ("Version B is READY.").
+for answer, expected in (('Version B is READY.\n\nReasoning: both are correct', (1, '')), ('**PASS B**', (1, '')),
+                         ('READY', (0, '')), ('NOT READY: B reveals y', (None, 'NOT READY: B reveals y')),
+                         ('FAIL: A is unreadable', (None, 'FAIL: A is unreadable')), ('Both look fine', (None, 'Both look fine'))):
+    ns['_gemini'] = lambda *a, answer=answer, **k: answer
+    assert ns['_readiness_choice'](req, ('a', 'b'), (None, None), ('', '')) == expected, (answer, expected)
+ns['_gemini'] = lambda *a, **k: 'PASS.'
+assert ns['_readiness_verdict'](req, 'code') == ('PASS', '')
+ns['_gemini'] = lambda *a, **k: 'FAIL: PASS would reveal the answer'
+assert ns['_readiness_verdict'](req, 'code')[0] == 'FAIL'
+ns['_gemini'] = real_gemini
+# Code rules blanked correct polar, unit-circle and 3D triangles: angle marks
+# from the x-axis drawn as arcs or over 7mm pass, and a vertex labelled with its
+# coordinates, A(2,0,0), counts as A.
+polar = SimpleNamespace(title='P lies on r = 6cos(theta) at theta = pi/6 and Q on r = 4sin(theta) at theta = pi/2. Find PQ using the Law of Cosines.',
+                        brief='', subject='', equation='', target='worksheet')
+polar_code = (r'\draw (0.8,0) arc[start angle=0,end angle=60,radius=0.8];' '\n'
+              r'\pic[draw=black, angle radius=10mm, "$\beta$"] {angle=X--O--B};')
+assert ns['_semantic_visual_issue'](polar, polar_code) is None
+cube = SimpleNamespace(title=r'The points A(2, 0, 0), B(0, 3, 0) and C(0, 0, 6) form \(\triangle ABC\). Find cos(angle ABC) using the Law of Cosines.',
+                       brief='', subject='', equation='', target='worksheet')
+labels = [r'\fill (A) circle (1.5pt) node[cp label] {$A(2,0,0)$};', r'\fill (B) circle (1.5pt) node[cp label] {$B(0,3,0)$};',
+          r'\fill (C) circle (1.5pt) node[cp label] {$C\left(0,0,6\right)$};']
+assert ns['_semantic_visual_issue'](cube, '\n'.join(labels)) is None
+assert 'missing=C' in ns['_semantic_visual_issue'](cube, '\n'.join(labels[:2]))
+assert 'stray=P' in ns['_semantic_visual_issue'](cube, '\n'.join(labels + [r'\node at (1,1) {$P(1,1)$};']))
+# A draft that breaks a code rule no longer spends the one repair after the
+# verifier: three drafts in all, at most two judged.
+saved = {k: ns[k] for k in ('_render', '_gemini', '_readiness_verdict', '_diagram_spec_prompt', '_visual_prompt', '_semantic_visual_issue')}
+ns.update(_render=one_render, _gemini=drafts, _diagram_spec_prompt=lambda *a, **k: 'plan',
+          _visual_prompt=lambda req, repair_log='', **k: 'draw ' + repair_log)
+for issues, answers, shipped, draws in (
+        (['stray label P', None, None], [('FAIL', 'FAIL: reveals y = 3'), ('PASS', '')], '<svg n="2"/>', 3),
+        ([None, None, None], [('FAIL', 'FAIL: a'), ('FAIL', 'FAIL: b')], None, 2),  # still one repair
+        (['x', 'y', 'z'], [], None, 3)):
+    renders.clear(); prompts.clear()
+    rules, queue = list(issues), list(answers)
+    ns['_semantic_visual_issue'] = lambda req_, code: rules.pop(0)
+    ns['_readiness_verdict'] = lambda req_, code, image=None: queue.pop(0)
+    ns['_job_trace'].events = []
+    out = ns['_reference_generate'](req)
+    assert (out.get('svg') if out.get('ok') else None) == shipped and not queue, (issues, out)
+    assert sum(p.startswith('draw') for p in prompts) == draws, prompts
+    if shipped:
+        assert 'reveals y = 3' in prompts[-1], prompts
+del ns['_job_trace'].events
+ns.update(saved)
 # "The graph below shows a sinusoid ...": the wave comes from the described
 # maximum and minimum (a refill flipped the phase), and the curve stands alone.
 graph_q = SimpleNamespace(title='The graph below shows a sinusoidal wave of the form y = a\\cos(k(x - d)) + c with a > 0. Determine the values of a, k, c and d.\nDiagram: A maximum point occurs at (\\frac{\\pi}{2}, 1), a minimum occurs at (\\frac{3\\pi}{2}, -5), and the next maximum occurs at (\\frac{5\\pi}{2}, 1). The centerline y = -2 is dashed.',
@@ -1184,11 +1236,6 @@ for tid in ('airplane_wind_ground_velocity', 'boat_current_resultant', 'collinea
             'vector_subtraction_as_addition', 'vector_closed_triangle_sum', 'parallelepiped_volume'):
     skeleton = templates.get(tid)['skeleton']
     assert 'overlay,opacity=0]' in skeleton and '.north east)-(' in skeleton, tid
-# Comments count as TikZ: none in a vector template may look like a raw arc path,
-# or the vector-angle guard rejects the diagram (the bearing arc is exempt there).
-for t in templates.TEMPLATES:
-    if t['subject'].startswith('Vectors') and t['id'] != 'airplane_wind_ground_velocity':
-        assert not re.search(r"\barc\s*(?:\[|\()", t['skeleton']), t['id']
 # The line passes through the marked intersection point, and plane labels no
 # longer sit under the normal / on the point.
 line_plane = templates.get('line_plane_intersection')['skeleton']
