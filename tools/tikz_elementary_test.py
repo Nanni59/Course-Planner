@@ -2,6 +2,7 @@
 import ast
 import json
 import math
+import os
 from pathlib import Path
 import re
 import sys
@@ -21,11 +22,11 @@ functions = [n for n in tree.body if isinstance(n, ast.FunctionDef)]
 for node in functions:
     node.decorator_list = []
 module = ast.Module(body=[ast.ImportFrom(module='__future__', names=[ast.alias(name='annotations')], level=0)] + functions, type_ignores=[])
-ns = dict(re=re, math=math, json=json, unicodedata=unicodedata, threading=threading, GEMINI_KEYS=['test-secret'], GEMINI_MODELS=['gemini-9-flash', 'gemini-9-flash-lite', 'gemma-9-it'],
+ns = dict(re=re, math=math, json=json, os=os, unicodedata=unicodedata, threading=threading, GEMINI_KEYS=['test-secret'], GEMINI_MODELS=['gemini-9-flash', 'gemini-9-flash-lite', 'gemma-9-it'],
           _job_trace=threading.local(), _jobs_lock=threading.Lock(), jobs={}, RenderReq=SimpleNamespace)
 exec(compile(ast.fix_missing_locations(module), '<production helpers>', 'exec'), ns)
 helper_constants = [n for n in tree.body if isinstance(n, ast.Assign)
-                    and any(isinstance(t, ast.Name) and (t.id.startswith('_TIKZ_EXCERPT_') or t.id in ('_NUM', '_KEY_TYPOS', '_READINESS_RULES', '_JSON_TEX_WORDS', '_SIDE_LINK', '_SIDE_EXPR', '_REFERENCE_DRAFTS')) for t in n.targets)]
+                    and any(isinstance(t, ast.Name) and (t.id.startswith(('_TIKZ_EXCERPT_', 'LLM_BRIDGE_')) or t.id in ('_bridge_state','_NUM', '_KEY_TYPOS', '_READINESS_RULES', '_JSON_TEX_WORDS', '_SIDE_LINK', '_SIDE_EXPR', '_REFERENCE_DRAFTS')) for t in n.targets)]
 exec(compile(ast.fix_missing_locations(ast.Module(body=helper_constants, type_ignores=[])), '<helper constants>', 'exec'), ns)
 real_gemini = ns['_gemini']
 real_readiness = ns['_readiness_verdict']
@@ -276,7 +277,10 @@ assert hit['tikz'].count('{$x={?}$}') == 1 and hit['tikz'].count('{$y={?}$}') ==
 for other in ('Solve the rational inequality (x-1)/(x+2) > 0.',  # the solution would show
               'Find the asymptotes of f(x) = (x^3+1)/(x - 1).',  # no line asymptote
               'For the rational function f(x) = (2x - 4)/(x + 1), identify the asymptotes. Diagram: Leave the grid empty for sketching the function.',
-              'Find the asymptotes of f(x) = (x - 1)/(x + 2) and g(x) = (2x)/(x - 3).'):  # two functions
+              'Find the asymptotes of f(x) = (x - 1)/(x + 2) and g(x) = (2x)/(x - 3).',  # two functions
+              # the function only locates a vertex of another figure (2026-09-28 Q5)
+              'Triangle ABC has vertex A where the vertical asymptote of f(x) = (2x + 1)/(x - 3) meets the x-axis, B(5, 0) and C(5, 4). Find the area of the triangle.',
+              'Point P lies on the horizontal asymptote of f(x) = (x + 2)/(x - 1) with x = 4. Find the distance between P and the origin.'):
     assert generate(other) is None, other
 for text, hit in zip(retest_texts, retest_hits):
     req_retest = SimpleNamespace(title=text, brief='Question: '+text, subject='', equation='', target='worksheet')
@@ -452,7 +456,7 @@ ns.update(_readiness_verdict=real_readiness, _readiness_choice=real_choice)
 # The paired verdict: one call, both codes and label reports, pictures in order.
 calls_seen = []
 def verifier(answer):
-    def call(prompt, as_json=False, temperature=0.25, images=None, models=None):
+    def call(prompt, as_json=False, temperature=0.25, images=None, models=None, **kwargs):
         calls_seen.append((prompt, images, models))
         return answer
     return call
@@ -624,6 +628,15 @@ got = tri('In triangle ABC, AB = x, BC = 2x and angle B = 60 degrees. If AC = 9 
 assert (got['AB'], got['AC'], got['BC'], got['DEG_A'], got['DEG_B']) == ('2x', 'x', '9\\,\\mathrm{cm}', '60', '30'), got  # not "2 x" as a unit
 assert tri('In triangle PQR, PQ = x, QR = x + 2 and PR = 10. Find the angles.') == {'A': 'P', 'B': 'Q', 'C': 'R', 'AB': 'x', 'AC': '10', 'BC': 'x+2'}  # shape not fixed: labels only
 assert tri('In triangle ABC, angle A = 50 degrees, angle B = 60 degrees and AB = x + 1. Find x if BC = 7.')['AB'] == 'x+1'  # up to the full stop
+# A bracketed side and a surd side (2026-10-05 Q8): both went unread, so the shape
+# came from the model's guessed angles and was drawn wrong four times. Now
+# x^2 + 2x - 9 = 0 is solved (x = sqrt(10) - 1) to draw the shape; x is never labelled.
+got = tri('In triangle \\(ABC\\), \\(AB=x\\text{ cm}\\), \\(AC=(x+2)\\text{ cm}\\), \\(BC=\\sqrt{13}\\text{ cm}\\), and \\(\\angle BAC=60^\\circ\\), where \\(x>0\\). Use the cosine law to find the exact value of \\(x\\).')
+assert got == {'A': 'C', 'B': 'A', 'C': 'B', 'DEG_A': '31.29', 'DEG_B': '60', 'AB': 'x+2', 'AC': '\\sqrt{13}\\,\\mathrm{cm}', 'BC': 'x',
+               'ANG_A': '', 'ANG_B': '60^\\circ', 'ANG_C': ''}, got
+assert ns['_length_value']('2\\sqrt{3}') == 2 * math.sqrt(3) and ns['_length_value']('√13 cm') == math.sqrt(13) and ns['_length_value']('7 cm') == 7
+got = tri('In triangle ABC, AB = 2√3 cm, AC = 4 cm and angle A = 30 degrees. Find BC.')
+assert (got['C'], got['DEG_A'], got['DEG_B'], got['BC'], got['AB'], got['AC']) == ('B', '60', '30', '2\\sqrt{3}\\,\\mathrm{cm}', '4\\,\\mathrm{cm}', '?'), got  # BC = 2, B = 90: not "2" from 2√3
 filled = templates.fill(templates.get('triangle_general'), {'ANG_A': '64^\\circ'}, target='worksheet')
 assert 'draw opacity=1] ($(A)' in filled and 'draw opacity=0] ($(B)' in filled  # arcs only where labelled
 assert not {'SHOW_A', 'DEG_A'} - set(templates.get('triangle_general')['params']) and 'SHOW_A' not in templates.ai_spec(templates.get('triangle_general'))['keys']
@@ -855,6 +868,10 @@ ns['_gemini'] = lambda *a, **k: 'COSMETIC B: a label touches the curve'
 assert ns['_readiness_choice'](req, ('a', 'b'), (None, None), ('', '')) == (1, 'COSMETIC B: a label touches the curve')
 assert 'the graph of that function is wanted' in ns['_READINESS_RULES']  # asymptote questions keep their graph
 assert 'an empty grid or blank space to sketch on' in ns['_READINESS_RULES']  # a correct graph of sqrt(x) went blank for lacking one
+# The description is a guide (it carried worked-out coordinates on 2026-09-28) and
+# a regular grid does not reveal a point; labels/ticks/guides at worked-out values do.
+assert 'is a guide written by another model, not a requirement' in ns['_READINESS_RULES']
+assert 'true positions on a regular grid with evenly spaced ticks are correct' in ns['_READINESS_RULES']
 assert 'Never FAIL a correct diagram for a cosmetic reason' in ns['_READINESS_RULES'] and '"COSMETIC: <one short reason>"' in ns['_readiness_prompt'](req, 'x')
 saved = {k: ns[k] for k in ('_render', '_gemini', '_readiness_verdict', '_diagram_spec_prompt', '_visual_prompt')}
 def one_render(req_):
@@ -1143,6 +1160,71 @@ assert ns['_cool_model']('primary', None, 'high demand', 0) == 30
 ns['_lane_state'] = ns['_new_lane_state']()
 assert [ns['_pick_lane']()[0] for _ in range(4)] == [0, 1, 2, 3]
 assert 'k1' not in json.dumps(ns['_lane_report']())
+
+# Local model bridge (tools/codex_bridge): tried first when LLM_BRIDGE_URL is set,
+# the Gemini lanes answer on any bridge failure, and the token never reaches a trace.
+assert ns['LLM_BRIDGE_URL'] == '' and ns['_bridge_call']('x', False, None, 'plan') is None  # unset: Space unchanged
+def bridge_trial(bridge, gemini=lambda m: OK, keys=('k1',), as_json=False, images=None, role='plan', fresh=True):
+    clock, calls = [1000.0], []
+    def post(url, headers, json, timeout):
+        if url.startswith('http://bridge'):
+            calls.append(('bridge', json, headers))
+            outcome = bridge(json)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return FakeResponse(*outcome)
+        model = url.split('/models/')[1].split(':')[0]
+        calls.append(('gemini', model, None))
+        return FakeResponse(*gemini(model))
+    ns.update(GEMINI_KEYS=list(keys), GEMINI_MODELS=['primary'], GEMINI_MAX_ATTEMPTS=2, GEMINI_DEADLINE=180,
+              GEMINI_MAX_WAIT=0, GEMINI_TIMEOUT=90, _lane_state=ns['_new_lane_state'](), _last_success_model=None,
+              LLM_BRIDGE_URL='http://bridge:8765', LLM_BRIDGE_TOKEN='bridge-secret',
+              time=SimpleNamespace(time=lambda: clock[0], sleep=lambda s: clock.__setitem__(0, clock[0]+s)),
+              requests=SimpleNamespace(post=post, exceptions=SimpleNamespace(RequestException=OSError)))
+    if fresh:
+        ns['_bridge_state'] = {'lock': threading.Lock(), 'until': 0.0, 'last': ''}
+    ns['_job_trace'].events = []
+    try:
+        result = real_gemini('fixture', as_json=as_json, role=role, **({'images': images} if images else {}))
+    except RuntimeError as exc:
+        result = exc
+    return result, calls, ns['_job_trace'].events
+SOL = lambda text: (200, json.dumps({'text': text, 'model': 'gpt-6.1-sol', 'effort': 'medium', 'seconds': 7.1}))
+# Success: no Gemini call; the role, pictures and token go to the bridge.
+result, calls, events = bridge_trial(lambda body: SOL('drawn'), images=['aW1n'], role='draw')
+assert result == 'drawn' and [c[0] for c in calls] == ['bridge'], calls
+assert calls[0][1] == {'prompt': 'fixture', 'json': False, 'images': ['aW1n'], 'role': 'draw'}
+assert calls[0][2]['Authorization'] == 'Bearer bridge-secret'
+assert ns['_job_trace'].last_model == 'codex:gpt-6.1-sol' and ns['_job_trace'].last_pictured is True
+assert any(e['stage'] == 'model-success' and e['model'] == 'codex:gpt-6.1-sol' and e['effort'] == 'medium' for e in events)
+# JSON replies are parsed like Gemini's (fences, TeX escapes); unusable JSON falls back.
+result, calls, _ = bridge_trial(lambda body: SOL('```json\n{"tikz": "\\draw (0,0);"}\n```'), as_json=True)
+assert result == {'tikz': '\\draw (0,0);'} and calls[0][1]['json'] is True, result
+result, calls, _ = bridge_trial(lambda body: SOL('not json'), as_json=True,
+                                gemini=lambda m: (200, '{"candidates":[{"content":{"parts":[{"text":"{\\"a\\": 1}"}]}}]}'))
+assert result == {'a': 1} and [c[0] for c in calls] == ['bridge', 'gemini'], calls
+# The subscription's usage limit rests the bridge for its retry time; Gemini answers meanwhile.
+result, calls, events = bridge_trial(lambda body: (429, json.dumps({'error': 'usage limit', 'retry_after': 1200})))
+assert result == 'ok' and [c[0] for c in calls] == ['bridge', 'gemini'], calls
+assert ns['_bridge_state']['until'] == 2200 and any(e['stage'] == 'model-bridge-error' for e in events)
+result, calls, _ = bridge_trial(lambda body: SOL('unused'), fresh=False)
+assert result == 'ok' and [c[0] for c in calls] == ['gemini'], calls  # still resting: not asked
+# Bridge not running: Gemini answers, and the token is redacted from the trace.
+result, calls, events = bridge_trial(lambda body: OSError('connection refused for bridge-secret'))
+assert result == 'ok' and ns['_bridge_state']['until'] == 1060 and 'bridge-secret' not in json.dumps(events), events
+assert 'bridge-secret' not in ns['_bridge_state']['last']  # shown on /health
+# No Gemini keys (a local run with the bridge only): the bridge failure is the error.
+result, calls, _ = bridge_trial(lambda body: (502, json.dumps({'error': 'turn.failed'})), keys=())
+assert isinstance(result, RuntimeError) and 'turn.failed' in str(result) and len(calls) == 1, result
+assert ns['_llm_configured']()  # the bridge alone counts as a configured model
+# The picture check asks the bridge's verify model.
+seen = []
+ns['_gemini'] = lambda prompt, **kw: seen.append(kw) or 'PASS'
+assert ns['_readiness_call']('check', ['aW1n']) == 'PASS' and seen[0]['role'] == 'verify' and seen[0]['images'] == ['aW1n']
+ns['_gemini'] = real_gemini
+ns.update(LLM_BRIDGE_URL='', LLM_BRIDGE_TOKEN='', _bridge_state={'lock': threading.Lock(), 'until': 0.0, 'last': ''})
+del ns['_job_trace'].events
+print('PASS local model bridge: first choice, Gemini fallback, usage-limit rest, token redaction')
 
 # Routing diagnostics survive long model-retry traces.
 ns['_job_trace'].events = []

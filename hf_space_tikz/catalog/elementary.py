@@ -638,6 +638,10 @@ def _rational(text):
         return None
     if re.search(r'\b(?:empty|blank)\b[^.]{0,40}\b(?:grid|coordinate|axes|plane)\b|\b(?:grid|axes|plane)\b[^.]{0,30}\b(?:empty|blank)\b', low):
         return None  # the description wants a grid for the student to sketch on
+    if re.search(r'\b(?:triangles?|quadrilateral|parallelogram|polygon|rhombus|trapezoid|vertices|midpoint|perimeter)\b'
+                 r'|\bdistance\s+(?:between|from)\b|\barea\s+of\b', low) \
+            or re.search(r'\bpoints?\s+[A-Z]\b|\b[A-Z]\s*\(\s*-?\d', text):
+        return None  # the function only locates points of another figure (a triangle vertex on an asymptote)
     found = []
     for m in re.finditer(r'(?<![A-Za-z])(?:[a-z]\s*\(\s*x\s*\)|y)\s*=', text):
         f = _rational_at(text, m.end())

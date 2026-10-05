@@ -42,6 +42,7 @@ fa.FastAPI = _FastAPI
 _stub("fastapi.middleware")
 _cors = _stub("fastapi.middleware.cors")
 _cors.CORSMiddleware = object
+_stub("fastapi.middleware.trustedhost").TrustedHostMiddleware = object
 _resp = _stub("fastapi.responses")
 _resp.JSONResponse = type("JSONResponse", (), {"__init__": lambda self, *a, **k: None})
 _req = _stub("requests")

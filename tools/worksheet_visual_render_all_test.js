@@ -19,6 +19,7 @@ const renderTikzWorksheet = new Function(
   'renderTikzCode',
   'sdCleanTikz',
   'noteVisualFailures',
+  'tikzPrepareLocal',
   src + '\nreturn renderTikzWorksheet;'
 )(
   () => true,
@@ -30,7 +31,8 @@ const renderTikzWorksheet = new Function(
   }),
   async () => '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
   value => String(value || '').trim(),
-  () => {}
+  () => {},
+  async () => {}
 );
 
 (async () => {

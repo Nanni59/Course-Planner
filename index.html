@@ -3537,6 +3537,12 @@
         .st-genstep.active { color: var(--color-study); font-weight:600; }
         .st-genstep.active .st-gs-dot { background: var(--color-study); animation: stPulse 1s ease infinite; }
         @keyframes stPulse { 0%,100%{ box-shadow:0 0 0 0 rgba(88,166,92,0.4);} 50%{ box-shadow:0 0 0 6px rgba(88,166,92,0);} }
+        .st-genstep.failed { color:#d14343; font-weight:600; }
+        .st-genstep.failed .st-gs-dot { background:#d14343; }
+        /* Local diagram service start/stop progress (Connect API) */
+        .st-local-steps { margin-top:12px; display:flex; flex-direction:column; gap:10px; }
+        .st-local-steps .st-genstep { justify-content:flex-start; }
+        .st-local-steps .st-ls-time { margin-left:auto; font-size:12px; font-variant-numeric: tabular-nums; color:#9097a6; font-weight:500; }
 
         /* ---------- Worksheet A4 sheet ---------- */
         .st-ws-bar { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
@@ -6895,11 +6901,13 @@
             let hasUnsavedChanges = false;
             let cpConfirmModal = null;
             let cpConfirmAction = null;
+            let cpConfirmCancel = null;  // options.onCancel: a caller awaiting either answer
 
             function ensureAppConfirmModal() {
                 if (cpConfirmModal) return cpConfirmModal;
                 const runConfirmAction = () => {
                     const action = cpConfirmAction;
+                    cpConfirmCancel = null;
                     hideAppConfirmModal();
                     if (action) action();
                 };
@@ -6943,14 +6951,20 @@
                 modal.querySelector('[data-cp-confirm-message]').textContent = message;
                 modal.querySelector('[data-cp-confirm]').textContent = options.confirmText || 'Continue';
                 modal.querySelector('[data-cp-cancel]').textContent = options.cancelText || 'Cancel';
+                const replaced = cpConfirmCancel;
+                cpConfirmCancel = typeof options.onCancel === 'function' ? options.onCancel : null;
+                if (replaced) replaced();  // a dialog shown over another counts as its cancel
                 cpConfirmAction = onConfirm;
                 modal.classList.add('open');
                 setTimeout(() => modal.querySelector('[data-cp-confirm]').focus(), 50);
             }
 
             function hideAppConfirmModal() {
+                const cancel = cpConfirmCancel;
+                cpConfirmCancel = null;
                 cpConfirmAction = null;
                 if (cpConfirmModal) cpConfirmModal.classList.remove('open');
+                if (cancel) cancel();
             }
 
             // Study Tools runs in its own <script> scope and can't see this directly. Export it
@@ -14144,6 +14158,121 @@
         // "Manim video" option stays hidden. Setup steps: hf_space/README.md.
         const HF_SPACE_URL = "https://nanni59-manim-renderer.hf.space";
         const TIKZ_SPACE_URL = "https://nanni59-tikz-renderer.hf.space";
+        // A copy of the TikZ service run on this computer (tools/local_tikz, drawing with
+        // the owner's Codex sign-in). Its settings stay hidden until the site is opened
+        // once with ?tikz=local on a device (?tikz=space hides them again); other visitors
+        // never see them. When it is chosen but not answering, diagrams use the Space.
+        // Device settings, kept out of backups like cp_lastActiveTab; only this loopback
+        // address is ever used.
+        const TIKZ_DEVICE_KEY = 'cp_tikz_backend';      // 'local': draw with this computer's service
+        const TIKZ_DEVICE_UI_KEY = 'cp_tikz_local_ui';  // '1': show its settings on this device
+        const TIKZ_LOCAL_URL = 'http://localhost:7860';
+        const TIKZ_LAUNCHER = 'courseplanner-tikz-';  // + 'start:' / 'stop:', tools/local_tikz/install-launcher.ps1
+        (() => {
+            try {
+                const params = new URLSearchParams(location.search);
+                const choice = params.get('tikz');
+                if (choice === 'local') { localStorage.setItem(TIKZ_DEVICE_UI_KEY, '1'); localStorage.setItem(TIKZ_DEVICE_KEY, 'local'); }
+                if (choice === 'space') { localStorage.removeItem(TIKZ_DEVICE_UI_KEY); localStorage.removeItem(TIKZ_DEVICE_KEY); }
+                if (choice) {
+                    params.delete('tikz');
+                    const rest = params.toString();
+                    history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+                }
+            } catch (e) { /* storage blocked: the Space only */ }
+        })();
+        const tikzLocalShown = () => { try { return localStorage.getItem(TIKZ_DEVICE_UI_KEY) === '1'; } catch (e) { return false; } };
+        const tikzLocalWanted = () => { try { return tikzLocalShown() && localStorage.getItem(TIKZ_DEVICE_KEY) === 'local'; } catch (e) { return false; } };
+        let tikzLocalProbe = { at: 0, ok: false, pending: null };
+        // Is the local service answering? Cached briefly so a worksheet's visuals share one probe.
+        function tikzLocalUp(maxAgeMs) {
+            if (tikzLocalProbe.pending) return tikzLocalProbe.pending;
+            if (Date.now() - tikzLocalProbe.at < (maxAgeMs == null ? 15000 : maxAgeMs)) return Promise.resolve(tikzLocalProbe.ok);
+            tikzLocalProbe.pending = tikzFetch(TIKZ_LOCAL_URL + '/health', { cache: 'no-store' }, 2500)
+                .then(res => res.ok ? res.json() : null)
+                .then(h => !!(h && h.status === 'ok'), () => false)
+                .then(ok => { tikzLocalProbe = { at: Date.now(), ok, pending: null }; return ok; });
+            return tikzLocalProbe.pending;
+        }
+        let tikzFallbackNoted = false;
+        // The renderer for the next diagram: this computer's service when chosen and up,
+        // otherwise the Space (noted once per page so a missing service is not silent).
+        async function tikzBase() {
+            if (!tikzLocalWanted()) return TIKZ_SPACE_URL;
+            if (await tikzLocalUp()) return TIKZ_LOCAL_URL;
+            if (!tikzFallbackNoted) {
+                tikzFallbackNoted = true;
+                toast('The local diagram service is not running, so diagrams use the online renderer. Start it from Connect API.', 'err');
+            }
+            return TIKZ_SPACE_URL;
+        }
+        // Start or stop the local service through its launcher link: one fixed link per
+        // action, which passes nothing to the script. The browser asks before opening it;
+        // without the launcher installed nothing happens and the Space keeps drawing.
+        function tikzLauncher(action) {
+            const a = document.createElement('a');
+            a.href = TIKZ_LAUNCHER + (action === 'stop' ? 'stop' : 'start') + ':';
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+        const TIKZ_BRIDGE_URL = 'http://127.0.0.1:8765';
+        // Is the Codex bridge's port open? It refuses browser requests, so only whether
+        // anything answers is read (an opaque reply), never its content.
+        function tikzBridgeUp() {
+            return tikzFetch(TIKZ_BRIDGE_URL + '/health', { mode: 'no-cors', cache: 'no-store' }, 2000).then(() => true, () => false);
+        }
+        // Follow a start or stop by what the browser can see. The launcher opens the
+        // bridge's port only once Docker is ready, then starts the diagram service, so:
+        // Docker is done when the bridge (or the service) answers, the bridge when its
+        // port opens, the service when /health answers; stopping runs the other way.
+        // onUpdate(steps, seconds) after each check; resolves true when every step is done.
+        async function tikzFollowLauncher(action, onUpdate, timeoutMs) {
+            const stop = action === 'stop';
+            const steps = (stop
+                ? ['Stopping the diagram service', 'Stopping the Codex bridge', 'Closing Docker Desktop (finishes in the background)']
+                : ['Starting Docker Desktop', 'Starting the Codex bridge', 'Starting the diagram service']).map(label => ({ label, state: 'pending' }));
+            const started = Date.now();
+            for (;;) {
+                const [bridge, service] = await Promise.all([tikzBridgeUp(), tikzLocalUp(0)]);
+                const done = stop ? [!service, !service && !bridge, !service && !bridge]
+                                  : [bridge || service, bridge || service, service];
+                // steps finish in order: a later one is done only when the earlier ones are
+                let open = done.findIndex(d => !d);
+                steps.forEach((s, i) => { s.state = open === -1 || i < open ? 'done' : i === open ? 'active' : 'pending'; });
+                const secs = Math.round((Date.now() - started) / 1000);
+                if (open === -1) { onUpdate(steps, secs); return true; }
+                if (Date.now() - started > timeoutMs) {
+                    steps[open].state = 'failed';
+                    onUpdate(steps, secs);
+                    return false;
+                }
+                onUpdate(steps, secs);
+                await wait(2000);
+            }
+        }
+        // Before a worksheet's visuals: local mode with the service off offers to start it.
+        // "Use online" (or no answer within two minutes) draws this worksheet on the Space.
+        async function tikzPrepareLocal(progress) {
+            if (!tikzLocalWanted() || await tikzLocalUp(0)) return;
+            const start = await new Promise(resolve => {
+                const msg = 'The local diagram service on this computer is not running. Start it now (about 30 to 60 seconds), or draw this worksheet’s diagrams with the online renderer?';
+                if (typeof window.cpConfirm === 'function') {
+                    window.cpConfirm(msg, () => resolve(true), { title: 'Start local diagrams?', confirmText: 'Start it', cancelText: 'Use online', onCancel: () => resolve(false) });
+                } else resolve(window.confirm(msg));
+            });
+            if (!start) { tikzFallbackNoted = true; return; }
+            tikzLauncher('start');
+            const up = await tikzFollowLauncher('start', (steps, s) => {
+                const step = steps.find(x => x.state === 'active' || x.state === 'failed');
+                if (progress && step) progress.detail(step.label + ' (' + s + ' s)');
+            }, 180000);
+            if (!up) {
+                tikzFallbackNoted = true;
+                toast('The local diagram service did not start, so this worksheet uses the online renderer.', 'err');
+            }
+        }
         const hfReady = () => /^https:\/\/\S+/.test(HF_SPACE_URL) && HF_SPACE_URL.indexOf('YOUR-SPACE') === -1;
         const tikzReady = () => /^https:\/\/\S+/.test(TIKZ_SPACE_URL) && TIKZ_SPACE_URL.indexOf('YOUR-SPACE') === -1;
         const getModel = () => localStorage.getItem(ST_MODEL_STORE) || DEFAULT_MODEL;
@@ -15583,7 +15712,7 @@
         function tikzPrompt(kind) {
             const target = kind || 'content';
             if (/worksheet/i.test(target)) {
-                return '\nTextbook visuals are enabled for this worksheet, but do NOT write TikZ code in the question JSON yourself. Leave "tikz", "tikzSvg", and image fields empty. A separate backend renderer will create clean SVG diagrams after the worksheet text is generated. Keep "q" strictly student-facing, with all givens needed to solve the question. Put drawing instructions, axis bounds, layout, labels, and answer-hiding requirements in "visualDescription", never in "q". The user may give only a broad topic and is not expected to request individual diagrams: choose a varied set of appropriate questions and independently write a precise visualDescription whenever a diagram materially helps. Copy any explicit diagram requirements from the user. For graphs and data displays, repeat the exact function or data, domain, axis bounds, ticks, shading, endpoints, and open/closed points needed to draw the question unambiguously. For named angles XYZ, Y is the vertex; request the smaller interior angle unless the question explicitly says exterior, reflex, or major. Leave visualDescription empty for text-only questions. Clearly name needed points, sides, angles, axes, vectors, bearings, coordinates, and labels. Do not put the worked answer in visualDescription. When the student must find or show a solution, describe only the setup: for an inequality to solve and show on a number line, ask for a blank number line with its range and ticks, never the boundary circle, shading or arrow. Labels may show only values stated in "q"; never ask for values the student must calculate, such as Venn region counts, tree branch probabilities, constraint equations or distances from speed and time.';
+                return '\nTextbook visuals are enabled for this worksheet, but do NOT write TikZ code in the question JSON yourself. Leave "tikz", "tikzSvg", and image fields empty. A separate backend renderer will create clean SVG diagrams after the worksheet text is generated. Keep "q" strictly student-facing, with all givens needed to solve the question. Put drawing instructions, axis bounds, layout, labels, and answer-hiding requirements in "visualDescription", never in "q". The user may give only a broad topic and is not expected to request individual diagrams: choose a varied set of appropriate questions and independently write a precise visualDescription whenever a diagram materially helps. Copy any explicit diagram requirements from the user. For graphs and data displays, repeat the exact function or data, domain, axis bounds, ticks, shading, endpoints, and open/closed points needed to draw the question unambiguously. For named angles XYZ, Y is the vertex; request the smaller interior angle unless the question explicitly says exterior, reflex, or major. Leave visualDescription empty for text-only questions. Clearly name needed points, sides, angles, axes, vectors, bearings, coordinates, and labels. Do not put the worked answer in visualDescription. When the student must find or show a solution, describe only the setup: for an inequality to solve and show on a number line, ask for a blank number line with its range and ticks, never the boundary circle, shading or arrow. Labels may show only values stated in "q"; never ask for values the student must calculate, such as Venn region counts, tree branch probabilities, constraint equations or distances from speed and time. visualDescription must never contain any value the student works out, including intermediate steps: no coordinates of points found from intersections, asymptotes, midpoints or earlier parts, no computed side lengths or angles. Refer to such a point by its name only (for example "point A, where the line meets the asymptote"); the renderer locates it from "q".';
             }
             return '\nTextbook visuals are enabled, but do NOT write TikZ code yourself. Leave "tikzSvg" empty. A separate backend renderer draws every diagram after the text is generated, so all visuals across the worksheet, study guide, flashcard and slide generators share one clean black/gray textbook style. Your job is only to say WHERE a diagram helps and to describe it in plain words — clearly name the points, sides, angles, axes, curves, vectors, bearings, coordinates, regions, and labels the diagram needs for ' + target + '. Only ask for a diagram with real drawing content (graphs, geometry, number lines, vectors, force diagrams, probability trees, regions under a curve). Do not request a diagram for standalone formulas, definitions, statements, or proofs; put formulas in the normal text/equation fields instead.';
         }
@@ -16169,7 +16298,7 @@
             }
         }
         async function renderTikzCode(code, target) {
-            const res = await tikzFetch(TIKZ_SPACE_URL + '/render', {
+            const res = await tikzFetch((await tikzBase()) + '/render', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code: sdCleanTikz(code), format: 'svg', theme: 'mono', target: target || 'generic' })
@@ -16181,8 +16310,11 @@
         async function generateTikzVisual(payload) {
             payload = Object.assign({ format: 'svg' }, payload || {}, { theme: 'mono' });
             let jobId = '', stage = 'submit', diagnostics = [];
+            // one renderer for the whole job: a job id belongs to the service that made it
+            const base = await tikzBase();
+            const backend = base === TIKZ_SPACE_URL ? 'space' : 'local';
             try {
-            const res = await tikzFetch(TIKZ_SPACE_URL + '/generate', {
+            const res = await tikzFetch(base + '/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -16198,13 +16330,14 @@
                 const maxWait = 300000;
                 while (Date.now() - started < maxWait) {
                     await wait(1800);
-                    const sres = await tikzFetch(TIKZ_SPACE_URL + '/status/' + encodeURIComponent(out.job_id), { cache: 'no-store' }, 30000);
+                    const sres = await tikzFetch(base + '/status/' + encodeURIComponent(out.job_id), { cache: 'no-store' }, 30000);
                     const st = await sres.json().catch(() => null);
                     if (st && Array.isArray(st.diagnostics)) diagnostics = st.diagnostics;
                     if (!sres.ok) throw new Error(st && st.error || ('TikZ status failed: ' + sres.status));
                     if (st && st.status === 'completed' && (st.svg || st.base64)) {
                         st.ok = true;
                         st.job_id = jobId;
+                        st.backend = backend;
                         return st;
                     }
                     if (st && st.status === 'failed') { stage = 'backend'; throw new Error(st.error || 'TikZ generation failed.'); }
@@ -16213,11 +16346,11 @@
             }
             // Backward-compatible path for older deployed Spaces that still return
             // the rendered diagram directly.
-            if (res.ok && out && out.ok && (out.svg || out.base64)) return out;
+            if (res.ok && out && out.ok && (out.svg || out.base64)) return Object.assign(out, { backend: backend });
             throw new Error(out && (out.error || out.log) || ('TikZ generation failed: ' + res.status));
             } catch (error) {
                 const e = error instanceof Error ? error : new Error(String(error));
-                e.visualDiagnostic = { status: 'failed', stage: stage, jobId: jobId, error: e.message, events: diagnostics };
+                e.visualDiagnostic = { status: 'failed', stage: stage, jobId: jobId, backend: backend, error: e.message, events: diagnostics };
                 throw e;
             }
         }
@@ -16363,7 +16496,7 @@
                     });
                     q.tikzSvg = out.svg || '';
                     q.tikzPng = out.base64 || '';
-                    q.visualDiagnostic = { status: 'completed', jobId: out.job_id || '', source: out.source || '', events: out.diagnostics || [] };
+                    q.visualDiagnostic = { status: 'completed', jobId: out.job_id || '', source: out.source || '', backend: out.backend || '', events: out.diagnostics || [] };
                 } catch (e) {
                     q.visualDiagnostic = e.visualDiagnostic || { status: 'failed', stage: 'request', error: String(e.message || e) };
                     if (sdCleanTikz(q.tikz)) {
@@ -16387,6 +16520,7 @@
                     }
                 }
             };
+            if (aiCandidates.length) await tikzPrepareLocal(progress);
             const workers = Array.from({ length: Math.min(3, aiCandidates.length) }, async () => {
                 while (nextVisual < aiCandidates.length) {
                     const q = aiCandidates[nextVisual++];
@@ -17449,6 +17583,19 @@
             '<span class="st-tp-label">Tell me when a generation finishes</span>' +
             '<span class="st-tp-state">Off</span></button>' +
             '<div class="st-panel-hint" style="margin-top:8px">Generations keep running while you use the rest of the planner — the Study Tools button shows a live progress ring. Switch this on and your browser will also notify you when one lands, even while you’re on another site or app. This tab has to stay open: closing it stops the generation.</div></div>' +
+            // Shown only on a device opened once with ?tikz=local (see TIKZ_DEVICE_UI_KEY).
+            '<div class="st-field" id="stLocalTikz" hidden><label>Local diagram service</label>' +
+            '<button type="button" class="st-toggle-pill" id="stLocalToggle">' +
+            '<span class="st-tp-ico">Tk</span>' +
+            '<span class="st-tp-label">Draw diagrams with the service on this computer</span>' +
+            '<span class="st-tp-state">Off</span></button>' +
+            '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">' +
+            '<span id="stLocalDot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#9aa0a6"></span>' +
+            '<span id="stLocalStatus" style="flex:1;min-width:120px">Checking…</span>' +
+            '<button type="button" class="st-btn st-btn-ghost" id="stLocalStart">Start</button>' +
+            '<button type="button" class="st-btn st-btn-ghost" id="stLocalStop">Stop</button></div>' +
+            '<div class="st-local-steps" id="stLocalSteps" hidden role="status" aria-live="polite"></div>' +
+            '<div class="st-panel-hint" style="margin-top:8px">Uses Codex on this computer through Docker. Start and Stop need the launcher from tools/local_tikz/install-launcher.ps1; your browser asks before opening it. Whenever the service is off, diagrams use the online renderer.</div></div>' +
             '<div class="st-actions"><button class="st-btn" id="stKeySave">Save settings</button>' +
             '<button class="st-btn st-btn-ghost" id="stKeyClear">Clear key</button>' +
             '<button class="st-btn st-btn-ghost" id="stKeyCancel">Cancel</button></div>' +
@@ -17494,16 +17641,84 @@
             }).catch(() => setNotifyToggleUI(false));
         });
 
+        // Local diagram service: on/off for this device, a live status light while the
+        // dialog is open, and Start/Stop through the launcher link.
+        const localBox = modal.querySelector('#stLocalTikz');
+        const localToggle = modal.querySelector('#stLocalToggle');
+        const localDot = modal.querySelector('#stLocalDot');
+        const localStatus = modal.querySelector('#stLocalStatus');
+        const localSteps = modal.querySelector('#stLocalSteps');
+        const localStartBtn = modal.querySelector('#stLocalStart');
+        const localStopBtn = modal.querySelector('#stLocalStop');
+        let localPoll = null, localBusy = '';
+        function setLocalToggleUI(on) {
+            localToggle.classList.toggle('on', on);
+            localToggle.querySelector('.st-tp-state').textContent = on ? 'On' : 'Off';
+        }
+        async function refreshLocalStatus() {
+            if (localBusy) return;  // the progress panel owns the status while it runs
+            const up = await tikzLocalUp(0);
+            if (localBusy) return;  // a start/stop began during the check
+            localDot.style.background = up ? '#2e9d57' : '#9aa0a6';
+            localStatus.textContent = up ? 'Running on this computer' : 'Not running: diagrams use the online renderer';
+        }
+        // Start / Stop with a step-by-step progress panel.
+        async function runLocalLauncher(action) {
+            if (localBusy) return;
+            localBusy = action;
+            localStartBtn.disabled = localStopBtn.disabled = true;
+            localDot.style.background = '#e0a020';
+            localStatus.textContent = action === 'stop' ? 'Stopping…' : 'Starting… (about a minute from cold)';
+            tikzLauncher(action);
+            const ok = await tikzFollowLauncher(action, (steps, secs) => {
+                localSteps.hidden = false;
+                localSteps.innerHTML = steps.map(s => '<div class="st-genstep ' + (s.state === 'pending' ? '' : s.state) + '">' +
+                    '<span class="st-gs-dot">' + (s.state === 'done' ? I.check : s.state === 'failed' ? '!' : '') + '</span>' +
+                    '<span>' + esc(s.label) + '</span>' +
+                    (s.state === 'active' || s.state === 'failed' ? '<span class="st-ls-time">' + secs + ' s</span>' : '') + '</div>').join('') +
+                    (secs >= 20 && steps[0].state === 'active' && action === 'start'
+                        ? '<div class="st-panel-hint" style="margin:0">Nothing yet? Allow the link if the browser asked, and check that the launcher is installed (tools/local_tikz/install-launcher.ps1).</div>' : '');
+            }, action === 'stop' ? 60000 : 180000);
+            localBusy = '';
+            localStartBtn.disabled = localStopBtn.disabled = false;
+            if (!ok) {
+                localSteps.insertAdjacentHTML('beforeend', '<div class="st-panel-hint" style="margin:0">' + (action === 'stop'
+                    ? 'It did not stop. See tools/local_tikz/launcher.log.'
+                    : 'It did not start, so diagrams use the online renderer. See tools/local_tikz/launcher.log.') + '</div>');
+            } else {
+                setTimeout(() => { if (!localBusy) localSteps.hidden = true; }, 4000);
+            }
+            tikzFallbackNoted = false;
+            refreshLocalStatus();
+        }
+        localToggle.addEventListener('click', () => {
+            const on = !localToggle.classList.contains('on');
+            try { if (on) localStorage.setItem(TIKZ_DEVICE_KEY, 'local'); else localStorage.removeItem(TIKZ_DEVICE_KEY); } catch (e) { /* blocked storage */ }
+            tikzFallbackNoted = false;
+            setLocalToggleUI(on);
+        });
+        localStartBtn.addEventListener('click', () => runLocalLauncher('start'));
+        localStopBtn.addEventListener('click', () => runLocalLauncher('stop'));
+
         function openApiModal() {
             keyInput.value = (localStorage.getItem(ST_KEY_STORE) || '');
             modelInput.value = getModel();
             // Reads the live permission too, so revoking it in the browser is
             // reflected here instead of leaving the toggle stuck On.
             setNotifyToggleUI(stNotifyEnabled());
+            localBox.hidden = !tikzLocalShown();
+            if (!localBox.hidden) {
+                setLocalToggleUI(tikzLocalWanted());
+                if (!localBusy) localSteps.hidden = true;
+                refreshLocalStatus();
+                clearInterval(localPoll);
+                localPoll = setInterval(refreshLocalStatus, 4000);
+            }
             modal.classList.add('open');
             setTimeout(() => keyInput.focus(), 50);
         }
-        function closeApiModal() { modal.classList.remove('open'); }
+        // A start/stop in progress keeps running if the dialog closes; its panel shows on reopening.
+        function closeApiModal() { modal.classList.remove('open'); clearInterval(localPoll); localPoll = null; }
         modal.addEventListener('click', e => { if (e.target === modal) closeApiModal(); });
         modal.querySelector('#stKeyCancel').addEventListener('click', closeApiModal);
         modal.querySelector('#stKeySave').addEventListener('click', () => {

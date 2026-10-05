@@ -37,6 +37,7 @@ except ImportError:  # test harness stubs only FastAPI
         def add_task(self, *args, **kwargs):
             return None
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -65,7 +66,7 @@ def _diagnostic(stage: str, detail: str = "", **metadata) -> None:
     events = getattr(_job_trace, "events", None)
     if events is None:
         return
-    for key in GEMINI_KEYS:
+    for key in _secret_values():
         detail = detail.replace(key, "[redacted]")
     # A LaTeX log tail opens with package-loading noise; keep its "!" error
     # lines, which the first 500 characters never reached.
@@ -97,7 +98,7 @@ def _tikz_excerpt(code: str, events: list) -> str:
     # into the middle of its drawing code.
     lines = (re.sub(r"(?<!\\)%.*", "", line) for line in str(code or "").splitlines())
     code = "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in lines if line.strip())
-    for key in GEMINI_KEYS:
+    for key in _secret_values():
         code = code.replace(key, "[redacted]")
     if len(code) > _TIKZ_EXCERPT_CHARS:
         head = _TIKZ_EXCERPT_CHARS * 2 // 3
@@ -108,12 +109,20 @@ def _tikz_excerpt(code: str, events: list) -> str:
 
 app = FastAPI(title="Course Planner TikZ Renderer")
 
+# A locally run copy (tools/local_tikz) draws on the owner's Codex plan, so only
+# the owner's pages may call it (CORS_ORIGINS) and only under a local host name
+# (TRUSTED_HOSTS: a rebinding domain pointed at 127.0.0.1 is refused). The Space
+# leaves both unset: any origin, any host, as before.
+CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()] or ["*"]
+TRUSTED_HOSTS = [h.strip() for h in os.environ.get("TRUSTED_HOSTS", "").split(",") if h.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+if TRUSTED_HOSTS:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=TRUSTED_HOSTS)
 
 
 MAX_CODE_CHARS = int(os.environ.get("MAX_CODE_CHARS", "12000"))
@@ -152,6 +161,14 @@ GEMINI_KEYS = [
     )
     if k
 ]
+# Optional local model bridge (tools/codex_bridge: Codex CLI on the owner's PC,
+# for a locally run copy of this service). When LLM_BRIDGE_URL is set, every
+# model call tries the bridge first and falls back to the Gemini lanes on any
+# failure. Unset on the Space, which then behaves exactly as before.
+LLM_BRIDGE_URL = os.environ.get("LLM_BRIDGE_URL", "").strip().rstrip("/")
+LLM_BRIDGE_TOKEN = os.environ.get("LLM_BRIDGE_TOKEN", "").strip()
+LLM_BRIDGE_TIMEOUT = (5, int(os.environ.get("LLM_BRIDGE_TIMEOUT", "240")))
+_bridge_state = {"lock": threading.Lock(), "until": 0.0, "last": ""}
 _last_success_model = None
 _last_success_model_lock = threading.Lock()
 
@@ -609,14 +626,96 @@ def _is_gemma(model: str) -> bool:
     return model.startswith("gemma-")
 
 
+def _secret_values() -> list[str]:
+    """Everything redacted from diagnostics and job errors."""
+    return GEMINI_KEYS + ([LLM_BRIDGE_TOKEN] if LLM_BRIDGE_TOKEN else [])
+
+
+def _llm_configured() -> bool:
+    """A model can be asked: Gemini keys, or the local bridge."""
+    return bool(GEMINI_KEYS or LLM_BRIDGE_URL)
+
+
+def _bridge_failed(reason: str, rest: float) -> None:
+    """Record a bridge failure and rest the bridge; the caller uses Gemini."""
+    for secret in _secret_values():  # the reason reaches /health and the log
+        reason = reason.replace(secret, "[redacted]")
+    with _bridge_state["lock"]:
+        _bridge_state["last"] = reason
+        _bridge_state["until"] = max(_bridge_state["until"], time.time() + rest)
+    _diagnostic("model-bridge-error", reason, rest_s=round(rest))
+    print(f"[bridge] {reason} - resting it {rest:.0f} s.", flush=True)
+    return None
+
+
+def _bridge_call(prompt: str, as_json: bool, images: list[str] | None, role: str) -> str | None:
+    """One call to the local model bridge: its reply text, or None when the
+    bridge is off, resting, or failed (the Gemini lanes then answer). role is
+    "plan" (fit checks, parameters, diagram plans), "draw" (TikZ) or "verify"
+    (the picture check); the bridge maps each to a model."""
+    if not LLM_BRIDGE_URL:
+        return None
+    with _bridge_state["lock"]:
+        if _bridge_state["until"] > time.time():
+            return None
+    _diagnostic("model-attempt", model="bridge", role=role)
+    try:
+        res = requests.post(
+            LLM_BRIDGE_URL + "/complete",
+            headers={"Authorization": "Bearer " + LLM_BRIDGE_TOKEN, "Content-Type": "application/json"},
+            json={"prompt": prompt, "json": bool(as_json), "images": list(images or []), "role": role},
+            timeout=LLM_BRIDGE_TIMEOUT,
+        )
+    except requests.exceptions.RequestException as exc:
+        return _bridge_failed(f"bridge unreachable: {str(exc)[:160]}", 60)
+    try:
+        data = res.json()
+    except ValueError:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    text = data.get("text")
+    if res.status_code != 200 or not isinstance(text, str) or not text.strip():
+        reason = f"bridge error {res.status_code}: {str(data.get('error') or '')[:200]}"
+        if res.status_code == 429:  # the subscription's usage limit
+            try:
+                rest = float(data.get("retry_after") or 900)
+            except (TypeError, ValueError):
+                rest = 900.0
+        elif res.status_code in (401, 403):
+            rest = 3600.0
+        else:
+            rest = 10.0
+        return _bridge_failed(reason, rest)
+    label = "codex:" + str(data.get("model") or "default")[:60]
+    global _last_success_model
+    with _last_success_model_lock:
+        _last_success_model = label
+    _job_trace.last_model = label
+    _job_trace.last_pictured = bool(images)
+    _diagnostic("model-success", model=label, role=role, effort=str(data.get("effort") or "")[:20], seconds=data.get("seconds"))
+    print(f"[bridge] success using {label} ({role}).", flush=True)
+    return text
+
+
 def _gemini(prompt: str, as_json: bool = False, temperature: float = 0.25, images: list[str] | None = None,
-            models: list[str] | None = None):
+            models: list[str] | None = None, role: str = "plan"):
     """images: base64 PNGs sent after the prompt to Gemini models. Gemma lanes get
     the prompt alone: image input on the hosted Gemma API is not established, and
     a refused Gemma request rests that model for an hour. models: only these
-    lanes (None = all)."""
+    lanes (None = all). role: the local bridge's model choice, tried first when
+    LLM_BRIDGE_URL is set."""
+    text = _bridge_call(prompt, as_json, images, role)
+    if text is not None:
+        if not as_json:
+            return text
+        try:
+            return json.loads(_json_tex_escapes(_strip_fence(text)))
+        except (ValueError, json.JSONDecodeError) as exc:
+            _diagnostic("model-unusable-output", f"bridge returned unusable JSON: {type(exc).__name__}",
+                        model=getattr(_job_trace, "last_model", "bridge"))
     if not GEMINI_KEYS:
-        raise RuntimeError("No Gemini API key is set on the Space.")
+        raise RuntimeError(_bridge_state["last"] or "No Gemini API key is set on the Space.")
 
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -1134,8 +1233,24 @@ def _extract_triangle_angles(text: str, vertices: tuple[str, str, str]) -> dict[
 # "has length" were read, so a stated 7 was dropped)
 _SIDE_LINK = (r"(?:=|is\s+exactly|is\s+equal\s+to|is\s+labell?ed(?:\s+as)?|labell?ed(?:\s+as)?|is|measures|"
               r"has\s+(?:a\s+)?length(?:\s+of)?|of\s+length)")
-# a side length linear in one unknown: "x", "2x", "x + 3", "3x - 1.5"
-_SIDE_EXPR = r"(?:\d+(?:\.\d+)?\s*\*?\s*)?[a-z](?:\s*[-+]\s*\d+(?:\.\d+)?)?"
+# a side length linear in one unknown: "x", "2x", "x + 3", "3x - 1.5", or one of
+# them in brackets ("AC = (x + 2) cm" left the side unread on 2026-10-05)
+_SIDE_EXPR = (r"(?:\(\s*(?:\d+(?:\.\d+)?\s*\*?\s*)?[a-z](?:\s*[-+]\s*\d+(?:\.\d+)?)?\s*\)"
+              r"|(?:\d+(?:\.\d+)?\s*\*?\s*)?[a-z](?:\s*[-+]\s*\d+(?:\.\d+)?)?)")
+
+
+def _surd_tex(value: str) -> str:
+    """"2√3", "sqrt(13)", "2 \\sqrt { 3 }" -> "2\\sqrt{3}"; else unchanged."""
+    m = re.match(r"\s*(\d+(?:\.\d+)?)?\s*(?:\\sqrt\s*\{\s*|√\s*|sqrt\s*\(\s*)(\d+(?:\.\d+)?)", str(value or ""))
+    return (m.group(1) or "") + "\\sqrt{" + m.group(2) + "}" if m else str(value or "")
+
+
+def _length_value(value: str) -> float | None:
+    """A stated length as a number: 7 cm -> 7, 2\\sqrt{3} -> 3.46...; else None."""
+    m = re.match(r"\s*(\d+(?:\.\d+)?)?\s*(?:\\sqrt\s*\{\s*|√\s*|sqrt\s*\(\s*)(\d+(?:\.\d+)?)", str(value or ""))
+    if m:
+        return float(m.group(1) or 1) * math.sqrt(float(m.group(2)))
+    return _first_number(value)
 
 
 def _extract_triangle_sides(text: str, vertices: tuple[str, str, str]) -> dict[str, str]:
@@ -1156,6 +1271,12 @@ def _extract_triangle_sides(text: str, vertices: tuple[str, str, str]) -> dict[s
         out.setdefault(x + y, _tex_label(value))
     for x, y, value in re.findall(r"\bdistance\s+(?:from|between)\s+([A-Z])\s+(?:to|and)\s+([A-Z])\b[^0-9]*?(" + num + r")", text, re.I):
         out.setdefault(x + y, _tex_label(value))
+    # Surd lengths ("BC = \sqrt{13} cm", "BC = 2√3"): the loops above read no
+    # value from them, or only the 2 of 2√3.
+    surd = r"((?:\d+(?:\.\d+)?\s*)?(?:\\sqrt\s*\{\s*\d+(?:\.\d+)?\s*\}|√\s*\d+(?:\.\d+)?|sqrt\s*\(\s*\d+(?:\.\d+)?\s*\)))"
+    for label, value, unit in re.findall(r"\b([a-z]|[A-Z]{2})\s*" + _SIDE_LINK + r"\s*" + surd
+                                         + r"(?:\s*(cm|mm|km|m|in|ft|yd|mi|units?)\b)?", text):
+        out[label] = _surd_tex(value) + (" " + unit if unit else "")
     a, b, c = vertices
     defaults = {
         (b + c): out.get(a.lower(), a.lower()),
@@ -1179,18 +1300,19 @@ def _triangle_side_expressions(text: str, vertices: tuple[str, str, str]) -> dic
                                  r"(?![\w(^]|\.\d|\s*[-+*/^]\s*[\w(])", text):  # the whole expression
         if set(edge) <= set(vertices) and edge[0] != edge[1]:
             key = next((e for e in out if set(e) == set(edge)), edge)
-            out.setdefault(key, re.sub(r"\s+", " ", expr).strip())
+            expr = re.sub(r"^\(\s*(.*?)\s*\)$", r"\1", re.sub(r"\s+", " ", expr).strip())  # "(x + 2)" labels as x + 2
+            out.setdefault(key, expr)
     return out
 
 
 def _linear_length(value: str) -> tuple[str, float, float] | None:
-    """"x + 3" -> ("x", 1, 3); "7 cm" -> ("", 0, 7); else None."""
-    s = re.sub(r"\s+", "", str(value or ""))
+    """"x + 3" -> ("x", 1, 3); "7 cm" -> ("", 0, 7); "\\sqrt{13}" -> ("", 0, 3.6...); else None."""
+    s = re.sub(r"^\((.*)\)$", r"\1", re.sub(r"\s+", "", str(value or "")))
     m = re.fullmatch(r"(\d+(?:\.\d+)?)?\*?([a-z])(?:([-+]\d+(?:\.\d+)?))?", s)
     if m:
         return m.group(2), float(m.group(1) or 1), float(m.group(3) or 0)
-    n = _first_number(value)
-    return ("", 0.0, n) if n is not None and re.match(r"\s*\d", str(value)) else None
+    n = _length_value(value)
+    return ("", 0.0, n) if n is not None and re.match(r"\s*(?:\d|\\sqrt|√|sqrt)", str(value)) else None
 
 
 def _solve_triangle_unknown(vertices: tuple[str, str, str], forms: dict[str, tuple[float, float]],
@@ -1283,8 +1405,8 @@ def _solve_triangle(vertices: tuple[str, str, str], sides: dict[str, float], ang
 
 
 def _unit_label(value: str) -> str:
-    """8 cm -> 8\\,\\mathrm{cm}; anything else unchanged."""
-    m = re.fullmatch(r"\s*(-?\d+(?:\.\d+)?)\s*([A-Za-z]+(?:/[A-Za-z]+)?)\s*", str(value or ""))
+    """8 cm -> 8\\,\\mathrm{cm}, \\sqrt{13} cm -> \\sqrt{13}\\,\\mathrm{cm}; anything else unchanged."""
+    m = re.fullmatch(r"\s*(-?\d+(?:\.\d+)?|(?:\d+(?:\.\d+)?)?\\sqrt\{\d+(?:\.\d+)?\})\s*([A-Za-z]+(?:/[A-Za-z]+)?)\s*", str(value or ""))
     return m.group(1) + r"\,\mathrm{" + m.group(2) + "}" if m else str(value or "")
 
 
@@ -1354,7 +1476,7 @@ def _triangle_overrides(req: GenerateReq) -> dict[str, str]:
             symbolic.add(edge)
     angle_labels = _extract_triangle_angles(text, vertices)
     overrides = {"A": ta, "B": tb, "C": tc}
-    sides = {edges[e]: _first_number(v) for e, v in side_labels.items() if e not in symbolic and re.search(r"\d", str(v))}
+    sides = {edges[e]: _length_value(v) for e, v in side_labels.items() if e not in symbolic and re.search(r"\d", str(v))}
     angles = {v: _first_number(a) for v, a in angle_labels.items() if _first_number(a) is not None}
     solved = _solve_triangle(vertices, sides, angles)
     if symbolic and not solved:
@@ -3327,7 +3449,7 @@ def _accept_critic_correction(req: GenerateReq, original_tikz: str, corrected_ti
     local_reject = _local_reject_critic_correction(req, original_tikz, corrected_tikz, critic_text)
     if local_reject:
         return False, local_reject
-    if not GEMINI_KEYS:
+    if not _llm_configured():
         if "deterministic-template" in source or "topic-template" in source:
             return False, "verifier unavailable for deterministic correction"
         return True, "accepted by local checks"
@@ -3352,7 +3474,7 @@ def _verify_visual_accuracy(req: GenerateReq, tikz: str, source: str = "draft") 
         corrected, reason = heuristic
         print(f"[critic] heuristic correction for {source}: {reason}", flush=True)
         return corrected, reason
-    if not GEMINI_KEYS:
+    if not _llm_configured():
         print(f"[critic] skipped model critic for {source}: no Gemini key configured.", flush=True)
         return tikz, ""
     try:
@@ -3908,6 +4030,11 @@ def health():
         "model_candidates": _available_models(),
         "last_success_model": _last_success_model,
         "lanes": _lane_report(),
+        "bridge": {
+            "configured": bool(LLM_BRIDGE_URL),
+            "resting_s": max(0, round(_bridge_state["until"] - time.time())),
+            "last_error": _bridge_state["last"],
+        },
         "catalog_available": CATALOG_AVAILABLE,
         "catalog_enabled": CATALOG_ENABLED,
         "elementary_available": elementary_diagram is not None,
@@ -4975,6 +5102,8 @@ A visual is READY only if ALL of these hold:
 - Drawn to the givens: stated measurements look like their labels. Of two labelled lengths the larger is drawn longer, and in about their ratio (a box labelled 3 by 4 by 12 is about three times as tall as it is wide, not a cube); an angle labelled 60 degrees looks like 60 degrees, not 30 or 90. Rough proportions are enough: a very short side may be drawn somewhat longer so it stays visible, and force or velocity arrows only need to be longer for larger magnitudes. Each given sits on the side, edge or angle the question names it for (side XY runs between X and Y; angle Y is at vertex Y): FAIL a given on the wrong part, a measurement shown twice, or an angle value marked at a vertex the question does not give it for.
 - Interior angles: in a named angle XYZ, Y is the vertex. Unless the question explicitly asks for an exterior, reflex, or major angle, the mark and its label must lie in the smaller interior sector between YX and YZ. For circle theorems, FAIL angle AOB = 80 degrees if the diagram marks the exterior 280-degree sector, and FAIL angle ACB if its mark is outside the inscribed triangle rather than between CA and CB.
 - Answer-safe: it does not reveal a value the student is asked to find (a solved magnitude, coordinate, angle, or final answer); such values appear only as a symbol or ?, and placeholders like ? or (?, ?) are correct. Values STATED IN THE QUESTION are givens and may be labelled, including given vectors, points, coordinates, and lengths (e.g. v = <2, 3, 4> when the question gives it). Guide lines, dashed drops, or tick labels that locate an unknown point on the axes reveal its coordinates: FAIL them unless the question gives that point. When the student must solve an inequality or show its solution, a circle or dot at the boundary and shading or an arrow in one direction IS the answer: FAIL it, even if the description asks for it. When the question gives a function's equation and asks for its features (asymptotes, holes, intercepts), the graph of that function is wanted: its curve, dashed asymptotes and open circles at holes may be drawn, but their labels must be ? and no intercept may be marked or labelled. A label (axis tick numbers aside) may show only numbers the question states: FAIL a label with a value the student has to work out, including an intermediate result such as a Venn region count, a branch probability, a constraint equation or a distance computed from speed and time, even if the description asks for it.
+- The "Diagram:" description is a guide written by another model, not a requirement, and it may contain values the student has to work out. Only the question's own text sets the givens. Never FAIL a diagram for leaving out something the description asks for when showing it would reveal a value the student works out (a computed coordinate, side length or angle); FAIL a diagram that shows such a value even when the description asks for it.
+- To-scale coordinate plots: points drawn at their true positions on a regular grid with evenly spaced ticks are correct and do NOT reveal anything, even when the student could read a position off the grid; never FAIL them for that. What reveals a worked-out value is a label, a tick or tick number, or a guide line placed exactly at it: a point labelled A(3, 5) when the question does not give A, ticks only at 1, 2, 3 and 9 where computed points sit, or an angle labelled 105 degrees that the student must find.
 - Legible: every label can be read and sits by what it names - nothing tiny, collapsed, or cramped into the origin. FAIL a diagram whose supposedly independent vectors are drawn nearly collinear, or whose parallelogram/triangle collapses to a sliver.
 
 Tell mathematical problems from cosmetic ones. FAIL is for a diagram that is wrong or unsafe: wrong mathematics or geometry, not drawn to its givens, a given on the wrong part, a revealed answer, the wrong kind of diagram, or a label that cannot be read or seems to name the wrong object. COSMETIC is for a diagram that is correct and safe but looks off: tick marks, tick spacing, grid or window that differ from the description (while the student can still read every value the question needs), or a label touching a line or another label while still readable, or a missing extra the description asks for that the student does not need to answer (an empty grid or blank space to sketch on). Trivial cosmetic flaws are PASS. Never FAIL a correct diagram for a cosmetic reason."""
@@ -5137,11 +5266,12 @@ def _readiness_call(prompt: str, images: list[str]) -> str:
     models = _verifier_models()
     floor = {"models": models} if models else {}
     try:
-        return _gemini(prompt, as_json=False, temperature=0.0, **({"images": images} if images else {}), **floor).strip()
+        return _gemini(prompt, as_json=False, temperature=0.0, **({"images": images} if images else {}), **floor,
+                       role="verify").strip()
     except Exception as exc:
         if images and "error 400" in str(exc):
             _diagnostic("readiness-picture-refused", str(exc))
-            return _gemini(prompt, as_json=False, temperature=0.0, **floor).strip()
+            return _gemini(prompt, as_json=False, temperature=0.0, **floor, role="verify").strip()
         raise
 
 
@@ -5149,7 +5279,7 @@ def _readiness_verdict(req: GenerateReq, tikz: str, image: str | None = None) ->
     """Readiness gate for a drawing: its code and, when given, its rendered
     picture. "PASS", "COSMETIC" (correct and safe, looks off: shippable) or
     "FAIL". A verifier outage is not a PASS."""
-    if not GEMINI_KEYS:
+    if not _llm_configured():
         return "FAIL", "verifier unavailable"
     try:
         out = _readiness_call(_readiness_prompt(req, tikz), [image] if image else [])
@@ -5182,7 +5312,7 @@ def _readiness_choice(req: GenerateReq, codes: tuple[str, str], images: tuple, r
     """One verifier call comparing two versions of a drawing: (index of the
     version to ship, "") or (None, reason). Judging them in separate calls let
     one verdict fail a label the other passed."""
-    if not GEMINI_KEYS:
+    if not _llm_configured():
         return None, "verifier unavailable"
     try:
         out = _readiness_call(_readiness_pair_prompt(req, codes[0], codes[1], reports),
@@ -5342,6 +5472,7 @@ def _reference_generate(req: GenerateReq) -> dict | None:
                 _visual_prompt(req, repair_log=repair_log, previous_code=tikz, references=references, spec=plan),
                 as_json=True,
                 temperature=0.2,
+                role="draw",
             )
         except Exception as exc:
             print(f"[reference] generation Gemini failure: {str(exc)[:180]}", flush=True)
@@ -5620,7 +5751,7 @@ def _cleanup_jobs() -> None:
 def _set_job(job_id: str, **values) -> None:
     if values.get('error'):
         error = str(values['error'])
-        for key in GEMINI_KEYS:
+        for key in _secret_values():
             error = error.replace(key, '[redacted]')
         values['error'] = error[:500]
     with _jobs_lock:

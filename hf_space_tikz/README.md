@@ -221,6 +221,20 @@ Requests go to the preferred model's least-used ready key, so parallel jobs
 spread across keys. When every lane is resting, a call waits up to
 `GEMINI_MAX_WAIT` seconds (default 60) for the first one to recover, then fails
 closed. `/health` lists each lane's readiness and last outcome, without keys.
+
+### Local model bridge (optional, local runs only)
+
+When `LLM_BRIDGE_URL` (and `LLM_BRIDGE_TOKEN`) are set, every model call goes
+first to that bridge (`tools/codex_bridge/bridge.js`: the Codex CLI on the
+owner's PC) with a role: `plan` (fit checks, parameters, diagram plans),
+`draw` (TikZ) or `verify` (the picture check). Any bridge failure falls back
+to the Gemini lanes; a usage-limit reply (429) rests the bridge for its
+`retry_after`, an unreachable bridge for 60 s. `/health` shows `bridge`
+(configured, resting seconds, last error). The Space leaves both unset.
+A local run also sets `CORS_ORIGINS` (the owner's pages only) and
+`TRUSTED_HOSTS` (`localhost,127.0.0.1`, against DNS rebinding); unset, they
+stay "any origin" and "any host", as on the Space.
+Local setup: `tools/codex_bridge/README.md`.
 6. Wait for the Space to build.
 7. Test `/health`.
 

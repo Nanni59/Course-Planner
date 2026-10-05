@@ -16,6 +16,8 @@ tiny.js
 .venv-tikz/
 .local-tools/
 .local-gemini-keys.txt
+.local-tikz.env
+tools/codex_bridge/.token
 tmp/
 
 # Python build artifacts (should never be committed)

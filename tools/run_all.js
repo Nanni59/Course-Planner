@@ -29,6 +29,7 @@ const SUITES = [
     { cmd: 'node', args: ['tools/question_ocr_test.js'] },
     { cmd: 'node', args: ['tools/study_progress_test.js'] },
     { cmd: 'node', args: ['tools/gemini_model_fallback_test.js'] },
+    { cmd: 'node', args: ['tools/codex_bridge_test.js'] },
     { cmd: 'python', args: ['tools/worksheet_visual_route_test.py'], fallbackCmd: 'python3' },
 ];
 
